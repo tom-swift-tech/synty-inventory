@@ -1,0 +1,4 @@
+# Python 3.11+. Runtime code is stdlib-only.
+# PyYAML is optional (config.yaml); a fallback parser is used if it is missing.
+-e ".[dev]"
+PyYAML>=6.0

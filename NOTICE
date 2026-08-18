@@ -1,0 +1,40 @@
+Synty Pack Inventory (synty-inventory)
+Copyright 2026 Tom Swift
+
+Licensed under the Apache License, Version 2.0 (the "License").
+You may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+This License does not grant permission to use the trade names, trademarks,
+service marks, or product names of the copyright holder, except as required
+for reasonable and customary use in describing the origin of the Work and
+reproducing the content of this NOTICE file.
+
+Third-party assets
+------------------
+This repository contains only original software and documentation. It does
+not include Synty Studios meshes, textures, materials, prefabs, source
+files, .unitypackage / Unreal packages, preview images, or generated
+per-pack catalogs.
+
+Synty, POLYGON, and related names are trademarks of Synty Studios Limited.
+This project is not affiliated with, endorsed by, or sponsored by Synty
+Studios Limited.
+
+Users must license Synty packs separately and follow the Synty EULA and,
+where the pack was purchased on the Unity Asset Store, the Unity Asset
+Store EULA. Those licenses are not granted by this project.
+
+Do not commit, publish, or redistribute:
+
+  - original or extracted Synty packages and art
+  - preview.png files written by --extract-previews
+  - generated catalog JSON (asset lists, GUIDs, measured sizes, transcribed
+    in-pack text)
+  - local config.yaml (machine paths)
+
+Optional --vlm sends asset names and, if present, preview images to a
+third-party API. That may be restricted by the Synty or Unity EULA; it is
+off by default and is the user's responsibility.

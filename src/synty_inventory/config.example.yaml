@@ -1,0 +1,40 @@
+# Copy this file to config.yaml and set paths for your machine.
+#   copy config.example.yaml config.yaml
+#
+# config.yaml is local (gitignored). Do not put machine paths in source,
+# tests, or skills — only here, via --config, or via the env vars below.
+#
+# Resolution order (highest wins):
+#   1. Environment variables listed on each key
+#   2. --config PATH  (or SYNTI_CONFIG)
+#   3. ./config.yaml in the current working directory
+#   4. config.yaml next to this tool checkout
+#
+# Relative paths are resolved against the directory that contains the
+# config file (or cwd when a value comes from the environment).
+#
+# Required: unity_root, extracted_root, catalogs
+# Optional: viewer_data, threejs_v2
+#
+# Print what the tool resolved:
+#   python -m synty_inventory config
+
+# Original Synty .unitypackage drop (packages, NOT extracted assets).
+# Env: SYNTI_UNITY_ROOT
+unity_root: "/path/to/your/Synty/Unity"
+
+# Extracted Unity pack trees, one folder per pack_id (POLYGON_City, …).
+# Env: SYNTI_EXTRACTED_ROOT
+extracted_root: "/path/to/your/extracted/packs"
+
+# Optional reserved path (unused by the scanner today).
+# Env: SYNTI_THREEJS_V2
+threejs_v2: "/path/to/optional/threejs-v2"
+
+# Optional local measured sizes / sign overlays. Not required; not in this repo.
+# Env: SYNTI_VIEWER_DATA
+viewer_data: "/path/to/optional/viewer-data"
+
+# Where per-pack JSON catalogs are written and queried (keep out of git).
+# Env: SYNTI_CATALOGS
+catalogs: "/path/to/your/synty_catalogs"
