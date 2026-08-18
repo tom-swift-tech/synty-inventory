@@ -64,11 +64,18 @@ A filename does not tell an agent that a police plaque sits above the door
 on floors 1–2, or that a barber pole is a side-projecting first-floor
 identity piece. The catalog does.
 
+That is what the inventory is for: query by meaning, then instantiate the
+prefab. Here an agent uses the catalog while generating a building from
+pack pieces in Unity:
+
+![Agent querying synty-inventory and assembling a building from pack pieces in Unity](assets/synty-tools.gif)
+
 ## Layout
 
 ```
 src/synty_inventory/   scan, enrich, query
 skill/SKILL.md         skill (copy into ~/.grok/skills/synty-inventory/)
+assets/synty-tools.gif demo: catalog-driven building assembly in Unity
 config.example.yaml    template — copy to config.yaml
 config.yaml            local paths (gitignored; do not commit)
 LICENSE / NOTICE       Apache-2.0 + third-party asset notice
