@@ -7,7 +7,7 @@ brief's "read-only inspection ... is fine" note; these are just the
 documented prefix families, not a live scan.
 """
 
-from synty_inventory.knowledge import bld_exterior_family, infer, is_interior_bld
+from synty_inventory.knowledge import bld_exterior_family, infer, is_interior_bld, pack_style
 from synty_inventory.schema import (
     ATTACHMENTS,
     MODULE_ROLES,
@@ -371,6 +371,361 @@ REPRESENTATIVE_STEMS = [
     # curated
     "SM_Prop_Sign_Police_01", "SM_Prop_Sign_Barber_01",
 ]
+
+
+# --- new-pack vocabulary: PACK_STYLES ----------------------------------------
+# Stems below are hardcoded from the lead-provided .pack_listings/*.json
+# snapshots (Military/War/Gang_Warfare/BattleRoyale/Heist/Warehouse_Map),
+# never read from that directory at test time.
+
+
+def test_pack_style_for_new_packs():
+    assert pack_style("POLYGON_Military") == "lowpoly_military"
+    assert pack_style("POLYGON_War") == "lowpoly_military"
+    assert pack_style("POLYGON_Gang_Warfare") == "lowpoly_urban_crime"
+    assert pack_style("POLYGON_BattleRoyale") == "lowpoly_battle_royale"
+    assert pack_style("POLYGON_Heist") == "lowpoly_urban_crime"
+    assert pack_style("POLYGON_Military_Warehouse_Map") == "lowpoly_military"
+    assert pack_style("POLYGON_Mech") == "lowpoly_mech"
+    assert pack_style("ANIMATION_Emotes_And_Taunts") == "animation"
+    assert pack_style("INTERFACE_Military_Combat_HUD") == "ui"
+
+
+# --- SM_Wep_* weapon vocabulary -------------------------------------------------
+
+
+def test_wep_crosshair_is_ui_not_a_scene_weapon():
+    rec = infer("SM_Wep_Crosshair_01")
+    assert rec["type"] == "ui/icon"
+    assert rec["semantic_role"] == "ui_element"
+
+
+def test_wep_mod_barrel_is_weapon_mod_part():
+    rec = infer("SM_Wep_Mod_A_Barrel_01")
+    assert rec["type"] == "weapon"
+    assert rec["semantic_role"] == "weapon"
+    assert rec["semantic_detail"] == "weapon_mod"
+    assert rec["part"]["class"] == "weapon_mount"
+    assert rec["placement"]["mount"] == "socket"
+
+
+def test_wep_preset_is_assembled_weapon():
+    rec = infer("SM_Wep_Preset_A_Rifle_01")
+    assert rec["type"] == "weapon"
+    assert rec["semantic_detail"] == "assembled_weapon"
+
+
+def test_wep_named_weapons_are_weapon_type_with_socket_mount():
+    for stem, detail in (
+        ("SM_Wep_Pistol_American_01", "pistol"),
+        ("SM_Wep_Knife_01", "knife"),
+        ("SM_Wep_RPG_01", "rpg"),
+        ("SM_Wep_Grenade_01", "grenade"),
+    ):
+        rec = infer(stem)
+        assert rec["type"] == "weapon", stem
+        assert rec["semantic_role"] == "weapon", stem
+        assert rec["semantic_detail"] == detail, stem
+        assert rec["placement"]["mount"] == "socket", stem
+
+
+def test_wep_pistol_nationality_is_a_tag_not_the_detail():
+    rec = infer("SM_Wep_Pistol_American_01")
+    assert "american" in rec["tags"]
+    assert rec["semantic_detail"] == "pistol"
+
+
+# --- SM_Veh_* military vehicle vocabulary ---------------------------------------
+
+
+def test_veh_tank_is_vehicle():
+    rec = infer("SM_Veh_Tank_German_01")
+    assert rec["type"] == "vehicle"
+    assert rec["semantic_role"] == "vehicle"
+    assert rec["semantic_detail"] == "military_vehicle"
+
+
+def test_veh_destroyed_variant_is_tagged_wreck():
+    rec = infer("SM_Veh_Tank_German_01_Destroyed")
+    assert rec["type"] == "vehicle"
+    assert rec["semantic_detail"] == "destroyed_vehicle"
+    assert "destroyed" in rec["tags"]
+    assert "wreck" in rec["tags"]
+
+
+def test_veh_apc_and_helicopter_are_vehicles():
+    for stem in ("SM_Veh_APC_01", "SM_Veh_APC_Heavy_01", "SM_Veh_Helicopter_Attack_01"):
+        rec = infer(stem)
+        assert rec["type"] == "vehicle", stem
+
+
+def test_veh_attach_is_vehicle_part_not_a_whole_vehicle():
+    rec = infer("SM_Veh_Attach_Aerial_01")
+    assert rec["type"] == "vehicle/part"
+    assert rec["semantic_role"] == "vehicle_part"
+    assert rec["part"]["class"] == "greeble"
+    assert rec["placement"]["mount"] == "socket"
+
+
+# --- POLYGON_Mech (no listing -- assumed stem pattern, see brief report) -------
+
+
+def test_mech_whole_body_is_vehicle():
+    rec = infer("SM_Veh_Mech_01")
+    assert rec["type"] == "vehicle"
+    assert rec["semantic_detail"] == "mech"
+
+
+def test_mech_attach_slots_map_to_nearest_part_class():
+    for stem, part_class in (
+        ("SM_Veh_MechAttach_Arm_01", "armor"),
+        ("SM_Veh_MechAttach_Leg_01", "armor"),
+        ("SM_Veh_MechAttach_Chest_01", "armor"),
+        ("SM_Veh_MechAttach_Head_01", "armor"),
+        ("SM_Veh_MechAttach_Hips_01", "armor"),
+        ("SM_Veh_MechAttach_Foot_01", "armor"),
+        ("SM_Veh_MechAttach_Back_01", "armor"),
+        ("SM_Veh_MechAttach_Hand_01", "armor"),
+        ("SM_Veh_MechAttach_Neck_01", "armor"),
+        ("SM_Veh_MechAttach_Cockpit_01", "cockpit"),
+    ):
+        rec = infer(stem)
+        assert rec["type"] == "vehicle/part", stem
+        assert rec["part"]["class"] == part_class, stem
+
+
+def test_mech_attach_weapon_slot_is_weapon_mount():
+    rec = infer("SM_Veh_MechAttach_Weapon_01")
+    assert rec["part"]["class"] == "weapon_mount"
+
+
+def test_mech_matches_split_token_spelling_too():
+    # Tolerant match: "Mech"/"Attach" may or may not be glued into one token.
+    rec = infer("SM_Veh_Mech_Attach_Cockpit_01")
+    assert rec["type"] == "vehicle/part"
+    assert rec["part"]["class"] == "cockpit"
+
+
+# --- SM_Gen_<Family>_* wrapper (PolygonGeneric's shared kit) -------------------
+
+
+def test_gen_wrapper_unwraps_env_prop_bld_chr_wep():
+    assert infer("SM_Gen_Env_Tree_01")["type"] == "environment"
+    assert infer("SM_Gen_Prop_Crate_01")["semantic_role"] == "container"
+    assert infer("SM_Gen_Bld_Beam_01")["type"] == "building/module"
+    assert infer("SM_Gen_Wep_Axe_01")["type"] == "weapon"
+
+
+def test_gen_wrapper_chr_attach_is_character_part():
+    rec = infer("SM_Gen_Chr_Attach_Beanie_01")
+    assert rec["type"] == "character/part"
+    assert rec["semantic_role"] == "character_part"
+
+
+def test_gen_wrapper_preserves_original_id():
+    rec = infer("SM_Gen_Chr_Attach_Beard_01")
+    assert rec["id"] == "SM_Gen_Chr_Attach_Beard_01"
+
+
+def test_gen_skydome_is_skybox():
+    # SM_Gen_Env_Skydome_01 (PolygonGeneric) and the pack's own SM_Skydome_01
+    # both need to resolve to skybox even though "Skydome" isn't a prefix.
+    assert infer("SM_Gen_Env_Skydome_01")["type"] == "skybox"
+    assert infer("SM_Skydome_01")["type"] == "skybox"
+
+
+# --- new SM_Bld_* hero-building families (war/military/crime packs) -----------
+
+
+def test_bld_village_and_variants_are_valid_building_types():
+    assert infer("SM_Bld_Village_01")["type"] == "building/shell"
+    rec = infer("SM_Bld_Village_ArchwayBridge_01")
+    assert rec["type"] == "building/module"
+    assert rec["module"]["family"] == "Village"
+
+
+def test_bld_tent_cover_is_a_module_role():
+    rec = infer("SM_Bld_Tent_Cover_01")
+    assert rec["type"] == "building/module"
+    assert rec["module"]["role"] == "cover"
+
+
+def test_bld_guardtower_both_spellings_resolve_same_family():
+    one_word = infer("SM_Bld_GuardTower_01")
+    two_word = infer("SM_Bld_Guard_Tower_01")
+    assert one_word["type"] == "building/shell"
+    assert two_word["type"] == "building/shell"
+    assert one_word["module"]["family"] == two_word["module"]["family"] == "GuardTower"
+
+
+def test_bld_state_building_two_token_family():
+    rec = infer("SM_Bld_State_Building_01")
+    assert rec["type"] == "building/shell"
+    assert rec["module"]["family"] == "StateBuilding"
+
+
+def test_bld_bunker_and_hangar_hero_shells():
+    for stem in ("SM_Bld_Bunker_01", "SM_Bld_Hangar_01", "SM_Bld_Hanger_01"):
+        rec = infer(stem)
+        assert rec["type"] == "building/shell", stem
+
+
+def test_bld_camonet_and_camonetting_spellings():
+    for stem in ("SM_Bld_CamoNet_Tent_01", "SM_Bld_Camonetting_Tent_01"):
+        rec = infer(stem)
+        assert rec["module"]["family"] == "CamoNet", stem
+
+
+def test_bld_base_kit_still_routes_as_interior_module():
+    # POLYGON_Military ships the same shared PolygonGeneric "Base" kit as
+    # the sci-fi packs (SM_Bld_Base_45_Wall_Door_01 etc.) -- must not
+    # regress now that new exterior families sit alongside it.
+    rec = infer("SM_Bld_Base_Door_Large_01")
+    assert rec["type"] == "building/interior_module"
+    assert rec["module"]["family"] == "Base"
+    assert rec["module"]["role"] == "door"
+
+
+# --- token vocabulary richness (legacy fallback + TOKEN_TAGS) -----------------
+
+
+def test_barbed_wire_gets_military_tags_not_the_scifi_bed_prop():
+    # Regression: naive substring matching inside _infer_prop_scifi used to
+    # match "bed" inside the concatenated "barbedwire" and misclassify this
+    # as an interior bed prop.
+    rec = infer("SM_Prop_Barbed_Wire_01")
+    assert rec["type"] == "prop"
+    assert "barbed_wire" in rec["tags"]
+    assert rec["semantic_role"] != "interior_prop"
+
+
+def test_bare_roof_stems_stay_generic_building_module_not_a_family():
+    # Regression: a bare "Roof" head token must NOT be registered in
+    # _CITY_SINGLE_FAMILIES. SM_Bld_Roof_* exists as a bare head token both
+    # in the new war/crime packs (Military's Roof_Cap, Gang_Warfare's
+    # Roof_Beam/Roof_Flat_*) AND in POLYGON_SciFi_City (Roof_Pagoda) /
+    # POLYGON_SciFi_Space (Roof_Exterior), packs this lane does not own.
+    # Giving "Roof" a dedicated family label would silently change those
+    # other packs' classification as a side effect. Bare Roof stems must
+    # fall through to the generic legacy building/module path instead.
+    for stem in (
+        "SM_Bld_Roof_Cap_01",
+        "SM_Bld_Roof_01",
+        "SM_Bld_Roof_Beam_01",
+        "SM_Bld_Roof_Flat_Corner_01",
+        "SM_Bld_Roof_Pagoda_01",
+        "SM_Bld_Roof_Exterior_01",
+    ):
+        rec = infer(stem)
+        assert rec["type"] == "building/module", stem
+        module = rec.get("module")
+        assert module is None or module.get("family") != "Roof", stem
+    # Access and two-token-family Roof-as-suffix stems are unaffected.
+    access = infer("SM_Bld_Roof_Access_01")
+    assert access["module"]["family"] == "RoofAccess"
+    suffix = infer("SM_Bld_State_Building_Roof_01")
+    assert suffix["module"]["family"] == "StateBuilding"
+    assert suffix["module"]["role"] == "roof"
+
+
+def test_prop_sign_medical_stays_signage_not_interior_prop():
+    # Regression: SM_Prop_Sign_* must never fall into the interior-prop-spec
+    # vocabulary just because it also contains a spec keyword like "medical".
+    rec = infer("SM_Prop_Sign_Medical_01")
+    assert rec["type"] == "prop/signage"
+
+
+def test_heist_vault_and_bank_tokens():
+    assert "vault" in infer("SM_Env_VaultDoor_Frame_01")["tags"]
+    rec = infer("SM_Prop_SafeDepositBox_Container_01")
+    assert "safe_deposit_box" in rec["tags"]
+    assert "bank" in rec["tags"]
+
+
+def test_gang_warfare_money_and_drug_lab_tokens():
+    assert "money" in infer("SM_Prop_Money_01")["tags"]
+    assert "gold" in infer("SM_Prop_Gold_01")["tags"]
+    assert "drug_lab" in infer("SM_Prop_Lab_01")["tags"]
+
+
+def test_battle_royale_supply_drop_tokens():
+    assert "airdrop" in infer("SM_Prop_EmergencyDrop_01")["tags"]
+    assert "airdrop" in infer("SM_Prop_Parachute_01")["tags"]
+
+
+def test_military_fortification_tokens():
+    assert "sandbag" in infer("SM_Env_Sandbag_01")["tags"]
+    assert "trench" in infer("SM_Env_Trench_01")["tags"]
+    assert "bunker" in infer("SM_Env_Bunker_01")["tags"]
+
+
+# --- non-placeable verification: ANIMATION_Emotes_And_Taunts / INTERFACE_Military_Combat_HUD
+
+
+def test_emotes_pack_clips_are_animation_not_placeable():
+    for stem in (
+        "A_POLY_EMOT_Affection_BlowKiss_Femn",
+        "A_POLY_EMOT_Aggressive_MenacingFists_Femn",
+    ):
+        rec = infer(stem)
+        assert rec["type"] == "animation"
+        assert rec["semantic_role"] == "animation_clip"
+
+
+def test_combat_hud_pack_elements_are_ui():
+    for stem in (
+        "HUD_MilitaryCombat_ARPGBar_01",
+        "HUD_MilitaryCombat_HotBar_01",
+    ):
+        rec = infer(stem)
+        assert rec["type"] == "ui/icon"
+        assert rec["semantic_role"] == "ui_element"
+
+
+# --- enum-membership sweep over the new packs' explicit-rule stems ------------
+
+NEW_PACK_REPRESENTATIVE_STEMS = [
+    # weapons
+    "SM_Wep_Crosshair_01", "SM_Wep_Mod_A_Barrel_01", "SM_Wep_Mod_A_Grip_02",
+    "SM_Wep_Preset_A_Rifle_01", "SM_Wep_Pistol_American_01", "SM_Wep_Knife_01",
+    "SM_Wep_RPG_01", "SM_Wep_Grenade_01", "SM_Wep_Shotgun_01", "SM_Wep_Sniper_01",
+    # vehicles
+    "SM_Veh_Tank_German_01", "SM_Veh_Tank_German_01_Destroyed", "SM_Veh_APC_01",
+    "SM_Veh_APC_Heavy_01", "SM_Veh_Helicopter_Attack_01", "SM_Veh_Truck_01",
+    "SM_Veh_Attach_Aerial_01", "SM_Veh_Attach_Container_01",
+    # mech
+    "SM_Veh_Mech_01", "SM_Veh_MechAttach_Arm_01", "SM_Veh_MechAttach_Cockpit_01",
+    "SM_Veh_MechAttach_Weapon_01", "SM_Veh_Mech_Attach_Leg_01",
+    # Gen wrapper
+    "SM_Gen_Chr_Attach_Beanie_01", "SM_Gen_Chr_Attach_Beard_01",
+    "SM_Gen_Env_Skydome_01", "SM_Skydome_01",
+    # new building families
+    "SM_Bld_Village_01", "SM_Bld_Village_ArchwayBridge_01", "SM_Bld_Tent_Cover_01",
+    "SM_Bld_GuardTower_01", "SM_Bld_Guard_Tower_01", "SM_Bld_State_Building_01",
+    "SM_Bld_State_Building_Roof_01", "SM_Bld_Bunker_01", "SM_Bld_Hangar_01",
+    "SM_Bld_Hanger_01", "SM_Bld_CamoNet_Tent_01", "SM_Bld_Camonetting_Tent_01",
+    "SM_Bld_Barracks_01", "SM_Bld_TownHouse_01", "SM_Bld_Warehouse_01",
+    "SM_Bld_Base_Door_Large_01",
+    # non-placeable
+    "A_POLY_EMOT_Affection_BlowKiss_Femn", "HUD_MilitaryCombat_ARPGBar_01",
+]
+
+
+def test_new_pack_representative_stems_use_valid_enums():
+    assert len(NEW_PACK_REPRESENTATIVE_STEMS) >= 30
+    for stem in NEW_PACK_REPRESENTATIVE_STEMS:
+        rec = infer(stem)
+        assert rec["type"] in TYPES, (stem, rec["type"])
+        assert rec["semantic_role"] in SEMANTIC_ROLES, (stem, rec["semantic_role"])
+        placement = rec["placement"]
+        assert placement["mount"] in MOUNTS, (stem, placement["mount"])
+        assert placement["attachment"] in ATTACHMENTS, (stem, placement["attachment"])
+        module = rec.get("module")
+        if module and module.get("role") is not None:
+            assert module["role"] in MODULE_ROLES, (stem, module["role"])
+        part = rec.get("part")
+        if part and part.get("class") is not None:
+            assert part["class"] in PART_CLASSES, (stem, part["class"])
 
 
 def test_all_representative_stems_use_valid_enums():
