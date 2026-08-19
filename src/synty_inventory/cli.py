@@ -105,6 +105,18 @@ def _threejs_v2(cfg) -> Path | None:
     return None
 
 
+def _engine_root(cfg, key: str) -> Path | None:
+    """Optional engine tree root (``godot_root`` / ``unreal_root``).
+
+    None when unconfigured or missing on disk — scan/enrich then leave the
+    corresponding ``files.*`` field null, same contract as ``_threejs_v2``.
+    """
+    root = cfg.get(key)
+    if root is not None and root.exists():
+        return root
+    return None
+
+
 def _catalogs(args, cfg) -> Path:
     if getattr(args, "out", None):
         return Path(args.out)
@@ -143,6 +155,8 @@ def cmd_scan(args, cfg) -> int:
     catalogs_dir = _catalogs(args, cfg)
     viewer = _viewer(cfg)
     threejs_v2 = _threejs_v2(cfg)
+    godot_root = _engine_root(cfg, "godot_root")
+    unreal_root = _engine_root(cfg, "unreal_root")
     refs = discover(target, extracted_root=cfg.get("extracted_root"))
     if args.pack:
         refs = [r for r in refs if args.pack.lower() in r.pack_id.lower()]
@@ -182,6 +196,8 @@ def cmd_scan(args, cfg) -> int:
             include_shared=args.include_shared,
             viewer_data=viewer,
             threejs_v2=threejs_v2,
+            godot_root=godot_root,
+            unreal_root=unreal_root,
             from_package=args.from_package,
             vlm_fn=vlm_fn,
             vlm_limit=args.vlm_limit,
@@ -219,6 +235,8 @@ def cmd_enrich(args, cfg) -> int:
     catalogs_dir = _catalogs(args, cfg)
     viewer = _viewer(cfg)
     threejs_v2 = _threejs_v2(cfg)
+    godot_root = _engine_root(cfg, "godot_root")
+    unreal_root = _engine_root(cfg, "unreal_root")
     from .enrich import enrich_catalog
     from .catalog import write_catalog
 
@@ -241,7 +259,7 @@ def cmd_enrich(args, cfg) -> int:
 
     out = []
     for doc in docs:
-        enrich_catalog(doc, viewer, threejs_v2=threejs_v2, catalogs_dir=catalogs_dir, vlm_fn=vlm_fn, vlm_limit=args.vlm_limit)
+        enrich_catalog(doc, viewer, threejs_v2=threejs_v2, catalogs_dir=catalogs_dir, godot_root=godot_root, unreal_root=unreal_root, vlm_fn=vlm_fn, vlm_limit=args.vlm_limit)
         dest = catalog_path(catalogs_dir, doc["pack_id"])
         existing = load_catalog(dest)
         merged = merge_catalog(existing, doc)
@@ -399,7 +417,7 @@ def cmd_validate(args, cfg) -> int:
 
 def cmd_gauntlet(args, cfg) -> int:
     catalogs_dir = _catalogs(args, cfg)
-    result = run_gauntlet(catalogs_dir, threejs_v2=_threejs_v2(cfg))
+    result = run_gauntlet(catalogs_dir, threejs_v2=_threejs_v2(cfg), godot_root=_engine_root(cfg, "godot_root"))
     emit_json(result)
     return 0 if result["ok"] else 2
 

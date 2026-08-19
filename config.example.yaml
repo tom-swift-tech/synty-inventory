@@ -14,7 +14,7 @@
 # config file (or cwd when a value comes from the environment).
 #
 # Required: unity_root, extracted_root, catalogs
-# Optional: viewer_data, threejs_v2
+# Optional: viewer_data, threejs_v2, godot_root, unreal_root
 #
 # Print what the tool resolved:
 #   python -m synty_inventory config
@@ -42,3 +42,17 @@ viewer_data: "/path/to/optional/viewer-data"
 # Where per-pack JSON catalogs are written and queried (keep out of git).
 # Env: SYNTI_CATALOGS
 catalogs: "/path/to/your/synty_catalogs"
+
+# Optional Godot export trees, one folder per pack (folder name -> pack_id
+# mapping lives in sources/godot.py's SLUG_PACK_OVERRIDES). Fills
+# files.godot_scene with a path relative to this root. Not required; scan
+# runs without it, leaving files.godot_scene null.
+# Env: SYNTI_GODOT_ROOT
+godot_root: "/path/to/optional/GoDot"
+
+# Optional Unreal export trees (.uasset), one folder per pack. Fills
+# files.unreal_uasset with a path relative to this root, unless a
+# natively-Unreal-sourced pack (scan.scan_unreal) already set it. Not
+# required; no known machine has this tree today.
+# Env: SYNTI_UNREAL_ROOT
+unreal_root: "/path/to/optional/Unreal"

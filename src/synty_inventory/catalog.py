@@ -108,6 +108,8 @@ def build_catalog(
     include_shared: bool = False,
     viewer_data: Path | None = None,
     threejs_v2: Path | None = None,
+    godot_root: Path | None = None,
+    unreal_root: Path | None = None,
     catalogs_dir: Path | None = None,
     from_package: bool = False,
 ) -> dict:
@@ -146,7 +148,7 @@ def build_catalog(
         "asset_count": len(assets),
         "assets": assets,
     }
-    enrich_catalog(doc, viewer_data, threejs_v2=threejs_v2, catalogs_dir=catalogs_dir)
+    enrich_catalog(doc, viewer_data, threejs_v2=threejs_v2, catalogs_dir=catalogs_dir, godot_root=godot_root, unreal_root=unreal_root)
     doc["asset_count"] = len(doc["assets"])
     return doc
 
@@ -180,6 +182,8 @@ def scan_and_write(
     include_shared: bool = False,
     viewer_data: Path | None = None,
     threejs_v2: Path | None = None,
+    godot_root: Path | None = None,
+    unreal_root: Path | None = None,
     from_package: bool = False,
     vlm_fn=None,
     vlm_limit: int = 0,
@@ -194,12 +198,15 @@ def scan_and_write(
         include_shared=include_shared,
         viewer_data=viewer_data,
         threejs_v2=threejs_v2,
+        godot_root=godot_root,
+        unreal_root=unreal_root,
         catalogs_dir=catalogs_dir,
         from_package=from_package,
     )
     if vlm_fn is not None:
         enrich_catalog(
-            fresh, viewer_data, threejs_v2=threejs_v2, catalogs_dir=catalogs_dir, vlm_fn=vlm_fn, vlm_limit=vlm_limit
+            fresh, viewer_data, threejs_v2=threejs_v2, catalogs_dir=catalogs_dir,
+            godot_root=godot_root, unreal_root=unreal_root, vlm_fn=vlm_fn, vlm_limit=vlm_limit
         )
     dest = catalog_path(catalogs_dir, ref.pack_id)
     existing = load_catalog(dest)
