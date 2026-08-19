@@ -1129,7 +1129,15 @@ _MECH_SLOT_PART_CLASS = {
 
 
 def _infer_mech(parsed: ParsedName) -> dict | None:
-    if not parsed.id.upper().startswith("SM_VEH_"):
+    # Two real spellings in POLYGON_Mech (validated against the extracted pack,
+    # 2026-08-19): bodies are SM_Veh_Mech_01..06; attachments are
+    # SM_Mech_<Region>_01_<Kind>_<Detail> (MechAttachments/) plus a couple of
+    # SM_Mech_01_Attach_* saddlebags. SM_Mech_* is ALWAYS an attachment --
+    # the standalone bolt-on meshes for the slot/bone system.
+    pid = parsed.id.upper()
+    is_veh = pid.startswith("SM_VEH_")
+    is_mech_part = pid.startswith("SM_MECH_")
+    if not (is_veh or is_mech_part):
         return None
     tokens_lower = [t.lower() for t in parsed.tokens]
     # substring, not exact-token, match: the assumed real stem may glue
@@ -1140,7 +1148,7 @@ def _infer_mech(parsed: ParsedName) -> dict | None:
     subject = parsed.subject_tokens
     subject_lower = [t.lower() for t in subject]
 
-    if "attach" in "".join(subject_lower):
+    if is_mech_part or "attach" in "".join(subject_lower):
         name = title_from_tokens(subject) or parsed.id
         slot = next((t for t in subject_lower if t in _MECH_SLOT_PART_CLASS), None)
         part_class = _MECH_SLOT_PART_CLASS.get(slot, "armor")

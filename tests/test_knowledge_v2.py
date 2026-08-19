@@ -506,6 +506,22 @@ def test_mech_matches_split_token_spelling_too():
     assert rec["part"]["class"] == "cockpit"
 
 
+def test_mech_real_attachment_stems_from_extracted_pack():
+    # Real POLYGON_Mech spellings (validated against the extracted pack,
+    # 2026-08-19): attachments are SM_Mech_*, NOT SM_Veh_MechAttach_*.
+    for stem in (
+        "SM_Mech_Leg_01_Armor_Shinpad_01",
+        "SM_Mech_Head_01_Armor_Helmet_01",
+        "SM_Mech_01_Attach_Saddlebag_01",
+    ):
+        rec = infer(stem)
+        assert rec["type"] == "vehicle/part", stem
+        assert rec["semantic_role"] == "vehicle_part", stem
+    assert infer("SM_Mech_Cockpit_01_Frame_01")["part"]["class"] == "cockpit"
+    # Bodies stay whole vehicles.
+    assert infer("SM_Veh_Mech_01")["type"] == "vehicle"
+
+
 # --- SM_Gen_<Family>_* wrapper (PolygonGeneric's shared kit) -------------------
 
 
