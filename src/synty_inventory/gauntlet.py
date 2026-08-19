@@ -47,7 +47,7 @@ def _path_exists(source: dict | None, rel: str | None) -> bool:
     return (Path(root) / rel).is_file()
 
 
-def run_gauntlet(catalogs_dir: Path) -> dict:
+def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None) -> dict:
     gates: list[dict] = []
 
     def gate(name: str, ok: bool, detail: str) -> None:
@@ -56,10 +56,10 @@ def run_gauntlet(catalogs_dir: Path) -> dict:
     docs = []
     if catalogs_dir.is_dir():
         for p in sorted(catalogs_dir.glob("*.json")):
-            if p.name == "index.json":
+            if p.name == "index.json" or p.name.startswith("_"):
                 continue
             doc = load_catalog(p)
-            if doc:
+            if doc and doc.get("pack_id"):
                 docs.append(doc)
 
     gate("catalogs_present", len(docs) >= 2, f"{len(docs)} pack catalogs")
@@ -171,6 +171,76 @@ def run_gauntlet(catalogs_dir: Path) -> dict:
         )
     else:
         gate("rescan_preserves_human", False, "no POLYGON_City police asset")
+
+    # --- Phase 2 gates: threejs-v2 / GLB-measured sources ---------------------
+
+    placeable = [a for doc in docs for a in (doc.get("assets") or []) if a.get("placeable")]
+
+    # Per-pack coverage, worst-first, so a failing aggregate gate points at
+    # *which* packs to look at instead of just a global ratio. Low coverage
+    # here usually traces to `placeable` over-assignment upstream (knowledge
+    # infer classifying animation/UI/rig-part assets as placeable props) or
+    # to composite character prefabs with no single matching GLB stem —
+    # neither is a threejs-v2/glb_measure defect; see report for detail.
+    def _pack_breakdown(pred) -> list[str]:
+        rows = []
+        for doc in docs:
+            pack_placeable = [a for a in (doc.get("assets") or []) if a.get("placeable")]
+            if not pack_placeable:
+                continue
+            hit = sum(1 for a in pack_placeable if pred(a))
+            rows.append((hit / len(pack_placeable), doc.get("pack_id"), hit, len(pack_placeable)))
+        rows.sort()
+        return [f"{pid} {hit}/{n} ({ratio:.0%})" for ratio, pid, hit, n in rows[:5]]
+
+    measured = sum(1 for a in placeable if (a.get("bounds") or {}).get("source") == "measured")
+    bounds_ratio = (measured / len(placeable)) if placeable else 0
+    worst_bounds = _pack_breakdown(lambda a: (a.get("bounds") or {}).get("source") == "measured")
+    gate(
+        "bounds_coverage",
+        bool(placeable) and bounds_ratio >= 0.95,
+        f"{measured}/{len(placeable)} placeable assets have measured bounds ({bounds_ratio:.1%}); "
+        f"worst packs: {worst_bounds}",
+    )
+
+    fake = [
+        a["id"]
+        for doc in docs
+        for a in (doc.get("assets") or [])
+        if a.get("bounds") is None and (a.get("dimensions") or {}).get("approx") is not None
+    ]
+    gate("no_fake_dimensions", not fake, f"{len(fake)} assets with dimensions.approx but no bounds: {fake[:5]}")
+
+    if threejs_v2 is not None:
+        glb_ok = 0
+        glb_checked = 0
+        for a in placeable:
+            rel = (a.get("files") or {}).get("glb")
+            if not rel:
+                continue
+            glb_checked += 1
+            if (threejs_v2 / rel).is_file():
+                glb_ok += 1
+        glb_ratio = (glb_ok / len(placeable)) if placeable else 0
+        worst_glb = _pack_breakdown(
+            lambda a: bool((a.get("files") or {}).get("glb")) and (threejs_v2 / a["files"]["glb"]).is_file()
+        )
+        gate(
+            "glb_paths",
+            bool(placeable) and glb_ratio >= 0.90,
+            f"{glb_ok}/{len(placeable)} placeable assets resolve files.glb under threejs_v2 "
+            f"({glb_checked} had a path set); worst packs: {worst_glb}",
+        )
+    else:
+        gate("glb_paths", True, "threejs_v2 not configured — skipped")
+
+    prov_ok = bool(police_asset and (police_asset.get("provenance") or {}).get("description") == "vlm_reviewed")
+    desc_ok = bool(police_asset and "letters" in (police_asset.get("description") or "").lower())
+    gate(
+        "vlm_overlay_applied",
+        prov_ok and desc_ok,
+        f"description={(police_asset or {}).get('description')!r}",
+    )
 
     ok = all(g["ok"] for g in gates)
     return {"ok": ok, "gates": gates}
