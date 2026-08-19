@@ -1194,7 +1194,23 @@ _CITY_SINGLE_FAMILIES = {
     "house": "House", "smallbuilding": "SmallBuilding", "woodenshack": "WoodenShack",
     "shack": "Shack", "walkway": "Walkway", "skylight": "Skylight",
     "loadingdock": "LoadingDock", "barn": "Barn", "farmhouse": "FarmHouse",
-    "farm": "Farm", "outhose": "Outhouse", "shed": "Shed", "roof": "Roof",
+    "farm": "Farm", "outhose": "Outhouse", "shed": "Shed",
+    # NOTE: deliberately no "roof": "Roof" entry here. A bare Roof head
+    # token (SM_Bld_Roof_Cap_01 in Military, SM_Bld_Roof_Beam_01 /
+    # SM_Bld_Roof_Flat_*_01 in Gang_Warfare) is common enough in the new
+    # war/crime packs, but SM_Bld_Roof_* also exists as head token in
+    # POLYGON_SciFi_City (Roof_Pagoda) and POLYGON_SciFi_Space
+    # (Roof_Exterior) -- packs this lane does not own. Adding "roof" here
+    # would change those two lanes' existing classification (family/role
+    # go from null/None to "Roof"/"misc") as a side effect of vocab added
+    # for unrelated packs. Bare Roof stems in the new packs fall through
+    # to _infer_legacy instead, which (after the TYPE_MIGRATION fix above)
+    # still resolves to a valid "building/module" type -- just without the
+    # more specific family/role. "SM_Bld_Roof_Access_01" and two-token
+    # "<Family>_Roof_01" suffixes (e.g. State_Building_Roof_01) are
+    # unaffected -- those are handled by the explicit branch and by
+    # _EXTERIOR_ROLE_PRECEDENCE's "roof" role-suffix respectively, not by
+    # this table.
 }
 
 

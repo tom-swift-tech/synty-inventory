@@ -599,6 +599,35 @@ def test_barbed_wire_gets_military_tags_not_the_scifi_bed_prop():
     assert rec["semantic_role"] != "interior_prop"
 
 
+def test_bare_roof_stems_stay_generic_building_module_not_a_family():
+    # Regression: a bare "Roof" head token must NOT be registered in
+    # _CITY_SINGLE_FAMILIES. SM_Bld_Roof_* exists as a bare head token both
+    # in the new war/crime packs (Military's Roof_Cap, Gang_Warfare's
+    # Roof_Beam/Roof_Flat_*) AND in POLYGON_SciFi_City (Roof_Pagoda) /
+    # POLYGON_SciFi_Space (Roof_Exterior), packs this lane does not own.
+    # Giving "Roof" a dedicated family label would silently change those
+    # other packs' classification as a side effect. Bare Roof stems must
+    # fall through to the generic legacy building/module path instead.
+    for stem in (
+        "SM_Bld_Roof_Cap_01",
+        "SM_Bld_Roof_01",
+        "SM_Bld_Roof_Beam_01",
+        "SM_Bld_Roof_Flat_Corner_01",
+        "SM_Bld_Roof_Pagoda_01",
+        "SM_Bld_Roof_Exterior_01",
+    ):
+        rec = infer(stem)
+        assert rec["type"] == "building/module", stem
+        module = rec.get("module")
+        assert module is None or module.get("family") != "Roof", stem
+    # Access and two-token-family Roof-as-suffix stems are unaffected.
+    access = infer("SM_Bld_Roof_Access_01")
+    assert access["module"]["family"] == "RoofAccess"
+    suffix = infer("SM_Bld_State_Building_Roof_01")
+    assert suffix["module"]["family"] == "StateBuilding"
+    assert suffix["module"]["role"] == "roof"
+
+
 def test_prop_sign_medical_stays_signage_not_interior_prop():
     # Regression: SM_Prop_Sign_* must never fall into the interior-prop-spec
     # vocabulary just because it also contains a spec keyword like "medical".
