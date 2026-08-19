@@ -93,6 +93,12 @@ def merge_asset(old: dict | None, new: dict) -> dict:
     elif new.get("thumbnail"):
         # keep existing unless it disappeared and new has one
         out["thumbnail"] = old.get("thumbnail") or new["thumbnail"]
+    # Classification flags are rules/scanner-owned: a rescan with better
+    # rules must be able to flip ANIMATION clips to placeable=False. Humans
+    # can still pin them via locked_fields.
+    for key in ("placeable", "kind", "size_hint"):
+        if key in new and not is_human_field(old, key):
+            out[key] = new[key]
     for key in ("kit", "guid", "shared_kit"):
         if new.get(key) is not None:
             out[key] = new[key]

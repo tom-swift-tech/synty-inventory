@@ -8,8 +8,8 @@ from pathlib import Path
 
 from . import knowledge
 from .merge import stamp_auto
-from .sources.glb_measure import apply_measured_bounds, load_cache, save_cache
-from .sources.threejs_v2 import apply_threejs_overlay, catalog_by_id, glb_index
+from .sources.glb_measure import apply_measured_bounds, bundle_index, load_cache, save_cache
+from .sources.threejs_v2 import apply_threejs_overlay, bundle_glbs, catalog_by_id, glb_index
 from .sources.viewer import (
     apply_viewer_module,
     load_type_sign_usage,
@@ -142,12 +142,41 @@ def apply_viewer_overlays(
     return asset
 
 
+PACK_PREFIX_CLASS = {
+    # pack_id prefix → (type, kind, placeable, semantic_role). Applied only when
+    # the stem-level rules left the asset on the generic "prop" fallback —
+    # e.g. INTERFACE_* HUD stems (AssetDemo_/Button_/Dial_/Slider_…) and
+    # ANIMATION_* clips that carry no recognisable prefix.
+    "INTERFACE_": ("ui", "ui", False, "ui_element"),
+    "ANIMATION_": ("animation", "animation", False, "animation_clip"),
+    "SIMPLE_Sky": ("skybox", "material", False, "skybox"),
+}
+
+
+def _apply_pack_overrides(inferred: dict, pack_id: str, raw) -> None:
+    for prefix, (atype, kind, placeable, role) in PACK_PREFIX_CLASS.items():
+        if not pack_id.startswith(prefix):
+            continue
+        stem_up = (raw.id or "").upper()
+        # real meshes inside these packs (demo props, targets) stay as classified
+        if stem_up.startswith(("SM_", "SK_", "CHR_")):
+            return
+        if inferred.get("type") in {"prop", None} or inferred.get("type") == atype:
+            inferred["type"] = atype
+            inferred["kind"] = kind
+            inferred["placeable"] = placeable
+            inferred["semantic_role"] = role
+            inferred.setdefault("semantic_detail", "")
+        return
+
+
 def skeleton_asset(
     raw,
     pack_id: str,
     viewer_data: Path | None,
 ) -> dict:
     inferred = knowledge.infer(raw.id)
+    _apply_pack_overrides(inferred, pack_id, raw)
     measured = measured_size(viewer_data, pack_id, raw.id)
     bounds = None
     if measured:
@@ -226,6 +255,7 @@ def enrich_catalog(
     pieces = load_viewer_pieces(viewer_data, pack_id)
     tj_catalog = catalog_by_id(threejs_v2, pack_id)
     glb_exact, glb_ci = glb_index(threejs_v2, pack_id)
+    bundles = bundle_index(threejs_v2, pack_id, bundle_glbs(threejs_v2, pack_id))
 
     cache_path = (catalogs_dir / "_measure_cache.json") if catalogs_dir else None
     cache = load_cache(cache_path) if cache_path else {}
@@ -237,7 +267,7 @@ def enrich_catalog(
         apply_viewer_module(asset, pieces.get(asset["id"]))
         glb_rel = glb_exact.get(asset["id"]) or glb_ci.get(asset["id"].lower())
         apply_threejs_overlay(asset, tj_catalog.get(asset["id"]), glb_rel)
-        apply_measured_bounds(asset, threejs_v2, cache, stats)
+        apply_measured_bounds(asset, threejs_v2, cache, stats, bundles=bundles)
         stamp_auto(asset)
         if vlm_fn is None:
             continue

@@ -96,12 +96,28 @@ def _corners(min_: list[float], max_: list[float]) -> np.ndarray:
     return np.array([[x, y, z, 1.0] for x in xs for y in ys for z in zs], dtype=np.float64)
 
 
-def measure_glb(path: Path) -> tuple[list[float], list[float]] | None:
+def measure_glb(path: Path, node_name: str | None = None) -> tuple[list[float], list[float]] | None:
     """World-space (min, max) over every mesh primitive's POSITION accessor
-    in the default scene, or None if the GLB has no measurable geometry."""
+    in the default scene, or None if the GLB has no measurable geometry.
+
+    ``node_name`` restricts measurement to the subtree(s) rooted at nodes of
+    that name — bundle GLBs (``Characters.glb``) hold many assets as named
+    nodes, and this is how per-stem bounds come out of them."""
     doc = read_glb_json(path)
     if not doc:
         return None
+    return _measure_doc(doc, node_name)
+
+
+def bundle_node_names(path: Path) -> list[str]:
+    """Names of mesh-bearing nodes in a GLB (to index bundle files by stem)."""
+    doc = read_glb_json(path)
+    if not doc:
+        return []
+    return [n.get("name") for n in doc.get("nodes") or [] if n.get("name") and n.get("mesh") is not None]
+
+
+def _measure_doc(doc: dict, node_name: str | None) -> tuple[list[float], list[float]] | None:
     accessors = doc.get("accessors") or []
     meshes = doc.get("meshes") or []
     nodes = doc.get("nodes") or []
@@ -115,14 +131,15 @@ def measure_glb(path: Path) -> tuple[list[float], list[float]] | None:
     global_max = np.array([-np.inf, -np.inf, -np.inf])
     found = False
 
-    def walk(idx: int, parent: np.ndarray) -> None:
+    def walk(idx: int, parent: np.ndarray, active: bool) -> None:
         nonlocal found, global_min, global_max
         if not (0 <= idx < len(nodes)):
             return
         node = nodes[idx]
         world = parent @ _node_matrix(node)
+        active = active or node_name is None or node.get("name") == node_name
         mesh_idx = node.get("mesh")
-        if mesh_idx is not None and 0 <= mesh_idx < len(meshes):
+        if active and mesh_idx is not None and 0 <= mesh_idx < len(meshes):
             for prim in meshes[mesh_idx].get("primitives") or []:
                 pos_idx = (prim.get("attributes") or {}).get("POSITION")
                 if pos_idx is None or not (0 <= pos_idx < len(accessors)):
@@ -140,10 +157,10 @@ def measure_glb(path: Path) -> tuple[list[float], list[float]] | None:
                 global_max = np.maximum(global_max, xyz.max(axis=0))
                 found = True
         for child in node.get("children") or []:
-            walk(child, world)
+            walk(child, world, active)
 
     for r in roots:
-        walk(r, np.eye(4, dtype=np.float64))
+        walk(r, np.eye(4, dtype=np.float64), False)
 
     if not found:
         return None
@@ -179,22 +196,53 @@ def save_cache(cache_path: Path, cache: dict[str, Any]) -> None:
     tmp.replace(cache_path)
 
 
-def measure_cached(threejs_v2_dir: Path, glb_rel: str, cache: dict[str, Any]) -> tuple[list[float], list[float]] | None:
-    """Measure ``<threejs_v2_dir>/<glb_rel>``, using/populating ``cache`` (keyed
-    by relative path + mtime + size so edited/re-exported GLBs re-measure)."""
+def measure_cached(
+    threejs_v2_dir: Path, glb_rel: str, cache: dict[str, Any], node_name: str | None = None
+) -> tuple[list[float], list[float]] | None:
+    """Measure ``<threejs_v2_dir>/<glb_rel>`` (optionally one named node
+    subtree), using/populating ``cache`` (keyed by relative path + node +
+    mtime + size so edited/re-exported GLBs re-measure)."""
     abs_path = threejs_v2_dir / glb_rel
     key = _cache_key(abs_path)
     if key is None:
         return None
-    entry = cache.get(glb_rel)
+    cache_id = f"{glb_rel}#{node_name}" if node_name else glb_rel
+    entry = cache.get(cache_id)
     if entry and entry.get("key") == key:
         return entry["min"], entry["max"]
-    result = measure_glb(abs_path)
+    result = measure_glb(abs_path, node_name)
     if result is None:
         return None
     mn, mx = result
-    cache[glb_rel] = {"key": key, "min": mn, "max": mx}
+    cache[cache_id] = {"key": key, "min": mn, "max": mx}
     return mn, mx
+
+
+_CHR_PREFIXES = ("sm_gen_chr_", "sm_chr_", "character_", "chr_")
+
+
+def bundle_key(stem: str) -> str:
+    """Prefab stems and bundle node names differ by prefix only
+    (``SM_Chr_Alien_Male_01`` prefab ↔ ``Character_Alien_Male_01`` node), so
+    match on the normalised remainder."""
+    low = stem.lower()
+    for pre in _CHR_PREFIXES:
+        if low.startswith(pre):
+            return low[len(pre):]
+    return low
+
+
+def bundle_index(threejs_v2_dir: Path | None, pack_id: str, bundle_rels: list[str]) -> dict[str, tuple[str, str]]:
+    """normalised stem -> (bundle glb_rel, node name) for assets that only
+    exist as named nodes inside bundle GLBs (Characters.glb, BR_Characters.glb,
+    Generic_Characters.glb)."""
+    out: dict[str, tuple[str, str]] = {}
+    if threejs_v2_dir is None:
+        return out
+    for rel in bundle_rels:
+        for name in bundle_node_names(threejs_v2_dir / rel):
+            out.setdefault(bundle_key(name), (rel, name))
+    return out
 
 
 def apply_measured_bounds(
@@ -204,6 +252,7 @@ def apply_measured_bounds(
     stats: dict[str, int],
     *,
     disagree_tol: float = 2e-3,
+    bundles: dict[str, tuple[str, str]] | None = None,
 ) -> None:
     """Set ``asset['bounds']`` from a fresh GLB measurement when available.
 
@@ -216,10 +265,16 @@ def apply_measured_bounds(
     if should_skip(glb_rel or asset["id"], asset["id"]):
         stats["skipped"] = stats.get("skipped", 0) + 1
         return
+    node_name = None
+    if not glb_rel and bundles and bundle_key(asset["id"]) in bundles:
+        # character meshes etc. ship as named nodes inside a bundle GLB
+        glb_rel, node_name = bundles[bundle_key(asset["id"])]
+        asset.setdefault("files", {})["glb"] = glb_rel
+        asset["files"]["glb_node"] = node_name
     if not glb_rel or threejs_v2_dir is None:
         stats["missing_glb"] = stats.get("missing_glb", 0) + 1
         return
-    result = measure_cached(threejs_v2_dir, glb_rel, cache)
+    result = measure_cached(threejs_v2_dir, glb_rel, cache, node_name)
     if result is None:
         stats["measure_failed"] = stats.get("measure_failed", 0) + 1
         return

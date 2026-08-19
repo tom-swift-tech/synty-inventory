@@ -64,6 +64,9 @@ def load_catalog(threejs_v2_dir: Path | None, pack_id: str) -> dict | None:
     return _load_json(str(threejs_v2_dir / pack_id / "catalog.json"))
 
 
+BUNDLE_STEMS = {"characters", "br_characters", "generic_characters"}
+
+
 def glb_index(threejs_v2_dir: Path | None, pack_id: str) -> tuple[dict[str, str], dict[str, str]]:
     """(exact stem -> path, lowercase stem -> path), both relative to ``threejs_v2_dir``."""
     manifest = load_manifest(threejs_v2_dir, pack_id)
@@ -77,6 +80,17 @@ def glb_index(threejs_v2_dir: Path | None, pack_id: str) -> tuple[dict[str, str]
         exact.setdefault(stem, rel_full)
         ci.setdefault(stem.lower(), rel_full)
     return exact, ci
+
+
+def bundle_glbs(threejs_v2_dir: Path | None, pack_id: str) -> list[str]:
+    """Bundle GLBs (many assets as named nodes) listed in the pack manifest."""
+    manifest = load_manifest(threejs_v2_dir, pack_id)
+    if not manifest:
+        return []
+    return [
+        f"{pack_id}/{rel}" for rel in manifest.get("models") or []
+        if Path(rel).stem.lower() in BUNDLE_STEMS
+    ]
 
 
 def catalog_by_id(threejs_v2_dir: Path | None, pack_id: str) -> dict[str, dict]:

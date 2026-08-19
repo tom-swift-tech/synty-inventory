@@ -174,7 +174,12 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None) -> dict:
 
     # --- Phase 2 gates: threejs-v2 / GLB-measured sources ---------------------
 
-    placeable = [a for doc in docs for a in (doc.get("assets") or []) if a.get("placeable")]
+    def _geometry(a: dict) -> bool:
+        """Coverage denominator: placeable assets that have geometry to
+        measure. Particle-system prefabs (kind fx) and UI have no mesh."""
+        return bool(a.get("placeable")) and a.get("kind") in {"prefab", "mesh"}
+
+    placeable = [a for doc in docs for a in (doc.get("assets") or []) if _geometry(a)]
 
     # Per-pack coverage, worst-first, so a failing aggregate gate points at
     # *which* packs to look at instead of just a global ratio. Low coverage
@@ -185,7 +190,7 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None) -> dict:
     def _pack_breakdown(pred) -> list[str]:
         rows = []
         for doc in docs:
-            pack_placeable = [a for a in (doc.get("assets") or []) if a.get("placeable")]
+            pack_placeable = [a for a in (doc.get("assets") or []) if _geometry(a)]
             if not pack_placeable:
                 continue
             hit = sum(1 for a in pack_placeable if pred(a))
