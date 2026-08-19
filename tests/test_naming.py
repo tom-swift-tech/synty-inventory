@@ -28,9 +28,10 @@ def test_title():
 
 def test_infer_police_quality_bar():
     rec = infer("SM_Prop_Sign_Police_01")
-    assert rec["name"] == "Police Sign"
+    assert rec["name"] == "Police Channel Letters"
     assert rec["type"] == "prop/signage"
-    assert rec["semantic_role"] == "identifies_building_as_police_station"
+    assert rec["semantic_role"] == "building_identity"
+    assert rec["semantic_detail"] == "police_station"
     assert rec["placement"]["mount"] == "wall"
     assert "police_station" in rec["placement"]["preferred_contexts"]
     assert len(rec["description"]) > 80
@@ -41,4 +42,5 @@ def test_infer_barber_quality_bar():
     assert rec["name"] == "Barber Pole"
     assert rec["placement"]["attachment"] == "side_bracket"
     assert rec["placement"]["preferred_floors"] == [1]
-    assert rec["semantic_role"] == "identifies_building_as_barber_shop"
+    assert rec["semantic_role"] == "building_identity"
+    assert rec["semantic_detail"] == "barber_shop"

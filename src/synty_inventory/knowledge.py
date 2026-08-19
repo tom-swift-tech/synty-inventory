@@ -1,15 +1,31 @@
-"""Rule-based Synty semantics: names → type, tags, placement, notes.
+"""Rule-based Synty semantics: names -> type, tags, placement, notes.
 
 This is the offline enrichment quality bar. Special-cased high-value
 assets (signs, attachments, civic identity) match the Police Sign /
 Barber Pole richness in the inventory spec.
+
+``infer()`` has no pack context -- it only ever sees a stem -- so every
+rule below is a name-pattern rule. Dispatch order (see ``infer``):
+
+1. ``CURATED`` exact-id overrides (hand-authored quality bar).
+2. Non-placeable data (``_infer_nonplaceable``): animation clips,
+   character rig parts/whole skeletons, UI textures, skyboxes, FX.
+3. Sci-fi ship/station kit vocabulary (vehicle parts, spacecraft,
+   ``SM_Bld_*`` interior modules, space environment dressing, specific
+   ``SM_Prop_*`` families, character attach points, HUD/icon/signage).
+4. City-style exterior building kits (``SM_Bld_<Family>_<Role>``).
+5. The original token/keyword legacy rules (signs, generic buildings,
+   vehicles, environment, everything else) -- unchanged behaviour for
+   every stem the newer, more specific rules don't claim.
 """
 
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 
 from .naming import ParsedName, parse_name, title_from_tokens
+from .schema import empty_module, empty_part
 
 WALL_PLAQUE = {
     "mount": "wall",
@@ -97,7 +113,7 @@ MODULAR_BUILDING = {
     "preferred_contexts": [],
 }
 
-# token → extra tags / contexts (lowercase)
+# token -> extra tags / contexts (lowercase)
 TOKEN_TAGS: dict[str, dict] = {
     "police": {
         "tags": ["police", "facade", "station", "law_enforcement", "civic"],
@@ -244,19 +260,20 @@ TOKEN_TAGS: dict[str, dict] = {
     "stripclub": {"tags": ["stripclub", "nightlife", "vice"], "contexts": ["nightlife"], "category": ["building"]},
 }
 
-# Exact-id curated entries — quality bar for autonomous placement.
+# Exact-id curated entries -- quality bar for autonomous placement.
 CURATED: dict[str, dict] = {
     "SM_Prop_Sign_Police_01": {
-        "name": "Police Sign",
+        "name": "Police Channel Letters",
         "type": "prop/signage",
         "category": ["sign", "wall-mounted", "civic"],
-        "tags": ["police", "facade", "station", "law_enforcement"],
+        "tags": ["police", "facade", "station", "law_enforcement", "channel_letters", "wordmark", "3d_letters"],
         "description": (
-            "Rectangular wall-mounted sign suitable for identifying a police station facade. "
-            "Typically shows a police badge or POLICE lettering. Wide, shallow plaque — "
-            "seat the back face on the wall above the main entrance, not over windows."
+            "White 3D extruded channel letters spelling POLICE. No backing board, badge, shield, "
+            "frame or mount hardware -- just the freestanding letterforms. Seat the back face on "
+            "the wall above the main entrance, not over windows."
         ),
-        "semantic_role": "identifies_building_as_police_station",
+        "semantic_role": "building_identity",
+        "semantic_detail": "police_station",
         "placement": {
             "mount": "wall",
             "height": "eye_level_to_above_door",
@@ -280,10 +297,11 @@ CURATED: dict[str, dict] = {
         "tags": ["barber", "salon", "pole", "facade", "side_mount"],
         "description": (
             "Classic cylindrical barber pole that projects from the facade on a short arm. "
-            "Identifies a barber shop or salon. Slim vertical volume — attach the flat back "
+            "Identifies a barber shop or salon. Slim vertical volume -- attach the flat back "
             "of the bracket to the wall beside the door, first floor only, leaving sidewalk clearance."
         ),
-        "semantic_role": "identifies_building_as_barber_shop",
+        "semantic_role": "building_identity",
+        "semantic_detail": "barber_shop",
         "placement": {
             "mount": "wall",
             "height": "eye_level",
@@ -426,8 +444,6 @@ def _is_attachment(tokens: set[str]) -> bool:
 
 def _placement_for(parsed: ParsedName, extra: dict) -> dict:
     tokens = {_norm_token(t) for t in parsed.tokens}
-    if parsed.id in CURATED:
-        return deepcopy(CURATED[parsed.id]["placement"])
     if _is_attachment(tokens):
         p = deepcopy(WALL_PROP)
         p["constraints"] = ["attach_to_building", "pair_with_sign_or_light"]
@@ -473,8 +489,6 @@ def _placement_for(parsed: ParsedName, extra: dict) -> dict:
 
 
 def _semantic_role(parsed: ParsedName, extra: dict) -> str:
-    if parsed.id in CURATED:
-        return CURATED[parsed.id]["semantic_role"]
     tokens = {_norm_token(t) for t in parsed.tokens}
     if "sign" in tokens or parsed.kind == "sign":
         if "police" in tokens:
@@ -530,51 +544,47 @@ def _semantic_role(parsed: ParsedName, extra: dict) -> str:
 
 
 def _description(parsed: ParsedName, name: str, extra: dict, ptype: str) -> str:
-    if parsed.id in CURATED:
-        return CURATED[parsed.id]["description"]
     tokens = {_norm_token(t) for t in parsed.tokens}
     bits: list[str] = []
     if ptype == "prop/signage":
         if _is_large_icon(parsed):
             bits.append(f"Large sculpted {name.lower()} meant to sit on a roof or tall facade as a 3D shop identity.")
         elif _is_billboard(tokens):
-            bits.append(f"{name} — large roadside or wall advertisement panel. Face the readable side to the roadway.")
+            bits.append(f"{name} -- large roadside or wall advertisement panel. Face the readable side to the roadway.")
         elif _is_neon(tokens):
-            bits.append(f"{name} — neon letterform or icon for night facades. Mount on the street face.")
+            bits.append(f"{name} -- neon letterform or icon for night facades. Mount on the street face.")
         elif "barber" in tokens:
             bits.append("Cylindrical barber pole that projects from a first-floor shop wall beside the door.")
         elif _is_traffic_sign(tokens):
-            bits.append(f"{name} — traffic / wayfinding sign. Place at grade on a pole facing traffic.")
+            bits.append(f"{name} -- traffic / wayfinding sign. Place at grade on a pole facing traffic.")
         elif _is_attachment(tokens):
             bits.append("Mounting bracket / attachment hardware for hanging a sign or light off a facade.")
         else:
-            bits.append(f"{name} — wall-mounted identity plaque for a building facade.")
+            bits.append(f"{name} -- wall-mounted identity plaque for a building facade.")
         if extra.get("contexts"):
             bits.append("Best on: " + ", ".join(extra["contexts"]) + ".")
         bits.append("Keep off windows; readable from the street.")
     elif ptype == "building/modular":
         bits.append(
-            f"{name} — modular Synty building piece. Snap to the pack grid "
-            "(typically 2.5–5 m on XZ, ~3 m storey height). Street face is +Z in official kits."
+            f"{name} -- modular Synty building piece. Snap to the pack grid "
+            "(typically 2.5-5 m on XZ, ~3 m storey height). Street face is +Z in official kits."
         )
         if extra.get("contexts"):
             bits.append("Role: " + ", ".join(extra["contexts"]) + ".")
     elif ptype == "vehicle":
-        bits.append(f"{name} — vehicle. Sit on the road or a parking stall; do not scale; yaw to the lane.")
+        bits.append(f"{name} -- vehicle. Sit on the road or a parking stall; do not scale; yaw to the lane.")
     elif ptype == "character":
-        bits.append(f"{name} — character mesh or prefab. Place on sidewalks or interiors at 1:1 scale.")
+        bits.append(f"{name} -- character mesh or prefab. Place on sidewalks or interiors at 1:1 scale.")
     elif ptype == "environment":
-        bits.append(f"{name} — environment / ground piece. Use in the city-layout pass, not as a building shell.")
+        bits.append(f"{name} -- environment / ground piece. Use in the city-layout pass, not as a building shell.")
     else:
-        bits.append(f"{name} — Synty {ptype.replace('/', ' ')}.")
+        bits.append(f"{name} -- Synty {ptype.replace('/', ' ')}.")
         if extra.get("contexts"):
             bits.append("Typical context: " + ", ".join(extra["contexts"]) + ".")
     return " ".join(bits)
 
 
 def _ai_notes(parsed: ParsedName, extra: dict, ptype: str) -> str:
-    if parsed.id in CURATED:
-        return CURATED[parsed.id]["ai_notes"]
     tokens = {_norm_token(t) for t in parsed.tokens}
     if ptype == "prop/signage":
         if extra.get("contexts"):
@@ -587,7 +597,7 @@ def _ai_notes(parsed: ParsedName, extra: dict, ptype: str) -> str:
         if _is_billboard(tokens):
             return "Roadway-facing ads. Keep clear of windows and official civic facades unless the copy is civic-only."
         if _is_attachment(tokens):
-            return "Hardware only — pair with a matching sign or light; do not use as the identity piece."
+            return "Hardware only -- pair with a matching sign or light; do not use as the identity piece."
         return "Facade dressing. Prefer the street face; keep a clear read from the sidewalk."
     if ptype == "building/modular":
         return (
@@ -599,45 +609,710 @@ def _ai_notes(parsed: ParsedName, extra: dict, ptype: str) -> str:
     return "Place at authored scale. Prefer official Synty snap (0.25 m) and street axis +Z."
 
 
-def infer(asset_id: str) -> dict:
-    parsed = parse_name(asset_id)
+def _record(
+    parsed: ParsedName,
+    *,
+    type_: str,
+    role: str,
+    detail: str,
+    category: list[str],
+    tags: list[str],
+    description: str,
+    ai_notes: str,
+    placement: dict,
+    module: dict | None = None,
+    part: dict | None = None,
+    name: str | None = None,
+    dims: list[float] | None = None,
+    placeable: bool | None = None,
+) -> dict:
+    """Build one ``infer()`` return dict. Centralises the shape so every
+    v2 routing rule below only has to supply the fields it actually knows.
+
+    ``placeable`` is only included when a rule needs to *override* the
+    schema default (``default_placeable``) -- e.g. a whole SK_ skeleton,
+    which schema.kind_for_type would otherwise mark non-placeable because
+    its kind is "skeleton". Leaving it out lets enrich.py compute the
+    correct default from ``type_`` for everything else.
+    """
+    rec = {
+        "id": parsed.id,
+        "name": name or title_from_tokens(parsed.subject_tokens or parsed.tokens) or parsed.id,
+        "type": type_,
+        "category": category,
+        "tags": tags,
+        "description": description,
+        "semantic_role": role,
+        "semantic_detail": detail,
+        "placement": placement,
+        "dimensions_hint": dims,
+        "ai_notes": ai_notes,
+        "module": module,
+        "part": part,
+        "parsed": parsed,
+    }
+    if placeable is not None:
+        rec["placeable"] = placeable
+    return rec
+
+
+def _infer_curated(parsed: ParsedName) -> dict:
+    c = CURATED[parsed.id]
+    return _record(
+        parsed,
+        type_=c["type"],
+        role=c["semantic_role"],
+        detail=c.get("semantic_detail", ""),
+        category=list(c["category"]),
+        tags=list(c["tags"]),
+        description=c["description"],
+        ai_notes=c["ai_notes"],
+        placement=deepcopy(c["placement"]),
+        dims=list(c["dimensions_hint"]) if c.get("dimensions_hint") else None,
+        name=c["name"],
+    )
+
+
+# --- Part 3: non-placeable data (animation / character rig / UI / skybox / fx) ---
+
+_CLIP_PREFIX_RE = re.compile(r"^(A|Anim|ANIM)_", re.I)
+_CLIP_WORD_RE = re.compile(
+    r"^(Idle|Walk|Run|Jump|Crouch|Strafe|Turn|Sprint|Fall|Land|Death|Hit|Aim|Fire|Reload)\b", re.I
+)
+_SK_PART_SUFFIX_RE = re.compile(r"_\d{2}[A-Za-z]{3,6}_HU\d+$")
+_BODY_PART_WORDS = (
+    "head", "hair", "torso", "arm", "leg", "hand", "foot", "eye", "ear", "hip",
+    "face", "brow", "tooth", "teeth", "knee", "elbow", "nose", "chest", "attach",
+)
+_UI_PREFIX_RE = re.compile(r"^(T|UI|Icon|HUD)_", re.I)
+_SKY_PREFIX_RE = re.compile(r"^(Sky|Skybox|M_Sky)", re.I)
+
+_CLIP_PLACEMENT = {
+    "mount": "none", "height": "n/a", "orientation": "n/a", "attachment": "none",
+    "preferred_floors": [], "constraints": [], "preferred_contexts": [],
+}
+_SOCKET_PLACEMENT = {
+    "mount": "socket", "height": "n/a", "orientation": "align_to_parent", "attachment": "socket",
+    "preferred_floors": [], "constraints": ["attach_to_character_bone"],
+    "preferred_contexts": ["character_rig"],
+}
+_UI_PLACEMENT = {
+    "mount": "none", "height": "n/a", "orientation": "screen_space", "attachment": "none",
+    "preferred_floors": [], "constraints": [], "preferred_contexts": [],
+}
+_FX_PLACEMENT = {
+    "mount": "free", "height": "n/a", "orientation": "upright", "attachment": "origin",
+    "preferred_floors": [], "constraints": [], "preferred_contexts": [],
+}
+
+
+def _is_animation_clip(parsed: ParsedName) -> bool:
+    """True for animation clip stems: ``A_``/``Anim_``/``ANIM_`` prefixed,
+    or a bare clip-verb stem (Idle/Walk/Run/...) that isn't an ``SM_``/
+    ``SK_`` mesh."""
+    if _CLIP_PREFIX_RE.match(parsed.id):
+        return True
+    if parsed.id.upper().startswith(("SM_", "SK_")):
+        return False
+    return bool(_CLIP_WORD_RE.match(parsed.id))
+
+
+def _infer_nonplaceable(parsed: ParsedName) -> dict | None:
+    up = parsed.id.upper()
+    name = title_from_tokens(parsed.subject_tokens or parsed.tokens) or parsed.id
+
+    if _is_animation_clip(parsed):
+        return _record(
+            parsed, type_="animation", role="animation_clip", detail="",
+            category=["animation"], tags=["animation", "clip"],
+            description=f"{name} -- animation clip, not a scene mesh.",
+            ai_notes="Animation data only; apply to a rigged character, never place in a scene.",
+            placement=deepcopy(_CLIP_PLACEMENT), name=name,
+        )
+
+    if up.startswith(("SK_", "CHR_", "CH_")):
+        body = "".join(t.lower() for t in parsed.tokens)
+        is_part = bool(_SK_PART_SUFFIX_RE.search(parsed.id)) or any(w in body for w in _BODY_PART_WORDS)
+        if is_part:
+            return _record(
+                parsed, type_="character/part", role="character_part", detail="body_part",
+                category=["character", "part"], tags=["character_part", "rig"],
+                description=f"{name} -- modular character body part. Assembles onto a skeleton rig; not placed standalone.",
+                ai_notes="Rig-attached body part. Combine with matching parts to build a full character.",
+                placement=deepcopy(_SOCKET_PLACEMENT), name=name,
+            )
+        return _record(
+            parsed, type_="character/skeleton", role="character", detail="",
+            category=["character"], tags=["character", "skeleton"],
+            description=f"{name} -- whole character skeleton/rig.",
+            ai_notes="Whole character. Place directly in the scene at 1:1 scale.",
+            placement=deepcopy(GROUND_PROP), name=name, placeable=True,
+        )
+
+    if _UI_PREFIX_RE.match(parsed.id):
+        return _record(
+            parsed, type_="ui/icon", role="ui_element", detail="",
+            category=["ui"], tags=["ui"],
+            description=f"{name} -- UI texture/icon, not a 3D scene object.",
+            ai_notes="UI element. Never place in a 3D scene.",
+            placement=deepcopy(_UI_PLACEMENT), name=name,
+        )
+
+    if _SKY_PREFIX_RE.match(parsed.id):
+        return _record(
+            parsed, type_="skybox", role="skybox", detail="",
+            category=["environment", "skybox"], tags=["skybox", "sky"],
+            description=f"{name} -- skybox material, applied to the scene sky dome, not placed as a mesh.",
+            ai_notes="Sky material only.",
+            placement=deepcopy(_UI_PLACEMENT), name=name,
+        )
+
+    if up.startswith(("FX_", "PS_")):
+        return _record(
+            parsed, type_="fx", role="visual_effect", detail="",
+            category=["fx"], tags=["fx", "particle"],
+            description=f"{name} -- particle/visual effect prefab.",
+            ai_notes="Effect prefab. Trigger at runtime or place at the source point.",
+            placement=deepcopy(_FX_PLACEMENT), name=name,
+        )
+    return None
+
+
+# --- Part 1: sci-fi ship-kit vocabulary (SM_Veh_Part_* / SM_Ship_*) ------------
+
+_PART_CLASS_SPEC = {
+    "body": {
+        "class": "body", "mates_axis": "any", "symmetric": True, "dims": [2.0, 2.0, 4.0],
+        "note": (
+            "Central hull segment. Other parts (cockpit, engine, wings, landing gear) mate to "
+            "its sockets; symmetric enough to anchor either end of a hull run."
+        ),
+    },
+    "cockpit": {
+        "class": "cockpit", "mates_axis": "+z", "symmetric": False, "dims": [1.5, 1.5, 2.0],
+        "note": "Forward crew module. Mates to the +Z (front) socket of a Body part; do not place at the rear.",
+    },
+    "engine": {
+        "class": "engine", "mates_axis": "-z", "symmetric": False, "dims": [1.5, 1.5, 3.0],
+        "note": (
+            "Rear engine/thruster module. Mates to the -Z (rear) socket of a Body part, "
+            "nozzle facing away from the hull."
+        ),
+    },
+    "wing": {
+        "class": "wing", "mates_axis": "±x", "symmetric": True, "dims": [3.0, 0.3, 2.0],
+        "note": (
+            "Wing panel. Mates along ±X; place a mirrored pair for left/right symmetry -- "
+            "do not use a single wing alone."
+        ),
+    },
+    "landinggear": {
+        "class": "landing_gear", "mates_axis": "-y", "symmetric": False, "dims": [0.6, 0.8, 0.6],
+        "note": "Landing gear/strut. Mates to the -Y (underside) socket; deploy only when the ship is landed or docked.",
+    },
+    "misc": {
+        "class": "greeble", "mates_axis": "any", "symmetric": False, "dims": None,
+        "note": (
+            "Small hull detail/greeble. Mates anywhere on the hull for visual variety -- "
+            "purely decorative, no structural role."
+        ),
+    },
+}
+
+_VEH_PART_PLACEMENT = {
+    "mount": "socket", "height": "n/a", "orientation": "align_to_parent", "attachment": "socket",
+    "preferred_floors": [], "constraints": ["attach_to_ship_body", "do_not_scale"],
+    "preferred_contexts": ["ship_kit"],
+}
+
+
+def _infer_vehicle_part(parsed: ParsedName) -> dict | None:
+    if not parsed.id.upper().startswith("SM_VEH_PART_"):
+        return None
+    joined = "".join(t.lower() for t in parsed.subject_tokens)
+    key = next((k for k in _PART_CLASS_SPEC if k in joined), "misc")
+    spec = _PART_CLASS_SPEC[key]
+    part = empty_part()
+    part["class"] = spec["class"]
+    part["mates_axis"] = spec["mates_axis"]
+    part["symmetric"] = spec["symmetric"]
+    name_tokens = [t for t in parsed.subject_tokens if t.lower() != "part"]
+    name = title_from_tokens(name_tokens) or parsed.id
+    return _record(
+        parsed,
+        type_="vehicle/part",
+        role="vehicle_part",
+        detail=spec["class"],
+        category=["vehicle", "ship_part"],
+        tags=["vehicle_part", spec["class"], "ship_kit"],
+        description=f"{name} -- {spec['note']}",
+        ai_notes=spec["note"],
+        placement=deepcopy(_VEH_PART_PLACEMENT),
+        part=part,
+        dims=spec["dims"],
+        name=name,
+    )
+
+
+_SHIP_SIZE_DIMS = {
+    "fighter": [8.0, 3.0, 10.0],
+    "bomber": [12.0, 4.0, 14.0],
+    "transport": [18.0, 6.0, 22.0],
+    "cruiser": [30.0, 9.0, 40.0],
+    "capital": [60.0, 20.0, 120.0],
+    "station": [50.0, 20.0, 50.0],
+}
+_SHIP_PLACEMENT = {
+    "mount": "free", "height": "n/a", "orientation": "nose_plus_z", "attachment": "origin",
+    "preferred_floors": [], "constraints": ["do_not_scale"],
+    "preferred_contexts": ["space", "hangar", "orbit"],
+}
+
+
+def _ship_size_class(joined: str) -> str:
+    if "fighter" in joined or "stealth" in joined:
+        return "fighter"
+    if "bomber" in joined:
+        return "bomber"
+    if "transport" in joined:
+        return "transport"
+    if "cruiser" in joined:
+        return "cruiser"
+    if "galactic" in joined or "colossal" in joined:
+        return "capital"
+    if "station" in joined:
+        return "station"
+    return "fighter"
+
+
+def _infer_spacecraft(parsed: ParsedName) -> dict | None:
+    if not parsed.id.upper().startswith("SM_SHIP_"):
+        return None
+    subject = [t for t in parsed.subject_tokens if t.lower() != "ship"]
+    joined = "".join(t.lower() for t in subject)
+    size_class = _ship_size_class(joined)
+    part = empty_part()
+    part["size_class"] = size_class
+    name = title_from_tokens(subject) or parsed.id
+    return _record(
+        parsed,
+        type_="vehicle/spacecraft",
+        role="spacecraft",
+        detail=size_class,
+        category=["vehicle", "spacecraft"],
+        tags=["spacecraft", size_class],
+        description=(
+            f"{name} -- complete spacecraft prefab ({size_class} class), not a hull part. "
+            "Fly or park freely in space, hangar or orbit; do not attach as a ship-kit module."
+        ),
+        ai_notes=f"Whole ship, {size_class} class. Place with nose along +Z; scale is authored, do not rescale.",
+        placement=deepcopy(_SHIP_PLACEMENT),
+        part=part,
+        dims=_SHIP_SIZE_DIMS.get(size_class),
+        name=name,
+    )
+
+
+# --- Bld_* dispatch: City-style exterior kits vs sci-fi interior kits ----------
+
+_CITY_TWO_TOKEN_FAMILIES = {("officeold", "large"): "OfficeOld_Large", ("officeold", "small"): "OfficeOld_Small"}
+_CITY_SINGLE_FAMILIES = {
+    "apartment": "Apartment", "officeoctagon": "OfficeOctagon", "officeround": "OfficeRound",
+    "officesquare": "OfficeSquare", "shop": "Shop", "station": "Station", "cityhall": "CityHall",
+    "fireescape": "FireEscape", "spire": "Spire", "cover": "Cover",
+}
+
+
+def bld_exterior_family(subject_tokens: list[str]) -> tuple[str, list[str]] | None:
+    """Return ``(family_label, remaining_role_tokens)`` if *subject_tokens*
+    (the tokens after ``SM_Bld_``, variant already stripped) name a known
+    City-style exterior building-kit family (Apartment, Office*, Shop,
+    Station, CityHall, FireEscape, Spire, Cover, RoofAccess), else
+    ``None``. Two-word families (``OfficeOld_Large``/``OfficeOld_Small``)
+    are matched before the single-word table.
+    """
+    if not subject_tokens:
+        return None
+    toks = [t.lower() for t in subject_tokens]
+    if len(toks) > 1 and (toks[0], toks[1]) in _CITY_TWO_TOKEN_FAMILIES:
+        return _CITY_TWO_TOKEN_FAMILIES[(toks[0], toks[1])], subject_tokens[2:]
+    if toks[0] == "roof" and len(toks) > 1 and toks[1] == "access":
+        return "RoofAccess", subject_tokens[2:]
+    if toks[0] in _CITY_SINGLE_FAMILIES:
+        return _CITY_SINGLE_FAMILIES[toks[0]], subject_tokens[1:]
+    return None
+
+
+_INTERIOR_TRIGGER_TOKENS = ("wall", "floor", "ceiling", "corridor", "bridge", "crew", "hydroponics", "base", "door")
+
+
+def is_interior_bld(subject_tokens: list[str]) -> bool:
+    """True if a ``SM_Bld_*`` stem names a sci-fi station/ship *interior*
+    kit piece rather than a City-style exterior module.
+
+    A stem is interior when it mentions a structural interior token
+    (wall/floor/ceiling/corridor/bridge/crew/hydroponics/base/door) AND is
+    NOT a recognised City exterior family -- City's own
+    ``SM_Bld_Apartment_Door_01`` is an exterior module, not an interior
+    one, even though it contains "Door".
+    """
+    if bld_exterior_family(subject_tokens) is not None:
+        return False
+    joined = "".join(t.lower() for t in subject_tokens)
+    return any(tok in joined for tok in _INTERIOR_TRIGGER_TOKENS)
+
+
+_EXTERIOR_ROLE_PRECEDENCE = ("door", "stairs", "roof", "floor", "base", "cover")
+_EXTERIOR_STACKABLE = {"floor": ["base", "floor"], "roof": ["floor", "base"], "base": []}
+_FAMILY_CONTEXT = {
+    "Apartment": "residential_block", "Shop": "shop", "Station": "transit_station",
+    "CityHall": "civic", "OfficeOctagon": "office", "OfficeRound": "office",
+    "OfficeSquare": "office", "OfficeOld_Large": "office", "OfficeOld_Small": "office",
+}
+_ONEOFF_EXTERIOR_MODULES = {
+    "FireEscape": {"role": "misc", "mount": "wall"},
+    "Spire": {"role": "spire", "mount": "roof"},
+    "RoofAccess": {"role": "roof", "mount": "roof"},
+    "Cover": {"role": "cover", "mount": "wall"},
+}
+_INTERIOR_MODULE_PLACEMENT = {
+    "mount": "module", "height": "n/a", "orientation": "kit_grid", "attachment": "origin",
+    "preferred_floors": [], "constraints": ["snap_to_grid", "do_not_scale"],
+    "preferred_contexts": ["station_interior", "ship_interior"],
+}
+_INTERIOR_FAMILY_STARTERS = {"base", "bridge", "crew", "corridor", "hydroponics"}
+_INTERIOR_ROLE_PRECEDENCE = ("door", "window", "stairs", "pillar", "corridor", "bridge", "ceiling", "floor", "wall")
+
+
+def _infer_exterior_bld(parsed: ParsedName, family: str, remaining: list[str]) -> dict:
+    if family in _ONEOFF_EXTERIOR_MODULES:
+        spec = _ONEOFF_EXTERIOR_MODULES[family]
+        placement = deepcopy(MODULAR_BUILDING)
+        placement["mount"] = spec["mount"]
+        placement["attachment"] = "base_to_roof" if spec["mount"] == "roof" else "back_side"
+        placement["constraints"] = ["snap_to_grid", "do_not_scale"]
+        placement["preferred_contexts"] = ["building_exterior"]
+        module = empty_module()
+        module["family"] = family
+        module["role"] = spec["role"]
+        module["street_side"] = "+z"
+        name = title_from_tokens(parsed.subject_tokens) or parsed.id
+        return _record(
+            parsed, type_="building/module", role="building_module", detail=f"{family.lower()}_{spec['role']}",
+            category=["building", "exterior_dressing"], tags=[family.lower()],
+            description=(
+                f"{family} -- one-off exterior building attachment ({spec['role']}). Mount on the "
+                f"{spec['mount']} of a hero shell; do not use as a standalone structure."
+            ),
+            ai_notes=f"Attach to an existing building shell's {spec['mount']}. Not a stackable kit module.",
+            placement=placement, module=module, name=name,
+        )
+
+    context = _FAMILY_CONTEXT.get(family, family.lower())
+    family_words = family.replace("_", " ")
+    name = title_from_tokens(parsed.subject_tokens) or parsed.id
+    if not remaining:
+        module = empty_module()
+        module["family"] = family
+        module["role"] = "hero"
+        module["street_side"] = "+z"
+        placement = deepcopy(MODULAR_BUILDING)
+        placement["constraints"] = ["snap_to_grid", "do_not_scale"]
+        placement["preferred_contexts"] = [context]
+        return _record(
+            parsed, type_="building/shell", role="building_shell", detail=context,
+            category=["building", context],
+            tags=[family.lower().replace("_", "-")],
+            description=(
+                f"{family_words} -- a complete hero building shell for the {context.replace('_', ' ')} kit. "
+                "This is a whole building, not a stackable module; place at grade on the city block "
+                "grid, street face +Z."
+            ),
+            ai_notes=(
+                "Whole hero shell. One per lot. Only stack with Base/Floor/Roof pieces from the "
+                "same family if the kit provides them."
+            ),
+            placement=placement, module=module, name=name,
+        )
+
+    rem_lower = [t.lower() for t in remaining]
+    footprint_class = None
+    if "corner" in rem_lower:
+        others = [r for r in _EXTERIOR_ROLE_PRECEDENCE if r in rem_lower]
+        if others:
+            role = others[0]
+            footprint_class = "corner"
+        else:
+            role = "corner"
+    else:
+        others = [r for r in _EXTERIOR_ROLE_PRECEDENCE if r in rem_lower]
+        role = others[0] if others else ("shell" if "stack" in rem_lower else "misc")
+    stackable_on = _EXTERIOR_STACKABLE.get(role, [])
+    module = empty_module()
+    module["family"] = family
+    module["role"] = role
+    module["footprint_class"] = footprint_class
+    module["stackable_on"] = stackable_on
+    module["street_side"] = "+z"
+    placement = deepcopy(MODULAR_BUILDING)
+    placement["constraints"] = ["snap_to_grid", "do_not_scale"]
+    placement["preferred_contexts"] = [context]
+    detail = f"{family.lower()}_{role}"
+    corner_note = " Corner footprint -- use at building corners only." if footprint_class == "corner" else ""
+    return _record(
+        parsed, type_="building/module", role="building_module", detail=detail,
+        category=["building", context],
+        tags=[family.lower().replace("_", "-"), role],
+        description=(
+            f"{family_words} {role} module -- stackable Synty city kit piece. Snap to the "
+            f"{family_words} kit grid; role: {role}.{corner_note}"
+        ),
+        ai_notes=(
+            f"Assemble as part of a {family_words} building -- stack {role} pieces on "
+            f"{', '.join(stackable_on) if stackable_on else 'the ground'}. Do not mix with other kit families."
+        ),
+        placement=placement, module=module, name=name,
+    )
+
+
+def _interior_family_and_role(subject_tokens: list[str]) -> tuple[str, str]:
+    if not subject_tokens:
+        return "Interior", "misc"
+    head = subject_tokens[0].lower()
+    if head in _INTERIOR_FAMILY_STARTERS:
+        family = subject_tokens[0]
+        remaining = subject_tokens[1:]
+    else:
+        family = "Interior"
+        remaining = subject_tokens
+    scan_tokens = remaining or subject_tokens[:1]
+    joined = "".join(t.lower() for t in scan_tokens)
+    role = next((r for r in _INTERIOR_ROLE_PRECEDENCE if r in joined), "misc")
+    return family, role
+
+
+def _infer_interior_bld(parsed: ParsedName, subject_tokens: list[str]) -> dict:
+    family, role = _interior_family_and_role(subject_tokens)
+    module = empty_module()
+    module["family"] = family
+    module["role"] = role
+    detail = f"{family.lower()}_{role}"
+    fam_words = family.replace("_", " ")
+    name = title_from_tokens(subject_tokens) or parsed.id
+    return _record(
+        parsed, type_="building/interior_module", role="interior_module", detail=detail,
+        category=["building", "interior"],
+        tags=[family.lower(), role],
+        description=(
+            f"{fam_words} {role} -- sci-fi station/ship interior kit piece. Snap to the interior "
+            "kit grid; assembles with other Bld_ pieces to build station or ship interiors."
+        ),
+        ai_notes=(
+            f"Interior kit module ({role}). Use inside station/ship interiors only, not on exterior "
+            "building facades. Snap to the kit grid; do not scale."
+        ),
+        placement=deepcopy(_INTERIOR_MODULE_PLACEMENT), module=module, name=name,
+    )
+
+
+def _infer_bld(parsed: ParsedName) -> dict | None:
+    if not parsed.id.upper().startswith("SM_BLD_"):
+        return None
+    subject = parsed.subject_tokens
+    result = bld_exterior_family(subject)
+    if result is not None:
+        family, remaining = result
+        return _infer_exterior_bld(parsed, family, remaining)
+    if is_interior_bld(subject):
+        return _infer_interior_bld(parsed, subject)
+    return None
+
+
+# --- SM_Env_* (space environment dressing) -------------------------------------
+
+_ENV_SCIFI_PLACEMENT = {
+    "mount": "free", "height": "n/a", "orientation": "random", "attachment": "origin",
+    "preferred_floors": [], "constraints": ["do_not_scale"],
+    "preferred_contexts": ["space"],
+}
+
+
+def _infer_env_scifi(parsed: ParsedName) -> dict | None:
+    if not parsed.id.upper().startswith("SM_ENV_"):
+        return None
+    joined = "".join(t.lower() for t in parsed.subject_tokens)
+    if "asteroid" in joined or "astroid" in joined:
+        role, detail = "celestial", "asteroid"
+    elif "planet" in joined:
+        role, detail = "celestial", "planet"
+    elif "debris" in joined:
+        role, detail = "debris", "debris"
+    elif "rubble" in joined:
+        role, detail = "debris", "rubble"
+    else:
+        return None
+    name = title_from_tokens(parsed.subject_tokens) or parsed.id
+    return _record(
+        parsed, type_="environment", role=role, detail=detail,
+        category=["environment", "space"], tags=[detail, "space"],
+        description=f"{name} -- deep-space {detail} dressing. Scatter freely; no grid or footprint constraints.",
+        ai_notes=f"Space environment {detail}. Place at any scale/orientation to fill the backdrop.",
+        placement=deepcopy(_ENV_SCIFI_PLACEMENT), name=name,
+    )
+
+
+# --- specific SM_Prop_* families (turret / greeble / interior props) ----------
+
+_TURRET_PLACEMENT = {
+    "mount": "socket", "height": "n/a", "orientation": "align_to_parent", "attachment": "socket",
+    "preferred_floors": [], "constraints": ["mount_on_hull_or_roof"],
+    "preferred_contexts": ["ship_hull", "station", "defense"],
+}
+_GREEBLE_PLACEMENT = {
+    "mount": "wall", "height": "n/a", "orientation": "align_to_parent", "attachment": "back_side",
+    "preferred_floors": [], "constraints": ["surface_detail", "do_not_use_as_structure"],
+    "preferred_contexts": ["hull_surface", "station_interior"],
+}
+# token -> (mount, attachment, detail, role)
+_INTERIOR_PROP_SPEC = {
+    "screen": ("wall", "back_side", "screen", "interior_prop"),
+    "controlpanel": ("wall", "back_side", "control_panel", "interior_prop"),
+    "buttons": ("wall", "back_side", "buttons", "interior_prop"),
+    "light": ("ceiling", "bottom", "light", "interior_prop"),
+    "wires": ("wall", "back_side", "wires", "interior_prop"),
+    "hose": ("wall", "back_side", "hose", "interior_prop"),
+    "bed": ("ground", "base_to_ground", "bed", "interior_prop"),
+    "crate": ("ground", "base_to_ground", "crate", "container"),
+    "medical": ("ground", "base_to_ground", "medical_equipment", "interior_prop"),
+    "foodpacket": ("ground", "base_to_ground", "food_packet", "interior_prop"),
+}
+
+
+def _infer_prop_scifi(parsed: ParsedName) -> dict | None:
+    if not parsed.id.upper().startswith("SM_PROP_"):
+        return None
+    joined = "".join(t.lower() for t in parsed.subject_tokens)
+    name = title_from_tokens(parsed.subject_tokens) or parsed.id
+
+    if "turret" in joined:
+        return _record(
+            parsed, type_="weapon", role="weapon", detail="turret",
+            category=["weapon", "turret"], tags=["turret", "weapon", "defense"],
+            description=f"{name} -- mounted defense turret. Socket onto a ship hull or station roof hardpoint.",
+            ai_notes="Mount at a hull or roof hardpoint. Orient to cover the expected threat arc.",
+            placement=deepcopy(_TURRET_PLACEMENT), name=name,
+        )
+    if "greeble" in joined or "detail" in joined:
+        return _record(
+            parsed, type_="prop", role="facade_dressing", detail="greeble",
+            category=["prop", "greeble"], tags=["greeble", "hull_detail"],
+            description=f"{name} -- small hull/interior surface greeble. Scatter on flat panels for visual detail; do not use as structure.",
+            ai_notes="Surface dressing only -- scatter on hull or interior wall panels, never load-bearing.",
+            placement=deepcopy(_GREEBLE_PLACEMENT), name=name,
+        )
+    for key, (mount, attach, detail, role) in _INTERIOR_PROP_SPEC.items():
+        if key in joined:
+            placement = {
+                "mount": mount, "height": "n/a",
+                "orientation": "upright" if mount == "ground" else "align_to_parent",
+                "attachment": attach, "preferred_floors": [1] if mount == "ground" else [],
+                "constraints": [], "preferred_contexts": ["station_interior", "ship_interior"],
+            }
+            return _record(
+                parsed, type_="prop", role=role, detail=detail,
+                category=["prop", "interior"], tags=[detail, "interior"],
+                description=f"{name} -- interior station/ship {detail.replace('_', ' ')} prop.",
+                ai_notes=f"Interior dressing ({detail.replace('_', ' ')}). Use inside station/ship interiors.",
+                placement=placement, name=name,
+            )
+    return None
+
+
+def _infer_chr_attach(parsed: ParsedName) -> dict | None:
+    if not parsed.id.upper().startswith("SM_CHR_ATTACH_"):
+        return None
+    name = title_from_tokens(parsed.subject_tokens) or parsed.id
+    return _record(
+        parsed, type_="character/part", role="character_part", detail="attach_point",
+        category=["character", "attachment"], tags=["character_attach", "rig"],
+        description=f"{name} -- character attachment/socket mesh. Parents to a character rig bone; not placed directly in a scene.",
+        ai_notes="Attach to the matching character rig socket. Never place standalone in a level.",
+        placement=deepcopy(_SOCKET_PLACEMENT), name=name,
+    )
+
+
+_SIGNBORDER_PLACEMENT = {
+    "mount": "wall", "height": "eye_level", "orientation": "outward_facing", "attachment": "back_side",
+    "preferred_floors": [1], "constraints": ["attach_to_wall_near_door"],
+    "preferred_contexts": ["station_interior", "ship_interior"],
+}
+
+
+def _infer_hud_icon_signborder(parsed: ParsedName) -> dict | None:
+    up = parsed.id.upper()
+    if up.startswith("SM_HUD_") or up.startswith("SM_ICON_"):
+        subject = [t for t in parsed.subject_tokens if t.lower() != "hud"]
+        name = title_from_tokens(subject) or parsed.id
+        return _record(
+            parsed, type_="ui/icon", role="ui_element", detail="hud_icon",
+            category=["ui", "icon"], tags=["ui", "icon", "hud"],
+            description=f"{name} -- HUD/UI icon texture or mesh. Not a scene object; used in screen-space UI only.",
+            ai_notes="UI element. Never place in a 3D scene.",
+            placement=deepcopy(_UI_PLACEMENT), name=name,
+        )
+    if up.startswith("SM_SIGNBORDER_"):
+        subject = [t for t in parsed.subject_tokens if t.lower() != "signborder"]
+        detail = "_".join(t.lower() for t in subject) or "icon"
+        name = f"{title_from_tokens(subject) or detail.title()} Sign"
+        return _record(
+            parsed, type_="prop/signage", role="wayfinding", detail=detail,
+            category=["sign", "wayfinding"], tags=["wayfinding", "station_signage", detail],
+            description=f"{name} -- bordered wayfinding/functional signage icon for station interiors.",
+            ai_notes="Interior wayfinding sign. Mount on a wall near the relevant door/room.",
+            placement=deepcopy(_SIGNBORDER_PLACEMENT), name=name,
+        )
+    return None
+
+
+_SCIFI_SPACE_RULES = (
+    _infer_vehicle_part,
+    _infer_spacecraft,
+    _infer_bld,
+    _infer_env_scifi,
+    _infer_prop_scifi,
+    _infer_chr_attach,
+    _infer_hud_icon_signborder,
+)
+
+
+def _infer_legacy(parsed: ParsedName) -> dict:
     extra = _merge_token_knowledge(parsed.subject_tokens + parsed.tokens)
     ptype = TYPE_BY_KIND.get(parsed.kind, "prop")
-    if parsed.id in CURATED:
-        ptype = CURATED[parsed.id]["type"]
-    elif "sign" in {_norm_token(t) for t in parsed.tokens} and not _is_attachment(
+    if "sign" in {_norm_token(t) for t in parsed.tokens} and not _is_attachment(
         {_norm_token(t) for t in parsed.tokens}
     ):
         ptype = "prop/signage"
 
-    if parsed.id in CURATED:
-        name = CURATED[parsed.id]["name"]
-        category = list(CURATED[parsed.id]["category"])
-        tags = list(CURATED[parsed.id]["tags"])
-    else:
-        name_tokens = parsed.subject_tokens or parsed.tokens
-        name = title_from_tokens(name_tokens) or parsed.id
-        if ptype == "prop/signage" and "sign" not in name.lower() and "pole" not in name.lower():
-            name = f"{name} Sign"
-        category = list(extra["category"])
-        if ptype == "prop/signage" and "sign" not in category:
-            category.insert(0, "sign")
-        if parsed.kind == "building" and "building" not in category:
-            category.insert(0, "building")
-        tags = list(extra["tags"])
-        for t in parsed.subject_tokens:
-            tl = t.lower()
-            if tl not in tags and not tl.isdigit():
-                tags.append(tl)
+    name_tokens = parsed.subject_tokens or parsed.tokens
+    name = title_from_tokens(name_tokens) or parsed.id
+    if ptype == "prop/signage" and "sign" not in name.lower() and "pole" not in name.lower():
+        name = f"{name} Sign"
+    category = list(extra["category"])
+    if ptype == "prop/signage" and "sign" not in category:
+        category.insert(0, "sign")
+    if parsed.kind == "building" and "building" not in category:
+        category.insert(0, "building")
+    tags = list(extra["tags"])
+    for t in parsed.subject_tokens:
+        tl = t.lower()
+        if tl not in tags and not tl.isdigit():
+            tags.append(tl)
 
     placement = _placement_for(parsed, extra)
     if placement.get("mount") == "wall" and "wall-mounted" not in category:
         category.append("wall-mounted")
 
-    dims = None
-    if parsed.id in CURATED:
-        dims = list(CURATED[parsed.id]["dimensions_hint"])
-    elif _is_large_icon(parsed):
+    if _is_large_icon(parsed):
         dims = [2.5, 2.5, 1.2]
     elif _is_billboard({_norm_token(t) for t in parsed.tokens}):
         dims = [6.0, 3.0, 0.4]
@@ -659,3 +1334,17 @@ def infer(asset_id: str) -> dict:
         "ai_notes": _ai_notes(parsed, extra, ptype),
         "parsed": parsed,
     }
+
+
+def infer(asset_id: str) -> dict:
+    parsed = parse_name(asset_id)
+    if parsed.id in CURATED:
+        return _infer_curated(parsed)
+    rec = _infer_nonplaceable(parsed)
+    if rec is not None:
+        return rec
+    for fn in _SCIFI_SPACE_RULES:
+        rec = fn(parsed)
+        if rec is not None:
+            return rec
+    return _infer_legacy(parsed)
