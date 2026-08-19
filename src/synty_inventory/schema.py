@@ -305,7 +305,36 @@ def empty_module() -> dict[str, Any]:
 
 
 def empty_part() -> dict[str, Any]:
-    return {"class": None, "mates_axis": None, "symmetric": None, "size_class": None}
+    return {
+        "class": None,
+        "mates_axis": None,
+        "symmetric": None,
+        "size_class": None,
+        # mesh-analysed mating faces (sources/sockets.py); null until measured
+        "mount": None,
+        "sockets": None,
+    }
+
+
+SOCKET_AXES = ("+x", "-x", "+y", "-y", "+z", "-z")
+SOCKET_ROLES = ("front", "rear", "left", "right", "top", "bottom")
+SOCKET_SOURCES = ("measured", "aabb")
+
+
+def validate_socket(face: Any, prefix: str, errors: list[str], *, need_role: bool) -> None:
+    if not isinstance(face, dict):
+        errors.append(f"{prefix} must be an object")
+        return
+    if face.get("axis") not in SOCKET_AXES:
+        errors.append(f"{prefix}.axis invalid: {face.get('axis')!r}")
+    if not _is_vec3(face.get("position")):
+        errors.append(f"{prefix}.position must be [x,y,z]")
+    if not _is_vec3(face.get("normal")):
+        errors.append(f"{prefix}.normal must be [x,y,z]")
+    if face.get("source") not in SOCKET_SOURCES:
+        errors.append(f"{prefix}.source invalid: {face.get('source')!r}")
+    if need_role and face.get("role") not in SOCKET_ROLES:
+        errors.append(f"{prefix}.role invalid: {face.get('role')!r}")
 
 
 def make_bounds(
@@ -473,6 +502,9 @@ def migrate_asset_v1(asset: dict) -> dict:
     a["dimensions"] = dimensions_from_bounds(a.get("bounds"))
     a.setdefault("module", empty_module())
     a.setdefault("part", empty_part())
+    if isinstance(a["part"], dict):
+        a["part"].setdefault("mount", None)
+        a["part"].setdefault("sockets", None)
     a.setdefault("thumbnail", None)
     a.setdefault("ai_notes", "")
     a.setdefault("category", [])
@@ -579,6 +611,15 @@ def validate_asset(asset: Any, prefix: str, errors: list[str]) -> None:
             errors.append(f"{prefix}.part.class invalid: {part['class']!r}")
         if part.get("size_class") is not None and part["size_class"] not in SIZE_CLASSES:
             errors.append(f"{prefix}.part.size_class invalid: {part['size_class']!r}")
+        if part.get("mount") is not None:
+            validate_socket(part["mount"], f"{prefix}.part.mount", errors, need_role=False)
+        sockets = part.get("sockets")
+        if sockets is not None:
+            if not isinstance(sockets, list):
+                errors.append(f"{prefix}.part.sockets must be a list or null")
+            else:
+                for i, face in enumerate(sockets):
+                    validate_socket(face, f"{prefix}.part.sockets[{i}]", errors, need_role=True)
     elif part is not None:
         errors.append(f"{prefix}.part must be an object or null")
     files = asset.get("files")

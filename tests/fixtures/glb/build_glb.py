@@ -70,3 +70,71 @@ def make_parent_child_doc(parent_node: dict, child_node: dict, accessor: dict) -
         "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
         "accessors": [accessor],
     }
+
+
+# --- real geometry (for sources.glb_geometry / sources.sockets tests) -------
+
+CHUNK_BIN = 0x004E4942
+
+
+def write_mesh_glb(path: Path, vertices: list[list[float]], triangles: list[list[int]], node: dict | None = None) -> None:
+    """Uncompressed GLB with one float32 POSITION accessor + uint16 indices
+    in a BIN chunk; ``node`` may carry translation/rotation/scale."""
+    import itertools
+
+    pos = struct.pack(f"<{len(vertices) * 3}f", *itertools.chain.from_iterable(vertices))
+    flat = list(itertools.chain.from_iterable(triangles))
+    idx = struct.pack(f"<{len(flat)}H", *flat)
+    idx += b"\0" * ((-len(idx)) % 4)
+    blob = pos + idx
+    mins = [min(v[i] for v in vertices) for i in range(3)]
+    maxs = [max(v[i] for v in vertices) for i in range(3)]
+    doc = {
+        "asset": {"version": "2.0"},
+        "scene": 0,
+        "scenes": [{"nodes": [0]}],
+        "nodes": [dict(node or {}, mesh=0, name="Mesh")],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "indices": 1, "mode": 4}]}],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": len(vertices), "type": "VEC3", "min": mins, "max": maxs},
+            {"bufferView": 1, "componentType": 5123, "count": len(flat), "type": "SCALAR"},
+        ],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": len(pos)},
+            {"buffer": 0, "byteOffset": len(pos), "byteLength": len(flat) * 2},
+        ],
+        "buffers": [{"byteLength": len(blob)}],
+    }
+    body = json.dumps(doc).encode("utf-8")
+    body += b" " * ((-len(body)) % 4)
+    total = 12 + 8 + len(body) + 8 + len(blob)
+    path.write_bytes(
+        struct.pack("<III", GLB_MAGIC, 2, total)
+        + struct.pack("<II", len(body), CHUNK_JSON)
+        + body
+        + struct.pack("<II", len(blob), CHUNK_BIN)
+        + blob
+    )
+
+
+def box_mesh(mn: list[float], mx: list[float]) -> tuple[list[list[float]], list[list[int]]]:
+    """Closed axis-aligned box, outward-facing CCW triangles (right-handed)."""
+    x0, y0, z0 = mn
+    x1, y1, z1 = mx
+    v = [
+        [x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0],  # z0 face (0-3)
+        [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1],  # z1 face (4-7)
+    ]
+    quads = [
+        (0, 3, 2, 1),  # -z
+        (4, 5, 6, 7),  # +z
+        (0, 1, 5, 4),  # -y
+        (3, 7, 6, 2),  # +y
+        (0, 4, 7, 3),  # -x
+        (1, 2, 6, 5),  # +x
+    ]
+    tris = []
+    for a, b, c, d in quads:
+        tris.append([a, b, c])
+        tris.append([a, c, d])
+    return v, tris

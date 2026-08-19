@@ -106,7 +106,7 @@ Catalogs are written to the `catalogs:` path. Each pack is
 | `placement` | `mount`, `attachment`, `preferred_floors`, `constraints`, `preferred_contexts` — all enumerated. |
 | `bounds` | `{min,max,size,pivot,source}` in metres, **measured** from the GLB (or asset-viewer AABB); `null` until measured — never a guess. `dimensions.approx` mirrors `bounds.size`; `size_hint` is the rule-based remnant for unmeasured pieces. |
 | `module` | kit data for modular building pieces: `family` (`Apartment`, `Shop`, …), `role` (`hero`, `shell`, `corner`, `door`, `roof`, `stairs`, `floor`, `base`), `footprint_class`, `stackable_on`, `street_side`. |
-| `part` | ship-kit data: `class` (`body`, `cockpit`, `engine`, `wing`, `gear`, `greeble`), `mates_axis`, `symmetric`, `size_class`. |
+| `part` | ship-kit data: `class` (`body`, `cockpit`, `engine`, `wing`, `gear`, `greeble`), `mates_axis`, `symmetric`, `size_class`, plus mesh-analysed mating faces: `mount` (the face this part attaches with: `axis`, `position`, `normal`, `area`, `extent`, `fit`, `source`) and, for `body` hulls, `sockets[]` (`front`/`rear`/`left`/`right`/`top`/`bottom`, same shape). Positions are in `bounds` space (local, metres); `source: measured` = a flat cap found in the decoded GLB triangles, `aabb` = AABB face-centre fallback (no flat cap — rounded hull end, airfoil wing). Attach child to parent as `parent_pos + socket.position - child.mount.position`. `null` until the GLB is analysed. |
 | `files` | `unity_prefab`, `unity_mesh`, `unity_materials`, `glb` (+ `glb_node` for meshes packed in bundle GLBs), `unreal_uasset`, `godot_scene`. `paths` is the v1 alias. |
 | `provenance` | per-field source, see precedence below. |
 
@@ -196,9 +196,23 @@ proven against live packs.
 `gauntlet` is a live acceptance suite (expects `POLYGON_City` and, for the
 assembly gates, `POLYGON_SciFi_Space`): the v1 sign gates plus bounds
 coverage >= 95 %, no heuristic dimensions, GLB paths, VLM overlay applied,
-ship-part typing, every package recipe resolving `complete`, and
+ship-part typing, ship-part sockets (every hull six faces, every child part a
+mount, >= 80 % of mounts measured caps), every package recipe resolving
+`complete`, and
 `suggest` pointing assembly prompts at the right recipe. CI uses `pytest`
 and a fake fixture pack.
+
+## Mesh analysis
+
+Bounds come from accessor `min`/`max` alone. Ship-part sockets need the real
+triangles, so `sources/meshopt.py` carries pure-Python decoders for the
+`EXT_meshopt_compression` vertex (v0) and index (v0/v1) codecs the threejs-v2
+GLBs use — no native `meshoptimizer` dependency. `sources/glb_geometry.py`
+turns a GLB (or one named node of a bundle GLB) into world-space triangles;
+`sources/sockets.py` clusters the axis-facing coplanar triangles into caps
+and picks the outermost sizeable one per axis. Results are cached in
+`_measure_cache.json` under `<glb>#sockets`, keyed by file mtime/size, the
+algorithm version and the part class, so rule changes re-analyse.
 
 ## Skill
 

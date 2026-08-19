@@ -9,6 +9,7 @@ from pathlib import Path
 from . import knowledge
 from .merge import stamp_auto
 from .sources.glb_measure import apply_measured_bounds, bundle_index, load_cache, save_cache
+from .sources.sockets import apply_part_sockets
 from .sources.threejs_v2 import apply_threejs_overlay, bundle_glbs, catalog_by_id, glb_index
 from .sources.viewer import (
     apply_viewer_module,
@@ -252,7 +253,8 @@ def enrich_catalog(
     precedence order: viewer signs/props (existing) -> viewer module/aabb ->
     threejs-v2 VLM-reviewed catalog overlay (also wires ``files.glb``) ->
     GLB-measured bounds (the authoritative last pass, see
-    sources.glb_measure.apply_measured_bounds) -> stamp_auto.
+    sources.glb_measure.apply_measured_bounds) -> ship-part mating faces
+    from the decoded mesh (sources.sockets.apply_part_sockets) -> stamp_auto.
     """
     pack_id = catalog["pack_id"]
     signs = load_viewer_signs(viewer_data, pack_id)
@@ -274,6 +276,7 @@ def enrich_catalog(
         glb_rel = glb_exact.get(asset["id"]) or glb_ci.get(asset["id"].lower())
         apply_threejs_overlay(asset, tj_catalog.get(asset["id"]), glb_rel)
         apply_measured_bounds(asset, threejs_v2, cache, stats, bundles=bundles)
+        apply_part_sockets(asset, threejs_v2, cache, stats)
         stamp_auto(asset)
         if vlm_fn is None:
             continue

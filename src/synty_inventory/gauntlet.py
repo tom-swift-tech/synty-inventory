@@ -269,8 +269,31 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None) -> dict:
             f"{len(parts)} ship parts typed vehicle/part with class, {len(ships)} spacecraft, "
             f"{len(interior)} interior modules; bad={bad_parts[:3] + bad_ships[:3] + bad_int[:3]}",
         )
+        # Mesh-analysed mating faces: every hull has six sockets (measured cap
+        # or AABB fallback), every child part a mount; most mounts must be a
+        # real measured cap, not the AABB fallback, or the analysis regressed.
+        with_glb = [a for a in parts if (a.get("files") or {}).get("glb")]
+        bodies = [a for a in with_glb if (a.get("part") or {}).get("class") == "body"]
+        children = [a for a in with_glb if (a.get("part") or {}).get("class") != "body"]
+        bad_sockets = [a["id"] for a in bodies if len((a.get("part") or {}).get("sockets") or []) != 6]
+        no_mount = [a["id"] for a in children if not (a.get("part") or {}).get("mount")]
+        measured_mounts = sum(
+            1 for a in children if ((a.get("part") or {}).get("mount") or {}).get("source") == "measured"
+        )
+        mount_ratio = measured_mounts / len(children) if children else 0.0
+        if threejs_v2 is not None and with_glb:
+            gate(
+                "ship_part_sockets",
+                not bad_sockets and not no_mount and mount_ratio >= 0.8,
+                f"{len(bodies)} hulls with 6 sockets (bad={bad_sockets[:3]}), "
+                f"{len(children) - len(no_mount)}/{len(children)} child parts with a mount "
+                f"({measured_mounts} measured caps = {mount_ratio:.0%}); no_mount={no_mount[:3]}",
+            )
+        else:
+            gate("ship_part_sockets", True, "threejs_v2 not configured — skipped")
     else:
         gate("scifi_space_assembly_types", True, "POLYGON_SciFi_Space not on disk — skipped")
+        gate("ship_part_sockets", True, "POLYGON_SciFi_Space not on disk — skipped")
 
     recipes = load_recipes(catalogs_dir)
     want = {"ship_kit": None, "station_interior": None, "apartment_block": "POLYGON_City", "main_street_row": "POLYGON_City"}
