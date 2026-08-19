@@ -1,0 +1,29 @@
+{
+  "id": "ship_kit",
+  "kind": "vehicle",
+  "label": "Modular spaceship from kit parts",
+  "description": "Kit-bash a spacecraft from POLYGON_SciFi_Space SM_Veh_Part_* pieces: one body, one cockpit at the front (+Z), one to four engines at the rear (-Z), wings in mirrored pairs on +/-X, optional landing gear under the body (-Y), and greebles on the hull. All parts are authored at 1:1 - never scale. Complete SM_Ship_* prefabs are whole ships; use them as-is or as size references, not as parts.",
+  "triggers": ["ship", "spaceship", "space ship", "spacecraft", "fighter", "bomber", "starship", "kit bash", "kitbash", "vessel"],
+  "packs": ["POLYGON_SciFi_Space"],
+  "grid": {"snap": 0.25},
+  "conventions": {"nose_axis": "+z", "up_axis": "+y", "mirror_axis": "x"},
+  "constraints": ["do_not_scale", "mirror_wings_in_pairs", "engines_at_rear", "cockpit_at_front", "snap_0_25", "parts_overlap_body_by_0_1_to_0_3_m"],
+  "steps": [
+    {"role": "body", "select": {"type": "vehicle/part", "part_class": "body"}, "count": [1, 1], "layout": "single", "required": true,
+     "note": "Origin of the ship. Everything else attaches relative to this body's bounds."},
+    {"role": "cockpit", "select": {"type": "vehicle/part", "part_class": "cockpit"}, "count": [1, 1], "layout": "attach_front", "required": true,
+     "note": "Seat at body bounds.max.z, centred on X, top flush with or slightly above body top."},
+    {"role": "engine", "select": {"type": "vehicle/part", "part_class": "engine"}, "count": [1, 4], "layout": "attach_rear", "required": true,
+     "note": "At body bounds.min.z. 1 centred; 2 mirrored on +/-X; 4 in a 2x2 block."},
+    {"role": "wing", "select": {"type": "vehicle/part", "part_class": "wing"}, "count": [0, 2], "layout": "mirror_x_pair",
+     "note": "Each pick is a pair: instance once at +X, once at -X mirrored (scale.x = -1 or the engine's mirror). Root at body bounds.max.x / min.x, mid-height."},
+    {"role": "landing_gear", "select": {"type": "vehicle/part", "part_class": "landing_gear"}, "count": [0, 3], "layout": "attach_under",
+     "note": "Only for landed / hangar scenes. Under body bounds.min.y, one forward + two aft."},
+    {"role": "greeble", "select": {"type": "vehicle/part", "part_class": "greeble"}, "count": [0, 6], "layout": "scatter_on_surface",
+     "note": "Hull detail on body/wing upper surfaces. Keep clear of cockpit glass."},
+    {"role": "turret", "select": {"type": "prop", "semantic_role": "weapon", "tags_any": ["turret"]}, "count": [0, 2], "layout": "scatter_on_surface",
+     "note": "Optional. Mount on hull top/bottom centreline or wing tips."},
+    {"role": "reference_ships", "select": {"type": "vehicle/spacecraft"}, "count": [0, 0], "layout": "free",
+     "note": "Complete ships for scale comparison / background traffic. Not parts."}
+  ]
+}

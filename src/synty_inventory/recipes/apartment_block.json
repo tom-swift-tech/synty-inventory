@@ -1,0 +1,29 @@
+{
+  "id": "apartment_block",
+  "kind": "building",
+  "label": "Multi-storey apartment / office block from stackable modules",
+  "description": "Stack a building from one module family: one Base (ground floor, often with door), N Floor modules on top (y += storey height from bounds.size.y), a Roof module on top, corners from the family's Corner pieces for L/U plans, fire escapes and roof access/props as dressing. Alternatively use a pre-stacked *_Stack_* shell as a whole. Street face +Z; do not scale; keep one family per building so textures match.",
+  "triggers": ["apartment", "apartments", "apartment building", "apartment block", "office block", "office building", "tower", "multi storey", "multi-storey", "high rise", "residential block", "stack", "storeys", "floors"],
+  "packs": ["POLYGON_City", "POLYGON_SciFi_City", "POLYGON_Prototype"],
+  "grid": {"snap": 0.25, "module": 5.0, "story": 3.0},
+  "conventions": {"street_axis": "+z", "stack_axis": "+y"},
+  "constraints": ["do_not_scale", "one_family_per_building", "floor_y_equals_sum_of_lower_bounds_size_y", "street_face_plus_z", "roof_last", "no_city_layout_pieces"],
+  "steps": [
+    {"role": "base", "select": {"type": "building/module", "module_role": ["base", "door"]}, "count": [1, 1], "layout": "single", "required": true,
+     "note": "Ground storey. Prefer a Door piece on the street face; Base pieces for families that have them."},
+    {"role": "floor", "select": {"type": "building/module", "module_role": "floor"}, "count": [1, 12], "layout": "stack_along_y", "required": true,
+     "note": "Same family as base. y = cumulative bounds.size.y of pieces below (~3 m each)."},
+    {"role": "roof", "select": {"type": "building/module", "module_role": "roof"}, "count": [1, 1], "layout": "stack_along_y", "required": true,
+     "note": "Top. Roof_Corner variants for corner plans."},
+    {"role": "corner", "select": {"type": "building/module", "module_role": "corner"}, "count": [0, 4], "layout": "single",
+     "note": "Use at plan corners, same family; stack Corner -> Roof_Corner."},
+    {"role": "stairs", "select": {"type": "building/module", "module_role": "stairs"}, "count": [0, 2], "layout": "single",
+     "note": "Entrance stairs/planters at the base on the street face."},
+    {"role": "prestacked_shell", "select": {"type": ["building/shell", "building/module"], "id_regex": "_Stack_"}, "count": [0, 1], "layout": "single",
+     "note": "Alternative to base/floor/roof: a whole pre-stacked building."},
+    {"role": "fire_escape", "select": {"tags_any": ["fire_escape", "fireescape"]}, "count": [0, 2], "layout": "facade_band",
+     "note": "On a side face, spanning the floors."},
+    {"role": "roof_dressing", "select": {"semantic_role": "roof_dressing"}, "count": [0, 4], "layout": "roof_pad",
+     "note": "Aircon units, vents, roof access; seat on the flat roof pad, never tilted."}
+  ]
+}

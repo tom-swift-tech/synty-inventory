@@ -1,0 +1,27 @@
+{
+  "id": "main_street_row",
+  "kind": "street",
+  "label": "Main-street row of shops (small town)",
+  "description": "A row of 3-8 shop shells side by side along the street (X), street faces on +Z, sharing party walls; a corner shop at one or both ends; one identity sign per frontage on the fascia (barber pole, cafe, hotel, police plaque ...), awnings/covers over doors, posters in a band, street furniture at the curb. Shells are whole buildings (building/shell) - do not stack them; use the apartment_block recipe for multi-storey.",
+  "triggers": ["main street", "shop row", "row of shops", "shops", "storefront", "storefronts", "high street", "small town", "strip", "downtown", "shopfront"],
+  "packs": ["POLYGON_City", "POLYGON_SciFi_City"],
+  "grid": {"snap": 0.25, "tile": 5.0},
+  "conventions": {"street_axis": "+z", "row_axis": "x"},
+  "constraints": ["do_not_scale", "street_face_plus_z", "adjacent_shells_share_x_edge", "one_identity_sign_per_frontage", "no_civic_sign_on_shop", "signs_off_windows", "no_city_layout_pieces_in_building_pass"],
+  "steps": [
+    {"role": "shell", "select": {"type": "building/shell", "tags_any": ["shop", "storefront", "commercial", "cafe", "bar", "hotel"]}, "count": [3, 8], "layout": "row_along_x", "required": true,
+     "note": "Place each at x = previous bounds.max.x (accounting for pivot), z = 0, yaw 0. Vary ids; avoid two identical neighbours."},
+    {"role": "corner", "select": {"type": ["building/shell", "building/module"], "module_role": "corner", "tags_any": ["shop"]}, "count": [0, 2], "layout": "single",
+     "note": "At row ends where the street turns."},
+    {"role": "identity_sign", "select": {"type": "prop/signage", "semantic_role": "building_identity"}, "count": [3, 8], "layout": "facade_band", "required": true,
+     "note": "One per shell, centred over the door or beside it (barber pole = side bracket, first floor). Match sign to shell use; never civic plaques here."},
+    {"role": "awning", "select": {"type": ["building/module", "prop"], "tags_any": ["cover", "awning", "canopy"]}, "count": [0, 8], "layout": "facade_band",
+     "note": "Over entrances, below the sign band."},
+    {"role": "poster", "select": {"type": "prop/signage", "semantic_role": "advertisement", "tags_any": ["poster", "ad", "advertisement"]}, "count": [0, 6], "layout": "facade_band",
+     "note": "1-2 per shell between windows; respect civic-only copy."},
+    {"role": "street_furniture", "select": {"semantic_role": "street_furniture"}, "count": [2, 10], "layout": "scatter_on_surface",
+     "note": "Benches, bins, hydrants, parking meters at the curb line (z ~ shell bounds.max.z + 1.5)."},
+    {"role": "streetlight", "select": {"tags_any": ["streetlight", "lamp_post", "lighting"], "placeable": true}, "count": [1, 4], "layout": "row_along_x",
+     "note": "Every ~10 m along the curb."}
+  ]
+}

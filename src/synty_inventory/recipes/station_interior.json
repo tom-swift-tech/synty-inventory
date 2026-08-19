@@ -1,0 +1,31 @@
+{
+  "id": "station_interior",
+  "kind": "interior",
+  "label": "Space station / ship interior from modules",
+  "description": "Assemble corridors and rooms (bridge, crew quarters, hydroponics) from POLYGON_SciFi_Space interior modules: floor tiles on the grid, walls on tile edges (door walls where rooms connect), ceilings over tiles, then interior props (screens, control panels, beds, crates, lights). Modules snap on the pack grid; do not scale.",
+  "triggers": ["station", "interior", "corridor", "bridge", "crew quarters", "hydroponics", "space station", "deck", "room", "hallway"],
+  "packs": ["POLYGON_SciFi_Space"],
+  "grid": {"snap": 0.25, "module": 2.5, "story": 3.0},
+  "conventions": {"up_axis": "+y", "floor_origin": "check bounds.pivot per piece (corner vs center_bottom)"},
+  "constraints": ["do_not_scale", "snap_to_grid", "walls_on_tile_edges", "doors_between_rooms_only", "ceiling_height_from_wall_bounds"],
+  "steps": [
+    {"role": "floor", "select": {"type": "building/interior_module", "module_role": "floor"}, "count": [4, 64], "layout": "grid_xz", "required": true,
+     "note": "Tile the footprint. Use bounds.size.x/z as the step; mix Floor_Combined / Half / 45 pieces for L-shapes and diagonals."},
+    {"role": "wall", "select": {"type": "building/interior_module", "module_role": "wall"}, "count": [4, 64], "layout": "grid_xz", "required": true,
+     "note": "One wall per exterior tile edge, yawed 0/90/180/270. Walls with Door in the id go where corridors meet rooms."},
+    {"role": "door", "select": {"type": "building/interior_module", "module_role": "door"}, "count": [1, 8], "layout": "single",
+     "note": "Door leaf/frame pieces that fit the Wall_Door openings."},
+    {"role": "ceiling", "select": {"type": "building/interior_module", "module_role": "ceiling"}, "count": [0, 64], "layout": "grid_xz",
+     "note": "Mirror the floor layout at y = wall bounds.size.y."},
+    {"role": "corridor", "select": {"type": "building/interior_module", "module_family": "Corridor"}, "count": [0, 12], "layout": "row_along_x",
+     "note": "Pre-built corridor sections between rooms."},
+    {"role": "bridge", "select": {"type": "building/interior_module", "module_family": "Bridge"}, "count": [0, 12], "layout": "free",
+     "note": "Bridge room kit (consoles, chairs, ceiling). One bridge per station."},
+    {"role": "crew", "select": {"type": "building/interior_module", "module_family": "Crew"}, "count": [0, 12], "layout": "free"},
+    {"role": "hydroponics", "select": {"type": "building/interior_module", "module_family": "Hydroponics"}, "count": [0, 8], "layout": "free"},
+    {"role": "stairs", "select": {"module_role": "stairs", "type": ["building/interior_module", "prop"]}, "count": [0, 4], "layout": "single",
+     "note": "Between decks; align top landing with the upper floor tile height."},
+    {"role": "interior_prop", "select": {"semantic_role": ["interior_prop", "container"], "contexts_any": ["station_interior", "ship_interior"]}, "count": [4, 40], "layout": "scatter_on_surface",
+     "note": "Screens/panels on walls, beds/crates on floor, lights on ceiling - check placement.mount per piece."}
+  ]
+}
