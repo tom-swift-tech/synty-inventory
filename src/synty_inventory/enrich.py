@@ -7,13 +7,17 @@ from copy import deepcopy
 from pathlib import Path
 
 from . import knowledge
-from .dimensions import (
+from .merge import stamp_auto
+from .sources.glb_measure import apply_measured_bounds, load_cache, save_cache
+from .sources.threejs_v2 import apply_threejs_overlay, catalog_by_id, glb_index
+from .sources.viewer import (
+    apply_viewer_module,
     load_type_sign_usage,
+    load_viewer_pieces,
     load_viewer_props,
     load_viewer_signs,
     measured_size,
 )
-from .merge import stamp_auto
 from .schema import (
     TYPE_MIGRATION,
     default_placeable,
@@ -204,16 +208,36 @@ def skeleton_asset(
 def enrich_catalog(
     catalog: dict,
     viewer_data: Path | None,
+    threejs_v2: Path | None = None,
+    catalogs_dir: Path | None = None,
     vlm_fn=None,
     vlm_limit: int = 0,
 ) -> dict:
+    """Layer every enrichment source onto the rule-based skeleton, in
+    precedence order: viewer signs/props (existing) -> viewer module/aabb ->
+    threejs-v2 VLM-reviewed catalog overlay (also wires ``files.glb``) ->
+    GLB-measured bounds (the authoritative last pass, see
+    sources.glb_measure.apply_measured_bounds) -> stamp_auto.
+    """
     pack_id = catalog["pack_id"]
     signs = load_viewer_signs(viewer_data, pack_id)
     props = load_viewer_props(viewer_data, pack_id)
     usage = load_type_sign_usage(viewer_data, pack_id)
+    pieces = load_viewer_pieces(viewer_data, pack_id)
+    tj_catalog = catalog_by_id(threejs_v2, pack_id)
+    glb_exact, glb_ci = glb_index(threejs_v2, pack_id)
+
+    cache_path = (catalogs_dir / "_measure_cache.json") if catalogs_dir else None
+    cache = load_cache(cache_path) if cache_path else {}
+    stats = {"measured": 0, "missing_glb": 0, "measure_failed": 0, "skipped": 0, "disagree": 0}
+
     vlm_done = 0
     for asset in catalog["assets"]:
         apply_viewer_overlays(asset, signs, props, usage)
+        apply_viewer_module(asset, pieces.get(asset["id"]))
+        glb_rel = glb_exact.get(asset["id"]) or glb_ci.get(asset["id"].lower())
+        apply_threejs_overlay(asset, tj_catalog.get(asset["id"]), glb_rel)
+        apply_measured_bounds(asset, threejs_v2, cache, stats)
         stamp_auto(asset)
         if vlm_fn is None:
             continue
@@ -226,6 +250,10 @@ def enrich_catalog(
         updated = vlm_fn(asset)
         if updated:
             vlm_done += 1
+
+    if cache_path is not None and cache:
+        save_cache(cache_path, cache)
+    catalog["_measure_stats"] = stats
     return catalog
 
 

@@ -10,6 +10,49 @@ from .schema import SEMANTIC_FIELDS
 
 SCANNER_OWNED = ("id", "paths", "files", "kit", "guid", "engine_paths")
 
+# Field precedence for enrichment sources. Higher wins on rescan and inside a
+# single enrich_catalog() pass. vlm_reviewed (threejs-v2, VLM-graded per
+# asset) outranks the rule/viewer/GLB-measurement sources but never a human
+# or curated (hand-authored, exact-id) override.
+PROVENANCE_RANK = {
+    "rules": 1,
+    "viewer": 2,
+    "measured": 3,
+    "vlm": 3,
+    "vlm_reviewed": 4,
+    "curated": 5,
+    "human": 6,
+}
+
+# Single exception to strict rank order: threejs-v2's VLM-reviewed name/
+# description/tags are allowed to overwrite a "curated" (hand-authored, but
+# not `human`-locked) record for those three text fields specifically. The
+# VLM pass looks at the actual mesh and writes grounded prose ("channel
+# letters", etc.) that is usually better than older hand-typed copy; but a
+# human's placement/ai_notes/semantic_role judgement calls are not
+# second-guessed this way. This must be consulted both by a single
+# build_catalog() pass (see sources/threejs_v2.py::apply_threejs_overlay,
+# which calls may_overlay) AND by merge_asset() on rescan, where the
+# on-disk record's provenance is the "current" one being compared against —
+# defining it once here keeps the two call sites from drifting apart.
+FORCE_OVERLAY_PAIRS: dict[tuple[str, str], set[str]] = {
+    ("curated", "vlm_reviewed"): {"name", "description", "tags"},
+}
+
+
+def _rank_allows(current: str | None, source: str, field: str) -> bool:
+    if PROVENANCE_RANK.get(current or "rules", 1) <= PROVENANCE_RANK.get(source, 1):
+        return True
+    return field in FORCE_OVERLAY_PAIRS.get((current, source), set())
+
+
+def may_overlay(asset: dict, field: str, source: str) -> bool:
+    """True when ``source`` may (over)write ``asset[field]`` given whatever
+    already stamped that field's provenance. Ties go to the incoming source
+    (a fresh pass from the same-rank source should still refresh content)."""
+    current = (asset.get("provenance") or {}).get(field)
+    return _rank_allows(current, source, field)
+
 
 def _dump(value: Any) -> str:
     return json.dumps(value, sort_keys=True, ensure_ascii=False, default=str)
@@ -74,8 +117,10 @@ def merge_asset(old: dict | None, new: dict) -> dict:
         new_prov = (new.get("provenance") or {}).get(field, "rules")
         # vlm / human incoming may replace rules; rules do not clobber vlm
         # Plan precedence: human > curated > vlm_reviewed > measured > viewer > rules
-        rank = {"rules": 1, "viewer": 2, "measured": 3, "vlm": 3, "vlm_reviewed": 4, "curated": 5, "human": 6}
-        if rank.get(old_prov or "rules", 1) > rank.get(new_prov, 1) and old.get(field):
+        # (with the curated->vlm_reviewed name/description/tags exception in
+        # FORCE_OVERLAY_PAIRS above — a rescan must not discard the same
+        # overlay that a single build_catalog() pass would have applied).
+        if not _rank_allows(old_prov, new_prov, field) and old.get(field):
             continue
         out[field] = incoming
         if field in (new.get("_auto") or {}):
