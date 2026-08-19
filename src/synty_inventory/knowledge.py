@@ -23,9 +23,10 @@ from __future__ import annotations
 
 import re
 from copy import deepcopy
+from dataclasses import replace
 
 from .naming import ParsedName, parse_name, title_from_tokens
-from .schema import empty_module, empty_part
+from .schema import TYPE_MIGRATION, empty_module, empty_part
 
 WALL_PLAQUE = {
     "mount": "wall",
@@ -258,6 +259,55 @@ TOKEN_TAGS: dict[str, dict] = {
     "attachment": {"tags": ["attachment", "hardware", "mount"], "contexts": ["facade"], "category": ["hardware"]},
     "chopshop": {"tags": ["chopshop", "industrial", "garage"], "contexts": ["chopshop"], "category": ["building"]},
     "stripclub": {"tags": ["stripclub", "nightlife", "vice"], "contexts": ["nightlife"], "category": ["building"]},
+    # --- military/war/urban-crime packs (Military, War, Gang_Warfare,
+    # BattleRoyale, Heist, Military_Warehouse_Map). These enrich the legacy
+    # SM_Prop_*/SM_Env_*/SM_Bld_* fallback path with tags/contexts; type and
+    # semantic_role for the dominant families (weapons, vehicles, building
+    # kits) come from the dedicated dispatch rules above instead.
+    "sandbag": {"tags": ["sandbag", "fortification", "cover"], "contexts": ["trench", "checkpoint", "bunker"], "category": ["prop", "military"]},
+    "trench": {"tags": ["trench", "fortification", "ground"], "contexts": ["battlefield"], "category": ["environment", "military"]},
+    "foxhole": {"tags": ["foxhole", "fortification", "ground"], "contexts": ["battlefield"], "category": ["environment", "military"]},
+    "barbedwire": {"tags": ["barbed_wire", "fence", "fortification"], "contexts": ["checkpoint", "perimeter"], "category": ["prop", "military"]},
+    "camonet": {"tags": ["camo_net", "camouflage", "concealment"], "contexts": ["military_base", "encampment"], "category": ["prop", "military"]},
+    "camonetting": {"tags": ["camo_net", "camouflage", "concealment"], "contexts": ["military_base", "encampment"], "category": ["prop", "military"]},
+    "guardtower": {"tags": ["guard_tower", "watchtower", "military", "lookout"], "contexts": ["checkpoint", "military_base"], "category": ["building", "military"]},
+    "watchtower": {"tags": ["guard_tower", "watchtower", "military", "lookout"], "contexts": ["checkpoint", "military_base"], "category": ["building", "military"]},
+    "bunker": {"tags": ["bunker", "fortification", "military"], "contexts": ["battlefield", "military_base"], "category": ["building", "military"]},
+    "tanktrap": {"tags": ["tank_trap", "fortification", "anti_vehicle"], "contexts": ["battlefield"], "category": ["prop", "military"]},
+    "ied": {"tags": ["ied", "explosive", "hazard"], "contexts": ["battlefield"], "category": ["prop", "hazard"]},
+    "missile": {"tags": ["missile", "ordnance", "military"], "contexts": ["military_base"], "category": ["prop", "military"]},
+    "pipeline": {"tags": ["pipeline", "industrial", "pipe"], "contexts": ["industrial", "military_base"], "category": ["prop", "industrial"]},
+    "powerline": {"tags": ["powerline", "utility", "electrical"], "contexts": ["street", "industrial"], "category": ["prop", "utility"]},
+    "airconditioner": {"tags": ["hvac", "roof", "utility"], "contexts": ["roof"], "category": ["prop"]},
+    "money": {"tags": ["money", "cash", "loot"], "contexts": ["heist", "gang_hideout"], "category": ["prop", "valuables"]},
+    "gold": {"tags": ["gold", "loot", "valuables"], "contexts": ["heist", "vault"], "category": ["prop", "valuables"]},
+    "goldbar": {"tags": ["gold", "gold_bar", "loot", "valuables"], "contexts": ["vault", "heist"], "category": ["prop", "valuables"]},
+    "jewellery": {"tags": ["jewellery", "loot", "valuables"], "contexts": ["heist", "vault"], "category": ["prop", "valuables"]},
+    "safedepositbox": {"tags": ["safe_deposit_box", "vault", "bank"], "contexts": ["bank", "vault"], "category": ["prop", "bank"]},
+    "safedepositboxes": {"tags": ["safe_deposit_box", "vault", "bank"], "contexts": ["bank", "vault"], "category": ["prop", "bank"]},
+    "vault": {"tags": ["vault", "bank", "secure"], "contexts": ["bank"], "category": ["prop", "bank"]},
+    # Heist's real stems glue "Vault" onto the next word (VaultDoor/VaultGate/
+    # VaultTrolley) rather than keeping "Vault" a standalone token.
+    "vaultdoor": {"tags": ["vault", "bank", "secure"], "contexts": ["bank"], "category": ["prop", "bank"]},
+    "vaultgate": {"tags": ["vault", "bank", "secure"], "contexts": ["bank"], "category": ["prop", "bank"]},
+    "vaulttrolley": {"tags": ["vault", "bank", "trolley"], "contexts": ["bank"], "category": ["prop", "bank"]},
+    "tellerdesk": {"tags": ["teller_desk", "bank", "counter"], "contexts": ["bank"], "category": ["prop", "bank"]},
+    "metaldetector": {"tags": ["metal_detector", "security"], "contexts": ["bank", "checkpoint"], "category": ["prop", "security"]},
+    "displaycase": {"tags": ["display_case", "retail", "jewellery"], "contexts": ["jewellery_store", "museum"], "category": ["prop", "commercial"]},
+    "lab": {"tags": ["lab", "drug_lab", "clandestine"], "contexts": ["gang_hideout"], "category": ["prop", "crime"]},
+    "chemical": {"tags": ["chemical", "drug_lab", "hazard"], "contexts": ["gang_hideout"], "category": ["prop", "crime"]},
+    "powder": {"tags": ["powder", "drugs", "contraband"], "contexts": ["gang_hideout"], "category": ["prop", "crime"]},
+    "zipbag": {"tags": ["zip_bag", "drugs", "contraband"], "contexts": ["gang_hideout"], "category": ["prop", "crime"]},
+    "pills": {"tags": ["pills", "drugs", "contraband"], "contexts": ["gang_hideout"], "category": ["prop", "crime"]},
+    "emergencydrop": {"tags": ["airdrop", "supply_drop", "loot"], "contexts": ["battle_royale"], "category": ["prop", "loot"]},
+    "parachute": {"tags": ["parachute", "airdrop"], "contexts": ["battle_royale"], "category": ["prop", "loot"]},
+    "medicalbox": {"tags": ["medical", "first_aid", "loot"], "contexts": ["battle_royale"], "category": ["prop", "loot"]},
+    "bandage": {"tags": ["bandage", "medical", "loot"], "contexts": ["battle_royale"], "category": ["prop", "loot"]},
+    "c4": {"tags": ["c4", "explosive", "loot"], "contexts": ["battle_royale"], "category": ["prop", "loot"]},
+    "pallet": {"tags": ["pallet", "industrial", "cover"], "contexts": ["warehouse"], "category": ["prop", "industrial"]},
+    "propane": {"tags": ["propane", "tank", "hazard", "explosive"], "contexts": ["industrial"], "category": ["prop", "hazard"]},
+    "padlock": {"tags": ["padlock", "security", "hardware"], "contexts": ["gate", "fence"], "category": ["prop", "hardware"]},
+    "shippingcontainer": {"tags": ["shipping_container", "cargo", "industrial"], "contexts": ["warehouse", "port"], "category": ["prop", "industrial"]},
 }
 
 # Exact-id curated entries -- quality bar for autonomous placement.
@@ -343,6 +393,15 @@ PACK_STYLES = {
     "ANIMATION_Base_Locomotion": "animation",
     "INTERFACE_SciFi_Soldier_HUD": "ui",
     "SIMPLE_Sky": "skybox",
+    "POLYGON_Military": "lowpoly_military",
+    "POLYGON_War": "lowpoly_military",
+    "POLYGON_Gang_Warfare": "lowpoly_urban_crime",
+    "POLYGON_BattleRoyale": "lowpoly_battle_royale",
+    "POLYGON_Heist": "lowpoly_urban_crime",
+    "POLYGON_Military_Warehouse_Map": "lowpoly_military",
+    "POLYGON_Mech": "lowpoly_mech",
+    "ANIMATION_Emotes_And_Taunts": "animation",
+    "INTERFACE_Military_Combat_HUD": "ui",
 }
 
 TYPE_BY_KIND = {
@@ -758,7 +817,10 @@ def _infer_nonplaceable(parsed: ParsedName) -> dict | None:
             placement=deepcopy(_UI_PLACEMENT), name=name,
         )
 
-    if _SKY_PREFIX_RE.match(parsed.id):
+    # "skydome" recurs mid-stem (not as a prefix) in both POLYGON_Military's
+    # SM_Skydome_01 and PolygonGeneric's SM_Gen_Env_Skydome_01 -- catch it
+    # anywhere in the token list, not just via _SKY_PREFIX_RE's stem-start match.
+    if _SKY_PREFIX_RE.match(parsed.id) or "skydome" in {t.lower() for t in parsed.tokens}:
         return _record(
             parsed, type_="skybox", role="skybox", detail="",
             category=["environment", "skybox"], tags=["skybox", "sky"],
@@ -913,13 +975,226 @@ def _infer_spacecraft(parsed: ParsedName) -> dict | None:
     )
 
 
+# --- SM_Wep_* weapon vocabulary (military/war/crime packs) --------------------
+#
+# naming.py's FAMILY_KIND already maps WEP -> kind="weapon", so a bare
+# ``SM_Wep_<Name>_*`` already gets type="weapon" via the legacy fallback --
+# but the legacy `_semantic_role` has no "weapon" branch (it falls to the
+# generic "dresses_scene" default), which is why weapons still need an
+# explicit rule here to land on the schema's "weapon" semantic role.
+
+_WEAPON_SOCKET_PLACEMENT = {
+    "mount": "socket", "height": "n/a", "orientation": "align_to_parent", "attachment": "socket",
+    "preferred_floors": [], "constraints": ["attach_to_character_hand_or_holster"],
+    "preferred_contexts": ["character_rig", "loadout"],
+}
+_WEAPON_MOD_PLACEMENT = {
+    "mount": "socket", "height": "n/a", "orientation": "align_to_parent", "attachment": "socket",
+    "preferred_floors": [], "constraints": ["attach_to_weapon_body", "do_not_scale"],
+    "preferred_contexts": ["weapon_builder"],
+}
+# SM_Wep_Mod_<Slot>_* -> nearest PART_CLASSES value. No "weapon/part" type
+# and no "weapon_part" semantic role exist in schema.TYPES/SEMANTIC_ROLES
+# (gap -- see brief report); modelled as type="weapon" + `part.class` instead,
+# the same shape POLYGON_Mech's attachments use below.
+_WEAPON_MOD_SLOTS = {
+    "barrel", "body", "grip", "handguard", "handle", "ironsight", "magazine",
+    "mag", "scope", "stock", "suppressor", "muzzle", "sight", "rail", "trigger",
+}
+_WEAPON_NATIONALITY_TOKENS = {"american", "german", "russian", "british", "bandit", "swat"}
+
+
+def _infer_weapon(parsed: ParsedName) -> dict | None:
+    if not parsed.id.upper().startswith("SM_WEP_"):
+        return None
+    subject = parsed.subject_tokens
+    subject_lower = [t.lower() for t in subject]
+    joined = "".join(subject_lower)
+    name = title_from_tokens(subject) or parsed.id
+
+    if "crosshair" in joined:
+        return _record(
+            parsed, type_="ui/icon", role="ui_element", detail="crosshair",
+            category=["ui", "icon"], tags=["ui", "crosshair", "reticle"],
+            description=f"{name} -- weapon crosshair/reticle icon. Not a scene object; screen-space HUD only.",
+            ai_notes="UI element. Never place in a 3D scene.",
+            placement=deepcopy(_UI_PLACEMENT), name=name,
+        )
+
+    if subject_lower[:1] == ["mod"]:
+        slot = next((t for t in subject_lower[1:] if t in _WEAPON_MOD_SLOTS), None)
+        part = empty_part()
+        part["class"] = "weapon_mount"
+        mod_name = title_from_tokens(subject[1:]) or name
+        return _record(
+            parsed, type_="weapon", role="weapon", detail="weapon_mod",
+            category=["weapon", "weapon_part"], tags=["weapon_part", "weapon_mod"] + ([slot] if slot else []),
+            description=(
+                f"{mod_name} -- modular weapon component. Sockets onto a weapon body/rail; "
+                "not a standalone weapon."
+            ),
+            ai_notes="Weapon builder part. Attach to the matching socket on a weapon body; never place standalone.",
+            placement=deepcopy(_WEAPON_MOD_PLACEMENT), part=part, name=mod_name,
+        )
+
+    if subject_lower[:1] == ["preset"]:
+        preset_name = title_from_tokens(subject[1:]) or name
+        return _record(
+            parsed, type_="weapon", role="weapon", detail="assembled_weapon",
+            category=["weapon"], tags=["weapon", "preset", "assembled"],
+            description=(
+                f"{preset_name} -- pre-assembled weapon loadout (Wep_Mod parts combined into one "
+                "weapon). Equip whole; do not disassemble by default."
+            ),
+            ai_notes="Ready-to-use weapon assembly. Equip to a character hand socket.",
+            placement=deepcopy(_WEAPON_SOCKET_PLACEMENT), name=preset_name,
+        )
+
+    detail_tokens = [t for t in subject_lower if t not in _WEAPON_NATIONALITY_TOKENS]
+    detail = detail_tokens[0] if detail_tokens else (subject_lower[0] if subject_lower else "weapon")
+    tags = ["weapon", detail] + [t for t in subject_lower if t in _WEAPON_NATIONALITY_TOKENS]
+    return _record(
+        parsed, type_="weapon", role="weapon", detail=detail,
+        category=["weapon"], tags=tags,
+        description=f"{name} -- handheld weapon. Equip to a character hand socket or place in a weapon rack/loadout.",
+        ai_notes="Weapon prop. Socket to a character hand bone when equipped; ground-place only in armories/loadout scenes.",
+        placement=deepcopy(_WEAPON_SOCKET_PLACEMENT), name=name,
+    )
+
+
+# --- SM_Veh_* military vehicle vocabulary --------------------------------------
+
+_VEHICLE_GROUND_PLACEMENT = {
+    "mount": "ground", "height": "grade", "orientation": "forward_plus_z", "attachment": "base_to_ground",
+    "preferred_floors": [1], "constraints": ["sit_on_ground", "align_to_road_or_field"],
+    "preferred_contexts": ["street", "battlefield", "motor_pool"],
+}
+
+
+def _infer_veh_military(parsed: ParsedName) -> dict | None:
+    if not parsed.id.upper().startswith("SM_VEH_") or parsed.id.upper().startswith("SM_VEH_PART_"):
+        return None
+    subject = parsed.subject_tokens
+    subject_lower = [t.lower() for t in subject]
+    name = title_from_tokens(subject) or parsed.id
+    joined = "".join(subject_lower)
+
+    if subject_lower[:1] == ["attach"]:
+        part = empty_part()
+        part["class"] = "greeble"
+        attach_name = title_from_tokens(subject[1:]) or name
+        return _record(
+            parsed, type_="vehicle/part", role="vehicle_part", detail="cargo_attachment",
+            category=["vehicle", "vehicle_part"], tags=["vehicle_part", "cargo", "greeble"],
+            description=(
+                f"{attach_name} -- vehicle cargo/greeble attachment. Sockets onto a vehicle "
+                "hardpoint (roof rack, truck bed, hood); purely decorative."
+            ),
+            ai_notes="Attach to the matching vehicle hardpoint. Not a standalone vehicle.",
+            placement=deepcopy(_VEH_PART_PLACEMENT), part=part, name=attach_name,
+        )
+
+    is_wreck = "destroyed" in joined
+    tags = ["vehicle", "military_vehicle"]
+    if is_wreck:
+        tags += ["destroyed", "wreck"]
+    return _record(
+        parsed, type_="vehicle", role="vehicle", detail="destroyed_vehicle" if is_wreck else "military_vehicle",
+        category=["vehicle", "military"], tags=tags,
+        description=f"{name} -- military vehicle. Sit on the road, field or motor pool; do not scale; yaw to travel direction.",
+        ai_notes=(
+            'Ground/air military vehicle. Wreck variants ("Destroyed") dress battle-damaged scenes; '
+            "do not mix with intact motor pools."
+        ),
+        placement=deepcopy(_VEHICLE_GROUND_PLACEMENT), name=name,
+    )
+
+
+# --- POLYGON_Mech vocabulary ----------------------------------------------------
+#
+# No listing was provided for this pack -- the lead described it as a
+# rigged ``SM_Veh_Mech_01`` body plus a ``MechAttachments/`` folder of
+# slot-keyed armor/weapon meshes (Arm/Leg/Chest/Head/Hips/Foot/Back/Hand/
+# Cockpit/Neck). ASSUMPTION (report to lead, validate at scan time): the
+# attachments follow the pack's existing ``SM_Veh_Attach_*`` cargo-
+# attachment naming convention, i.e. ``SM_Veh_MechAttach_<Slot>_##`` /
+# ``SM_Veh_Mech_Attach_<Slot>_##``; the matcher below only requires the
+# "Mech" and "Attach" tokens to both be present (in either order/spacing),
+# so it survives minor real-naming differences.
+_MECH_SLOT_PART_CLASS = {
+    "arm": "armor", "leg": "armor", "chest": "armor", "head": "armor",
+    "hips": "armor", "foot": "armor", "back": "armor", "hand": "armor", "neck": "armor",
+    "cockpit": "cockpit", "weapon": "weapon_mount", "wep": "weapon_mount",
+}
+
+
+def _infer_mech(parsed: ParsedName) -> dict | None:
+    if not parsed.id.upper().startswith("SM_VEH_"):
+        return None
+    tokens_lower = [t.lower() for t in parsed.tokens]
+    # substring, not exact-token, match: the assumed real stem may glue
+    # "Mech"/"Attach" into one camelCase token (SM_Veh_MechAttach_Arm_01)
+    # instead of splitting them (SM_Veh_Mech_Attach_Arm_01) -- both must resolve.
+    if "mech" not in "".join(tokens_lower):
+        return None
+    subject = parsed.subject_tokens
+    subject_lower = [t.lower() for t in subject]
+
+    if "attach" in "".join(subject_lower):
+        name = title_from_tokens(subject) or parsed.id
+        slot = next((t for t in subject_lower if t in _MECH_SLOT_PART_CLASS), None)
+        part_class = _MECH_SLOT_PART_CLASS.get(slot, "armor")
+        remaining = [t for t in subject if "mech" not in t.lower() and "attach" not in t.lower()]
+        part = empty_part()
+        part["class"] = part_class
+        attach_name = title_from_tokens(remaining) or name
+        return _record(
+            parsed, type_="vehicle/part", role="vehicle_part", detail=f"mech_{part_class}",
+            category=["vehicle", "mech_part"], tags=["mech", "mech_attachment", part_class],
+            description=(
+                f"{attach_name} -- Mech slot-keyed {part_class} attachment. Sockets onto the "
+                f"{slot or 'matching'} hardpoint of the Mech body."
+            ),
+            ai_notes="Attach to the matching Mech body slot. Not a standalone vehicle.",
+            placement=deepcopy(_VEH_PART_PLACEMENT), part=part, name=attach_name,
+        )
+
+    name = title_from_tokens(subject) or parsed.id
+    return _record(
+        parsed, type_="vehicle", role="vehicle", detail="mech",
+        category=["vehicle", "mech"], tags=["mech", "vehicle", "walker"],
+        description=f"{name} -- rigged Mech walker body. Equip MechAttachments slot pieces onto it; place at authored scale.",
+        ai_notes="Whole Mech chassis. Combine with MechAttachments/ slot parts for the assembled loadout.",
+        placement=deepcopy(_VEHICLE_GROUND_PLACEMENT), name=name,
+    )
+
+
 # --- Bld_* dispatch: City-style exterior kits vs sci-fi interior kits ----------
 
-_CITY_TWO_TOKEN_FAMILIES = {("officeold", "large"): "OfficeOld_Large", ("officeold", "small"): "OfficeOld_Small"}
+_CITY_TWO_TOKEN_FAMILIES = {
+    ("officeold", "large"): "OfficeOld_Large", ("officeold", "small"): "OfficeOld_Small",
+    # War/Military-pack two-word building families ("SM_Bld_Guard_Tower_*",
+    # "SM_Bld_State_Building_*") -- same family as the single-word spellings
+    # below ("GuardTower" in POLYGON_Military), normalised to one label.
+    ("guard", "tower"): "GuardTower", ("state", "building"): "StateBuilding",
+}
 _CITY_SINGLE_FAMILIES = {
     "apartment": "Apartment", "officeoctagon": "OfficeOctagon", "officeround": "OfficeRound",
     "officesquare": "OfficeSquare", "shop": "Shop", "station": "Station", "cityhall": "CityHall",
     "fireescape": "FireEscape", "spire": "Spire", "cover": "Cover",
+    # War/military/crime-pack hero building families (POLYGON_Military,
+    # POLYGON_War, POLYGON_Gang_Warfare, POLYGON_BattleRoyale). None of
+    # these collide with _INTERIOR_TRIGGER_TOKENS, so bld_exterior_family
+    # keeps taking precedence over is_interior_bld for them as designed.
+    "village": "Village", "tent": "Tent", "camonet": "CamoNet", "camonetting": "CamoNet",
+    "guardtower": "GuardTower", "plywood": "Plywood", "ruins": "Ruins", "ruin": "Ruins",
+    "decorative": "Decorative", "gastower": "GasTower", "archway": "Archway",
+    "hangar": "Hangar", "hanger": "Hangar", "city": "City", "bunker": "Bunker",
+    "townhouse": "TownHouse", "barracks": "Barracks", "warehouse": "Warehouse",
+    "house": "House", "smallbuilding": "SmallBuilding", "woodenshack": "WoodenShack",
+    "shack": "Shack", "walkway": "Walkway", "skylight": "Skylight",
+    "loadingdock": "LoadingDock", "barn": "Barn", "farmhouse": "FarmHouse",
+    "farm": "Farm", "outhose": "Outhouse", "shed": "Shed", "roof": "Roof",
 }
 
 
@@ -968,6 +1243,12 @@ _FAMILY_CONTEXT = {
     "Apartment": "residential_block", "Shop": "shop", "Station": "transit_station",
     "CityHall": "civic", "OfficeOctagon": "office", "OfficeRound": "office",
     "OfficeSquare": "office", "OfficeOld_Large": "office", "OfficeOld_Small": "office",
+    "Village": "settlement", "Tent": "encampment", "CamoNet": "military_base",
+    "GuardTower": "checkpoint", "Bunker": "military_base", "Hangar": "airfield",
+    "Barracks": "military_base", "Warehouse": "industrial", "TownHouse": "residential_block",
+    "House": "residential_block", "SmallBuilding": "residential_block",
+    "WoodenShack": "settlement", "Shack": "settlement", "StateBuilding": "civic",
+    "City": "urban", "Farm": "farmland", "FarmHouse": "farmland", "Barn": "farmland",
 }
 _ONEOFF_EXTERIOR_MODULES = {
     "FireEscape": {"role": "misc", "mount": "wall"},
@@ -1191,10 +1472,23 @@ _INTERIOR_PROP_SPEC = {
 def _infer_prop_scifi(parsed: ParsedName) -> dict | None:
     if not parsed.id.upper().startswith("SM_PROP_"):
         return None
-    joined = "".join(t.lower() for t in parsed.subject_tokens)
-    name = title_from_tokens(parsed.subject_tokens) or parsed.id
+    subject = parsed.subject_tokens
+    name = title_from_tokens(subject) or parsed.id
+    # Exact-token / adjacent-bigram keys only -- NOT a naive substring check
+    # against the fully concatenated stem. A plain `"bed" in joined` false-
+    # positives on e.g. "SM_Prop_Barbed_Wire_01" ("bar-BED-wire") because
+    # "bed" happens to appear mid-word once every token is glued together.
+    # Bigrams keep multi-token keys like "controlpanel"/"foodpacket" working.
+    token_keys = [t.lower() for t in subject]
+    token_keys += ["".join(token_keys[i : i + 2]) for i in range(len(token_keys) - 1)]
 
-    if "turret" in joined:
+    if "sign" in token_keys:
+        # "SM_Prop_Sign_Medical_01" / "SM_Prop_Sign_Light_01" etc. would
+        # otherwise match the "medical"/"light" interior-prop keys below and
+        # lose their prop/signage typing entirely. Signage always belongs to
+        # the legacy sign path (or a CURATED entry), never this vocabulary.
+        return None
+    if "turret" in token_keys:
         return _record(
             parsed, type_="weapon", role="weapon", detail="turret",
             category=["weapon", "turret"], tags=["turret", "weapon", "defense"],
@@ -1202,7 +1496,7 @@ def _infer_prop_scifi(parsed: ParsedName) -> dict | None:
             ai_notes="Mount at a hull or roof hardpoint. Orient to cover the expected threat arc.",
             placement=deepcopy(_TURRET_PLACEMENT), name=name,
         )
-    if "greeble" in joined or "detail" in joined:
+    if "greeble" in token_keys or "detail" in token_keys:
         return _record(
             parsed, type_="prop", role="facade_dressing", detail="greeble",
             category=["prop", "greeble"], tags=["greeble", "hull_detail"],
@@ -1211,7 +1505,7 @@ def _infer_prop_scifi(parsed: ParsedName) -> dict | None:
             placement=deepcopy(_GREEBLE_PLACEMENT), name=name,
         )
     for key, (mount, attach, detail, role) in _INTERIOR_PROP_SPEC.items():
-        if key in joined:
+        if key in token_keys:
             placement = {
                 "mount": mount, "height": "n/a",
                 "orientation": "upright" if mount == "ground" else "align_to_parent",
@@ -1274,9 +1568,53 @@ def _infer_hud_icon_signborder(parsed: ParsedName) -> dict | None:
     return None
 
 
+# --- SM_Gen_<Family>_* wrapper (PolygonGeneric's shared kit) -------------------
+
+_GEN_INNER_FAMILY_TOKENS = {"ENV", "PROP", "BLD", "VEH", "WEP", "CHR", "CHARACTER", "CHAR", "ITEM"}
+
+
+def _infer_gen_wrapper(parsed: ParsedName) -> dict | None:
+    """PolygonGeneric ships its whole shared kit re-prefixed one level
+    deeper than every other pack: ``SM_Gen_Env_*``, ``SM_Gen_Prop_*``,
+    ``SM_Gen_Bld_*``, ``SM_Gen_Chr_Attach_*``, ``SM_Gen_Wep_*`` ...
+    ``parse_name`` only ever consumes the *first* family token, so a raw
+    ``SM_Gen_*`` stem gets stuck at family=GEN / kind="generic" and never
+    reaches the Env/Prop/Bld/Chr/Wep vocabulary below (which every other
+    pack's stems hit directly). Strip the "Gen" token, re-parse and
+    re-dispatch on the resulting synthetic stem (e.g.
+    ``SM_Gen_Chr_Attach_Beanie_01`` -> ``SM_Chr_Attach_Beanie_01``), then
+    stamp the real id/tokens back onto the result so callers still see the
+    asset's actual filename-derived identity.
+
+    Known gap (see brief report): this makes ``SM_Gen_Env_Rubble_*``
+    resolve through ``_infer_env_scifi`` as deep-space debris even inside a
+    ground-war pack -- ``infer()`` has no pack context to disambiguate, and
+    narrowing that rule risks the SciFi_Space vocabulary it exists for.
+    """
+    if parsed.family != "GEN" or not parsed.subject_tokens:
+        return None
+    inner = parsed.subject_tokens[0].upper()
+    if inner not in _GEN_INNER_FAMILY_TOKENS:
+        return None
+    gen_index = next(i for i, t in enumerate(parsed.tokens) if t.upper() == "GEN")
+    synthetic_tokens = parsed.tokens[:gen_index] + parsed.tokens[gen_index + 1 :]
+    synthetic_id = "_".join(synthetic_tokens)
+    synthetic_parsed = parse_name(synthetic_id)
+    if synthetic_parsed.family == "GEN":
+        return None  # malformed input; guards against re-entering this rule
+    rec = _dispatch(synthetic_parsed)
+    rec["id"] = parsed.id
+    rec["parsed"] = replace(synthetic_parsed, id=parsed.id)
+    return rec
+
+
 _SCIFI_SPACE_RULES = (
+    _infer_gen_wrapper,
     _infer_vehicle_part,
     _infer_spacecraft,
+    _infer_weapon,
+    _infer_mech,
+    _infer_veh_military,
     _infer_bld,
     _infer_env_scifi,
     _infer_prop_scifi,
@@ -1324,7 +1662,14 @@ def _infer_legacy(parsed: ParsedName) -> dict:
     return {
         "id": parsed.id,
         "name": name,
-        "type": ptype,
+        # TYPE_MIGRATION applied here (not on `ptype` itself) so the internal
+        # dim-hint/description/ai-notes lookups above keep matching on the
+        # pre-migration "building/modular" key -- only the field callers
+        # actually read gets the v2-valid "building/module" spelling. Without
+        # this, every SM_Bld_<untabled family>_* stem that falls through to
+        # this legacy path (most new war/military-pack building families we
+        # don't special-case) returns a type outside schema.TYPES.
+        "type": TYPE_MIGRATION.get(ptype, ptype),
         "category": category,
         "tags": tags,
         "description": _description(parsed, name, extra, ptype),
@@ -1336,8 +1681,12 @@ def _infer_legacy(parsed: ParsedName) -> dict:
     }
 
 
-def infer(asset_id: str) -> dict:
-    parsed = parse_name(asset_id)
+def _dispatch(parsed: ParsedName) -> dict:
+    """Run the full rule chain against an already-parsed name. Split out
+    from ``infer()`` so ``_infer_gen_wrapper`` can re-dispatch on a
+    synthetic ``ParsedName`` (the Gen-token-stripped stem) without a
+    round-trip through ``parse_name`` twice or duplicating the chain.
+    """
     if parsed.id in CURATED:
         return _infer_curated(parsed)
     rec = _infer_nonplaceable(parsed)
@@ -1348,3 +1697,7 @@ def infer(asset_id: str) -> dict:
         if rec is not None:
             return rec
     return _infer_legacy(parsed)
+
+
+def infer(asset_id: str) -> dict:
+    return _dispatch(parse_name(asset_id))
