@@ -6,7 +6,14 @@ from pathlib import Path
 
 from .catalog import catalog_path, load_catalog
 from .merge import merge_catalog
-from .query import get_asset_details, get_placement_guidance, search_assets, suggest_assets_for
+from .query import (
+    get_asset_details,
+    get_placement_guidance,
+    search_assets,
+    suggest_assets_for,
+    suggest_recipes_for,
+)
+from .recipes import load_recipes, resolve_recipe
 from .schema import validate_catalog
 
 
@@ -246,6 +253,62 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None) -> dict:
         prov_ok and desc_ok,
         f"description={(police_asset or {}).get('description')!r}",
     )
+
+    # --- Phase 3/4/5 gates: assembly semantics, recipes, suggest pointers ----
+    space = next((d for d in docs if d.get("pack_id") == "POLYGON_SciFi_Space"), None)
+    if space:
+        parts = [a for a in space["assets"] if a["id"].startswith("SM_Veh_Part_")]
+        ships = [a for a in space["assets"] if a["id"].startswith("SM_Ship_")]
+        bad_parts = [a["id"] for a in parts if a.get("type") != "vehicle/part" or not (a.get("part") or {}).get("class")]
+        bad_ships = [a["id"] for a in ships if a.get("type") != "vehicle/spacecraft"]
+        interior = [a for a in space["assets"] if a["id"].startswith(("SM_Bld_Corridor_", "SM_Bld_Bridge_", "SM_Bld_Crew_"))]
+        bad_int = [a["id"] for a in interior if a.get("type") != "building/interior_module"]
+        gate(
+            "scifi_space_assembly_types",
+            bool(parts) and not bad_parts and not bad_ships and not bad_int,
+            f"{len(parts)} ship parts typed vehicle/part with class, {len(ships)} spacecraft, "
+            f"{len(interior)} interior modules; bad={bad_parts[:3] + bad_ships[:3] + bad_int[:3]}",
+        )
+    else:
+        gate("scifi_space_assembly_types", True, "POLYGON_SciFi_Space not on disk — skipped")
+
+    recipes = load_recipes(catalogs_dir)
+    want = {"ship_kit": None, "station_interior": None, "apartment_block": "POLYGON_City", "main_street_row": "POLYGON_City"}
+    incomplete = []
+    for rid, pack in want.items():
+        rec = recipes.get(rid)
+        if not rec:
+            incomplete.append(f"{rid}: missing")
+            continue
+        res = resolve_recipe(catalogs_dir, rec, pack=pack)
+        if not res["complete"]:
+            incomplete.append(f"{rid}: missing roles {res['missing_required_roles']}")
+    gate("recipes_resolve", not incomplete, "all package recipes complete" if not incomplete else "; ".join(incomplete))
+
+    pointers = {
+        "build me a fighter space ship": "ship_kit",
+        "a row of shops for main street in a small town": "main_street_row",
+        "six storey apartment building": "apartment_block",
+        "space station corridor and bridge interior": "station_interior",
+    }
+    wrong = []
+    for text, rid in pointers.items():
+        hits = suggest_recipes_for(catalogs_dir, text)
+        if not hits or hits[0]["id"] != rid:
+            wrong.append(f"{text!r} -> {hits[0]['id'] if hits else None}")
+    gate("suggest_recipe_pointers", not wrong, "all assembly prompts point at the right recipe" if not wrong else "; ".join(wrong))
+
+    # Clips, HUD widgets and screen-space FX in ANIMATION_/INTERFACE_ packs must
+    # not be offered to an assembler; only real SM_ demo meshes may stay placeable.
+    nonplace = [
+        a["id"]
+        for d in docs
+        for a in d["assets"]
+        if d.get("pack_id", "").startswith(("ANIMATION_", "INTERFACE_"))
+        and a.get("placeable")
+        and not a["id"].upper().startswith(("SM_", "SK_", "CHR_"))
+    ]
+    gate("nonplaceable_packs", not nonplace, f"{len(nonplace)} ANIMATION_/INTERFACE_ non-mesh assets still placeable {nonplace[:5]}")
 
     ok = all(g["ok"] for g in gates)
     return {"ok": ok, "gates": gates}

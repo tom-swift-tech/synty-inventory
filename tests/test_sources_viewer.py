@@ -25,9 +25,20 @@ def test_role_mapped_and_family_set():
     piece = {"roles": ["hero", "shell"], "family": "hero", "tags": ["exterior"]}
     apply_viewer_module(asset, piece)
     assert asset["module"]["role"] == "hero"
-    assert asset["module"]["family"] == "hero"
+    # viewer "family" is a generator bucket, not a kit family: it lands in tags
+    assert asset["module"]["family"] is None
+    assert "viewer_hero" in asset["tags"]
     assert asset["provenance"]["module"] == "viewer"
     assert "exterior" in asset["tags"] and "existing" in asset["tags"]
+
+
+def test_viewer_role_does_not_clobber_rules_role():
+    asset = _asset()
+    asset["module"]["family"] = "Apartment"
+    asset["module"]["role"] = "floor"
+    apply_viewer_module(asset, {"roles": ["wall"], "family": "base", "tags": []})
+    assert asset["module"] ["family"] == "Apartment"
+    assert asset["module"]["role"] == "floor"
 
 
 def test_ignored_roles_and_family_do_not_stamp_module():

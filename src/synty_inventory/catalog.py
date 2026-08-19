@@ -151,6 +151,28 @@ def build_catalog(
     return doc
 
 
+def _human_only(doc: dict) -> dict:
+    """Strip a catalog down to the fields a human locked, per asset."""
+    keep = []
+    for a in doc.get("assets") or []:
+        locked = set(a.get("locked_fields") or [])
+        prov = a.get("provenance") or {}
+        human = locked | {f for f, v in prov.items() if v == "human"}
+        if a.get("locked") is True:
+            keep.append(a)
+            continue
+        if not human:
+            continue
+        slim = {"id": a.get("id"), "locked_fields": sorted(human), "provenance": {f: "human" for f in human}}
+        for f in human:
+            if f in a:
+                slim[f] = a[f]
+        keep.append(slim)
+    out = dict(doc)
+    out["assets"] = keep
+    return out
+
+
 def scan_and_write(
     ref: PackRef,
     catalogs_dir: Path,
@@ -161,7 +183,12 @@ def scan_and_write(
     from_package: bool = False,
     vlm_fn=None,
     vlm_limit: int = 0,
+    rebuild: bool = False,
 ) -> tuple[dict, list[str]]:
+    """``rebuild=True`` discards every auto-derived value on disk and keeps
+    only human-locked fields (``locked_fields`` / ``provenance: human``) —
+    use after a rules/schema change so old ``viewer``/``rules`` provenance
+    cannot outrank the new derivation during merge."""
     fresh = build_catalog(
         ref,
         include_shared=include_shared,
@@ -176,6 +203,8 @@ def scan_and_write(
         )
     dest = catalog_path(catalogs_dir, ref.pack_id)
     existing = load_catalog(dest)
+    if rebuild and existing:
+        existing = _human_only(existing)
     merged = merge_catalog(existing, fresh)
     merged["asset_count"] = len(merged["assets"])
     write_catalog(dest, merged)

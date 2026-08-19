@@ -151,14 +151,21 @@ def apply_viewer_module(asset: dict, piece: dict | None) -> dict:
         if mapped:
             role = mapped
             break
+    # The viewer's ``family`` is a generator bucket (hero/base/road/landscape/
+    # vehicle…), NOT a kit family like "Apartment" — the rules' stem-derived
+    # family is the one an assembler stacks by, so never overwrite it. The
+    # viewer bucket goes into tags (``viewer_<bucket>``) and its role only
+    # fills a gap the rules left (the viewer marks every Bld piece "hero",
+    # so it cannot be allowed to flatten floor/roof/door roles).
     family = (piece.get("family") or "").strip().lower()
-    use_family = family and family not in VIEWER_FAMILY_IGNORE
-    if (role or use_family) and may_overlay(asset, "module", "viewer"):
-        if role:
+    if family and family not in VIEWER_FAMILY_IGNORE:
+        tag = f"viewer_{family}"
+        if tag not in (asset.get("tags") or []):
+            asset.setdefault("tags", []).append(tag)
+    if role and may_overlay(asset, "module", "viewer"):
+        if module.get("role") is None:
             module["role"] = role
-        if use_family:
-            module["family"] = family
-        asset.setdefault("provenance", {})["module"] = "viewer"
+            asset.setdefault("provenance", {})["module"] = "viewer"
     tags = asset.setdefault("tags", [])
     for t in piece.get("tags") or []:
         if t and t not in tags:

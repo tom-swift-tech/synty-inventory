@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import query
+from . import query, recipes
 from .catalog import (
     build_catalog,
     catalog_path,
@@ -185,6 +185,7 @@ def cmd_scan(args, cfg) -> int:
             from_package=args.from_package,
             vlm_fn=vlm_fn,
             vlm_limit=args.vlm_limit,
+            rebuild=args.rebuild,
         )
         if args.extract_previews and ref.package_path:
             wanted = {
@@ -267,8 +268,75 @@ def cmd_search(args, cfg) -> int:
             category=_csv(args.category),
             constraints=_csv(args.constraints),
             limit=args.limit,
+            types=_csv(args.type),
+            roles=_csv(args.role),
+            module_roles=_csv(args.module_role),
+            part_classes=_csv(args.part_class),
+            include_nonplaceable=args.include_nonplaceable,
+            engine=args.engine,
         )
     )
+    return 0
+
+
+def _viewer(cfg) -> Path | None:
+    v = cfg.get("viewer_data")
+    return Path(v) if v else None
+
+
+def cmd_recipes(args, cfg) -> int:
+    catalogs_dir = _catalogs(args, cfg)
+    recs = recipes.load_recipes(catalogs_dir, _viewer(cfg))
+    rows = []
+    for rid, rec in sorted(recs.items()):
+        if args.pack and not any(args.pack.lower() in p.lower() for p in rec.get("packs") or [rid.split("@")[-1]]):
+            continue
+        rows.append(
+            {
+                "id": rid,
+                "kind": rec.get("kind"),
+                "label": rec.get("label"),
+                "packs": rec.get("packs"),
+                "source": rec.get("source"),
+                "steps": [st.get("role") for st in rec.get("steps") or []],
+                "triggers": rec.get("triggers"),
+            }
+        )
+    emit_json(rows)
+    return 0
+
+
+def cmd_recipe(args, cfg) -> int:
+    catalogs_dir = _catalogs(args, cfg)
+    recs = recipes.load_recipes(catalogs_dir, _viewer(cfg))
+    rec = recs.get(args.id)
+    if rec is None:
+        # allow "building_shop" to resolve to "building_shop@<pack>" when unique / pack given
+        cands = [k for k in recs if k.split("@")[0] == args.id and (not args.pack or args.pack.lower() in k.lower())]
+        if len(cands) == 1:
+            rec = recs[cands[0]]
+        elif cands:
+            return _fail(f"ambiguous recipe {args.id}: {cands}", 3)
+    if rec is None:
+        return _fail(f"recipe not found: {args.id}", 3)
+    out = recipes.resolve_recipe(catalogs_dir, rec, pack=args.pack, limit_per_step=args.limit)
+    if args.engine:
+        for step in out["resolved_steps"]:
+            for piece in step["eligible"]:
+                piece["files"] = query.engine_files(piece, args.engine)
+    emit_json(out)
+    return 0 if out.get("complete") else 4
+
+
+def cmd_kit(args, cfg) -> int:
+    catalogs_dir = _catalogs(args, cfg)
+    if args.family == "*" or args.family.lower() == "all":
+        emit_json(recipes.kit_families(catalogs_dir, args.pack))
+        return 0
+    fams = recipes.kit_family(catalogs_dir, args.family, args.pack)
+    if not fams:
+        return _fail(f"no module family matches: {args.family}", 3)
+    emit_json(fams)
     return 0
 
 
@@ -283,14 +351,20 @@ def cmd_details(args, cfg) -> int:
 
 def cmd_suggest(args, cfg) -> int:
     catalogs_dir = _catalogs(args, cfg)
-    emit_json(
-        query.suggest_assets_for(
-            catalogs_dir,
-            args.context,
-            pack=args.pack,
-            limit=args.limit,
-        )
+    assets = query.suggest_assets_for(
+        catalogs_dir,
+        args.context,
+        pack=args.pack,
+        limit=args.limit,
+        include_nonplaceable=args.include_nonplaceable,
+        engine=args.engine,
     )
+    if args.assets_only:
+        emit_json(assets)
+        return 0
+    # Assembly requests get a grammar pointer first, then ranked pieces.
+    matched = query.suggest_recipes_for(catalogs_dir, args.context, _viewer(cfg))
+    emit_json({"recipes": matched, "assets": assets})
     return 0
 
 
@@ -356,6 +430,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--pack", default=None, help="Restrict to pack_id substring")
     s.add_argument("--include-shared", action="store_true", help="Include PolygonGeneric in each pack")
     s.add_argument("--from-package", action="store_true", help="Index the .unitypackage even if extracted exists")
+    s.add_argument("--rebuild", action="store_true", help="Drop auto-derived values on disk; keep only human-locked fields")
     s.add_argument(
         "--extract-previews",
         action="store_true",
@@ -389,7 +464,29 @@ def build_parser() -> argparse.ArgumentParser:
     se.add_argument("--category", default=None)
     se.add_argument("--constraints", default=None)
     se.add_argument("--limit", type=int, default=20)
+    se.add_argument("--type", default=None, help="comma list of schema types (e.g. vehicle/part)")
+    se.add_argument("--role", default=None, help="comma list of semantic_role enums")
+    se.add_argument("--module-role", dest="module_role", default=None)
+    se.add_argument("--part-class", dest="part_class", default=None)
+    se.add_argument("--include-nonplaceable", action="store_true")
+    se.add_argument("--engine", choices=query.ENGINES, default=None, help="which files.* to print")
     se.set_defaults(func=cmd_search)
+
+    rl = sub.add_parser("recipes", help="List assembly recipes (package + asset-viewer types + user)")
+    rl.add_argument("--pack", default=None)
+    rl.set_defaults(func=cmd_recipes)
+
+    rc = sub.add_parser("recipe", help="Resolve one recipe: grammar + eligible pieces with bounds/files")
+    rc.add_argument("id")
+    rc.add_argument("--pack", default=None)
+    rc.add_argument("--limit", type=int, default=40, help="eligible pieces per step")
+    rc.add_argument("--engine", choices=query.ENGINES, default=None)
+    rc.set_defaults(func=cmd_recipe)
+
+    kt = sub.add_parser("kit", help="Module family grouped by role (use '*' for all families)")
+    kt.add_argument("family")
+    kt.add_argument("--pack", default=None)
+    kt.set_defaults(func=cmd_kit)
 
     de = sub.add_parser("details", help="get_asset_details(id)")
     de.add_argument("id")
@@ -399,6 +496,9 @@ def build_parser() -> argparse.ArgumentParser:
     su.add_argument("context")
     su.add_argument("--pack", default=None)
     su.add_argument("--limit", type=int, default=12)
+    su.add_argument("--include-nonplaceable", action="store_true")
+    su.add_argument("--engine", choices=query.ENGINES, default=None)
+    su.add_argument("--assets-only", action="store_true", help="v1 output: a bare list of assets")
     su.set_defaults(func=cmd_suggest)
 
     pl = sub.add_parser("placement", help="get_placement_guidance(id)")

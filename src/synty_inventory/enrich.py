@@ -161,6 +161,12 @@ def _apply_pack_overrides(inferred: dict, pack_id: str, raw) -> None:
         # real meshes inside these packs (demo props, targets) stay as classified
         if stem_up.startswith(("SM_", "SK_", "CHR_")):
             return
+        # INTERFACE_* FX_ stems are screen-space vignettes/flashes: keep the
+        # fx type but they are not world-placeable.
+        if prefix == "INTERFACE_" and inferred.get("type") == "fx":
+            inferred["placeable"] = False
+            inferred["kind"] = "ui"
+            return
         if inferred.get("type") in {"prop", None} or inferred.get("type") == atype:
             inferred["type"] = atype
             inferred["kind"] = kind
