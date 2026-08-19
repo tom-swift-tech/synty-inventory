@@ -9,8 +9,10 @@ from pathlib import Path
 from . import knowledge
 from .merge import stamp_auto
 from .sources.glb_measure import apply_measured_bounds, bundle_index, load_cache, save_cache
+from .sources.godot import apply_godot_overlay, scene_index
 from .sources.sockets import apply_part_sockets
 from .sources.threejs_v2 import apply_threejs_overlay, bundle_glbs, catalog_by_id, glb_index
+from .sources.unreal import apply_unreal_overlay, asset_index as unreal_asset_index
 from .sources.viewer import (
     apply_viewer_module,
     load_type_sign_usage,
@@ -248,13 +250,21 @@ def enrich_catalog(
     catalogs_dir: Path | None = None,
     vlm_fn=None,
     vlm_limit: int = 0,
+    godot_root: Path | None = None,
+    unreal_root: Path | None = None,
 ) -> dict:
     """Layer every enrichment source onto the rule-based skeleton, in
     precedence order: viewer signs/props (existing) -> viewer module/aabb ->
     threejs-v2 VLM-reviewed catalog overlay (also wires ``files.glb``) ->
+    Godot/Unreal reference-tree overlay (wires ``files.godot_scene`` /
+    ``files.unreal_uasset``; both no-op when their root is unset) ->
     GLB-measured bounds (the authoritative last pass, see
     sources.glb_measure.apply_measured_bounds) -> ship-part mating faces
     from the decoded mesh (sources.sockets.apply_part_sockets) -> stamp_auto.
+
+    ``godot_root`` / ``unreal_root`` default to ``None`` (off) — callers
+    (``catalog.build_catalog`` / ``scan_and_write``, ``cli.py``) must pass
+    the configured path explicitly, same as ``threejs_v2``.
     """
     pack_id = catalog["pack_id"]
     signs = load_viewer_signs(viewer_data, pack_id)
@@ -264,6 +274,8 @@ def enrich_catalog(
     tj_catalog = catalog_by_id(threejs_v2, pack_id)
     glb_exact, glb_ci = glb_index(threejs_v2, pack_id)
     bundles = bundle_index(threejs_v2, pack_id, bundle_glbs(threejs_v2, pack_id))
+    godot_exact, godot_ci = scene_index(godot_root, pack_id)
+    unreal_exact, unreal_ci = unreal_asset_index(unreal_root, pack_id)
 
     cache_path = (catalogs_dir / "_measure_cache.json") if catalogs_dir else None
     cache = load_cache(cache_path) if cache_path else {}
@@ -275,6 +287,10 @@ def enrich_catalog(
         apply_viewer_module(asset, pieces.get(asset["id"]))
         glb_rel = glb_exact.get(asset["id"]) or glb_ci.get(asset["id"].lower())
         apply_threejs_overlay(asset, tj_catalog.get(asset["id"]), glb_rel)
+        scene_rel = godot_exact.get(asset["id"]) or godot_ci.get(asset["id"].lower())
+        apply_godot_overlay(asset, scene_rel)
+        uasset_rel = unreal_exact.get(asset["id"]) or unreal_ci.get(asset["id"].lower())
+        apply_unreal_overlay(asset, uasset_rel)
         apply_measured_bounds(asset, threejs_v2, cache, stats, bundles=bundles)
         apply_part_sockets(asset, threejs_v2, cache, stats)
         stamp_auto(asset)
