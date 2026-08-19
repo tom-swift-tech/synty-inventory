@@ -34,6 +34,71 @@ CONTEXT_ALIASES = {
 }
 
 
+ENGINES = ("unity", "unreal", "godot", "threejs", "all")
+
+
+def engine_files(asset: dict, engine: str | None) -> dict:
+    """Select the per-engine file paths an agent should instantiate. Semantics
+    never change with engine; only which ``files.*`` keys are surfaced."""
+    files = asset.get("files") or {}
+    eng = (engine or "all").lower()
+    if eng == "unity":
+        return {k: files.get(k) for k in ("unity_prefab", "unity_mesh", "unity_materials")}
+    if eng == "unreal":
+        return {"unreal_uasset": files.get("unreal_uasset"), "glb": files.get("glb")}
+    if eng in {"godot", "threejs"}:
+        return {"glb": files.get("glb"), "godot_scene": files.get("godot_scene")}
+    return dict(files)
+
+
+def _result(pid: str, asset: dict, score: float | None = None, engine: str | None = None, why: bool = False) -> dict:
+    out = {
+        "pack_id": pid,
+        "id": asset.get("id"),
+        "name": asset.get("name"),
+        "type": asset.get("type"),
+        "placeable": asset.get("placeable"),
+        "category": asset.get("category"),
+        "tags": asset.get("tags"),
+        "semantic_role": asset.get("semantic_role"),
+        "semantic_detail": asset.get("semantic_detail"),
+        ("why" if why else "description"): asset.get("description"),
+        "placement": asset.get("placement"),
+        "module": asset.get("module"),
+        "part": asset.get("part"),
+        "bounds": asset.get("bounds"),
+        "dimensions": asset.get("dimensions"),
+        "files": engine_files(asset, engine),
+        "paths": asset.get("paths"),
+        "ai_notes": asset.get("ai_notes"),
+    }
+    if score is not None:
+        out["score"] = round(score, 2)
+    return out
+
+
+def _match_v2_filters(
+    asset: dict,
+    *,
+    types: list[str] | None,
+    roles: list[str] | None,
+    module_roles: list[str] | None,
+    part_classes: list[str] | None,
+    include_nonplaceable: bool,
+) -> bool:
+    if not include_nonplaceable and asset.get("placeable") is False:
+        return False
+    if types and (asset.get("type") or "") not in set(types):
+        return False
+    if roles and (asset.get("semantic_role") or "") not in set(roles):
+        return False
+    if module_roles and ((asset.get("module") or {}).get("role") or "") not in set(module_roles):
+        return False
+    if part_classes and ((asset.get("part") or {}).get("class") or "") not in set(part_classes):
+        return False
+    return True
+
+
 def tokenize(text: str) -> list[str]:
     return _TOKEN.findall(text.lower())
 
@@ -168,35 +233,35 @@ def search_assets(
     category: list[str] | None = None,
     constraints: list[str] | None = None,
     limit: int = 20,
+    types: list[str] | None = None,
+    roles: list[str] | None = None,
+    module_roles: list[str] | None = None,
+    part_classes: list[str] | None = None,
+    include_nonplaceable: bool = False,
+    engine: str | None = None,
 ) -> list[dict]:
     scored: list[tuple[float, str, dict]] = []
     for pid, _doc, asset in _iter_assets(catalogs_dir, pack):
         if not _match_filters(asset, pack, tags, category, constraints, pid):
             continue
+        if not _match_v2_filters(
+            asset,
+            types=types,
+            roles=roles,
+            module_roles=module_roles,
+            part_classes=part_classes,
+            include_nonplaceable=include_nonplaceable,
+        ):
+            continue
         s = _score(query, asset)
+        # measured pieces are more useful to an assembler than unmeasured ones
+        if (asset.get("bounds") or {}).get("source") == "measured":
+            s += 3
         if s <= 0 and query.strip():
             continue
         scored.append((s, pid, asset))
     scored.sort(key=lambda r: (-r[0], r[1], r[2].get("id") or ""))
-    results = []
-    for s, pid, asset in scored[:limit]:
-        results.append(
-            {
-                "pack_id": pid,
-                "score": round(s, 2),
-                "id": asset.get("id"),
-                "name": asset.get("name"),
-                "type": asset.get("type"),
-                "category": asset.get("category"),
-                "tags": asset.get("tags"),
-                "semantic_role": asset.get("semantic_role"),
-                "description": asset.get("description"),
-                "placement": asset.get("placement"),
-                "paths": asset.get("paths"),
-                "dimensions": asset.get("dimensions"),
-            }
-        )
-    return results
+    return [_result(pid, asset, s, engine) for s, pid, asset in scored[:limit]]
 
 
 def get_asset_details(catalogs_dir: Path, asset_id_or_name: str) -> dict | None:
@@ -236,11 +301,24 @@ def _expand_context(context: str) -> list[str]:
     return list(dict.fromkeys(extra))
 
 
+def suggest_recipes_for(
+    catalogs_dir: Path, context: str, viewer_data: Path | None = None, limit: int = 3
+) -> list[dict]:
+    """Assembly requests ("row of shops", "fighter ship") should get a grammar,
+    not only a ranked piece list. Lazy import keeps query free of recipe I/O
+    unless asked."""
+    from .recipes import load_recipes, match_recipes
+
+    return match_recipes(load_recipes(catalogs_dir, viewer_data), context, limit=limit)
+
+
 def suggest_assets_for(
     catalogs_dir: Path,
     context: str,
     pack: str | None = None,
     limit: int = 12,
+    include_nonplaceable: bool = False,
+    engine: str | None = None,
 ) -> list[dict]:
     extra = _expand_context(context)
     low = context.lower()
@@ -254,6 +332,8 @@ def suggest_assets_for(
 
     scored: list[tuple[float, str, dict]] = []
     for pid, _doc, asset in _iter_assets(catalogs_dir, pack):
+        if not include_nonplaceable and asset.get("placeable") is False:
+            continue
         floors = (asset.get("placement") or {}).get("preferred_floors") or []
         if ("first-floor" in low or "first floor" in low) and floors and 1 not in floors:
             continue
@@ -278,24 +358,7 @@ def suggest_assets_for(
             continue
         scored.append((s, pid, asset))
     scored.sort(key=lambda r: (-r[0], r[1], r[2].get("id") or ""))
-    out = []
-    for s, pid, asset in scored[:limit]:
-        out.append(
-            {
-                "pack_id": pid,
-                "score": round(s, 2),
-                "id": asset.get("id"),
-                "name": asset.get("name"),
-                "type": asset.get("type"),
-                "semantic_role": asset.get("semantic_role"),
-                "why": asset.get("description"),
-                "placement": asset.get("placement"),
-                "ai_notes": asset.get("ai_notes"),
-                "paths": asset.get("paths"),
-                "dimensions": asset.get("dimensions"),
-            }
-        )
-    return out
+    return [_result(pid, asset, s, engine, why=True) for s, pid, asset in scored[:limit]]
 
 
 def get_placement_guidance(catalogs_dir: Path, asset_id: str) -> dict | None:
@@ -308,7 +371,11 @@ def get_placement_guidance(catalogs_dir: Path, asset_id: str) -> dict | None:
         "name": details.get("name"),
         "semantic_role": details.get("semantic_role"),
         "placement": details.get("placement"),
+        "bounds": details.get("bounds"),
+        "module": details.get("module"),
+        "part": details.get("part"),
         "dimensions": details.get("dimensions"),
         "ai_notes": details.get("ai_notes"),
+        "files": details.get("files"),
         "paths": details.get("paths"),
     }
