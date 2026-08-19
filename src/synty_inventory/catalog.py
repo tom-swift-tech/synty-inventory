@@ -92,10 +92,12 @@ def load_all_catalogs(catalogs_dir: Path) -> list[dict]:
     if not catalogs_dir.is_dir():
         return docs
     for path in sorted(catalogs_dir.glob("*.json")):
-        if path.name == "index.json":
+        # index.json and private state (_measure_cache.json, ...) are not
+        # pack catalogs.
+        if path.name == "index.json" or path.name.startswith("_"):
             continue
         doc = load_catalog(path)
-        if doc and isinstance(doc.get("assets"), list):
+        if doc and isinstance(doc.get("assets"), list) and doc.get("pack_id"):
             docs.append(doc)
     return docs
 
@@ -105,6 +107,8 @@ def build_catalog(
     *,
     include_shared: bool = False,
     viewer_data: Path | None = None,
+    threejs_v2: Path | None = None,
+    catalogs_dir: Path | None = None,
     from_package: bool = False,
 ) -> dict:
     engine = ref.engine
@@ -142,7 +146,7 @@ def build_catalog(
         "asset_count": len(assets),
         "assets": assets,
     }
-    enrich_catalog(doc, viewer_data)
+    enrich_catalog(doc, viewer_data, threejs_v2=threejs_v2, catalogs_dir=catalogs_dir)
     doc["asset_count"] = len(doc["assets"])
     return doc
 
@@ -153,6 +157,7 @@ def scan_and_write(
     *,
     include_shared: bool = False,
     viewer_data: Path | None = None,
+    threejs_v2: Path | None = None,
     from_package: bool = False,
     vlm_fn=None,
     vlm_limit: int = 0,
@@ -161,10 +166,14 @@ def scan_and_write(
         ref,
         include_shared=include_shared,
         viewer_data=viewer_data,
+        threejs_v2=threejs_v2,
+        catalogs_dir=catalogs_dir,
         from_package=from_package,
     )
     if vlm_fn is not None:
-        enrich_catalog(fresh, viewer_data, vlm_fn=vlm_fn, vlm_limit=vlm_limit)
+        enrich_catalog(
+            fresh, viewer_data, threejs_v2=threejs_v2, catalogs_dir=catalogs_dir, vlm_fn=vlm_fn, vlm_limit=vlm_limit
+        )
     dest = catalog_path(catalogs_dir, ref.pack_id)
     existing = load_catalog(dest)
     merged = merge_catalog(existing, fresh)

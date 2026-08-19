@@ -93,6 +93,18 @@ def _viewer(cfg) -> Path | None:
     return None
 
 
+def _threejs_v2(cfg) -> Path | None:
+    """Optional source root for VLM-reviewed catalogs + GLB measurement.
+
+    Required to fill ``bounds``/``files.glb`` — without it scan still runs,
+    just leaving those null and reporting a warning per pack.
+    """
+    tj = cfg.get("threejs_v2")
+    if tj is not None and tj.exists():
+        return tj
+    return None
+
+
 def _catalogs(args, cfg) -> Path:
     if getattr(args, "out", None):
         return Path(args.out)
@@ -130,11 +142,18 @@ def cmd_scan(args, cfg) -> int:
     target = Path(args.path) if args.path else require_path(cfg, "unity_root")
     catalogs_dir = _catalogs(args, cfg)
     viewer = _viewer(cfg)
+    threejs_v2 = _threejs_v2(cfg)
     refs = discover(target, extracted_root=cfg.get("extracted_root"))
     if args.pack:
         refs = [r for r in refs if args.pack.lower() in r.pack_id.lower()]
     if not refs:
         return _fail(f"no Synty packs found under {target}")
+    if threejs_v2 is None:
+        print(
+            "warning: threejs_v2 not configured (or path missing) — "
+            "bounds and files.glb will be left null for this scan",
+            file=sys.stderr,
+        )
 
     vlm_fn = None
     if args.vlm:
@@ -162,6 +181,7 @@ def cmd_scan(args, cfg) -> int:
             catalogs_dir,
             include_shared=args.include_shared,
             viewer_data=viewer,
+            threejs_v2=threejs_v2,
             from_package=args.from_package,
             vlm_fn=vlm_fn,
             vlm_limit=args.vlm_limit,
@@ -186,6 +206,7 @@ def cmd_scan(args, cfg) -> int:
                 "catalog": str(catalog_path(catalogs_dir, ref.pack_id)),
                 "errors": errors,
                 "source": doc.get("source"),
+                "measure": doc.get("_measure_stats"),
             }
         )
     rebuild_index(catalogs_dir, summaries)
@@ -196,6 +217,7 @@ def cmd_scan(args, cfg) -> int:
 def cmd_enrich(args, cfg) -> int:
     catalogs_dir = _catalogs(args, cfg)
     viewer = _viewer(cfg)
+    threejs_v2 = _threejs_v2(cfg)
     from .enrich import enrich_catalog
     from .catalog import write_catalog
 
@@ -218,7 +240,7 @@ def cmd_enrich(args, cfg) -> int:
 
     out = []
     for doc in docs:
-        enrich_catalog(doc, viewer, vlm_fn=vlm_fn, vlm_limit=args.vlm_limit)
+        enrich_catalog(doc, viewer, threejs_v2=threejs_v2, catalogs_dir=catalogs_dir, vlm_fn=vlm_fn, vlm_limit=args.vlm_limit)
         dest = catalog_path(catalogs_dir, doc["pack_id"])
         existing = load_catalog(dest)
         merged = merge_catalog(existing, doc)
@@ -303,7 +325,7 @@ def cmd_validate(args, cfg) -> int:
 
 def cmd_gauntlet(args, cfg) -> int:
     catalogs_dir = _catalogs(args, cfg)
-    result = run_gauntlet(catalogs_dir)
+    result = run_gauntlet(catalogs_dir, threejs_v2=_threejs_v2(cfg))
     emit_json(result)
     return 0 if result["ok"] else 2
 
