@@ -270,24 +270,36 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None) -> dict:
             f"{len(interior)} interior modules; bad={bad_parts[:3] + bad_ships[:3] + bad_int[:3]}",
         )
         # Mesh-analysed mating faces: every hull has six sockets (measured cap
-        # or AABB fallback), every child part a mount; most mounts must be a
-        # real measured cap, not the AABB fallback, or the analysis regressed.
+        # or AABB fallback), every child part a mount with the hull socket it
+        # fits unrotated; nearly all mounts must be a real measured cap, not
+        # the AABB fallback, or the analysis regressed. Pylon pods and wings
+        # are the known non-class-axis cases (Engine_08/09 on +x, wing roots
+        # on the dominant x side) -- pin them so a heuristic change shows up.
         with_glb = [a for a in parts if (a.get("files") or {}).get("glb")]
         bodies = [a for a in with_glb if (a.get("part") or {}).get("class") == "body"]
         children = [a for a in with_glb if (a.get("part") or {}).get("class") != "body"]
         bad_sockets = [a["id"] for a in bodies if len((a.get("part") or {}).get("sockets") or []) != 6]
         no_mount = [a["id"] for a in children if not (a.get("part") or {}).get("mount")]
+        no_role = [a["id"] for a in children if a.get("part", {}).get("mount") and not a["part"]["mount"].get("parent_role")]
         measured_mounts = sum(
             1 for a in children if ((a.get("part") or {}).get("mount") or {}).get("source") == "measured"
         )
         mount_ratio = measured_mounts / len(children) if children else 0.0
+        by_id = {a["id"]: ((a.get("part") or {}).get("mount") or {}) for a in children}
+        pinned = {"SM_Veh_Part_Engine_08": ("+x", "left"), "SM_Veh_Part_Engine_09": ("+x", "left"), "SM_Veh_Part_Wing_09": ("-x", "right")}
+        unpinned = [
+            f"{pid}={by_id.get(pid, {}).get('axis')}/{by_id.get(pid, {}).get('parent_role')}"
+            for pid, (axis, role) in pinned.items()
+            if pid in by_id and (by_id[pid].get("axis"), by_id[pid].get("parent_role")) != (axis, role)
+        ]
         if threejs_v2 is not None and with_glb:
             gate(
                 "ship_part_sockets",
-                not bad_sockets and not no_mount and mount_ratio >= 0.8,
+                not bad_sockets and not no_mount and not no_role and not unpinned and mount_ratio >= 0.95,
                 f"{len(bodies)} hulls with 6 sockets (bad={bad_sockets[:3]}), "
                 f"{len(children) - len(no_mount)}/{len(children)} child parts with a mount "
-                f"({measured_mounts} measured caps = {mount_ratio:.0%}); no_mount={no_mount[:3]}",
+                f"({measured_mounts} measured caps = {mount_ratio:.0%}); no_mount={no_mount[:3]}, "
+                f"no_parent_role={no_role[:3]}, off-convention={unpinned}",
             )
         else:
             gate("ship_part_sockets", True, "threejs_v2 not configured — skipped")

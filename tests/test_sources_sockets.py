@@ -129,7 +129,11 @@ def test_cockpit_mount_is_its_rear_cap():
     assert m["axis"] == "-z" and m["source"] == "measured"
     assert m["position"] == pytest.approx([0.0, 0.0, 0.0])
     assert m["normal"] == [0.0, 0.0, -1.0]
+    assert m["parent_role"] == "front"
     assert res["sockets"] == []
+    # centred pivot: still the class axis
+    verts, tris = _box([-0.5, -0.5, -1.5], [0.5, 0.5, 1.5])
+    assert sk.analyse_part(verts, tris, "cockpit", "+z")["mount"]["axis"] == "-z"
 
 
 def test_engine_and_gear_mounts_follow_mates_axis():
@@ -140,39 +144,102 @@ def test_engine_and_gear_mounts_follow_mates_axis():
     assert gear["axis"] == "+y" and gear["position"] == pytest.approx([0.0, 0.0, 0.0])
 
 
-def test_wing_root_side_vs_full_span():
-    # Root-mounted wing: thick at the root (-x side, pivot), thin tip -> the
-    # larger of the two x caps is the root. Build it as two stacked boxes.
-    v1, t1 = box_mesh([0.0, -0.3, -1.0], [2.0, 0.3, 1.0])  # root block
-    v2, t2 = box_mesh([2.0, -0.05, -0.5], [4.0, 0.05, 0.5])  # thin tip
+def _two_boxes(b1, b2):
+    v1, t1 = box_mesh(*b1)
+    v2, t2 = box_mesh(*b2)
     verts = np.array(v1 + v2, dtype=np.float64)
     tris = np.array(t1 + [[a + 8, b + 8, c + 8] for a, b, c in t2], dtype=np.int64)
+    return verts, tris
+
+
+def test_wing_root_is_the_dominant_x_cap_even_with_centred_pivot():
+    # Synty wings are single pieces, pivot centred: thick root block at -x,
+    # thin tip at +x -> the larger x cap is the root, regardless of pivot.
+    verts, tris = _two_boxes(([-2.0, -0.3, -1.0], [0.0, 0.3, 1.0]), ([0.0, -0.05, -0.5], [2.0, 0.05, 0.5]))
     m = sk.analyse_part(verts, tris, "wing", "±x")["mount"]
-    assert m["axis"] == "-x"
-    assert m["position"] == pytest.approx([0.0, 0.0, 0.0])
-    # Full-span wing straddling the hull: mount on its top/bottom face.
-    verts, tris = _box([-3.0, -0.1, -1.0], [3.0, 0.1, 1.0])
+    assert m["axis"] == "-x" and m["source"] == "measured"
+    assert m["position"] == pytest.approx([-2.0, 0.0, 0.0])
+    assert m["parent_role"] == "right"  # a -x root sits on the hull's +x side
+    # Fin: two equal side faces are not root/tip -> mounts by its larger y cap.
+    verts, tris = _box([-0.2, 0.0, -1.0], [0.2, 2.0, 1.0])
     m = sk.analyse_part(verts, tris, "wing", "±x")["mount"]
-    assert m["axis"] in ("+y", "-y")
-    assert m["position"][0] == pytest.approx(0.0)
+    assert m["axis"] == "-y" and m["parent_role"] == "top"
+
+
+def test_wing_root_with_dihedral_is_found_and_keeps_its_tilt():
+    # Root face rotated 20 deg about z (dihedral): outside the 10 deg cap
+    # cone, inside the wing-root cone. The mount reports the real normal.
+    ang = np.radians(20.0)
+    rot = np.array([[np.cos(ang), -np.sin(ang), 0.0], [np.sin(ang), np.cos(ang), 0.0], [0.0, 0.0, 1.0]])
+    v, t = box_mesh([0.0, -0.1, -0.5], [3.0, 0.1, 0.5])
+    verts = np.array(v, dtype=np.float64) @ rot.T
+    tris = np.array(t, dtype=np.int64)
+    # make the +x end non-flat so only the -x root can be the mount
+    verts = np.vstack([verts, [[3.5, 0.0, 0.0]]])
+    m = sk.analyse_part(verts, tris, "wing", "±x")["mount"]
+    assert m["axis"] == "-x" and m["source"] == "measured"
+    assert m["normal"] == pytest.approx([-np.cos(ang), -np.sin(ang), 0.0], abs=1e-3)
+    assert m["position"] == pytest.approx([0.0, 0.0, 0.0], abs=1e-6)
+    # nothing flat within 30 deg of any axis (an octahedron: every face is
+    # ~55 deg off every axis) -> AABB root at -x
+    verts = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]], dtype=np.float64) + [0, 2, 0]
+    tris = np.array(
+        [[0, 2, 4], [2, 1, 4], [1, 3, 4], [3, 0, 4], [2, 0, 5], [1, 2, 5], [3, 1, 5], [0, 3, 5]], dtype=np.int64
+    )
+    m = sk.analyse_part(verts, tris, "wing", "±x")["mount"]
+    assert m["source"] == "aabb" and m["axis"] == "-x" and m["parent_role"] == "right"
+
+
+def test_pivot_at_the_mating_plane_beats_the_class_axis():
+    # Pylon engine pod (Engine_08/09): long pod off to -x, pivot on the +x
+    # plate -> mount is the +x face (fits the hull's left socket unrotated),
+    # not the tiny nozzle-end cap on the class axis.
+    verts, tris = _two_boxes(([-5.0, -1.0, -4.0], [0.0, 1.0, 4.0]), ([0.0, -0.5, -2.0], [0.5, 0.5, 2.0]))
+    m = sk.analyse_part(verts, tris, "engine", "-z")["mount"]
+    assert m["axis"] == "+x" and m["source"] == "measured"
+    assert m["position"] == pytest.approx([0.0, 0.0, 0.0])  # the pod's +x plate, on the pivot plane
+    assert m["parent_role"] == "left"
+    # The same pod with a centred pivot keeps the class axis.
+    verts2 = verts - verts.mean(axis=0)
+    assert sk.analyse_part(verts2, tris, "engine", "-z")["mount"]["axis"] == "+z"
+    # A small foot on the pivot plane does not outrank a big flat face
+    # (greeble wedge Misc_017): foot fit ~0.03 vs the block's z faces ~0.7.
+    verts, tris = _two_boxes(([-1.0, 0.5, 0.2], [1.0, 2.0, 1.2]), ([-0.15, -0.1, 0.3], [0.15, 0.0, 0.5]))
+    m = sk.analyse_part(verts, tris, "greeble", "any")["mount"]
+    assert m["axis"] in ("+z", "-z") and m["fit"] > 0.5
 
 
 def test_greeble_mounts_by_largest_flat_face():
-    verts, tris = _box([-1.0, 0.0, -0.5], [1.0, 0.5, 0.5])  # base 2x1 is the biggest face
+    verts, tris = _box([-1.0, 1.0, -0.5], [1.0, 1.5, 0.5])  # base 2x1 is the biggest face
     m = sk.analyse_part(verts, tris, "greeble", "any")["mount"]
     assert m["axis"] == "-y"
     assert m["normal"] == [0.0, -1.0, 0.0]
+    assert m["parent_role"] == "top"
+
+
+def test_greeble_prefers_axis_true_face_over_sloped_panel():
+    # A 2x1 base at -y plus a bigger top panel sloping 8 deg (inside the
+    # 10 deg cone): the sloped panel is a body surface, the flat base mounts.
+    v, t = box_mesh([-1.0, 1.0, -0.5], [1.0, 1.5, 0.5])
+    verts = np.array(v, dtype=np.float64)
+    # lift the +y face's far-z edge -> the top slopes about x (~8 deg over 1 m)
+    verts[[6, 7], 1] += 0.14
+    tris = np.array(t, dtype=np.int64)
+    m = sk.analyse_part(verts, tris, "greeble", "any")["mount"]
+    assert m["axis"] == "-y"
 
 
 def test_no_flat_cap_falls_back_to_aabb_face():
-    # A pyramid (square base at -y, apex up): nothing faces -z within 10 deg,
-    # so a cockpit's mount falls back to the AABB -z face centre.
-    verts = np.array([[-1, 0, -1], [1, 0, -1], [1, 0, 1], [-1, 0, 1], [0, 2, 0]], dtype=np.float64)
+    # A pyramid (square base at -y, apex up), floated off the pivot plane so
+    # the base does not count as "pivot at the mating plane": nothing faces
+    # -z within 10 deg, so a cockpit's mount falls back to the AABB -z face.
+    verts = np.array([[-1, 1, -1], [1, 1, -1], [1, 1, 1], [-1, 1, 1], [0, 3, 0]], dtype=np.float64)
     tris = np.array([[0, 1, 2], [0, 2, 3], [0, 4, 1], [1, 4, 2], [2, 4, 3], [3, 4, 0]], dtype=np.int64)
     m = sk.analyse_part(verts, tris, "cockpit", "+z")["mount"]
     assert m["source"] == "aabb" and m["axis"] == "-z"
-    assert m["position"] == pytest.approx([0.0, 1.0, -1.0])
+    assert m["position"] == pytest.approx([0.0, 2.0, -1.0])
     assert m["area"] is None and m["fit"] == 0.0
+    assert m["parent_role"] == "front"
     # body: rounded ends still yield six sockets, the missing caps as aabb
     body = sk.analyse_part(verts, tris, "body", "any")
     assert len(body["sockets"]) == 6
@@ -217,6 +284,9 @@ def test_validate_socket_rules():
     good = {"axis": "+z", "position": [0, 0, 1], "normal": [0, 0, 1], "source": "measured", "role": "front"}
     validate_socket(good, "x", errors, need_role=True)
     assert errors == []
+    validate_socket(dict(good, parent_role="nowhere"), "x", errors, need_role=False)
+    assert any(".parent_role" in e for e in errors)
+    errors.clear()
     bad = {"axis": "up", "position": [0, 0], "normal": [0, 0, 1], "source": "guess"}
     validate_socket(bad, "x", errors, need_role=True)
     assert any(".axis" in e for e in errors)

@@ -335,6 +335,8 @@ def validate_socket(face: Any, prefix: str, errors: list[str], *, need_role: boo
         errors.append(f"{prefix}.source invalid: {face.get('source')!r}")
     if need_role and face.get("role") not in SOCKET_ROLES:
         errors.append(f"{prefix}.role invalid: {face.get('role')!r}")
+    if "parent_role" in face and face["parent_role"] not in SOCKET_ROLES:
+        errors.append(f"{prefix}.parent_role invalid: {face['parent_role']!r}")
 
 
 def make_bounds(
