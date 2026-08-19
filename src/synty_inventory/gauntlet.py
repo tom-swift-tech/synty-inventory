@@ -29,9 +29,9 @@ def _rich_enough(asset: dict) -> list[str]:
     notes = asset.get("ai_notes") or ""
     if len(notes) < 40:
         bad.append("ai_notes too thin")
-    dims = (asset.get("dimensions") or {}).get("approx") or []
-    if len(dims) != 3 or not all(isinstance(n, (int, float)) and n > 0 for n in dims):
-        bad.append("dimensions missing")
+    size = (asset.get("bounds") or {}).get("size") or []
+    if len(size) != 3 or not all(isinstance(n, (int, float)) and n > 0 for n in size):
+        bad.append("bounds missing")
     paths = asset.get("paths") or {}
     if not paths.get("prefab") and not paths.get("mesh"):
         bad.append("no prefab/mesh path")

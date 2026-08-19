@@ -46,6 +46,7 @@ def _haystack(asset: dict) -> str:
         asset.get("type") or "",
         asset.get("description") or "",
         asset.get("semantic_role") or "",
+        asset.get("semantic_detail") or "",
         asset.get("ai_notes") or "",
         " ".join(asset.get("tags") or []),
         " ".join(asset.get("category") or []),
@@ -69,7 +70,7 @@ def _score(query: str, asset: dict, extra_tokens: list[str] | None = None) -> fl
     score = 0.0
     aid = (asset.get("id") or "").lower()
     name = (asset.get("name") or "").lower()
-    role = (asset.get("semantic_role") or "").lower()
+    role = f"{asset.get('semantic_role') or ''} {asset.get('semantic_detail') or ''}".lower()
     tags = {t.lower() for t in asset.get("tags") or []}
     cats = {c.lower() for c in asset.get("category") or []}
     ctx = {c.lower() for c in (asset.get("placement") or {}).get("preferred_contexts") or []}

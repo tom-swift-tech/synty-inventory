@@ -8,7 +8,7 @@ from typing import Any
 
 from .schema import SEMANTIC_FIELDS
 
-SCANNER_OWNED = ("id", "paths", "kit", "guid", "engine_paths")
+SCANNER_OWNED = ("id", "paths", "files", "kit", "guid", "engine_paths")
 
 
 def _dump(value: Any) -> str:
@@ -28,7 +28,7 @@ def is_human_field(old: dict, field: str) -> bool:
         return True
     # Hash mismatch only counts as a human edit when provenance is absent.
     # Viewer/rules/vlm overlays often change text after the last stamp.
-    if prov in {"rules", "viewer", "vlm", "curated"}:
+    if prov in {"rules", "viewer", "vlm", "vlm_reviewed", "measured", "curated"}:
         return False
     auto = (old.get("_auto") or {}).get(field)
     if auto is None:
@@ -43,6 +43,8 @@ def merge_asset(old: dict | None, new: dict) -> dict:
     # scanner-owned paths always refresh
     if new.get("paths"):
         out["paths"] = new["paths"]
+    if new.get("files"):
+        out["files"] = new["files"]
     if new.get("thumbnail") and not old.get("thumbnail"):
         out["thumbnail"] = new["thumbnail"]
     elif new.get("thumbnail"):
@@ -51,10 +53,14 @@ def merge_asset(old: dict | None, new: dict) -> dict:
     for key in ("kit", "guid", "shared_kit"):
         if new.get(key) is not None:
             out[key] = new[key]
-    if new.get("dimensions", {}).get("source") == "measured":
-        out["dimensions"] = new["dimensions"]
-    elif not old.get("dimensions"):
-        out["dimensions"] = new.get("dimensions")
+    # Measured bounds always win; a fresh scan that has no measurement keeps
+    # whatever bounds the old record had (measured or null). Never regress
+    # measured → null, never accept a fake size.
+    if (new.get("bounds") or {}).get("source") == "measured" or not old.get("bounds"):
+        out["bounds"] = new.get("bounds")
+    out["dimensions"] = new.get("dimensions") if out.get("bounds") is new.get("bounds") else old.get("dimensions")
+    if new.get("size_hint") is not None:
+        out["size_hint"] = new["size_hint"]
 
     auto_out = dict(old.get("_auto") or {})
     prov_out = dict(old.get("provenance") or {})
@@ -67,7 +73,8 @@ def merge_asset(old: dict | None, new: dict) -> dict:
         old_prov = (old.get("provenance") or {}).get(field)
         new_prov = (new.get("provenance") or {}).get(field, "rules")
         # vlm / human incoming may replace rules; rules do not clobber vlm
-        rank = {"rules": 1, "viewer": 2, "vlm": 3, "human": 4, "curated": 3}
+        # Plan precedence: human > curated > vlm_reviewed > measured > viewer > rules
+        rank = {"rules": 1, "viewer": 2, "measured": 3, "vlm": 3, "vlm_reviewed": 4, "curated": 5, "human": 6}
         if rank.get(old_prov or "rules", 1) > rank.get(new_prov, 1) and old.get(field):
             continue
         out[field] = incoming

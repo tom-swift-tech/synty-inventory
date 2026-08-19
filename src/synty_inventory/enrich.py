@@ -14,7 +14,21 @@ from .dimensions import (
     measured_size,
 )
 from .merge import stamp_auto
-from .schema import empty_paths, empty_placement
+from .schema import (
+    TYPE_MIGRATION,
+    default_placeable,
+    dimensions_from_bounds,
+    empty_files,
+    empty_module,
+    empty_part,
+    empty_paths,
+    empty_placement,
+    kind_for_type,
+    make_bounds,
+    normalize_semantic_role,
+    paths_from_files,
+    pivot_from_aabb,
+)
 
 
 def _unique(seq: list) -> list:
@@ -76,7 +90,8 @@ def apply_viewer_overlays(
             if t not in asset["tags"]:
                 asset["tags"].append(t)
         if text:
-            asset["semantic_role"] = f"displays_{_slug(text)}"
+            asset["semantic_role"] = "advertisement"
+            asset["semantic_detail"] = f"displays_{_slug(text)}"
         if "civic-only" in sign_tags:
             cons = asset["placement"].setdefault("constraints", [])
             if "civic_facade_only" not in cons:
@@ -130,35 +145,50 @@ def skeleton_asset(
 ) -> dict:
     inferred = knowledge.infer(raw.id)
     measured = measured_size(viewer_data, pack_id, raw.id)
+    bounds = None
     if measured:
-        dims = {
-            "approx": measured["approx"],
-            "units": "meters",
-            "source": "measured",
-        }
-    else:
-        dims = {
-            "approx": [round(float(x), 4) for x in inferred["dimensions_hint"]],
-            "units": "meters",
-            "source": "heuristic",
-        }
+        aabb = measured.get("aabb") or {}
+        bounds = make_bounds(
+            measured["approx"],
+            source="measured",
+            min_=aabb.get("min"),
+            max_=aabb.get("max"),
+            pivot=pivot_from_aabb(aabb["min"], aabb["max"]) if aabb.get("min") and aabb.get("max") else "unknown",
+        )
+    # Rule-based dimension hints are NOT bounds. They are kept only as a
+    # search hint under ``size_hint`` so an agent can never mistake them for a
+    # measurement. Phase 2 fills bounds from GLB measurement instead.
     prefab = raw.prefab.rel if raw.prefab else None
     mesh = raw.mesh.rel if raw.mesh else None
+    files = empty_files()
+    if raw.engine == "Unreal":
+        files["unreal_uasset"] = mesh
+        mesh = None
+    files["unity_prefab"] = prefab
+    files["unity_mesh"] = mesh
+    files["unity_materials"] = list(raw.materials or [])
+    atype = TYPE_MIGRATION.get(inferred["type"], inferred["type"])
+    kind = inferred.get("kind") or kind_for_type(atype, bool(prefab))
+    role, detail = normalize_semantic_role(inferred["semantic_role"], inferred.get("semantic_detail"))
     asset = {
         "id": raw.id,
         "name": inferred["name"],
-        "type": inferred["type"],
+        "kind": kind,
+        "placeable": inferred.get("placeable", default_placeable(atype, kind)),
+        "type": atype,
         "category": list(inferred["category"]),
         "tags": list(inferred["tags"]),
         "description": inferred["description"],
-        "semantic_role": inferred["semantic_role"],
+        "semantic_role": role,
+        "semantic_detail": detail,
         "placement": deepcopy(inferred["placement"]) if inferred["placement"] else empty_placement(),
-        "dimensions": dims,
-        "paths": {
-            "prefab": prefab,
-            "mesh": mesh,
-            "materials": list(raw.materials or []),
-        },
+        "bounds": bounds,
+        "dimensions": dimensions_from_bounds(bounds),
+        "size_hint": [round(float(x), 4) for x in inferred["dimensions_hint"]] if inferred.get("dimensions_hint") else None,
+        "module": deepcopy(inferred.get("module") or empty_module()),
+        "part": deepcopy(inferred.get("part") or empty_part()),
+        "files": files,
+        "paths": paths_from_files(files),
         "thumbnail": raw.thumbnail,
         "ai_notes": inferred["ai_notes"],
         "kit": raw.kit,
@@ -205,7 +235,12 @@ def ensure_schema_defaults(asset: dict) -> dict:
     asset.setdefault("description", "")
     asset.setdefault("semantic_role", "")
     asset.setdefault("placement", empty_placement())
+    asset.setdefault("files", empty_files())
     asset.setdefault("paths", empty_paths())
+    asset.setdefault("module", empty_module())
+    asset.setdefault("part", empty_part())
+    asset.setdefault("bounds", None)
+    asset.setdefault("semantic_detail", "")
     asset.setdefault("thumbnail", None)
     asset.setdefault("ai_notes", "")
     return asset

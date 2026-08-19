@@ -12,7 +12,13 @@ from .enrich import enrich_catalog, skeleton_asset
 from .merge import merge_catalog
 from .paths import posix
 from .scan import scan_extracted, scan_from_package_listing, scan_unreal
-from .schema import CATALOG_VERSION, validate_catalog
+from .schema import (
+    CATALOG_VERSION,
+    DEFAULT_CONVENTIONS,
+    DEFAULT_GRID,
+    migrate_catalog,
+    validate_catalog,
+)
 from .unitypackage import list_pathnames
 
 
@@ -28,9 +34,11 @@ def load_catalog(path: Path) -> dict | None:
     if not path.is_file():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+    # v1 catalogs on disk are upgraded on read; the next write persists v2.
+    return migrate_catalog(doc) if isinstance(doc, dict) else None
 
 
 def write_catalog(path: Path, doc: dict) -> Path:
@@ -128,6 +136,8 @@ def build_catalog(
         "units": "meters",
         "version": CATALOG_VERSION,
         "scanned_at": now_iso(),
+        "grid": dict(DEFAULT_GRID),
+        "conventions": dict(DEFAULT_CONVENTIONS),
         "source": source,
         "asset_count": len(assets),
         "assets": assets,

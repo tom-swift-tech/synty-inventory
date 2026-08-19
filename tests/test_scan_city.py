@@ -29,5 +29,6 @@ def test_scan_polygon_city_if_present():
         "Prefabs/Props/SM_Prop_Sign_Police_01.prefab"
     )
     assert (root / police["paths"]["prefab"]).is_file()
-    assert police["semantic_role"] == "identifies_building_as_police_station"
+    assert police["semantic_role"] == "building_identity"
+    assert police["semantic_detail"] == "police_station"
     assert len(police["description"]) > 80

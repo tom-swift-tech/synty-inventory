@@ -8,7 +8,7 @@ from synty_inventory.query import (
     search_assets,
     suggest_assets_for,
 )
-from synty_inventory.schema import validate_catalog
+from synty_inventory.schema import validate_catalog, migrate_catalog
 
 
 def _asset(aid, name, **kwargs):
@@ -75,6 +75,8 @@ def test_query_api(tmp_path: Path):
             ),
         ],
     }
+    # hand-built v1 doc: migrate_catalog is what load_catalog does on read
+    city = migrate_catalog(city)
     assert validate_catalog(city) == []
     write_catalog(tmp_path / "POLYGON_City.json", city)
 
@@ -85,7 +87,8 @@ def test_query_api(tmp_path: Path):
     assert hits[0]["id"] == "SM_Prop_Sign_Police_01"
 
     details = get_asset_details(tmp_path, "SM_Prop_Sign_Police_01")
-    assert details["semantic_role"] == "identifies_building_as_police_station"
+    assert details["semantic_role"] == "building_identity"
+    assert details["semantic_detail"] == "police_station"
 
     guide = get_placement_guidance(tmp_path, "police sign")
     assert guide["placement"]["mount"] == "wall"
