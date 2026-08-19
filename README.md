@@ -53,9 +53,13 @@ Optional keys: `viewer_data` (asset-viewer `generate/data` — measured AABBs,
 sign overlays and building-type grammars, if you have them; not in this
 repo), `threejs_v2` (converted GLB tree with per-pack `manifest.json` /
 `catalog.json`; used for `files.glb`, offline mesh measurement and the
-VLM-reviewed descriptions). Any key can
+VLM-reviewed descriptions), `godot_root` / `unreal_root` (engine-native
+export trees, one folder per pack; fill `files.godot_scene` /
+`files.unreal_uasset` — see [Godot / Unreal file paths](#godot--unreal-file-paths)
+below). Any key can
 also be set with `SYNTI_UNITY_ROOT`, `SYNTI_EXTRACTED_ROOT`, `SYNTI_CATALOGS`,
-`SYNTI_VIEWER_DATA`, `SYNTI_THREEJS_V2`, or `--config PATH`.
+`SYNTI_VIEWER_DATA`, `SYNTI_THREEJS_V2`, `SYNTI_GODOT_ROOT`, `SYNTI_UNREAL_ROOT`,
+or `--config PATH`.
 
 ```bash
 synty-inventory config
@@ -193,15 +197,38 @@ disk. `scan --rebuild` keeps only human fields.
 Unreal trees are discovered when present; that path is implemented, not
 proven against live packs.
 
+### Godot / Unreal file paths
+
+`godot_root` / `unreal_root` are separate, optional reference trees — not
+part of the Unity scan itself — that `enrich` overlays onto each cataloged
+asset by stem match: `sources/godot.py` and `sources/unreal.py` map a
+top-level folder name under the root to a `pack_id` (`SLUG_PACK_OVERRIDES`,
+falling back to a normalized guess for an unmapped folder), index every
+`.tscn` / `.uasset` under that pack's tree, and wire `files.godot_scene` /
+`files.unreal_uasset` to a path relative to the root (forward slashes).
+Neither field carries a provenance stamp — like `files.glb`, `files` is
+scanner-owned and refreshed wholesale on every rescan. A reference
+`unreal_root` never overwrites `files.unreal_uasset` already set by a
+natively-Unreal-sourced pack (`scan --pack` on an Unreal root). Both roots
+default to unset (`null`) and are a no-op when missing — no Unreal export
+tree exists on any known machine today.
+
 `gauntlet` is a live acceptance suite (expects `POLYGON_City` and, for the
 assembly gates, `POLYGON_SciFi_Space`): the v1 sign gates plus bounds
 coverage >= 95 %, no heuristic dimensions, GLB paths, VLM overlay applied,
 ship-part typing, ship-part sockets (every hull six faces, every child part a
 mount with `parent_role`, >= 95 % of mounts measured caps, pylon engines on
 `+x`), every package recipe resolving
-`complete`, and
-`suggest` pointing assembly prompts at the right recipe. CI uses `pytest`
-and a fake fixture pack.
+`complete`,
+`suggest` pointing assembly prompts at the right recipe, and — when
+`godot_root` is configured — `godot_paths`: the three mapped packs
+(`POLYGON_City`, `POLYGON_Starter`, `POLYGON_Particle_FX`) resolve, every
+non-null `files.godot_scene` exists on disk, and geometry-bearing
+(`kind` prefab/mesh) resolution coverage is >= 90 % (observed 95.3 % on the
+reference machine: `POLYGON_City` 333/337, `POLYGON_Starter` 52/55,
+`POLYGON_Particle_FX` 0/12 — that pack's Godot export ships only ~13 demo
+particle scenes, none matching its 12 mesh-kind catalog entries). CI uses
+`pytest` and a fake fixture pack.
 
 ## Mesh analysis
 

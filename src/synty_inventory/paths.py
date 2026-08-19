@@ -22,6 +22,8 @@ CONFIG_KEYS: dict[str, str] = {
     "threejs_v2": "SYNTI_THREEJS_V2",
     "viewer_data": "SYNTI_VIEWER_DATA",
     "catalogs": "SYNTI_CATALOGS",
+    "godot_root": "SYNTI_GODOT_ROOT",
+    "unreal_root": "SYNTI_UNREAL_ROOT",
 }
 
 REQUIRED_KEYS = ("unity_root", "extracted_root", "catalogs")

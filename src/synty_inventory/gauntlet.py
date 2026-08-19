@@ -15,6 +15,20 @@ from .query import (
 )
 from .recipes import load_recipes, resolve_recipe
 from .schema import validate_catalog
+from .sources.godot import SLUG_PACK_OVERRIDES as GODOT_SLUG_PACK_OVERRIDES
+from .sources.godot import discover_pack_dirs as discover_godot_pack_dirs
+
+# Real-tree coverage of files.godot_scene over geometry-bearing (kind in
+# {prefab, mesh}) assets across the three mapped packs, observed by reading
+# the live catalogs + GoDot export tree on the reference machine (read-only
+# scratch analysis, not committed): POLYGON_City 333/337 (98.8%),
+# POLYGON_Starter 52/55 (94.5%), POLYGON_Particle_FX 0/12 (0% — the export
+# only ships ~13 demo particle scenes, none matching the pack's SM_-stem
+# "mesh"-kind entries; the pack's 227 "fx"-kind entries are excluded from
+# this denominator, same as bounds_coverage/glb_paths above). Aggregate:
+# 385/404 = 95.3%. Floor pinned a few points under that so a real
+# regression trips the gate without being brittle to +/- one asset.
+GODOT_COVERAGE_FLOOR = 0.90
 
 
 QUALITY_IDS = ("SM_Prop_Sign_Police_01", "SM_Prop_Sign_Barber_01")
@@ -54,7 +68,7 @@ def _path_exists(source: dict | None, rel: str | None) -> bool:
     return (Path(root) / rel).is_file()
 
 
-def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None) -> dict:
+def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root: Path | None = None) -> dict:
     gates: list[dict] = []
 
     def gate(name: str, ok: bool, detail: str) -> None:
@@ -245,6 +259,45 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None) -> dict:
         )
     else:
         gate("glb_paths", True, "threejs_v2 not configured — skipped")
+
+    if godot_root is not None:
+        mapped = discover_godot_pack_dirs(godot_root)
+        expected_packs = set(GODOT_SLUG_PACK_OVERRIDES.values())
+        resolved_packs = expected_packs & set(mapped)
+        missing_packs = sorted(expected_packs - resolved_packs)
+
+        dangling = []
+        matched = 0
+        checked = 0
+        for doc in docs:
+            pid = doc.get("pack_id")
+            if pid not in mapped:
+                continue
+            for a in (doc.get("assets") or []):
+                rel = (a.get("files") or {}).get("godot_scene")
+                if not rel:
+                    continue
+                checked += 1
+                if (Path(godot_root) / rel).is_file():
+                    matched += 1
+                else:
+                    dangling.append(f"{pid}/{a.get('id')}: {rel}")
+
+        godot_placeable = [a for doc in docs if doc.get("pack_id") in mapped for a in (doc.get("assets") or []) if _geometry(a)]
+        covered = sum(1 for a in godot_placeable if (a.get("files") or {}).get("godot_scene"))
+        cov_ratio = (covered / len(godot_placeable)) if godot_placeable else 0
+        worst_godot = _pack_breakdown(lambda a: bool((a.get("files") or {}).get("godot_scene")))
+        gate(
+            "godot_paths",
+            not missing_packs and not dangling and bool(godot_placeable) and cov_ratio >= GODOT_COVERAGE_FLOOR,
+            f"{len(resolved_packs)}/{len(expected_packs)} mapped packs resolved (missing={missing_packs}); "
+            f"{matched}/{checked} non-null files.godot_scene paths exist on disk; "
+            f"{covered}/{len(godot_placeable)} geometry-bearing assets covered ({cov_ratio:.1%}, "
+            f"floor {GODOT_COVERAGE_FLOOR:.0%}); worst packs: {worst_godot}; "
+            f"dangling={dangling[:5]}",
+        )
+    else:
+        gate("godot_paths", True, "godot_root not configured — skipped")
 
     prov_ok = bool(police_asset and (police_asset.get("provenance") or {}).get("description") == "vlm_reviewed")
     desc_ok = bool(police_asset and "letters" in (police_asset.get("description") or "").lower())
