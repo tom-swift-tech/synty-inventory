@@ -27,7 +27,11 @@ unity_root: "/path/to/your/Synty/Unity"
 # Env: SYNTI_EXTRACTED_ROOT
 extracted_root: "/path/to/your/extracted/packs"
 
-# Optional reserved path (unused by the scanner today).
+# Converted glTF/GLB pack trees, one folder per pack_id, each with a
+# manifest.json (GLB listing) and — for POLYGON_City / POLYGON_SciFi_City /
+# POLYGON_Starter today — a VLM-reviewed catalog.json. Optional: scan runs
+# without it, but bounds/files.glb are left null. Required to get measured
+# bounds (offline GLB AABB) and the VLM-reviewed overlay.
 # Env: SYNTI_THREEJS_V2
 threejs_v2: "/path/to/optional/threejs-v2"
 
