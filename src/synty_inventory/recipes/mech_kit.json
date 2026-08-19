@@ -1,0 +1,33 @@
+{
+  "id": "mech_kit",
+  "kind": "vehicle",
+  "label": "Bipedal mech / walker from POLYGON_Mech kit parts",
+  "description": "Build a piloted walker mech from POLYGON_Mech. There are two independent assembly modes, use either or both: (1) node-visibility toggling on the single body asset (id SM_Veh_Mech_0N) -- its `mech` field carries `skeleton` (bone names), `slots` (every renderer node on the one master mesh, grouped by region/side/bone), and `variants` (the 6 named factory presets, each the exact node-name set to show; hide every other node in `slots`). Start from a variant preset and add/remove individual geo_nodes from other slots of the same region for a custom loadout, or build from scratch by choosing one node per slot you want visible. (2) bone-attachment of standalone MechAttachments meshes -- each carries `part.slot` {region, side} and `part.attach_bone`, the exact skeleton bone (from the body's own `mech.skeleton`) to parent it under; position/rotation identity at the bone (these are rigged bolt-ons, not mesh-analysed mating faces like the ship kit). Standalone attachments resolve to side \"l\" with a real bone name (e.g. Shoulder_L); mirror position and set scale.x = -1 for the right instance, same convention as the ship kit's wing pairs.",
+  "triggers": ["mech", "mecha", "walker", "battle mech", "piloted robot", "exosuit", "combat robot"],
+  "packs": ["POLYGON_Mech"],
+  "grid": {"snap": 0.25},
+  "conventions": {"up_axis": "+y"},
+  "constraints": ["do_not_scale_body", "one_body_per_mech", "attachments_parent_to_skeleton_bone", "mirror_l_attachments_to_r"],
+  "steps": [
+    {"role": "body", "select": {"id_prefix": "SM_Veh_Mech_"}, "count": [1, 1], "layout": "single", "required": true,
+     "note": "One master mesh backs every body variant. asset.mech.variants keys are the 6 factory presets (SM_Veh_Mech_01..06); asset.mech.slots is every togglable node grouped by (region, side, bone). Pick a preset node set, or hand-pick one node per slot for a custom body."},
+    {"role": "head", "select": {"part_slot_region": ["head", "neck"]}, "count": [0, 2], "layout": "single",
+     "note": "Helmet armor (attach_bone Head) and neck collar plating (attach_bone Neck). Both are centre-bone, side c -- no mirroring."},
+    {"role": "torso", "select": {"part_slot_region": ["chest", "collar", "attach", "jetpack", "cargo", "hips"]}, "count": [0, 6], "layout": "scatter_on_surface",
+     "note": "Chest/collar armor and hip belt/cargo pieces (attach_bone Hips or Spine_01, side c). Back-mounted jetpack/radio/battery/saddlebag gear also resolves here (Spine_01, no more specific bone in the base skeleton)."},
+    {"role": "shoulder", "select": {"part_slot_region": "shoulder"}, "count": [0, 2], "layout": "mirror_x_pair",
+     "note": "attach_bone Shoulder_L; place one per side, mirror the second instance onto Shoulder_R (scale.x = -1)."},
+    {"role": "arm", "select": {"part_slot_region": "elbow"}, "count": [0, 2], "layout": "mirror_x_pair",
+     "note": "Forearm armor/weapons and elbow plating all resolve to the Elbow bone (the kit has no separate forearm bone). attach_bone Elbow_L; mirror to Elbow_R."},
+    {"role": "hand", "select": {"part_slot_region": "hand"}, "count": [0, 2], "layout": "mirror_x_pair",
+     "note": "Wrist armor / hand frame. attach_bone Hand_L; mirror to Hand_R."},
+    {"role": "leg", "select": {"part_slot_region": ["upperleg", "lowerleg", "uppershin"]}, "count": [0, 4], "layout": "mirror_x_pair",
+     "note": "Thigh armor -> UpperLeg; kneepad/shinpad/uppershin armor -> LowerLeg (confirmed by the body's own geo_lowerleg_knee_armor_* / *_shin_armor_* nodes). attach_bone is *_L; mirror to the _R bone."},
+    {"role": "foot", "select": {"part_slot_region": ["ankle", "ball"]}, "count": [0, 4], "layout": "mirror_x_pair",
+     "note": "Ankle frame / heel armor -> Ankle or AnkleReverse; toe armor -> Ball. attach_bone is *_L; mirror to the _R bone."},
+    {"role": "cockpit", "select": {"part_slot_region": "cockpit"}, "count": [0, 3], "layout": "single",
+     "note": "Cockpit door/shell/monitor trim. attach_bone CockpitDoor, side c."},
+    {"role": "exhaust", "select": {"part_slot_region": "exhaust"}, "count": [0, 3], "layout": "scatter_on_surface",
+     "note": "attach_bone Exhaust_c_01 by default; the body skeleton also has Exhaust_l_01/Exhaust_r_01 for the flank ports if a per-side instance is wanted."}
+  ]
+}

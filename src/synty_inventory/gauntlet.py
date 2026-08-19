@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 
 from .catalog import catalog_path, load_catalog
@@ -359,6 +360,59 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root:
     else:
         gate("scifi_space_assembly_types", True, "POLYGON_SciFi_Space not on disk — skipped")
         gate("ship_part_sockets", True, "POLYGON_SciFi_Space not on disk — skipped")
+
+    # Mech body slots/variants + standalone attachment slot/bone
+    # (sources/mech.py). id-prefix selection, not `type`/`kind`: POLYGON_Mech
+    # stems have no knowledge.py classification rule yet (separate lane), so
+    # a type-based denominator would be vacuous or fail for someone else's
+    # reason. Skips cleanly when the pack isn't on disk yet.
+    mech_pack = next((d for d in docs if d.get("pack_id") == "POLYGON_Mech"), None)
+    if mech_pack:
+        body = [a for a in mech_pack["assets"] if a.get("id", "").startswith("SM_Veh_Mech_")]
+        bad_body = [
+            a["id"]
+            for a in body
+            if not (a.get("mech") or {}).get("skeleton")
+            or not (a.get("mech") or {}).get("slots")
+            or not (a.get("mech") or {}).get("variants")
+        ]
+        attach = [a for a in mech_pack["assets"] if a.get("id", "").startswith("SM_Mech_")]
+        with_slot = [a for a in attach if (a.get("part") or {}).get("slot") and (a.get("part") or {}).get("attach_bone")]
+        attach_ratio = len(with_slot) / len(attach) if attach else 0.0
+        attach_types = dict(Counter(a.get("type") for a in attach))
+
+        # Pinned ground-truth conventions from the 6 factory prefabs
+        # (parsed 2026-08-19, see sources/mech.py docstring): a specific
+        # chest weapon-attach node roots on Spine_01, the cockpit slot roots
+        # on CockpitDoor, and there are exactly 6 factory variants each
+        # toggling 60-69 of the master mesh's 196 nodes.
+        chest_pin_ok = any(
+            "geo_r_chest_attach_weapon_01" in (slot.get("geo_nodes") or []) and slot.get("bone") == "Spine_01"
+            for a in body
+            for slot in (a.get("mech") or {}).get("slots") or []
+        )
+        cockpit_pin_ok = any(
+            slot.get("region") == "cockpit" and slot.get("bone") == "CockpitDoor"
+            for a in body
+            for slot in (a.get("mech") or {}).get("slots") or []
+        )
+        variant_counts = []
+        if body:
+            variants = (body[0].get("mech") or {}).get("variants") or {}
+            variant_counts = sorted(len(nodes) for nodes in variants.values())
+        variants_ok = len(variant_counts) == 6 and all(60 <= n <= 69 for n in variant_counts)
+
+        gate(
+            "mech_slots",
+            bool(body) and not bad_body and bool(attach) and attach_ratio >= 0.95 and chest_pin_ok and cockpit_pin_ok and variants_ok,
+            f"{len(body)} SM_Veh_Mech_ body assets with skeleton+slots+variants (bad={bad_body[:3]}); "
+            f"{len(with_slot)}/{len(attach)} SM_Mech_ attachments have part.slot+attach_bone "
+            f"({attach_ratio:.0%}, attachment types={attach_types}); "
+            f"pins: chest_attach_weapon_01->Spine_01={chest_pin_ok}, cockpit->CockpitDoor={cockpit_pin_ok}, "
+            f"variants={variant_counts} (want 6x[60,69])",
+        )
+    else:
+        gate("mech_slots", True, "POLYGON_Mech not on disk — skipped")
 
     recipes = load_recipes(catalogs_dir)
     want = {"ship_kit": None, "station_interior": None, "apartment_block": "POLYGON_City", "main_street_row": "POLYGON_City"}
