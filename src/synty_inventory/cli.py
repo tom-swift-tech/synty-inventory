@@ -26,7 +26,10 @@ from .paths import (
     posix,
     require_path,
     resolve_config,
+    resolve_settings,
 )
+from .review import DEFAULT_VIEWS as REVIEW_DEFAULT_VIEWS
+from .review import review_pack
 from .schema import validate_catalog
 from .unitypackage import extract_previews
 from .vlm import enrich_asset_vlm, vlm_available
@@ -415,6 +418,29 @@ def cmd_validate(args, cfg) -> int:
     return 0 if ok else 2
 
 
+def cmd_review(args, cfg) -> int:
+    threejs_v2 = require_path(cfg, "threejs_v2")
+    synty_glb_root = require_path(cfg, "synty_glb_root")
+    settings = resolve_settings(args.config)
+    model = args.model or settings["vlm_local_model"]
+    url = args.url or settings["vlm_local_url"]
+    views = tuple(v.strip() for v in args.views.split(",") if v.strip()) if args.views else REVIEW_DEFAULT_VIEWS
+    result = review_pack(
+        args.pack,
+        threejs_v2_root=threejs_v2,
+        synty_glb_root=synty_glb_root,
+        catalogs_dir=cfg.get("catalogs"),
+        limit=args.limit or None,
+        match=args.match,
+        model=model,
+        url=url,
+        views=views,
+        vlm_timeout=args.vlm_timeout,
+    )
+    emit_json(result)
+    return 0 if result.get("ok") else 2
+
+
 def cmd_gauntlet(args, cfg) -> int:
     catalogs_dir = _catalogs(args, cfg)
     result = run_gauntlet(catalogs_dir, threejs_v2=_threejs_v2(cfg), godot_root=_engine_root(cfg, "godot_root"))
@@ -529,6 +555,28 @@ def build_parser() -> argparse.ArgumentParser:
 
     g = sub.add_parser("gauntlet", help="Run acceptance gates against live catalogs")
     g.set_defaults(func=cmd_gauntlet)
+
+    rv = sub.add_parser(
+        "review",
+        help="Local VLM pass over a threejs-v2 pack: render stills, write catalog.json (reviewed:true)",
+    )
+    rv.add_argument("--pack", required=True, help="threejs-v2 pack_id, e.g. POLYGON_SciFi_Space")
+    rv.add_argument("--limit", type=int, default=0, help="max unreviewed assets this run (0 = no limit)")
+    rv.add_argument("--match", default=None, help="only stems containing this substring (case-insensitive)")
+    rv.add_argument("--model", default=None, help="override vlm_local_model (default: config/env/gemma4:e4b)")
+    rv.add_argument("--url", default=None, help="override vlm_local_url (default: config/env/localhost:11434)")
+    rv.add_argument(
+        "--views",
+        default=None,
+        help=f"comma list of harness views (default: {','.join(REVIEW_DEFAULT_VIEWS)})",
+    )
+    rv.add_argument(
+        "--vlm-timeout",
+        type=int,
+        default=600,
+        help="seconds to wait per VLM call (default: 600; raise for larger/slower model tags)",
+    )
+    rv.set_defaults(func=cmd_review)
     return p
 
 
