@@ -192,6 +192,20 @@ def _render_stills(
     return wanted
 
 
+def _stem_block(stem: str) -> str:
+    """The source filename stem is free, near-always-truthful context: a wall
+    anchor rendered small reads as an angular rock, but SM_Gen_Prop_Chain_Anchor_01
+    settles it. Without this, shared-kit (SM_Gen_*) stems -- absent from the
+    catalog of record -- were reviewed completely blind."""
+    return (
+        f"The asset's source filename stem is {stem!r}. Synty filenames are "
+        "almost always truthful about what the asset IS -- use them to "
+        "identify it, use the image for colors, shape, materials and notable "
+        "details, and only contradict the filename when the image clearly "
+        "shows something else.\n"
+    )
+
+
 def _context_block(context: dict | None) -> str:
     if not context:
         return ""
@@ -338,7 +352,7 @@ def review_pack(
             continue
 
         context = _context_for(catalogs_dir, pack_id, stem)
-        prompt = PROMPT_TEMPLATE.format(context=_context_block(context))
+        prompt = PROMPT_TEMPLATE.format(context=_stem_block(stem) + _context_block(context))
         draft = query(images, prompt)
         if not draft:
             log(f"review: VLM produced no usable JSON for {stem}")

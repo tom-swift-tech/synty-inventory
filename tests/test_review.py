@@ -412,3 +412,34 @@ def test_views_for_swaps_thin_z_planar_to_front(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(review_mod, "measure_glb", boom)
     assert tuple(review_mod._views_for(glb, DEFAULT_VIEWS)) == tuple(DEFAULT_VIEWS)
+
+
+def test_prompt_always_includes_filename_stem(tmp_path: Path):
+    """Shared-kit (SM_Gen_*) stems are absent from the catalog of record, so
+    without the stem in the prompt those assets were reviewed blind -- a wall
+    anchor came back as 'Rock'. The stem is free, near-always-truthful context
+    and must be in the prompt even when catalog context is unavailable."""
+    _pack(tmp_path, "POLYGON_Pack", ["models/SM_Gen_Prop_Chain_Anchor_01.glb"])
+    prompts: list = []
+
+    def capture_query(images, prompt):
+        prompts.append(prompt)
+        return {
+            "name": "Chain Anchor",
+            "description": "A grey wall-mounted anchor plate with a shackle ring.",
+            "tags": ["anchor", "chain", "mount"],
+            "category": "prop",
+            "semantic_role": "exterior_prop",
+        }
+
+    result = review_pack(
+        "POLYGON_Pack",
+        threejs_v2_root=tmp_path,
+        synty_glb_root=tmp_path,
+        limit=None,
+        render_fn=_fake_render([]),
+        query_fn=capture_query,
+    )
+    assert result["ok"]
+    assert prompts and "SM_Gen_Prop_Chain_Anchor_01" in prompts[0]
+    assert "filename" in prompts[0].lower()
