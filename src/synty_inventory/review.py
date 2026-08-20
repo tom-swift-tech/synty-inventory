@@ -30,6 +30,7 @@ import sys
 from pathlib import Path
 from typing import Callable, Sequence
 
+from .sources.glb_measure import measure_glb
 from .sources.threejs_v2 import BUNDLE_STEMS
 from .vlm import LOCAL_DEFAULT_MODEL, LOCAL_DEFAULT_URL, query_local_vlm
 
@@ -128,6 +129,30 @@ def _scaffold_catalog(pack_id: str) -> dict:
     }
 
 
+def _views_for(glb: Path, default: Sequence[str]) -> Sequence[str]:
+    """Vertical planar assets (wall signs, decals, draped ivy) are thin along Z,
+    so BOTH default views (left = along X, top = along Y) see them edge-on and
+    the VLM reviews a sliver. Render those face-on instead. Horizontal flats
+    (floors, thin-Y) stay face-on from `top`, thin-X planes from `left` --
+    only thin-Z needs the swap."""
+    try:
+        measured = measure_glb(glb)
+    except Exception:  # noqa: BLE001 -- view choice must never kill a review
+        return default
+    if not measured:
+        return default
+    mn, mx = measured
+    size = [abs(b - a) for a, b in zip(mn, mx)]
+    largest = max(size)
+    if largest <= 0:
+        return default
+    thin_z = size[2] / largest < 0.08 and size[2] == min(size)
+    planar = min(size[0], size[1]) / largest > 0.25
+    if thin_z and planar:
+        return ("front", "top")
+    return default
+
+
 def _render_stills(
     glb: Path,
     stills_dir: Path,
@@ -142,7 +167,11 @@ def _render_stills(
     missing_views = [v for v, p in zip(views, wanted) if not p.is_file()]
     if not missing_views:
         return wanted
-    cmd = [sys.executable, "-m", "synty_glb.qa", "render", str(glb), str(stills_dir), *missing_views]
+    # --no-gizmo: the harness's 1.8 m human-scale figure dominates the frame on
+    # small assets and the VLM describes IT instead of the asset. Scale comes
+    # from measured bounds, so review stills never need the gizmo. Requires a
+    # synty-glb checkout whose qa render accepts the flag (2026-08-20+).
+    cmd = [sys.executable, "-m", "synty_glb.qa", "render", str(glb), str(stills_dir), *missing_views, "--no-gizmo"]
     env = dict(os.environ)
     env["PYTHONPATH"] = str(synty_glb_root / "src")
     proc = subprocess.run(
@@ -302,7 +331,7 @@ def review_pack(
 
         stills_dir = pack_dir / STILLS_DIRNAME / stem
         try:
-            images = render(glb, stills_dir, views, synty_glb_root)
+            images = render(glb, stills_dir, _views_for(glb, views), synty_glb_root)
         except (RenderError, subprocess.SubprocessError, OSError, TimeoutError) as exc:
             log(f"review: render failed for {stem}: {exc}")
             failed.append({"id": stem, "error": f"render: {exc}"})

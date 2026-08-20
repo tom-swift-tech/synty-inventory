@@ -255,20 +255,25 @@ skipped; it never aborts the batch.
 — next to the GLBs, **outside** this repo and outside `catalogs`, so a rerun
 reuses them and they never end up in git.
 
-**Views**: default `left,top` (`--views` to override). The synty-glb harness
-always plants a fixed 1.8 m human-scale reference gizmo (teal
-capsule-and-sphere figure, thin pole) at the model's bbox corner with no way
-to disable it (`qa/harness.js`'s `addHumanGizmo`, no query param). `left`
-puts that gizmo in the far field for most assets; `top` never overlaps the
-asset's footprint. The prompt also explicitly tells the model to ignore a
-small teal humanoid figure if one appears. Verify this still holds if the
-harness's gizmo placement ever changes.
+**Views**: default `left,top` (`--views` to override). Vertical planar
+assets (wall signs, decals, draped ivy — thin along Z) are edge-on in BOTH
+default views, so review renders those face-on (`front,top`) automatically
+from GLB bounds. Renders pass `--no-gizmo`: the harness's 1.8 m human-scale
+reference figure dominates the frame on small assets and the VLM describes
+the gizmo instead of the asset (observed: a wall anchor reviewed as
+"cotton_candy"). This needs a synty-glb checkout whose `qa render` accepts
+`--no-gizmo` (`gizmo=0` harness query param); the prompt still tells the
+model to ignore a small teal humanoid, which covers stills cached from
+older gizmo renders.
 
-**Model choice**: `gemma4:e4b` is the default for its speed (single-digit
-seconds/image vs. minutes for `gemma4:26b`), but grounding quality on this
-asset domain is a live open question, not a settled one — see the pilot
-notes in the PR/handoff for this feature before trusting a full-pack batch
-run on the default model.
+**Model choice**: the code default is `gemma4:e4b` for speed, but piloting
+settled the question: e4b does NOT ground on these renders — it produces
+plausible, confident, wrong output (a table reviewed as a wooden crate) and
+must not be trusted for batches. `gemma4:26b` grounds correctly and runs
+~15–20 s/asset on an otherwise-idle GPU (minutes/asset under GPU
+contention) — set `vlm_local_model: "gemma4:26b"` in `config.yaml` for real
+runs. Exclude `FX_*` from review (`--match SM_`): translucent light-shaft
+FX render as plain shapes and no vision model can recover their function.
 
 `gauntlet` is a live acceptance suite (expects `POLYGON_City` and, for the
 assembly gates, `POLYGON_SciFi_Space`): the v1 sign gates plus bounds

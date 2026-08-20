@@ -357,3 +357,58 @@ def test_reviewed_entry_round_trips_through_the_real_overlay(tmp_path: Path):
     assert asset["provenance"]["description"] == "vlm_reviewed"
     assert asset["provenance"]["tags"] == "vlm_reviewed"
     assert asset["files"]["glb"] == "POLYGON_Pack/models/SM_Prop_Crate_01.glb" or asset["files"]["glb"] == entry["file"]
+
+
+def test_render_stills_passes_no_gizmo(tmp_path: Path, monkeypatch):
+    """Review stills must render without the harness's human-scale gizmo --
+    on small assets it dominates the frame and the VLM describes the gizmo
+    (observed: a wall anchor reviewed as 'cotton_candy')."""
+    from synty_inventory import review as review_mod
+
+    glb = tmp_path / "SM_Prop_Crate_01.glb"
+    glb.write_bytes(b"fake-glb")
+    stills_dir = tmp_path / "_review_stills" / "SM_Prop_Crate_01"
+
+    calls: list = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+
+        class _Proc:
+            returncode = 0
+            stderr = ""
+
+        for v in DEFAULT_VIEWS:
+            (stills_dir / f"{v}.png").write_bytes(b"rendered")
+        return _Proc()
+
+    monkeypatch.setattr(review_mod.subprocess, "run", fake_run)
+    review_mod._render_stills(glb, stills_dir, DEFAULT_VIEWS, tmp_path)
+    assert calls and "--no-gizmo" in calls[0]
+
+
+def test_views_for_swaps_thin_z_planar_to_front(tmp_path: Path, monkeypatch):
+    """A wall sign (thin along Z) is edge-on in BOTH default views; review
+    must render it face-on. Volumetric and thin-Y (floor) assets keep the
+    default views, and a measurement failure must never kill the review."""
+    from synty_inventory import review as review_mod
+
+    glb = tmp_path / "SM_Sign_Hangar_01.glb"
+    glb.write_bytes(b"fake-glb")
+
+    cases = {
+        # (min, max) -> expected views
+        "thin_z_sign": (([0.0, 0.0, 0.0], [1.0, 0.6, 0.02]), ("front", "top")),
+        "volumetric": (([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]), DEFAULT_VIEWS),
+        "thin_y_floor": (([0.0, 0.0, 0.0], [2.0, 0.05, 2.0]), DEFAULT_VIEWS),
+        "thin_pole": (([0.0, 0.0, 0.0], [0.02, 3.0, 0.01]), DEFAULT_VIEWS),
+    }
+    for name, (measured, expected) in cases.items():
+        monkeypatch.setattr(review_mod, "measure_glb", lambda p, m=measured: m)
+        assert tuple(review_mod._views_for(glb, DEFAULT_VIEWS)) == tuple(expected), name
+
+    def boom(p):
+        raise ValueError("corrupt glb")
+
+    monkeypatch.setattr(review_mod, "measure_glb", boom)
+    assert tuple(review_mod._views_for(glb, DEFAULT_VIEWS)) == tuple(DEFAULT_VIEWS)
