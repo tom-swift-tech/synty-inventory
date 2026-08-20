@@ -10,6 +10,7 @@ from . import knowledge
 from .merge import stamp_auto
 from .sources.glb_measure import apply_measured_bounds, bundle_index, load_cache, save_cache
 from .sources.godot import apply_godot_overlay, scene_index
+from .sources.mech import apply_mech_catalog
 from .sources.sockets import apply_part_sockets
 from .sources.threejs_v2 import apply_threejs_overlay, bundle_glbs, catalog_by_id, glb_index
 from .sources.unreal import apply_unreal_overlay, asset_index as unreal_asset_index
@@ -260,7 +261,10 @@ def enrich_catalog(
     ``files.unreal_uasset``; both no-op when their root is unset) ->
     GLB-measured bounds (the authoritative last pass, see
     sources.glb_measure.apply_measured_bounds) -> ship-part mating faces
-    from the decoded mesh (sources.sockets.apply_part_sockets) -> stamp_auto.
+    from the decoded mesh (sources.sockets.apply_part_sockets) -> stamp_auto
+    -> mech body slots/variants + attachment slot/bone, catalog-wide, from
+    the Unity extracted tree (sources.mech.apply_mech_catalog; no-ops for
+    every pack except POLYGON_Mech).
 
     ``godot_root`` / ``unreal_root`` default to ``None`` (off) — callers
     (``catalog.build_catalog`` / ``scan_and_write``, ``cli.py``) must pass
@@ -305,6 +309,8 @@ def enrich_catalog(
         updated = vlm_fn(asset)
         if updated:
             vlm_done += 1
+
+    apply_mech_catalog(catalog, cache, stats)
 
     if cache_path is not None and cache:
         save_cache(cache_path, cache)

@@ -80,6 +80,7 @@ SEMANTIC_FIELDS = (
     "placement",
     "module",
     "part",
+    "mech",
     "ai_notes",
 )
 
@@ -237,6 +238,39 @@ PART_CLASSES = (
 SIZE_CLASSES = ("fighter", "bomber", "transport", "cruiser", "capital", "station")
 PIVOTS = ("corner", "center_bottom", "center", "other", "unknown")
 BOUNDS_SOURCES = ("measured", "vlm", "rules")
+
+# Mech/robot assembly (POLYGON_Mech, sources/mech.py). Regions are the literal
+# geo_<side>_<region>[_<detail>]_<NN> tokens observed on the master
+# SM_Veh_Mech_01 mesh's 196 renderer nodes (parsed from the 6 factory
+# Prefabs/Vehicles/*.prefab, 2026-08-19) plus "attach" (paired torso studs)
+# and "cargo" (Hips-mounted rear pack); the same vocabulary is reused for
+# standalone MechAttachments FBX slot resolution so a body's part.sockets
+# and a standalone part's part.slot speak the same region names.
+MECH_REGIONS = (
+    "ankle",
+    "attach",
+    "ball",
+    "cargo",
+    "chest",
+    "clavicle",
+    "cockpit",
+    "collar",
+    "elbow",
+    "exhaust",
+    "hand",
+    "head",
+    "hips",
+    "index",
+    "jetpack",
+    "lowerleg",
+    "mid",
+    "neck",
+    "shoulder",
+    "thumb",
+    "upperleg",
+    "uppershin",
+)
+MECH_SIDES = ("l", "r", "c")
 PROVENANCES = ("rules", "viewer", "vlm", "vlm_reviewed", "measured", "curated", "human")
 
 FILE_KEYS = ("unity_prefab", "unity_mesh", "unity_materials", "glb", "unreal_uasset", "godot_scene")
@@ -313,6 +347,10 @@ def empty_part() -> dict[str, Any]:
         # mesh-analysed mating faces (sources/sockets.py); null until measured
         "mount": None,
         "sockets": None,
+        # mech attachment slot (sources/mech.py); null until resolved from the
+        # MechAttachments FBX naming convention
+        "slot": None,
+        "attach_bone": None,
     }
 
 
@@ -337,6 +375,56 @@ def validate_socket(face: Any, prefix: str, errors: list[str], *, need_role: boo
         errors.append(f"{prefix}.role invalid: {face.get('role')!r}")
     if "parent_role" in face and face["parent_role"] not in SOCKET_ROLES:
         errors.append(f"{prefix}.parent_role invalid: {face['parent_role']!r}")
+
+
+def validate_part_slot(slot: Any, prefix: str, errors: list[str]) -> None:
+    if not isinstance(slot, dict):
+        errors.append(f"{prefix} must be an object")
+        return
+    if slot.get("region") not in MECH_REGIONS:
+        errors.append(f"{prefix}.region invalid: {slot.get('region')!r}")
+    if slot.get("side") not in MECH_SIDES:
+        errors.append(f"{prefix}.side invalid: {slot.get('side')!r}")
+
+
+def empty_mech() -> dict[str, Any]:
+    """Body-asset mech assembly data (sources/mech.py): the shared skeleton,
+    every renderer-node slot on the master mesh, and the named factory
+    node-visibility variants. Only set on SM_Veh_Mech_* body assets."""
+    return {"skeleton": [], "slots": [], "variants": {}}
+
+
+def validate_mech(mech: Any, prefix: str, errors: list[str]) -> None:
+    if not isinstance(mech, dict):
+        errors.append(f"{prefix} must be an object")
+        return
+    skeleton = mech.get("skeleton")
+    if not isinstance(skeleton, list) or not all(isinstance(b, str) for b in skeleton):
+        errors.append(f"{prefix}.skeleton must be a list of bone names")
+    slots = mech.get("slots")
+    if not isinstance(slots, list):
+        errors.append(f"{prefix}.slots must be a list")
+    else:
+        for i, slot in enumerate(slots):
+            if not isinstance(slot, dict):
+                errors.append(f"{prefix}.slots[{i}] must be an object")
+                continue
+            if slot.get("region") not in MECH_REGIONS:
+                errors.append(f"{prefix}.slots[{i}].region invalid: {slot.get('region')!r}")
+            if slot.get("side") not in MECH_SIDES:
+                errors.append(f"{prefix}.slots[{i}].side invalid: {slot.get('side')!r}")
+            if not isinstance(slot.get("bone"), str) or not slot.get("bone"):
+                errors.append(f"{prefix}.slots[{i}].bone must be a non-empty string")
+            nodes = slot.get("geo_nodes")
+            if not isinstance(nodes, list) or not nodes or not all(isinstance(n, str) for n in nodes):
+                errors.append(f"{prefix}.slots[{i}].geo_nodes must be a non-empty list of strings")
+    variants = mech.get("variants")
+    if not isinstance(variants, dict):
+        errors.append(f"{prefix}.variants must be an object")
+    else:
+        for vid, nodes in variants.items():
+            if not isinstance(nodes, list) or not all(isinstance(n, str) for n in nodes):
+                errors.append(f"{prefix}.variants[{vid!r}] must be a list of strings")
 
 
 def make_bounds(
@@ -507,6 +595,8 @@ def migrate_asset_v1(asset: dict) -> dict:
     if isinstance(a["part"], dict):
         a["part"].setdefault("mount", None)
         a["part"].setdefault("sockets", None)
+        a["part"].setdefault("slot", None)
+        a["part"].setdefault("attach_bone", None)
     a.setdefault("thumbnail", None)
     a.setdefault("ai_notes", "")
     a.setdefault("category", [])
@@ -622,8 +712,15 @@ def validate_asset(asset: Any, prefix: str, errors: list[str]) -> None:
             else:
                 for i, face in enumerate(sockets):
                     validate_socket(face, f"{prefix}.part.sockets[{i}]", errors, need_role=True)
+        if part.get("slot") is not None:
+            validate_part_slot(part["slot"], f"{prefix}.part.slot", errors)
+        if part.get("attach_bone") is not None and not isinstance(part.get("attach_bone"), str):
+            errors.append(f"{prefix}.part.attach_bone must be a string or null")
     elif part is not None:
         errors.append(f"{prefix}.part must be an object or null")
+    mech = asset.get("mech")
+    if mech is not None:
+        validate_mech(mech, f"{prefix}.mech", errors)
     files = asset.get("files")
     if not isinstance(files, dict):
         errors.append(f"{prefix}.files must be an object")

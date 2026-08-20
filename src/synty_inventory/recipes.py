@@ -39,6 +39,7 @@ SELECT_KEYS = {
     "module_family",
     "part_class",
     "size_class",
+    "part_slot_region",
     "tags_any",
     "tags_all",
     "contexts_any",
@@ -272,6 +273,11 @@ def asset_matches(asset: dict, pack_id: str, sel: dict) -> bool:
         want = want if isinstance(want, list) else [want]
         if part.get(pkey) not in want:
             return False
+    slot_region_want = sel.get("part_slot_region")
+    if slot_region_want is not None:
+        slot_region_want = slot_region_want if isinstance(slot_region_want, list) else [slot_region_want]
+        if (part.get("slot") or {}).get("region") not in slot_region_want:
+            return False
     tags = _tagset(asset)
     if sel.get("tags_any") and not any(t.lower() in tags for t in sel["tags_any"]):
         return False
@@ -294,6 +300,7 @@ def _piece_view(pack_id: str, asset: dict) -> dict:
         "semantic_detail": asset.get("semantic_detail"),
         "module": asset.get("module"),
         "part": asset.get("part"),
+        "mech": asset.get("mech"),
         "bounds": asset.get("bounds"),
         "placement": asset.get("placement"),
         "files": asset.get("files"),

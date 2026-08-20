@@ -133,3 +133,59 @@ def test_pivot_classification():
     assert pivot_from_aabb([0, 0, -5], [5, 3, 0.19]) == "corner"
     assert pivot_from_aabb([-2.5, 0, -2.5], [2.5, 3, 2.5]) == "center_bottom"
     assert pivot_from_aabb([-1, -1, -1], [1, 1, 1]) == "center"
+
+
+# --- mech assembly (part.slot/attach_bone, asset.mech) -----------------------------
+
+
+def test_migration_defaults_part_slot_and_attach_bone_to_null():
+    v2 = migrate_catalog(_v1_doc())
+    for asset in v2["assets"]:
+        assert asset["part"]["slot"] is None
+        assert asset["part"]["attach_bone"] is None
+    assert validate_catalog(v2) == []
+
+
+def test_part_slot_validates():
+    v2 = migrate_catalog(_v1_doc())
+    a = v2["assets"][1]
+    a["part"]["slot"] = {"region": "lowerleg", "side": "l"}
+    a["part"]["attach_bone"] = "LowerLeg_L"
+    assert validate_catalog(v2) == []
+
+
+def test_part_slot_rejects_bad_region_and_side():
+    v2 = migrate_catalog(_v1_doc())
+    a = v2["assets"][1]
+    a["part"]["slot"] = {"region": "forearm", "side": "up"}
+    a["part"]["attach_bone"] = 7
+    errs = validate_catalog(v2)
+    assert any(".part.slot.region invalid" in e for e in errs)
+    assert any(".part.slot.side invalid" in e for e in errs)
+    assert any(".part.attach_bone must be a string" in e for e in errs)
+
+
+def test_mech_field_validates_when_present():
+    v2 = migrate_catalog(_v1_doc())
+    a = v2["assets"][1]
+    a["mech"] = {
+        "skeleton": ["Ankle_L", "Spine_01"],
+        "slots": [{"region": "ankle", "side": "l", "bone": "Ankle_L", "geo_nodes": ["geo_l_ankle"]}],
+        "variants": {"SM_Veh_Mech_01": ["geo_l_ankle"]},
+    }
+    assert validate_catalog(v2) == []
+
+
+def test_mech_field_rejects_malformed_slots_and_variants():
+    v2 = migrate_catalog(_v1_doc())
+    a = v2["assets"][1]
+    a["mech"] = {
+        "skeleton": ["Ankle_L"],
+        "slots": [{"region": "not_a_region", "side": "l", "bone": "", "geo_nodes": []}],
+        "variants": {"SM_Veh_Mech_01": "not_a_list"},
+    }
+    errs = validate_catalog(v2)
+    assert any(".mech.slots[0].region invalid" in e for e in errs)
+    assert any(".mech.slots[0].bone must be" in e for e in errs)
+    assert any(".mech.slots[0].geo_nodes must be" in e for e in errs)
+    assert any(".mech.variants[" in e for e in errs)

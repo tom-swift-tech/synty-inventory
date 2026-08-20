@@ -193,3 +193,55 @@ def test_match_recipes():
     assert match_recipes(recipes, "six storey apartment building")[0]["id"] == "apartment_block"
     assert match_recipes(recipes, "station corridor and bridge interior")[0]["id"] == "station_interior"
     assert match_recipes(recipes, "zzqx") == []
+
+
+def test_match_recipes_mech_kit_does_not_hijack_the_ship_kit_pointer():
+    """mech_kit and ship_kit share the "kind": "vehicle" grammar; the two
+    must not compete for the same free-text prompts (gauntlet's
+    suggest_recipe_pointers gate)."""
+    recipes = load_recipes(None)
+    assert match_recipes(recipes, "build me a fighter space ship")[0]["id"] == "ship_kit"
+    assert match_recipes(recipes, "build me a piloted mech")[0]["id"] == "mech_kit"
+    assert match_recipes(recipes, "bipedal battle mech walker")[0]["id"] == "mech_kit"
+
+
+def _mech_catalog(tmp_path: Path) -> Path:
+    body_part = empty_part()
+    leg_part = empty_part()
+    leg_part["slot"] = {"region": "lowerleg", "side": "l"}
+    leg_part["attach_bone"] = "LowerLeg_L"
+    doc = {
+        "pack_id": "POLYGON_Mech",
+        "engine": "Unity",
+        "origin": "Synty",
+        "style": "lowpoly_mech",
+        "units": "meters",
+        "version": 2,
+        "scanned_at": "2026-08-19T00:00:00+00:00",
+        "grid": DEFAULT_GRID,
+        "conventions": DEFAULT_CONVENTIONS,
+        "assets": [
+            _asset("SM_Veh_Mech_01", "vehicle", "vehicle", part=body_part),
+            _asset("SM_Mech_Leg_01_Armor_Kneepad_03", "vehicle/part", "vehicle_part", part=leg_part),
+        ],
+    }
+    doc["assets"][0]["mech"] = {
+        "skeleton": ["LowerLeg_L"],
+        "slots": [{"region": "lowerleg", "side": "l", "bone": "LowerLeg_L", "geo_nodes": ["geo_l_lowerleg_knee_armor_01"]}],
+        "variants": {"SM_Veh_Mech_01": ["geo_l_lowerleg_knee_armor_01"]},
+    }
+    assert validate_catalog(doc) == [], validate_catalog(doc)
+    write_catalog(tmp_path / "POLYGON_Mech.json", doc)
+    return tmp_path
+
+
+def test_resolve_mech_kit(tmp_path):
+    cat = _mech_catalog(tmp_path)
+    recipes = load_recipes(cat)
+    res = resolve_recipe(cat, recipes["mech_kit"], pack="POLYGON_Mech")
+    by_role = {s["role"]: s for s in res["resolved_steps"]}
+    assert [p["id"] for p in by_role["body"]["eligible"]] == ["SM_Veh_Mech_01"]
+    assert by_role["body"]["eligible"][0]["mech"]["variants"]["SM_Veh_Mech_01"] == ["geo_l_lowerleg_knee_armor_01"]
+    assert [p["id"] for p in by_role["leg"]["eligible"]] == ["SM_Mech_Leg_01_Armor_Kneepad_03"]
+    assert by_role["leg"]["eligible"][0]["part"]["attach_bone"] == "LowerLeg_L"
+    assert res["complete"] is True
