@@ -51,15 +51,6 @@ CATALOG_NAME = "catalog.json"
 # changes.
 DEFAULT_VIEWS: tuple[str, ...] = ("left", "top")
 
-CATEGORY_TYPE = {
-    "prop": "prop",
-    "building": "building/module",
-    "vehicle": "vehicle",
-    "character": "character",
-    "environment": "environment",
-    "fx": "fx",
-}
-
 # Same allow-list the overlay applies on read (sources/threejs_v2.py
 # _TOKEN_RE) -- filter here so a tag we can't ever apply doesn't sit in the
 # catalog looking reviewed.
@@ -254,21 +245,16 @@ def _build_entry(stem: str, rel_path: str, draft: dict) -> dict:
         if isinstance(t, str) and t.strip()
     ]
     tags = [t for t in tags if _TAG_RE.match(t)]
-    category = str(draft.get("category") or "").strip().lower()
-    role = str(draft.get("semantic_role") or "").strip()
-
     entry: dict = {"id": stem, "name": name, "reviewed": True, "file": rel_path}
-    dtype = CATEGORY_TYPE.get(category, category)
-    if dtype:
-        entry["type"] = dtype
-    if category:
-        entry["category"] = [category]
+    # Deliberately NO type / category / semantic_role: the VLM's coarse
+    # category ("vehicle") would overlay-override the rules-derived structured
+    # type ("vehicle/part") at vlm_reviewed rank and break the assembly gates
+    # (observed: ship_kit lost every body/engine). The review owns prose --
+    # name, description, tags -- never structure.
     if description:
         entry["description"] = description
     if tags:
         entry["tags"] = tags
-    if role:
-        entry["semantic_role"] = role
     return entry
 
 

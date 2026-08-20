@@ -352,7 +352,14 @@ def test_reviewed_entry_round_trips_through_the_real_overlay(tmp_path: Path):
     assert asset["name"] == "Wooden Crate"
     assert asset["description"] == "A weathered wooden crate with metal bands."
     assert set(["crate", "wood", "container"]).issubset(asset["tags"])
-    assert asset["semantic_role"] == "exterior_prop"
+    # The review owns prose, never structure: the VLM's coarse category must
+    # not reach type/semantic_role, where it would override rules-derived
+    # structured values ("vehicle/part") and break the assembly gates.
+    assert "type" not in entry and "semantic_role" not in entry and "category" not in entry
+    assert asset["type"] is None
+    assert asset["semantic_role"] is None
+    assert asset["provenance"].get("type") != "vlm_reviewed"
+    assert asset["provenance"].get("semantic_role") != "vlm_reviewed"
     assert asset["provenance"]["name"] == "vlm_reviewed"
     assert asset["provenance"]["description"] == "vlm_reviewed"
     assert asset["provenance"]["tags"] == "vlm_reviewed"
