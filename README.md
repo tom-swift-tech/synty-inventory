@@ -3,8 +3,9 @@
 **`synty-inventory`** — offline scanner and query CLI. It turns **your** Synty
 packs into per-pack JSON catalogs so you or an agent can search by meaning —
 what a sign depicts, how it mounts, which floor it belongs on, which kit
-family a wall module belongs to, which socket a ship engine mates to —
-instead of guessing from filenames like `SM_Prop_Sign_Police_01`.
+family a wall module belongs to, which socket a ship engine mates to,
+which skeleton bone a mech weapon parents to — instead of guessing from
+filenames like `SM_Prop_Sign_Police_01`.
 
 **One catalog, every engine.** A Synty pack is the same set of meshes in
 Unity, Unreal, Godot and as converted GLBs for three.js. The catalog records
@@ -114,7 +115,8 @@ Catalogs are written to the `catalogs:` path. Each pack is
 | `placement` | `mount`, `attachment`, `preferred_floors`, `constraints`, `preferred_contexts` — all enumerated. |
 | `bounds` | `{min,max,size,pivot,source}` in metres, **measured** from the GLB (or asset-viewer AABB); `null` until measured — never a guess. `dimensions.approx` mirrors `bounds.size`; `size_hint` is the rule-based remnant for unmeasured pieces. |
 | `module` | kit data for modular building pieces: `family` (`Apartment`, `Shop`, …), `role` (`hero`, `shell`, `corner`, `door`, `roof`, `stairs`, `floor`, `base`), `footprint_class`, `stackable_on`, `street_side`. |
-| `part` | ship-kit data: `class` (`body`, `cockpit`, `engine`, `wing`, `gear`, `greeble`), `mates_axis`, `symmetric`, `size_class`, plus mesh-analysed mating faces: `mount` (the face this part attaches with: `axis`, `position`, `normal`, `area`, `extent`, `fit`, `source`, `parent_role` = the hull socket it fits unrotated) and, for `body` hulls, `sockets[]` (`front`/`rear`/`left`/`right`/`top`/`bottom`, same shape). Positions are in `bounds` space (local, metres); `source: measured` = a flat cap found in the decoded GLB triangles, `aabb` = AABB face-centre fallback (no flat cap — rounded hull end). The mount is not always on the class axis: a part whose pivot sits on a face mounts by that face (pylon engines `Engine_08/09` → `+x`, `parent_role: left`; mirror for the right), and wings mount by their dominant ±X root cap, which may be tilted by the dihedral (`normal` is the real normal, `axis` the nearest axis — place by position, do not rotate the root flush). Attach child to parent as `parent_pos + socket.position - child.mount.position`. `null` until the GLB is analysed. |
+| `part` | ship-kit data: `class` (`body`, `cockpit`, `engine`, `wing`, `gear`, `greeble`), `mates_axis`, `symmetric`, `size_class`, plus mesh-analysed mating faces: `mount` (the face this part attaches with: `axis`, `position`, `normal`, `area`, `extent`, `fit`, `source`, `parent_role` = the hull socket it fits unrotated) and, for `body` hulls, `sockets[]` (`front`/`rear`/`left`/`right`/`top`/`bottom`, same shape). Positions are in `bounds` space (local, metres); `source: measured` = a flat cap found in the decoded GLB triangles, `aabb` = AABB face-centre fallback (no flat cap — rounded hull end). The mount is not always on the class axis: a part whose pivot sits on a face mounts by that face (pylon engines `Engine_08/09` → `+x`, `parent_role: left`; mirror for the right), and wings mount by their dominant ±X root cap, which may be tilted by the dihedral (`normal` is the real normal, `axis` the nearest axis — place by position, do not rotate the root flush). Attach child to parent as `parent_pos + socket.position - child.mount.position`. `null` until the GLB is analysed. Mech attachments (`SM_Mech_*`) instead carry `slot` (`{region, side l\|r\|c}` — `arm`, `leg`, `chest`, `head`, `cockpit`, …) and `attach_bone`: parent the piece to that skeleton bone with an identity local transform (pieces are authored in bone space). |
+| `mech` | on `SM_Veh_Mech_*` bodies: `skeleton` (bone names), `slots[]` (`region`, `side`, `bone`, `geo_nodes`), `variants` (factory loadouts → the `geo_*` nodes each activates). The master body GLB contains every armor/weapon option as named `geo_*` nodes — assemble by toggling geo-node visibility to a `variants` set, or by parenting standalone `SM_Mech_*` attachment GLBs to their `attach_bone`. |
 | `files` | `unity_prefab`, `unity_mesh`, `unity_materials`, `glb` (+ `glb_node` for meshes packed in bundle GLBs), `unreal_uasset`, `godot_scene`. `paths` is the v1 alias. |
 | `provenance` | per-field source, see precedence below. |
 
@@ -173,13 +175,17 @@ the v1 bare list.
 ### Recipes — how the pieces are meant to be used
 
 A recipe is a grammar: ordered steps, each with a `select` filter over the
-catalog (type / role / module role / part class / tags), a count range, a
-layout and constraints. `recipe <id>` resolves it against your catalogs and
+catalog, a count range, a layout and constraints. `select` keys: `ids`,
+`pack`, `type`, `semantic_role`, `semantic_detail`, `module_role`,
+`module_family`, `part_class`, `size_class`, `part_slot_region` (matches
+`part.slot.region` on mech attachments — `arm`, `hand`, `cockpit`, …),
+`tags_any`, `tags_all`, `contexts_any`, `placeable`, `id_prefix`,
+`id_regex`. `recipe <id>` resolves it against your catalogs and
 returns the eligible pieces per step **with bounds and files**, and
 `complete: false` (exit 4) if a required step has no candidates. Sources:
 
 - package recipes in `src/synty_inventory/recipes/` — `ship_kit`,
-  `station_interior`, `main_street_row`, `apartment_block`;
+  `station_interior`, `main_street_row`, `apartment_block`, `mech_kit`;
 - asset-viewer building types (`generate/data/types/*.json`) exposed as
   `building_<type>@<pack>` when `viewer_data` is set;
 - your own `<catalogs>/recipes/*.json` (same shape; `triggers` drive `suggest`).
@@ -269,7 +275,11 @@ assembly gates, `POLYGON_SciFi_Space`): the v1 sign gates plus bounds
 coverage >= 95 %, no heuristic dimensions, GLB paths, VLM overlay applied,
 ship-part typing, ship-part sockets (every hull six faces, every child part a
 mount with `parent_role`, >= 95 % of mounts measured caps, pylon engines on
-`+x`), every package recipe resolving
+`+x`), mech slot wiring when `POLYGON_Mech` is on disk (`mech_slots`:
+every `SM_Veh_Mech_*` body carries `mech.skeleton/slots/variants` with the
+six factory variants, >= 95 % of `SM_Mech_*` attachments carry `part.slot`
++ `part.attach_bone`, and pinned bone mappings hold — chest weapon →
+`Spine_01`, cockpit → `CockpitDoor`), every package recipe resolving
 `complete`,
 `suggest` pointing assembly prompts at the right recipe, and — when
 `godot_root` is configured — `godot_paths`: the three mapped packs
