@@ -56,10 +56,14 @@ repo), `threejs_v2` (converted GLB tree with per-pack `manifest.json` /
 VLM-reviewed descriptions), `godot_root` / `unreal_root` (engine-native
 export trees, one folder per pack; fill `files.godot_scene` /
 `files.unreal_uasset` — see [Godot / Unreal file paths](#godot--unreal-file-paths)
-below). Any key can
+below), `synty_glb_root` (a checkout of the `synty-glb` renderer, needed only
+for `review` — see [Local VLM review](#local-vlm-review) below). Any key can
 also be set with `SYNTI_UNITY_ROOT`, `SYNTI_EXTRACTED_ROOT`, `SYNTI_CATALOGS`,
 `SYNTI_VIEWER_DATA`, `SYNTI_THREEJS_V2`, `SYNTI_GODOT_ROOT`, `SYNTI_UNREAL_ROOT`,
-or `--config PATH`.
+`SYNTI_SYNTY_GLB_ROOT`, or `--config PATH`. Two further settings —
+`vlm_local_url` / `vlm_local_model` (`SYNTI_VLM_LOCAL_URL` /
+`SYNTI_VLM_LOCAL_MODEL`) — configure `review`'s local Ollama call and default
+sensibly (`http://localhost:11434`, `gemma4:e4b`) when unset.
 
 ```bash
 synty-inventory config
@@ -158,6 +162,7 @@ synty-inventory kit Apartment                      # modules grouped by role
 synty-inventory kit "*"                            # every family
 synty-inventory validate
 synty-inventory gauntlet
+synty-inventory review --pack POLYGON_SciFi_Space --limit 20
 ```
 
 `search`/`suggest` filters: `--type`, `--role`, `--module-role`,
@@ -212,6 +217,52 @@ scanner-owned and refreshed wholesale on every rescan. A reference
 natively-Unreal-sourced pack (`scan --pack` on an Unreal root). Both roots
 default to unset (`null`) and are a no-op when missing — no Unreal export
 tree exists on any known machine today.
+
+### Local VLM review
+
+`review` produces the `catalog.json` that `sources/threejs_v2.py` overlays
+onto a pack as `vlm_reviewed` provenance (`POLYGON_City/catalog.json` is the
+reference shape). It needs a threejs-v2 pack (`threejs_v2` config key, a
+`manifest.json` GLB listing), a `synty-glb` checkout (`synty_glb_root`) to
+render stills, and a local [Ollama](https://ollama.com) server with a
+vision-capable model pulled (`ollama pull gemma4:e4b`).
+
+```bash
+synty-inventory review --pack POLYGON_SciFi_Space --limit 20
+synty-inventory review --pack POLYGON_SciFi_Space --match SM_Prop
+synty-inventory review --pack POLYGON_SciFi_Space --model gemma4:26b --vlm-timeout 300
+```
+
+For each unreviewed GLB (deterministic order, `characters` / `br_characters`
+/ `generic_characters` bundles skipped — too many named nodes for a
+single-asset pass): render 1-2 stills via
+`python -m synty_glb.qa render <glb> <outdir> <view,...>` (subprocess, `cwd`
+= `synty_glb_root`), ask the local VLM for `{name, description, tags,
+category, semantic_role}`, and merge the result into the pack's
+`catalog.json` with `reviewed: true`. Resumable: an asset already carrying
+`reviewed: true` is skipped before it counts against `--limit`, and a still
+already on disk isn't re-rendered — safe to interrupt and rerun. A per-asset
+render or VLM failure is logged (`failed: [...]` in the JSON result) and
+skipped; it never aborts the batch.
+
+**Stills cache**: `<threejs_v2_root>/<pack_id>/_review_stills/<stem>/<view>.png`
+— next to the GLBs, **outside** this repo and outside `catalogs`, so a rerun
+reuses them and they never end up in git.
+
+**Views**: default `left,top` (`--views` to override). The synty-glb harness
+always plants a fixed 1.8 m human-scale reference gizmo (teal
+capsule-and-sphere figure, thin pole) at the model's bbox corner with no way
+to disable it (`qa/harness.js`'s `addHumanGizmo`, no query param). `left`
+puts that gizmo in the far field for most assets; `top` never overlaps the
+asset's footprint. The prompt also explicitly tells the model to ignore a
+small teal humanoid figure if one appears. Verify this still holds if the
+harness's gizmo placement ever changes.
+
+**Model choice**: `gemma4:e4b` is the default for its speed (single-digit
+seconds/image vs. minutes for `gemma4:26b`), but grounding quality on this
+asset domain is a live open question, not a settled one — see the pilot
+notes in the PR/handoff for this feature before trusting a full-pack batch
+run on the default model.
 
 `gauntlet` is a live acceptance suite (expects `POLYGON_City` and, for the
 assembly gates, `POLYGON_SciFi_Space`): the v1 sign gates plus bounds

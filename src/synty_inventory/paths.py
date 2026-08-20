@@ -24,10 +24,24 @@ CONFIG_KEYS: dict[str, str] = {
     "catalogs": "SYNTI_CATALOGS",
     "godot_root": "SYNTI_GODOT_ROOT",
     "unreal_root": "SYNTI_UNREAL_ROOT",
+    "synty_glb_root": "SYNTI_SYNTY_GLB_ROOT",
 }
 
 REQUIRED_KEYS = ("unity_root", "extracted_root", "catalogs")
 CONFIG_FILE_ENV = "SYNTI_CONFIG"
+
+# Non-path string settings, same env-override-then-file precedence as
+# CONFIG_KEYS/resolve_config but never coerced through _as_path (a URL or a
+# model tag is not a filesystem path). Used by the local Ollama VLM backend
+# (review.py / vlm.py) — see resolve_settings().
+SETTING_KEYS: dict[str, str] = {
+    "vlm_local_url": "SYNTI_VLM_LOCAL_URL",
+    "vlm_local_model": "SYNTI_VLM_LOCAL_MODEL",
+}
+SETTING_DEFAULTS: dict[str, str] = {
+    "vlm_local_url": "http://localhost:11434",
+    "vlm_local_model": "gemma4:e4b",
+}
 
 
 class ConfigError(ValueError):
@@ -139,6 +153,26 @@ def resolve_config(config_path: Path | None = None) -> dict:
         "paths": resolved,
         "sources": sources,
     }
+
+
+def resolve_settings(config_path: Path | None = None) -> dict[str, str]:
+    """Resolve SETTING_KEYS (non-path config): env var, then config.yaml,
+    then SETTING_DEFAULTS. Same file/precedence lookup as resolve_config,
+    but values are read as plain strings, never turned into a Path."""
+    path = find_config_file(config_path)
+    file_cfg = _load_yaml(path) if path else {}
+    out: dict[str, str] = {}
+    for key, env_name in SETTING_KEYS.items():
+        env_raw = os.environ.get(env_name)
+        if env_raw:
+            out[key] = env_raw
+            continue
+        file_raw = file_cfg.get(key)
+        if file_raw:
+            out[key] = str(file_raw)
+            continue
+        out[key] = SETTING_DEFAULTS[key]
+    return out
 
 
 def missing_required(resolved: dict[str, Path]) -> list[str]:

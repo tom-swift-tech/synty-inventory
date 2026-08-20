@@ -14,7 +14,8 @@
 # config file (or cwd when a value comes from the environment).
 #
 # Required: unity_root, extracted_root, catalogs
-# Optional: viewer_data, threejs_v2, godot_root, unreal_root
+# Optional: viewer_data, threejs_v2, godot_root, unreal_root, synty_glb_root,
+#           vlm_local_url, vlm_local_model
 #
 # Print what the tool resolved:
 #   python -m synty_inventory config
@@ -56,3 +57,16 @@ godot_root: "/path/to/optional/GoDot"
 # required; no known machine has this tree today.
 # Env: SYNTI_UNREAL_ROOT
 unreal_root: "/path/to/optional/Unreal"
+
+# Optional checkout of the synty-glb tool (headless GLB renderer used by
+# `review`). Only needed to run `synty-inventory review`.
+# Env: SYNTI_SYNTY_GLB_ROOT
+synty_glb_root: "/path/to/optional/synty-glb"
+
+# Optional local Ollama endpoint + model tag for `review`'s VLM pass. No API
+# key, no upload — everything stays on localhost. Both default sensibly
+# (below) when unset; only set these to point at a non-default Ollama host
+# or model.
+# Env: SYNTI_VLM_LOCAL_URL / SYNTI_VLM_LOCAL_MODEL
+vlm_local_url: "http://localhost:11434"
+vlm_local_model: "gemma4:e4b"
