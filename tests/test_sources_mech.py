@@ -34,7 +34,7 @@ def test_parse_prefab_reads_active_flag_and_root_bone():
 
 def test_build_body_mech_aggregates_slots_and_variants():
     prefabs = mech.discover_vehicle_prefabs(FIXTURE)
-    guid_fbx = mech._read_guid_fbx_map(FIXTURE)
+    guid_fbx = mech.read_guid_fbx_map(FIXTURE)
     assert guid_fbx == {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": "SM_Veh_Mech_01.fbx"}
     body = mech.build_body_mech(prefabs, guid_fbx)
     assert body["_master_fbx"] == ["SM_Veh_Mech_01.fbx"]

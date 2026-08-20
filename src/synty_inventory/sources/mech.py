@@ -67,6 +67,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from ..merge import stamp_auto
+
 MECH_VERSION = 1  # bump to invalidate the cached body parse when the algorithm changes
 
 _BLOCK_RE = re.compile(r"^--- !u!(\d+) &(\d+)", re.M)
@@ -128,7 +130,7 @@ REGION_BONE: dict[str, tuple[str, str, bool]] = {
 # --- Unity .prefab text parsing (adapted from .parse_mech_prefabs.py) --------------
 
 
-def _read_guid_fbx_map(extracted_root: Path) -> dict[str, str]:
+def read_guid_fbx_map(extracted_root: Path) -> dict[str, str]:
     """guid -> fbx filename, from every ``*.fbx.meta`` under the pack."""
     out: dict[str, str] = {}
     for meta in extracted_root.rglob("*.fbx.meta"):
@@ -233,7 +235,7 @@ def _parse_geo_node(node: str) -> tuple[str, str] | None:
 def build_body_mech(prefab_paths: list[Path], guid_fbx: dict[str, str] | None = None) -> dict[str, Any] | None:
     """Aggregate every prefab's renderer nodes into one body's
     ``{skeleton, slots, variants}`` (see module docstring). When
-    ``guid_fbx`` (from ``_read_guid_fbx_map``) is given, also returns
+    ``guid_fbx`` (from ``read_guid_fbx_map``) is given, also returns
     ``_master_fbx``: the distinct mesh FBX names referenced -- expected to
     be exactly one (``SM_Veh_Mech_01.fbx``); more than one means a future
     kit revision split the master mesh and every region/bone assumption
@@ -336,7 +338,7 @@ def apply_mech_catalog(catalog: dict, cache: dict[str, Any], stats: dict[str, in
         if entry and entry.get("key") == full_key:
             body = entry.get("result")
     if body is None:
-        body = build_body_mech(prefab_paths, _read_guid_fbx_map(root))
+        body = build_body_mech(prefab_paths, read_guid_fbx_map(root))
         if key is not None and body is not None:
             cache[cache_id] = {"key": f"{key}:v{MECH_VERSION}", "result": body}
     if body is None:
@@ -361,6 +363,12 @@ def apply_mech_catalog(catalog: dict, cache: dict[str, Any], stats: dict[str, in
             "variants": {k: list(v) for k, v in body["variants"].items()},
         }
         asset.setdefault("provenance", {})["mech"] = "measured"
+        # stamp_auto() seeds _auto["mech"] on first build (rank "measured"
+        # already short-circuits the hash-mismatch path in is_human_field(),
+        # but leaving _auto unset would leave the field's snapshot dangling
+        # -- same convention as enrich.py's per-asset stamp_auto() pass,
+        # done here because this field doesn't exist until this call).
+        stamp_auto(asset)
         body_hits += 1
     stats["mech_body_assets"] = stats.get("mech_body_assets", 0) + body_hits
 
