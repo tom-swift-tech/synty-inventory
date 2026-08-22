@@ -6,6 +6,7 @@ from synty_inventory.sources.godot import (
     apply_godot_overlay,
     discover_pack_dirs,
     scene_index,
+    unmapped_pack_dirs,
 )
 
 
@@ -21,10 +22,12 @@ def test_discover_pack_dirs_uses_override_map(tmp_path: Path):
     assert mapped == {pack_id: tmp_path / slug for slug, pack_id in SLUG_PACK_OVERRIDES.items()}
 
 
-def test_discover_pack_dirs_falls_back_to_normalized_slug(tmp_path: Path):
+def test_discover_pack_dirs_skips_unmapped_slug(tmp_path: Path):
     (tmp_path / "polygon-scifi-city-02").mkdir()
     mapped = discover_pack_dirs(tmp_path)
-    assert mapped == {"Polygon_Scifi_City": tmp_path / "polygon-scifi-city-02"}
+    assert mapped == {}
+    rows = unmapped_pack_dirs(tmp_path)
+    assert rows == [{"slug": "polygon-scifi-city-02", "guess": "Polygon_Scifi_City"}]
 
 
 def test_discover_pack_dirs_missing_root_returns_empty():
@@ -74,3 +77,12 @@ def test_apply_godot_overlay_noop_when_no_match():
     asset = {"id": "SM_Bld_Door_01", "files": {"godot_scene": None}}
     apply_godot_overlay(asset, None)
     assert asset["files"]["godot_scene"] is None
+
+
+def test_scene_index_unmapped_slug_does_not_overlay_scifi_city(tmp_path: Path):
+    pack_root = tmp_path / "polygon-scifi-city-02"
+    _touch(pack_root / "Assets/Synty/PolygonSciFiCity/Prefabs/SM_Bld_Shop_01.tscn")
+    exact, ci = scene_index(tmp_path, "POLYGON_SciFi_City")
+    assert exact == {} and ci == {}
+    guess_id, _ = scene_index(tmp_path, "Polygon_Scifi_City")
+    assert guess_id == {}

@@ -24,36 +24,32 @@ from pathlib import Path
 from ..paths import rel_posix
 
 # slug (folder name directly under unreal_root) -> pack_id. Empty today —
-# no Unreal export tree exists anywhere yet — but kept as an explicit map,
-# not a normalization guess, for the same reason as
-# ``sources.godot.SLUG_PACK_OVERRIDES``: guessing wrong silently misfiles a
-# whole pack.
+# no Unreal export tree exists anywhere yet. Unmapped folders are *not*
+# guessed: overlays apply only when the folder name equals ``pack_id`` or
+# an explicit override maps the slug. Guessing would silently misfile a
+# whole pack, same as Godot.
 SLUG_PACK_OVERRIDES: dict[str, str] = {}
 
 UNREAL_EXT = ".uasset"
 
 
-def _normalize_slug(name: str) -> str:
-    """Fallback slug -> pack_id guess; see ``sources.godot._normalize_slug``
-    for the exact rule and its known limits."""
-    import re
-
-    stem = re.sub(r"-\d+$", "", name.strip().lower())
-    words = [w for w in re.split(r"[^a-z0-9]+", stem) if w]
-    return "_".join(w.capitalize() for w in words) if words else name
-
-
 def discover_pack_dirs(unreal_root: Path | None) -> dict[str, Path]:
-    """pack_id -> pack tree root, for every subdirectory of ``unreal_root``.
-    Returns ``{}`` when ``unreal_root`` is ``None`` or missing — the
-    expected state on every machine today."""
+    """pack_id -> pack tree root for subdirectories of ``unreal_root``.
+
+    A folder overlays a pack only when its name is an explicit
+    ``SLUG_PACK_OVERRIDES`` slug or equals ``pack_id`` exactly. No
+    title-case / drop-revision guess — a stray folder cannot stamp
+    ``files.unreal_uasset`` on an unrelated pack. Returns ``{}`` when
+    ``unreal_root`` is ``None`` or missing — the expected state on every
+    machine today.
+    """
     if unreal_root is None or not Path(unreal_root).is_dir():
         return {}
     out: dict[str, Path] = {}
     for child in sorted(Path(unreal_root).iterdir()):
         if not child.is_dir():
             continue
-        pack_id = SLUG_PACK_OVERRIDES.get(child.name) or _normalize_slug(child.name)
+        pack_id = SLUG_PACK_OVERRIDES.get(child.name, child.name)
         out[pack_id] = child
     return out
 

@@ -17,13 +17,18 @@ rule below is a name-pattern rule. Dispatch order (see ``infer``):
 5. The original token/keyword legacy rules (signs, generic buildings,
    vehicles, environment, everything else) -- unchanged behaviour for
    every stem the newer, more specific rules don't claim.
+
+``CURATED``, ``TOKEN_TAGS`` and ``PACK_STYLES`` load from ``data/*.json``.
+Dispatch functions stay in this module.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from copy import deepcopy
 from dataclasses import replace
+from pathlib import Path
 
 from .naming import ParsedName, parse_name, title_from_tokens
 from .schema import TYPE_MIGRATION, empty_module, empty_part
@@ -114,299 +119,23 @@ MODULAR_BUILDING = {
     "preferred_contexts": [],
 }
 
-# token -> extra tags / contexts (lowercase)
-TOKEN_TAGS: dict[str, dict] = {
-    "police": {
-        "tags": ["police", "facade", "station", "law_enforcement", "civic"],
-        "contexts": ["police_station", "civic_building"],
-        "category": ["civic"],
-    },
-    "barber": {
-        "tags": ["barber", "salon", "pole", "commercial", "facade"],
-        "contexts": ["barber_shop", "salon"],
-        "category": ["commercial"],
-    },
-    "hospital": {
-        "tags": ["hospital", "medical", "civic", "facade"],
-        "contexts": ["hospital", "clinic", "civic_building"],
-        "category": ["civic"],
-    },
-    "firedepartment": {
-        "tags": ["fire", "fire_department", "civic", "facade"],
-        "contexts": ["fire_station", "civic_building"],
-        "category": ["civic"],
-    },
-    "fire": {
-        "tags": ["fire", "civic"],
-        "contexts": ["fire_station"],
-        "category": ["civic"],
-    },
-    "cafe": {
-        "tags": ["cafe", "coffee", "food", "commercial"],
-        "contexts": ["cafe", "coffee_shop"],
-        "category": ["commercial", "food"],
-    },
-    "hotel": {
-        "tags": ["hotel", "lodging", "commercial"],
-        "contexts": ["hotel"],
-        "category": ["commercial"],
-    },
-    "bar": {
-        "tags": ["bar", "nightlife", "alcohol"],
-        "contexts": ["bar", "pub", "nightlife"],
-        "category": ["commercial", "nightlife"],
-    },
-    "pub": {
-        "tags": ["pub", "bar", "nightlife", "alcohol"],
-        "contexts": ["pub", "bar"],
-        "category": ["commercial", "nightlife"],
-    },
-    "pizza": {
-        "tags": ["pizza", "food", "restaurant"],
-        "contexts": ["pizzeria", "restaurant"],
-        "category": ["commercial", "food"],
-    },
-    "delipizza": {
-        "tags": ["deli", "pizza", "food"],
-        "contexts": ["deli", "pizzeria"],
-        "category": ["commercial", "food"],
-    },
-    "noodles": {
-        "tags": ["noodles", "food", "chinese"],
-        "contexts": ["noodle_shop", "restaurant"],
-        "category": ["commercial", "food"],
-    },
-    "chinese": {
-        "tags": ["chinese", "food"],
-        "contexts": ["restaurant"],
-        "category": ["food"],
-    },
-    "xxx": {
-        "tags": ["adult", "vice", "nightlife"],
-        "contexts": ["adult_venue", "nightlife"],
-        "category": ["nightlife"],
-    },
-    "beer": {"tags": ["beer", "alcohol", "bar"], "contexts": ["bar"], "category": ["nightlife"]},
-    "bottle": {"tags": ["bottle", "alcohol"], "contexts": ["bar"], "category": ["nightlife"]},
-    "burger": {"tags": ["burger", "food"], "contexts": ["fast_food"], "category": ["food"]},
-    "hotdog": {"tags": ["hotdog", "food"], "contexts": ["fast_food", "street_food"], "category": ["food"]},
-    "coffee": {"tags": ["coffee", "cafe"], "contexts": ["cafe"], "category": ["food"]},
-    "donut": {"tags": ["donut", "food"], "contexts": ["bakery", "cafe"], "category": ["food"]},
-    "icecream": {"tags": ["ice_cream", "food"], "contexts": ["ice_cream_shop"], "category": ["food"]},
-    "milkshake": {"tags": ["milkshake", "food"], "contexts": ["diner"], "category": ["food"]},
-    "soda": {"tags": ["soda", "drink"], "contexts": ["shop"], "category": ["food"]},
-    "taco": {"tags": ["taco", "food"], "contexts": ["restaurant"], "category": ["food"]},
-    "popcorn": {"tags": ["popcorn", "cinema"], "contexts": ["cinema"], "category": ["entertainment"]},
-    "guitar": {"tags": ["guitar", "music"], "contexts": ["music_shop", "bar"], "category": ["entertainment"]},
-    "bowlingball": {"tags": ["bowling"], "contexts": ["bowling_alley"], "category": ["entertainment"]},
-    "bowlingpin": {"tags": ["bowling"], "contexts": ["bowling_alley"], "category": ["entertainment"]},
-    "lollypop": {"tags": ["candy", "food"], "contexts": ["shop"], "category": ["food"]},
-    "billboard": {
-        "tags": ["billboard", "advertisement", "roadside"],
-        "contexts": ["roadside", "commercial_strip"],
-        "category": ["sign", "advertisement"],
-    },
-    "neon": {"tags": ["neon", "nightlife", "facade"], "contexts": ["nightlife", "shop"], "category": ["sign"]},
-    "ad": {"tags": ["advertisement", "poster"], "contexts": ["facade"], "category": ["sign", "advertisement"]},
-    "poster": {"tags": ["poster", "advertisement"], "contexts": ["facade", "interior"], "category": ["sign"]},
-    "apartment": {
-        "tags": ["apartment", "residential", "modular"],
-        "contexts": ["residential_block"],
-        "category": ["building", "residential"],
-    },
-    "shop": {
-        "tags": ["shop", "storefront", "commercial"],
-        "contexts": ["shop", "retail"],
-        "category": ["building", "commercial"],
-    },
-    "office": {
-        "tags": ["office", "commercial"],
-        "contexts": ["office"],
-        "category": ["building", "commercial"],
-    },
-    "bank": {"tags": ["bank", "civic", "commercial"], "contexts": ["bank"], "category": ["building", "civic"]},
-    "warehouse": {"tags": ["warehouse", "industrial"], "contexts": ["industrial"], "category": ["building", "industrial"]},
-    "hangar": {"tags": ["hangar", "industrial", "aircraft"], "contexts": ["airfield"], "category": ["building"]},
-    "station": {"tags": ["station", "transit", "civic"], "contexts": ["transit_station"], "category": ["building"]},
-    "cityhall": {"tags": ["city_hall", "civic"], "contexts": ["civic_building"], "category": ["building", "civic"]},
-    "road": {"tags": ["road", "street", "city-layout"], "contexts": ["street"], "category": ["environment", "road"]},
-    "sidewalk": {"tags": ["sidewalk", "city-layout"], "contexts": ["street"], "category": ["environment"]},
-    "curb": {"tags": ["curb", "city-layout"], "contexts": ["street"], "category": ["environment"]},
-    "tree": {"tags": ["tree", "foliage"], "contexts": ["park", "street"], "category": ["environment"]},
-    "vehicle": {"tags": ["vehicle"], "contexts": ["street"], "category": ["vehicle"]},
-    "car": {"tags": ["car", "vehicle"], "contexts": ["street", "parking"], "category": ["vehicle"]},
-    "barrier": {"tags": ["barrier", "security"], "contexts": ["checkpoint", "construction"], "category": ["prop"]},
-    "door": {"tags": ["door", "opening"], "contexts": ["building"], "category": ["building", "opening"]},
-    "window": {"tags": ["window", "opening"], "contexts": ["building"], "category": ["building", "opening"]},
-    "aircon": {"tags": ["hvac", "roof", "utility"], "contexts": ["roof"], "category": ["prop"]},
-    "satdish": {"tags": ["satellite", "roof", "loose-roof"], "contexts": ["roof"], "category": ["prop"]},
-    "securitycamera": {"tags": ["camera", "security", "facade"], "contexts": ["facade"], "category": ["prop"]},
-    "streetlight": {"tags": ["streetlight", "lighting", "city-layout"], "contexts": ["street"], "category": ["prop"]},
-    "bench": {"tags": ["bench", "street-furniture"], "contexts": ["street", "park"], "category": ["prop"]},
-    "dumpster": {"tags": ["dumpster", "street-furniture"], "contexts": ["alley"], "category": ["prop"]},
-    "hydrant": {"tags": ["hydrant", "civic"], "contexts": ["street"], "category": ["prop"]},
-    "mailbox": {"tags": ["mailbox"], "contexts": ["street"], "category": ["prop"]},
-    "parkingmeter": {"tags": ["parking_meter"], "contexts": ["street"], "category": ["prop"]},
-    "busstop": {"tags": ["bus_stop", "transit"], "contexts": ["street", "transit"], "category": ["prop"]},
-    "bustop": {"tags": ["bus_stop", "transit"], "contexts": ["street", "transit"], "category": ["prop"]},
-    "giveway": {"tags": ["give_way", "traffic"], "contexts": ["intersection"], "category": ["sign", "traffic"]},
-    "stop": {"tags": ["stop", "traffic"], "contexts": ["intersection"], "category": ["sign", "traffic"]},
-    "parking": {"tags": ["parking", "traffic"], "contexts": ["parking"], "category": ["sign", "traffic"]},
-    "warning": {"tags": ["warning", "traffic", "safety"], "contexts": ["street", "civic"], "category": ["sign"]},
-    "arrow": {"tags": ["arrow", "wayfinding"], "contexts": ["street"], "category": ["sign"]},
-    "entrance": {"tags": ["entrance", "wayfinding"], "contexts": ["building"], "category": ["sign"]},
-    "street": {"tags": ["street", "wayfinding"], "contexts": ["street"], "category": ["sign"]},
-    "attachment": {"tags": ["attachment", "hardware", "mount"], "contexts": ["facade"], "category": ["hardware"]},
-    "chopshop": {"tags": ["chopshop", "industrial", "garage"], "contexts": ["chopshop"], "category": ["building"]},
-    "stripclub": {"tags": ["stripclub", "nightlife", "vice"], "contexts": ["nightlife"], "category": ["building"]},
-    # --- military/war/urban-crime packs (Military, War, Gang_Warfare,
-    # BattleRoyale, Heist, Military_Warehouse_Map). These enrich the legacy
-    # SM_Prop_*/SM_Env_*/SM_Bld_* fallback path with tags/contexts; type and
-    # semantic_role for the dominant families (weapons, vehicles, building
-    # kits) come from the dedicated dispatch rules above instead.
-    "sandbag": {"tags": ["sandbag", "fortification", "cover"], "contexts": ["trench", "checkpoint", "bunker"], "category": ["prop", "military"]},
-    "trench": {"tags": ["trench", "fortification", "ground"], "contexts": ["battlefield"], "category": ["environment", "military"]},
-    "foxhole": {"tags": ["foxhole", "fortification", "ground"], "contexts": ["battlefield"], "category": ["environment", "military"]},
-    "barbedwire": {"tags": ["barbed_wire", "fence", "fortification"], "contexts": ["checkpoint", "perimeter"], "category": ["prop", "military"]},
-    "camonet": {"tags": ["camo_net", "camouflage", "concealment"], "contexts": ["military_base", "encampment"], "category": ["prop", "military"]},
-    "camonetting": {"tags": ["camo_net", "camouflage", "concealment"], "contexts": ["military_base", "encampment"], "category": ["prop", "military"]},
-    "guardtower": {"tags": ["guard_tower", "watchtower", "military", "lookout"], "contexts": ["checkpoint", "military_base"], "category": ["building", "military"]},
-    "watchtower": {"tags": ["guard_tower", "watchtower", "military", "lookout"], "contexts": ["checkpoint", "military_base"], "category": ["building", "military"]},
-    "bunker": {"tags": ["bunker", "fortification", "military"], "contexts": ["battlefield", "military_base"], "category": ["building", "military"]},
-    "tanktrap": {"tags": ["tank_trap", "fortification", "anti_vehicle"], "contexts": ["battlefield"], "category": ["prop", "military"]},
-    "ied": {"tags": ["ied", "explosive", "hazard"], "contexts": ["battlefield"], "category": ["prop", "hazard"]},
-    "missile": {"tags": ["missile", "ordnance", "military"], "contexts": ["military_base"], "category": ["prop", "military"]},
-    "pipeline": {"tags": ["pipeline", "industrial", "pipe"], "contexts": ["industrial", "military_base"], "category": ["prop", "industrial"]},
-    "powerline": {"tags": ["powerline", "utility", "electrical"], "contexts": ["street", "industrial"], "category": ["prop", "utility"]},
-    "airconditioner": {"tags": ["hvac", "roof", "utility"], "contexts": ["roof"], "category": ["prop"]},
-    "money": {"tags": ["money", "cash", "loot"], "contexts": ["heist", "gang_hideout"], "category": ["prop", "valuables"]},
-    "gold": {"tags": ["gold", "loot", "valuables"], "contexts": ["heist", "vault"], "category": ["prop", "valuables"]},
-    "goldbar": {"tags": ["gold", "gold_bar", "loot", "valuables"], "contexts": ["vault", "heist"], "category": ["prop", "valuables"]},
-    "jewellery": {"tags": ["jewellery", "loot", "valuables"], "contexts": ["heist", "vault"], "category": ["prop", "valuables"]},
-    "safedepositbox": {"tags": ["safe_deposit_box", "vault", "bank"], "contexts": ["bank", "vault"], "category": ["prop", "bank"]},
-    "safedepositboxes": {"tags": ["safe_deposit_box", "vault", "bank"], "contexts": ["bank", "vault"], "category": ["prop", "bank"]},
-    "vault": {"tags": ["vault", "bank", "secure"], "contexts": ["bank"], "category": ["prop", "bank"]},
-    # Heist's real stems glue "Vault" onto the next word (VaultDoor/VaultGate/
-    # VaultTrolley) rather than keeping "Vault" a standalone token.
-    "vaultdoor": {"tags": ["vault", "bank", "secure"], "contexts": ["bank"], "category": ["prop", "bank"]},
-    "vaultgate": {"tags": ["vault", "bank", "secure"], "contexts": ["bank"], "category": ["prop", "bank"]},
-    "vaulttrolley": {"tags": ["vault", "bank", "trolley"], "contexts": ["bank"], "category": ["prop", "bank"]},
-    "tellerdesk": {"tags": ["teller_desk", "bank", "counter"], "contexts": ["bank"], "category": ["prop", "bank"]},
-    "metaldetector": {"tags": ["metal_detector", "security"], "contexts": ["bank", "checkpoint"], "category": ["prop", "security"]},
-    "displaycase": {"tags": ["display_case", "retail", "jewellery"], "contexts": ["jewellery_store", "museum"], "category": ["prop", "commercial"]},
-    "lab": {"tags": ["lab", "drug_lab", "clandestine"], "contexts": ["gang_hideout"], "category": ["prop", "crime"]},
-    "chemical": {"tags": ["chemical", "drug_lab", "hazard"], "contexts": ["gang_hideout"], "category": ["prop", "crime"]},
-    "powder": {"tags": ["powder", "drugs", "contraband"], "contexts": ["gang_hideout"], "category": ["prop", "crime"]},
-    "zipbag": {"tags": ["zip_bag", "drugs", "contraband"], "contexts": ["gang_hideout"], "category": ["prop", "crime"]},
-    "pills": {"tags": ["pills", "drugs", "contraband"], "contexts": ["gang_hideout"], "category": ["prop", "crime"]},
-    "emergencydrop": {"tags": ["airdrop", "supply_drop", "loot"], "contexts": ["battle_royale"], "category": ["prop", "loot"]},
-    "parachute": {"tags": ["parachute", "airdrop"], "contexts": ["battle_royale"], "category": ["prop", "loot"]},
-    "medicalbox": {"tags": ["medical", "first_aid", "loot"], "contexts": ["battle_royale"], "category": ["prop", "loot"]},
-    "bandage": {"tags": ["bandage", "medical", "loot"], "contexts": ["battle_royale"], "category": ["prop", "loot"]},
-    "c4": {"tags": ["c4", "explosive", "loot"], "contexts": ["battle_royale"], "category": ["prop", "loot"]},
-    "pallet": {"tags": ["pallet", "industrial", "cover"], "contexts": ["warehouse"], "category": ["prop", "industrial"]},
-    "propane": {"tags": ["propane", "tank", "hazard", "explosive"], "contexts": ["industrial"], "category": ["prop", "hazard"]},
-    "padlock": {"tags": ["padlock", "security", "hardware"], "contexts": ["gate", "fence"], "category": ["prop", "hardware"]},
-    "shippingcontainer": {"tags": ["shipping_container", "cargo", "industrial"], "contexts": ["warehouse", "port"], "category": ["prop", "industrial"]},
-}
+# Tables live in package data (data/*.json). Edit those files, not literals
+# here. CURATED is the quality bar for a handful of POI pieces; TOKEN_TAGS
+# enriches the legacy fallback path; PACK_STYLES maps pack_id -> style.
+_DATA_DIR = Path(__file__).resolve().parent / "data"
 
-# Exact-id curated entries -- quality bar for autonomous placement.
-CURATED: dict[str, dict] = {
-    "SM_Prop_Sign_Police_01": {
-        "name": "Police Channel Letters",
-        "type": "prop/signage",
-        "category": ["sign", "wall-mounted", "civic"],
-        "tags": ["police", "facade", "station", "law_enforcement", "channel_letters", "wordmark", "3d_letters"],
-        "description": (
-            "White 3D extruded channel letters spelling POLICE. No backing board, badge, shield, "
-            "frame or mount hardware -- just the freestanding letterforms. Seat the back face on "
-            "the wall above the main entrance, not over windows."
-        ),
-        "semantic_role": "building_identity",
-        "semantic_detail": "police_station",
-        "placement": {
-            "mount": "wall",
-            "height": "eye_level_to_above_door",
-            "orientation": "outward_facing",
-            "attachment": "back_side",
-            "preferred_floors": [1, 2],
-            "constraints": ["exterior_only", "attach_to_building", "do_not_cover_windows"],
-            "preferred_contexts": ["police_station", "civic_building"],
-        },
-        "dimensions_hint": [1.94, 0.55, 0.13],
-        "ai_notes": (
-            "Use on police station facades. Center above the public entrance on floor 1. "
-            "Pairs with barriers, official doors, and a police vehicle at the curb. "
-            "Do not put on shops, bars, or apartments."
-        ),
-    },
-    "SM_Prop_Sign_Barber_01": {
-        "name": "Barber Pole",
-        "type": "prop/signage",
-        "category": ["sign", "wall-mounted", "commercial", "pole"],
-        "tags": ["barber", "salon", "pole", "facade", "side_mount"],
-        "description": (
-            "Classic cylindrical barber pole that projects from the facade on a short arm. "
-            "Identifies a barber shop or salon. Slim vertical volume -- attach the flat back "
-            "of the bracket to the wall beside the door, first floor only, leaving sidewalk clearance."
-        ),
-        "semantic_role": "building_identity",
-        "semantic_detail": "barber_shop",
-        "placement": {
-            "mount": "wall",
-            "height": "eye_level",
-            "orientation": "outward_facing",
-            "attachment": "side_bracket",
-            "preferred_floors": [1],
-            "constraints": [
-                "exterior_only",
-                "attach_to_building",
-                "first_floor_commercial",
-                "leave_sidewalk_clearance",
-                "do_not_cover_windows",
-                "beside_entrance_not_above",
-            ],
-            "preferred_contexts": ["barber_shop", "salon"],
-        },
-        "dimensions_hint": [0.32, 0.95, 0.47],
-        "ai_notes": (
-            "First-floor commercial only. Mount beside the shop door on the street face, "
-            "not above windows and not on upper storeys. One pole per frontage. "
-            "Pairs with SM_Bld_Shop_* storefronts, not civic buildings."
-        ),
-    },
-}
 
-PACK_STYLES = {
-    "POLYGON_City": "lowpoly_modern_city",
-    "POLYGON_SciFi_City": "lowpoly_scifi_city",
-    "POLYGON_SciFi_Space": "lowpoly_scifi_space",
-    "POLYGON_Prototype": "lowpoly_prototype",
-    "POLYGON_Starter": "lowpoly_starter",
-    "POLYGON_Particle_FX": "lowpoly_vfx",
-    "POLYGON_QuadBike": "lowpoly_vehicle",
-    "POLYGON_AdultFacePlates": "lowpoly_character",
-    "POLYGON_Generic": "lowpoly_generic_kit",
-    "POLYGON_Coffee_Shop": "lowpoly_interior",
-    "SIDEKICK_SciFi_Soldiers": "lowpoly_character",
-    "SIDEKICK_Starter": "lowpoly_character",
-    "ANIMATION_Base_Locomotion": "animation",
-    "INTERFACE_SciFi_Soldier_HUD": "ui",
-    "SIMPLE_Sky": "skybox",
-    "POLYGON_Military": "lowpoly_military",
-    "POLYGON_War": "lowpoly_military",
-    "POLYGON_Gang_Warfare": "lowpoly_urban_crime",
-    "POLYGON_BattleRoyale": "lowpoly_battle_royale",
-    "POLYGON_Heist": "lowpoly_urban_crime",
-    "POLYGON_Military_Warehouse_Map": "lowpoly_military",
-    "POLYGON_Mech": "lowpoly_mech",
-    "ANIMATION_Emotes_And_Taunts": "animation",
-    "INTERFACE_Military_Combat_HUD": "ui",
-}
+def _load_table(name: str):
+    return json.loads((_DATA_DIR / name).read_text(encoding="utf-8"))
+
+
+TOKEN_TAGS: dict[str, dict] = _load_table("token_tags.json")
+CURATED: dict[str, dict] = _load_table("curated.json")
+PACK_STYLES: dict[str, str] = _load_table("pack_styles.json")
 
 TYPE_BY_KIND = {
     "sign": "prop/signage",
-    "building": "building/modular",
+    "building": "building/module",
     "prop": "prop",
     "environment": "environment",
     "vehicle": "vehicle",
@@ -420,7 +149,7 @@ TYPE_BY_KIND = {
 
 DIM_HINTS = {
     "prop/signage": [1.2, 0.6, 0.12],
-    "building/modular": [5.0, 3.0, 5.0],
+    "building/module": [5.0, 3.0, 5.0],
     "vehicle": [4.5, 1.6, 2.0],
     "character": [0.5, 1.8, 0.5],
     "prop": [0.6, 0.6, 0.6],
@@ -623,7 +352,7 @@ def _description(parsed: ParsedName, name: str, extra: dict, ptype: str) -> str:
         if extra.get("contexts"):
             bits.append("Best on: " + ", ".join(extra["contexts"]) + ".")
         bits.append("Keep off windows; readable from the street.")
-    elif ptype == "building/modular":
+    elif ptype == "building/module":
         bits.append(
             f"{name} -- modular Synty building piece. Snap to the pack grid "
             "(typically 2.5-5 m on XZ, ~3 m storey height). Street face is +Z in official kits."
@@ -658,7 +387,7 @@ def _ai_notes(parsed: ParsedName, extra: dict, ptype: str) -> str:
         if _is_attachment(tokens):
             return "Hardware only -- pair with a matching sign or light; do not use as the identity piece."
         return "Facade dressing. Prefer the street face; keep a clear read from the sidewalk."
-    if ptype == "building/modular":
+    if ptype == "building/module":
         return (
             "Assemble on the 0.25 m snap grid. Do not scale. "
             "Do not use sidewalk/road pieces as part of the building shell."
@@ -1686,13 +1415,9 @@ def _infer_legacy(parsed: ParsedName) -> dict:
     return {
         "id": parsed.id,
         "name": name,
-        # TYPE_MIGRATION applied here (not on `ptype` itself) so the internal
-        # dim-hint/description/ai-notes lookups above keep matching on the
-        # pre-migration "building/modular" key -- only the field callers
-        # actually read gets the v2-valid "building/module" spelling. Without
-        # this, every SM_Bld_<untabled family>_* stem that falls through to
-        # this legacy path (most new war/military-pack building families we
-        # don't special-case) returns a type outside schema.TYPES.
+        # TYPE_BY_KIND already emits v2 "building/module". TYPE_MIGRATION
+        # remains for any leftover v1 alias (on-disk catalogs, or a rule
+        # that still speaks "building/modular").
         "type": TYPE_MIGRATION.get(ptype, ptype),
         "category": category,
         "tags": tags,

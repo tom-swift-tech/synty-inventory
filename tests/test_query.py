@@ -104,3 +104,128 @@ def test_query_api(tmp_path: Path):
 
     sug2 = suggest_assets_for(tmp_path, "roadside billboard without windows")
     assert sug2[0]["id"] == "SM_Prop_Billboard_01"
+
+
+def test_search_type_and_nonplaceable_filters(tmp_path: Path):
+    city = migrate_catalog(
+        {
+            "pack_id": "POLYGON_City",
+            "engine": "Unity",
+            "origin": "Synty",
+            "style": "lowpoly_modern_city",
+            "units": "meters",
+            "version": 1,
+            "scanned_at": "2026-08-18T00:00:00+00:00",
+            "assets": [
+                _asset(
+                    "SM_Prop_Sign_Police_01",
+                    "Police Sign",
+                    tags=["police", "facade"],
+                    semantic_role="identifies_building_as_police_station",
+                ),
+                _asset(
+                    "A_Police_Idle_01",
+                    "Police Idle",
+                    type="animation",
+                    tags=["police", "clip"],
+                    semantic_role="unknown",
+                    category=[],
+                ),
+            ],
+        }
+    )
+    city["assets"][1]["placeable"] = False
+    city["assets"][1]["kind"] = "animation"
+    write_catalog(tmp_path / "POLYGON_City.json", city)
+
+    hidden = search_assets(tmp_path, "police")
+    assert [h["id"] for h in hidden] == ["SM_Prop_Sign_Police_01"]
+
+    shown = search_assets(tmp_path, "police", include_nonplaceable=True)
+    ids = [h["id"] for h in shown]
+    assert "SM_Prop_Sign_Police_01" in ids
+    assert "A_Police_Idle_01" in ids
+
+    signs = search_assets(tmp_path, "police", types=["prop/signage"])
+    assert [h["id"] for h in signs] == ["SM_Prop_Sign_Police_01"]
+    none = search_assets(tmp_path, "police", types=["building/module"])
+    assert none == []
+
+
+def test_search_engine_unity_puts_prefab_in_file(tmp_path: Path):
+    city = migrate_catalog(
+        {
+            "pack_id": "POLYGON_City",
+            "engine": "Unity",
+            "origin": "Synty",
+            "style": "lowpoly_modern_city",
+            "units": "meters",
+            "version": 1,
+            "scanned_at": "2026-08-18T00:00:00+00:00",
+            "assets": [
+                _asset("SM_Prop_Sign_Police_01", "Police Sign", tags=["police"]),
+            ],
+        }
+    )
+    write_catalog(tmp_path / "POLYGON_City.json", city)
+    hits = search_assets(tmp_path, "police", engine="unity")
+    assert hits[0]["file"] == "Prefabs/SM_Prop_Sign_Police_01.prefab"
+
+
+def test_suggest_police_station_facade_ranks_sign_above_generic_prop(tmp_path: Path):
+    city = migrate_catalog(
+        {
+            "pack_id": "POLYGON_City",
+            "engine": "Unity",
+            "origin": "Synty",
+            "style": "lowpoly_modern_city",
+            "units": "meters",
+            "version": 1,
+            "scanned_at": "2026-08-18T00:00:00+00:00",
+            "assets": [
+                _asset(
+                    "SM_Prop_Sign_Police_01",
+                    "Police Sign",
+                    tags=["police", "facade", "station"],
+                    semantic_role="identifies_building_as_police_station",
+                ),
+                _asset(
+                    "SM_Prop_Crate_01",
+                    "Crate",
+                    type="prop",
+                    tags=["crate", "box"],
+                    category=["prop"],
+                    semantic_role="dresses_scene",
+                    description="Generic crate prop " + "x" * 80,
+                ),
+            ],
+        }
+    )
+    write_catalog(tmp_path / "POLYGON_City.json", city)
+    sug = suggest_assets_for(tmp_path, "police station facade")
+    ids = [r["id"] for r in sug]
+    assert ids[0] == "SM_Prop_Sign_Police_01"
+    assert "SM_Prop_Crate_01" in ids
+    assert ids.index("SM_Prop_Sign_Police_01") < ids.index("SM_Prop_Crate_01")
+
+
+def test_get_asset_details_exact_id_wins_over_substring(tmp_path: Path):
+    city = migrate_catalog(
+        {
+            "pack_id": "POLYGON_City",
+            "engine": "Unity",
+            "origin": "Synty",
+            "style": "lowpoly_modern_city",
+            "units": "meters",
+            "version": 1,
+            "scanned_at": "2026-08-18T00:00:00+00:00",
+            "assets": [
+                _asset("SM_Prop_Sign_Police_01b", "Police Sign B", tags=["police"]),
+                _asset("SM_Prop_Sign_Police_01", "Police Sign", tags=["police"]),
+            ],
+        }
+    )
+    write_catalog(tmp_path / "POLYGON_City.json", city)
+    rec = get_asset_details(tmp_path, "SM_Prop_Sign_Police_01")
+    assert rec is not None
+    assert rec["id"] == "SM_Prop_Sign_Police_01"

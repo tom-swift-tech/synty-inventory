@@ -11,6 +11,8 @@ description: >
   modules, or when the user runs /synty-inventory.
 ---
 
+<!-- packaged copy of ../../skill/SKILL.md — edit that file, then copy -->
+
 # Synty Pack Inventory
 
 Do not place Synty assets from the filename alone. Query `synty-inventory`,

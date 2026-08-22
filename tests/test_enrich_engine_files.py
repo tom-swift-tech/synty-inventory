@@ -59,6 +59,18 @@ def test_enrich_catalog_leaves_godot_scene_null_when_no_stem_match(tmp_path: Pat
     assert doc["assets"][0]["files"]["godot_scene"] is None
 
 
+def test_enrich_catalog_skips_unmapped_godot_slug(tmp_path: Path):
+    godot_root = tmp_path / "godot"
+    _touch(godot_root / "polygon-scifi-city-02" / "Assets/SM_Bld_Shop_01.tscn")
+    _touch(godot_root / "polygon-city-01" / "Assets/SM_Bld_Door_01.tscn")
+    scifi = _catalog("POLYGON_SciFi_City", "SM_Bld_Shop_01")
+    enrich_catalog(scifi, viewer_data=None, godot_root=godot_root)
+    assert scifi["assets"][0]["files"]["godot_scene"] is None
+    city = _catalog("POLYGON_City", "SM_Bld_Door_01")
+    enrich_catalog(city, viewer_data=None, godot_root=godot_root)
+    assert city["assets"][0]["files"]["godot_scene"] == "polygon-city-01/Assets/SM_Bld_Door_01.tscn"
+
+
 def test_enrich_catalog_wires_unreal_uasset_when_root_configured(tmp_path, monkeypatch):
     monkeypatch.setitem(unreal_src.SLUG_PACK_OVERRIDES, "unreal-city", "POLYGON_City")
     unreal_root = tmp_path / "unreal"

@@ -1,0 +1,95 @@
+{
+  "SM_Prop_Sign_Police_01": {
+    "name": "Police Channel Letters",
+    "type": "prop/signage",
+    "category": [
+      "sign",
+      "wall-mounted",
+      "civic"
+    ],
+    "tags": [
+      "police",
+      "facade",
+      "station",
+      "law_enforcement",
+      "channel_letters",
+      "wordmark",
+      "3d_letters"
+    ],
+    "description": "White 3D extruded channel letters spelling POLICE. No backing board, badge, shield, frame or mount hardware -- just the freestanding letterforms. Seat the back face on the wall above the main entrance, not over windows.",
+    "semantic_role": "building_identity",
+    "semantic_detail": "police_station",
+    "placement": {
+      "mount": "wall",
+      "height": "eye_level_to_above_door",
+      "orientation": "outward_facing",
+      "attachment": "back_side",
+      "preferred_floors": [
+        1,
+        2
+      ],
+      "constraints": [
+        "exterior_only",
+        "attach_to_building",
+        "do_not_cover_windows"
+      ],
+      "preferred_contexts": [
+        "police_station",
+        "civic_building"
+      ]
+    },
+    "dimensions_hint": [
+      1.94,
+      0.55,
+      0.13
+    ],
+    "ai_notes": "Use on police station facades. Center above the public entrance on floor 1. Pairs with barriers, official doors, and a police vehicle at the curb. Do not put on shops, bars, or apartments."
+  },
+  "SM_Prop_Sign_Barber_01": {
+    "name": "Barber Pole",
+    "type": "prop/signage",
+    "category": [
+      "sign",
+      "wall-mounted",
+      "commercial",
+      "pole"
+    ],
+    "tags": [
+      "barber",
+      "salon",
+      "pole",
+      "facade",
+      "side_mount"
+    ],
+    "description": "Classic cylindrical barber pole that projects from the facade on a short arm. Identifies a barber shop or salon. Slim vertical volume -- attach the flat back of the bracket to the wall beside the door, first floor only, leaving sidewalk clearance.",
+    "semantic_role": "building_identity",
+    "semantic_detail": "barber_shop",
+    "placement": {
+      "mount": "wall",
+      "height": "eye_level",
+      "orientation": "outward_facing",
+      "attachment": "side_bracket",
+      "preferred_floors": [
+        1
+      ],
+      "constraints": [
+        "exterior_only",
+        "attach_to_building",
+        "first_floor_commercial",
+        "leave_sidewalk_clearance",
+        "do_not_cover_windows",
+        "beside_entrance_not_above"
+      ],
+      "preferred_contexts": [
+        "barber_shop",
+        "salon"
+      ]
+    },
+    "dimensions_hint": [
+      0.32,
+      0.95,
+      0.47
+    ],
+    "ai_notes": "First-floor commercial only. Mount beside the shop door on the street face, not above windows and not on upper storeys. One pole per frontage. Pairs with SM_Bld_Shop_* storefronts, not civic buildings."
+  }
+}
