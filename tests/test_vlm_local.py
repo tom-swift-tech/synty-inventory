@@ -112,3 +112,4 @@ def test_defaults_match_setting_defaults():
 
     assert vlm.LOCAL_DEFAULT_URL == SETTING_DEFAULTS["vlm_local_url"]
     assert vlm.LOCAL_DEFAULT_MODEL == SETTING_DEFAULTS["vlm_local_model"]
+    assert SETTING_DEFAULTS["vlm_local_model"] == "gemma4:26b"

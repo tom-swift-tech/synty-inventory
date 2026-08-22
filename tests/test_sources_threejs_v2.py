@@ -5,7 +5,6 @@ from synty_inventory.merge import stamp_auto
 from synty_inventory.schema import empty_placement
 from synty_inventory.sources.threejs_v2 import (
     apply_threejs_overlay,
-    catalog_by_id,
     glb_index,
     load_catalog,
     load_manifest,

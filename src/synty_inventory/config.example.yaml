@@ -1,3 +1,4 @@
+# packaged copy of ../../config.example.yaml — edit that file, then copy
 # Copy this file to config.yaml and set paths for your machine.
 #   copy config.example.yaml config.yaml
 #
@@ -64,9 +65,10 @@ unreal_root: "/path/to/optional/Unreal"
 synty_glb_root: "/path/to/optional/synty-glb"
 
 # Optional local Ollama endpoint + model tag for `review`'s VLM pass. No API
-# key, no upload — everything stays on localhost. Both default sensibly
-# (below) when unset; only set these to point at a non-default Ollama host
-# or model.
+# key, no upload — everything stays on localhost. Defaults when unset:
+# localhost:11434 and gemma4:26b (the model that grounds). gemma4:e4b is
+# opt-in only for throwaway smoke tests (`--model gemma4:e4b` /
+# SYNTI_VLM_LOCAL_MODEL) — do not use it for batches.
 # Env: SYNTI_VLM_LOCAL_URL / SYNTI_VLM_LOCAL_MODEL
 vlm_local_url: "http://localhost:11434"
-vlm_local_model: "gemma4:e4b"
+vlm_local_model: "gemma4:26b"

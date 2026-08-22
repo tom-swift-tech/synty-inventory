@@ -7,7 +7,9 @@ brief's "read-only inspection ... is fine" note; these are just the
 documented prefix families, not a live scan.
 """
 
-from synty_inventory.knowledge import bld_exterior_family, infer, is_interior_bld, pack_style
+from pathlib import Path
+
+from synty_inventory.knowledge import TYPE_BY_KIND, bld_exterior_family, infer, is_interior_bld, pack_style
 from synty_inventory.schema import (
     ATTACHMENTS,
     MODULE_ROLES,
@@ -379,6 +381,22 @@ REPRESENTATIVE_STEMS = [
 # never read from that directory at test time.
 
 
+def test_knowledge_tables_load_from_package_data():
+    from synty_inventory.knowledge import CURATED, PACK_STYLES, TOKEN_TAGS, _DATA_DIR
+
+    assert (_DATA_DIR / "curated.json").is_file()
+    assert (_DATA_DIR / "token_tags.json").is_file()
+    assert (_DATA_DIR / "pack_styles.json").is_file()
+    assert set(CURATED) == {"SM_Prop_Sign_Police_01", "SM_Prop_Sign_Barber_01"}
+    assert CURATED["SM_Prop_Sign_Police_01"]["semantic_detail"] == "police_station"
+    assert "police" in TOKEN_TAGS and "barber" in TOKEN_TAGS
+    assert PACK_STYLES["POLYGON_City"] == "lowpoly_modern_city"
+    src = Path(__file__).resolve().parents[1] / "src" / "synty_inventory" / "knowledge.py"
+    text = src.read_text(encoding="utf-8")
+    assert "White 3D extruded channel letters" not in text
+    assert '"tags": ["police", "facade", "station"' not in text
+
+
 def test_pack_style_for_new_packs():
     assert pack_style("POLYGON_Military") == "lowpoly_military"
     assert pack_style("POLYGON_War") == "lowpoly_military"
@@ -613,6 +631,12 @@ def test_barbed_wire_gets_military_tags_not_the_scifi_bed_prop():
     assert rec["type"] == "prop"
     assert "barbed_wire" in rec["tags"]
     assert rec["semantic_role"] != "interior_prop"
+
+
+def test_type_by_kind_building_emits_v2_module_not_v1_alias():
+    assert TYPE_BY_KIND["building"] == "building/module"
+    rec = infer("SM_Bld_Roof_Cap_01")
+    assert rec["type"] == "building/module"
 
 
 def test_bare_roof_stems_stay_generic_building_module_not_a_family():

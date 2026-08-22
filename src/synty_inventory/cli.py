@@ -9,7 +9,6 @@ from pathlib import Path
 
 from . import query, recipes
 from .catalog import (
-    build_catalog,
     catalog_path,
     load_catalog,
     load_all_catalogs,
@@ -89,11 +88,20 @@ def _csv(value: str | None) -> list[str] | None:
     return [p.strip() for p in value.split(",") if p.strip()]
 
 
-def _viewer(cfg) -> Path | None:
-    viewer = cfg.get("viewer_data")
-    if viewer is not None and viewer.exists():
-        return viewer
+def _optional_root(cfg, key: str) -> Path | None:
+    """Optional configured root: None when unset or missing on disk.
+
+    ``load_config`` already returns ``Path`` objects — do not wrap in ``Path()``
+    as a substitute for ``exists()``. A ghost path is treated as unset.
+    """
+    root = cfg.get(key)
+    if root is not None and root.exists():
+        return root
     return None
+
+
+def _viewer(cfg) -> Path | None:
+    return _optional_root(cfg, "viewer_data")
 
 
 def _threejs_v2(cfg) -> Path | None:
@@ -102,10 +110,7 @@ def _threejs_v2(cfg) -> Path | None:
     Required to fill ``bounds``/``files.glb`` — without it scan still runs,
     just leaving those null and reporting a warning per pack.
     """
-    tj = cfg.get("threejs_v2")
-    if tj is not None and tj.exists():
-        return tj
-    return None
+    return _optional_root(cfg, "threejs_v2")
 
 
 def _engine_root(cfg, key: str) -> Path | None:
@@ -114,10 +119,20 @@ def _engine_root(cfg, key: str) -> Path | None:
     None when unconfigured or missing on disk — scan/enrich then leave the
     corresponding ``files.*`` field null, same contract as ``_threejs_v2``.
     """
-    root = cfg.get(key)
-    if root is not None and root.exists():
-        return root
-    return None
+    return _optional_root(cfg, key)
+
+
+def _warn_unmapped_godot(godot_root: Path | None) -> None:
+    if godot_root is None:
+        return
+    from .sources.godot import unmapped_pack_dirs
+
+    for row in unmapped_pack_dirs(godot_root):
+        print(
+            f"warning: unmapped Godot export folder {row['slug']!r} "
+            f"(guess {row['guess']!r}) — skipped; add SLUG_PACK_OVERRIDES before using it",
+            file=sys.stderr,
+        )
 
 
 def _catalogs(args, cfg) -> Path:
@@ -175,6 +190,7 @@ def cmd_scan(args, cfg) -> int:
     threejs_v2 = _threejs_v2(cfg)
     godot_root = _engine_root(cfg, "godot_root")
     unreal_root = _engine_root(cfg, "unreal_root")
+    _warn_unmapped_godot(godot_root)
     refs = discover(target, extracted_root=cfg.get("extracted_root"))
     # Generator-fed GEN_* packs live under threejs_v2, not the Unity root
     # (docs/gen_manifest_v1.md). Default scans pick them all up; an explicit
@@ -274,6 +290,7 @@ def cmd_enrich(args, cfg) -> int:
     threejs_v2 = _threejs_v2(cfg)
     godot_root = _engine_root(cfg, "godot_root")
     unreal_root = _engine_root(cfg, "unreal_root")
+    _warn_unmapped_godot(godot_root)
     from .enrich import enrich_catalog
     from .catalog import write_catalog
 
@@ -333,11 +350,6 @@ def cmd_search(args, cfg) -> int:
         )
     )
     return 0
-
-
-def _viewer(cfg) -> Path | None:
-    v = cfg.get("viewer_data")
-    return Path(v) if v else None
 
 
 def cmd_recipes(args, cfg) -> int:
@@ -603,7 +615,7 @@ def build_parser() -> argparse.ArgumentParser:
     rv.add_argument("--pack", required=True, help="threejs-v2 pack_id, e.g. POLYGON_SciFi_Space")
     rv.add_argument("--limit", type=int, default=0, help="max unreviewed assets this run (0 = no limit)")
     rv.add_argument("--match", default=None, help="only stems containing this substring (case-insensitive)")
-    rv.add_argument("--model", default=None, help="override vlm_local_model (default: config/env/gemma4:e4b)")
+    rv.add_argument("--model", default=None, help="override vlm_local_model (default: config/env/gemma4:26b)")
     rv.add_argument("--url", default=None, help="override vlm_local_url (default: config/env/localhost:11434)")
     rv.add_argument(
         "--views",

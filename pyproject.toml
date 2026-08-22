@@ -11,9 +11,13 @@ readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Tom Swift", email = "tom@swiftinnovate.tech" }]
+dependencies = [
+  "numpy>=1.26",
+  "PyYAML>=6.0",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
 synty-inventory = "synty_inventory.cli:main"
@@ -26,9 +30,25 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-synty_inventory = ["config.example.yaml", "skill.md", "recipes/*.json"]
+synty_inventory = ["config.example.yaml", "skill.md", "recipes/*.json", "data/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-q"
+markers = [
+    "live: needs licensed Synty trees on this machine (skipped in CI)",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+ignore = [
+    "E501",  # long recipe/knowledge strings
+    "B007",  # unused loop vars in existing recipe conversion
+    "B905",  # zip() without strict= — pre-existing
+]

@@ -1,0 +1,1542 @@
+{
+  "police": {
+    "tags": [
+      "police",
+      "facade",
+      "station",
+      "law_enforcement",
+      "civic"
+    ],
+    "contexts": [
+      "police_station",
+      "civic_building"
+    ],
+    "category": [
+      "civic"
+    ]
+  },
+  "barber": {
+    "tags": [
+      "barber",
+      "salon",
+      "pole",
+      "commercial",
+      "facade"
+    ],
+    "contexts": [
+      "barber_shop",
+      "salon"
+    ],
+    "category": [
+      "commercial"
+    ]
+  },
+  "hospital": {
+    "tags": [
+      "hospital",
+      "medical",
+      "civic",
+      "facade"
+    ],
+    "contexts": [
+      "hospital",
+      "clinic",
+      "civic_building"
+    ],
+    "category": [
+      "civic"
+    ]
+  },
+  "firedepartment": {
+    "tags": [
+      "fire",
+      "fire_department",
+      "civic",
+      "facade"
+    ],
+    "contexts": [
+      "fire_station",
+      "civic_building"
+    ],
+    "category": [
+      "civic"
+    ]
+  },
+  "fire": {
+    "tags": [
+      "fire",
+      "civic"
+    ],
+    "contexts": [
+      "fire_station"
+    ],
+    "category": [
+      "civic"
+    ]
+  },
+  "cafe": {
+    "tags": [
+      "cafe",
+      "coffee",
+      "food",
+      "commercial"
+    ],
+    "contexts": [
+      "cafe",
+      "coffee_shop"
+    ],
+    "category": [
+      "commercial",
+      "food"
+    ]
+  },
+  "hotel": {
+    "tags": [
+      "hotel",
+      "lodging",
+      "commercial"
+    ],
+    "contexts": [
+      "hotel"
+    ],
+    "category": [
+      "commercial"
+    ]
+  },
+  "bar": {
+    "tags": [
+      "bar",
+      "nightlife",
+      "alcohol"
+    ],
+    "contexts": [
+      "bar",
+      "pub",
+      "nightlife"
+    ],
+    "category": [
+      "commercial",
+      "nightlife"
+    ]
+  },
+  "pub": {
+    "tags": [
+      "pub",
+      "bar",
+      "nightlife",
+      "alcohol"
+    ],
+    "contexts": [
+      "pub",
+      "bar"
+    ],
+    "category": [
+      "commercial",
+      "nightlife"
+    ]
+  },
+  "pizza": {
+    "tags": [
+      "pizza",
+      "food",
+      "restaurant"
+    ],
+    "contexts": [
+      "pizzeria",
+      "restaurant"
+    ],
+    "category": [
+      "commercial",
+      "food"
+    ]
+  },
+  "delipizza": {
+    "tags": [
+      "deli",
+      "pizza",
+      "food"
+    ],
+    "contexts": [
+      "deli",
+      "pizzeria"
+    ],
+    "category": [
+      "commercial",
+      "food"
+    ]
+  },
+  "noodles": {
+    "tags": [
+      "noodles",
+      "food",
+      "chinese"
+    ],
+    "contexts": [
+      "noodle_shop",
+      "restaurant"
+    ],
+    "category": [
+      "commercial",
+      "food"
+    ]
+  },
+  "chinese": {
+    "tags": [
+      "chinese",
+      "food"
+    ],
+    "contexts": [
+      "restaurant"
+    ],
+    "category": [
+      "food"
+    ]
+  },
+  "xxx": {
+    "tags": [
+      "adult",
+      "vice",
+      "nightlife"
+    ],
+    "contexts": [
+      "adult_venue",
+      "nightlife"
+    ],
+    "category": [
+      "nightlife"
+    ]
+  },
+  "beer": {
+    "tags": [
+      "beer",
+      "alcohol",
+      "bar"
+    ],
+    "contexts": [
+      "bar"
+    ],
+    "category": [
+      "nightlife"
+    ]
+  },
+  "bottle": {
+    "tags": [
+      "bottle",
+      "alcohol"
+    ],
+    "contexts": [
+      "bar"
+    ],
+    "category": [
+      "nightlife"
+    ]
+  },
+  "burger": {
+    "tags": [
+      "burger",
+      "food"
+    ],
+    "contexts": [
+      "fast_food"
+    ],
+    "category": [
+      "food"
+    ]
+  },
+  "hotdog": {
+    "tags": [
+      "hotdog",
+      "food"
+    ],
+    "contexts": [
+      "fast_food",
+      "street_food"
+    ],
+    "category": [
+      "food"
+    ]
+  },
+  "coffee": {
+    "tags": [
+      "coffee",
+      "cafe"
+    ],
+    "contexts": [
+      "cafe"
+    ],
+    "category": [
+      "food"
+    ]
+  },
+  "donut": {
+    "tags": [
+      "donut",
+      "food"
+    ],
+    "contexts": [
+      "bakery",
+      "cafe"
+    ],
+    "category": [
+      "food"
+    ]
+  },
+  "icecream": {
+    "tags": [
+      "ice_cream",
+      "food"
+    ],
+    "contexts": [
+      "ice_cream_shop"
+    ],
+    "category": [
+      "food"
+    ]
+  },
+  "milkshake": {
+    "tags": [
+      "milkshake",
+      "food"
+    ],
+    "contexts": [
+      "diner"
+    ],
+    "category": [
+      "food"
+    ]
+  },
+  "soda": {
+    "tags": [
+      "soda",
+      "drink"
+    ],
+    "contexts": [
+      "shop"
+    ],
+    "category": [
+      "food"
+    ]
+  },
+  "taco": {
+    "tags": [
+      "taco",
+      "food"
+    ],
+    "contexts": [
+      "restaurant"
+    ],
+    "category": [
+      "food"
+    ]
+  },
+  "popcorn": {
+    "tags": [
+      "popcorn",
+      "cinema"
+    ],
+    "contexts": [
+      "cinema"
+    ],
+    "category": [
+      "entertainment"
+    ]
+  },
+  "guitar": {
+    "tags": [
+      "guitar",
+      "music"
+    ],
+    "contexts": [
+      "music_shop",
+      "bar"
+    ],
+    "category": [
+      "entertainment"
+    ]
+  },
+  "bowlingball": {
+    "tags": [
+      "bowling"
+    ],
+    "contexts": [
+      "bowling_alley"
+    ],
+    "category": [
+      "entertainment"
+    ]
+  },
+  "bowlingpin": {
+    "tags": [
+      "bowling"
+    ],
+    "contexts": [
+      "bowling_alley"
+    ],
+    "category": [
+      "entertainment"
+    ]
+  },
+  "lollypop": {
+    "tags": [
+      "candy",
+      "food"
+    ],
+    "contexts": [
+      "shop"
+    ],
+    "category": [
+      "food"
+    ]
+  },
+  "billboard": {
+    "tags": [
+      "billboard",
+      "advertisement",
+      "roadside"
+    ],
+    "contexts": [
+      "roadside",
+      "commercial_strip"
+    ],
+    "category": [
+      "sign",
+      "advertisement"
+    ]
+  },
+  "neon": {
+    "tags": [
+      "neon",
+      "nightlife",
+      "facade"
+    ],
+    "contexts": [
+      "nightlife",
+      "shop"
+    ],
+    "category": [
+      "sign"
+    ]
+  },
+  "ad": {
+    "tags": [
+      "advertisement",
+      "poster"
+    ],
+    "contexts": [
+      "facade"
+    ],
+    "category": [
+      "sign",
+      "advertisement"
+    ]
+  },
+  "poster": {
+    "tags": [
+      "poster",
+      "advertisement"
+    ],
+    "contexts": [
+      "facade",
+      "interior"
+    ],
+    "category": [
+      "sign"
+    ]
+  },
+  "apartment": {
+    "tags": [
+      "apartment",
+      "residential",
+      "modular"
+    ],
+    "contexts": [
+      "residential_block"
+    ],
+    "category": [
+      "building",
+      "residential"
+    ]
+  },
+  "shop": {
+    "tags": [
+      "shop",
+      "storefront",
+      "commercial"
+    ],
+    "contexts": [
+      "shop",
+      "retail"
+    ],
+    "category": [
+      "building",
+      "commercial"
+    ]
+  },
+  "office": {
+    "tags": [
+      "office",
+      "commercial"
+    ],
+    "contexts": [
+      "office"
+    ],
+    "category": [
+      "building",
+      "commercial"
+    ]
+  },
+  "bank": {
+    "tags": [
+      "bank",
+      "civic",
+      "commercial"
+    ],
+    "contexts": [
+      "bank"
+    ],
+    "category": [
+      "building",
+      "civic"
+    ]
+  },
+  "warehouse": {
+    "tags": [
+      "warehouse",
+      "industrial"
+    ],
+    "contexts": [
+      "industrial"
+    ],
+    "category": [
+      "building",
+      "industrial"
+    ]
+  },
+  "hangar": {
+    "tags": [
+      "hangar",
+      "industrial",
+      "aircraft"
+    ],
+    "contexts": [
+      "airfield"
+    ],
+    "category": [
+      "building"
+    ]
+  },
+  "station": {
+    "tags": [
+      "station",
+      "transit",
+      "civic"
+    ],
+    "contexts": [
+      "transit_station"
+    ],
+    "category": [
+      "building"
+    ]
+  },
+  "cityhall": {
+    "tags": [
+      "city_hall",
+      "civic"
+    ],
+    "contexts": [
+      "civic_building"
+    ],
+    "category": [
+      "building",
+      "civic"
+    ]
+  },
+  "road": {
+    "tags": [
+      "road",
+      "street",
+      "city-layout"
+    ],
+    "contexts": [
+      "street"
+    ],
+    "category": [
+      "environment",
+      "road"
+    ]
+  },
+  "sidewalk": {
+    "tags": [
+      "sidewalk",
+      "city-layout"
+    ],
+    "contexts": [
+      "street"
+    ],
+    "category": [
+      "environment"
+    ]
+  },
+  "curb": {
+    "tags": [
+      "curb",
+      "city-layout"
+    ],
+    "contexts": [
+      "street"
+    ],
+    "category": [
+      "environment"
+    ]
+  },
+  "tree": {
+    "tags": [
+      "tree",
+      "foliage"
+    ],
+    "contexts": [
+      "park",
+      "street"
+    ],
+    "category": [
+      "environment"
+    ]
+  },
+  "vehicle": {
+    "tags": [
+      "vehicle"
+    ],
+    "contexts": [
+      "street"
+    ],
+    "category": [
+      "vehicle"
+    ]
+  },
+  "car": {
+    "tags": [
+      "car",
+      "vehicle"
+    ],
+    "contexts": [
+      "street",
+      "parking"
+    ],
+    "category": [
+      "vehicle"
+    ]
+  },
+  "barrier": {
+    "tags": [
+      "barrier",
+      "security"
+    ],
+    "contexts": [
+      "checkpoint",
+      "construction"
+    ],
+    "category": [
+      "prop"
+    ]
+  },
+  "door": {
+    "tags": [
+      "door",
+      "opening"
+    ],
+    "contexts": [
+      "building"
+    ],
+    "category": [
+      "building",
+      "opening"
+    ]
+  },
+  "window": {
+    "tags": [
+      "window",
+      "opening"
+    ],
+    "contexts": [
+      "building"
+    ],
+    "category": [
+      "building",
+      "opening"
+    ]
+  },
+  "aircon": {
+    "tags": [
+      "hvac",
+      "roof",
+      "utility"
+    ],
+    "contexts": [
+      "roof"
+    ],
+    "category": [
+      "prop"
+    ]
+  },
+  "satdish": {
+    "tags": [
+      "satellite",
+      "roof",
+      "loose-roof"
+    ],
+    "contexts": [
+      "roof"
+    ],
+    "category": [
+      "prop"
+    ]
+  },
+  "securitycamera": {
+    "tags": [
+      "camera",
+      "security",
+      "facade"
+    ],
+    "contexts": [
+      "facade"
+    ],
+    "category": [
+      "prop"
+    ]
+  },
+  "streetlight": {
+    "tags": [
+      "streetlight",
+      "lighting",
+      "city-layout"
+    ],
+    "contexts": [
+      "street"
+    ],
+    "category": [
+      "prop"
+    ]
+  },
+  "bench": {
+    "tags": [
+      "bench",
+      "street-furniture"
+    ],
+    "contexts": [
+      "street",
+      "park"
+    ],
+    "category": [
+      "prop"
+    ]
+  },
+  "dumpster": {
+    "tags": [
+      "dumpster",
+      "street-furniture"
+    ],
+    "contexts": [
+      "alley"
+    ],
+    "category": [
+      "prop"
+    ]
+  },
+  "hydrant": {
+    "tags": [
+      "hydrant",
+      "civic"
+    ],
+    "contexts": [
+      "street"
+    ],
+    "category": [
+      "prop"
+    ]
+  },
+  "mailbox": {
+    "tags": [
+      "mailbox"
+    ],
+    "contexts": [
+      "street"
+    ],
+    "category": [
+      "prop"
+    ]
+  },
+  "parkingmeter": {
+    "tags": [
+      "parking_meter"
+    ],
+    "contexts": [
+      "street"
+    ],
+    "category": [
+      "prop"
+    ]
+  },
+  "busstop": {
+    "tags": [
+      "bus_stop",
+      "transit"
+    ],
+    "contexts": [
+      "street",
+      "transit"
+    ],
+    "category": [
+      "prop"
+    ]
+  },
+  "bustop": {
+    "tags": [
+      "bus_stop",
+      "transit"
+    ],
+    "contexts": [
+      "street",
+      "transit"
+    ],
+    "category": [
+      "prop"
+    ]
+  },
+  "giveway": {
+    "tags": [
+      "give_way",
+      "traffic"
+    ],
+    "contexts": [
+      "intersection"
+    ],
+    "category": [
+      "sign",
+      "traffic"
+    ]
+  },
+  "stop": {
+    "tags": [
+      "stop",
+      "traffic"
+    ],
+    "contexts": [
+      "intersection"
+    ],
+    "category": [
+      "sign",
+      "traffic"
+    ]
+  },
+  "parking": {
+    "tags": [
+      "parking",
+      "traffic"
+    ],
+    "contexts": [
+      "parking"
+    ],
+    "category": [
+      "sign",
+      "traffic"
+    ]
+  },
+  "warning": {
+    "tags": [
+      "warning",
+      "traffic",
+      "safety"
+    ],
+    "contexts": [
+      "street",
+      "civic"
+    ],
+    "category": [
+      "sign"
+    ]
+  },
+  "arrow": {
+    "tags": [
+      "arrow",
+      "wayfinding"
+    ],
+    "contexts": [
+      "street"
+    ],
+    "category": [
+      "sign"
+    ]
+  },
+  "entrance": {
+    "tags": [
+      "entrance",
+      "wayfinding"
+    ],
+    "contexts": [
+      "building"
+    ],
+    "category": [
+      "sign"
+    ]
+  },
+  "street": {
+    "tags": [
+      "street",
+      "wayfinding"
+    ],
+    "contexts": [
+      "street"
+    ],
+    "category": [
+      "sign"
+    ]
+  },
+  "attachment": {
+    "tags": [
+      "attachment",
+      "hardware",
+      "mount"
+    ],
+    "contexts": [
+      "facade"
+    ],
+    "category": [
+      "hardware"
+    ]
+  },
+  "chopshop": {
+    "tags": [
+      "chopshop",
+      "industrial",
+      "garage"
+    ],
+    "contexts": [
+      "chopshop"
+    ],
+    "category": [
+      "building"
+    ]
+  },
+  "stripclub": {
+    "tags": [
+      "stripclub",
+      "nightlife",
+      "vice"
+    ],
+    "contexts": [
+      "nightlife"
+    ],
+    "category": [
+      "building"
+    ]
+  },
+  "sandbag": {
+    "tags": [
+      "sandbag",
+      "fortification",
+      "cover"
+    ],
+    "contexts": [
+      "trench",
+      "checkpoint",
+      "bunker"
+    ],
+    "category": [
+      "prop",
+      "military"
+    ]
+  },
+  "trench": {
+    "tags": [
+      "trench",
+      "fortification",
+      "ground"
+    ],
+    "contexts": [
+      "battlefield"
+    ],
+    "category": [
+      "environment",
+      "military"
+    ]
+  },
+  "foxhole": {
+    "tags": [
+      "foxhole",
+      "fortification",
+      "ground"
+    ],
+    "contexts": [
+      "battlefield"
+    ],
+    "category": [
+      "environment",
+      "military"
+    ]
+  },
+  "barbedwire": {
+    "tags": [
+      "barbed_wire",
+      "fence",
+      "fortification"
+    ],
+    "contexts": [
+      "checkpoint",
+      "perimeter"
+    ],
+    "category": [
+      "prop",
+      "military"
+    ]
+  },
+  "camonet": {
+    "tags": [
+      "camo_net",
+      "camouflage",
+      "concealment"
+    ],
+    "contexts": [
+      "military_base",
+      "encampment"
+    ],
+    "category": [
+      "prop",
+      "military"
+    ]
+  },
+  "camonetting": {
+    "tags": [
+      "camo_net",
+      "camouflage",
+      "concealment"
+    ],
+    "contexts": [
+      "military_base",
+      "encampment"
+    ],
+    "category": [
+      "prop",
+      "military"
+    ]
+  },
+  "guardtower": {
+    "tags": [
+      "guard_tower",
+      "watchtower",
+      "military",
+      "lookout"
+    ],
+    "contexts": [
+      "checkpoint",
+      "military_base"
+    ],
+    "category": [
+      "building",
+      "military"
+    ]
+  },
+  "watchtower": {
+    "tags": [
+      "guard_tower",
+      "watchtower",
+      "military",
+      "lookout"
+    ],
+    "contexts": [
+      "checkpoint",
+      "military_base"
+    ],
+    "category": [
+      "building",
+      "military"
+    ]
+  },
+  "bunker": {
+    "tags": [
+      "bunker",
+      "fortification",
+      "military"
+    ],
+    "contexts": [
+      "battlefield",
+      "military_base"
+    ],
+    "category": [
+      "building",
+      "military"
+    ]
+  },
+  "tanktrap": {
+    "tags": [
+      "tank_trap",
+      "fortification",
+      "anti_vehicle"
+    ],
+    "contexts": [
+      "battlefield"
+    ],
+    "category": [
+      "prop",
+      "military"
+    ]
+  },
+  "ied": {
+    "tags": [
+      "ied",
+      "explosive",
+      "hazard"
+    ],
+    "contexts": [
+      "battlefield"
+    ],
+    "category": [
+      "prop",
+      "hazard"
+    ]
+  },
+  "missile": {
+    "tags": [
+      "missile",
+      "ordnance",
+      "military"
+    ],
+    "contexts": [
+      "military_base"
+    ],
+    "category": [
+      "prop",
+      "military"
+    ]
+  },
+  "pipeline": {
+    "tags": [
+      "pipeline",
+      "industrial",
+      "pipe"
+    ],
+    "contexts": [
+      "industrial",
+      "military_base"
+    ],
+    "category": [
+      "prop",
+      "industrial"
+    ]
+  },
+  "powerline": {
+    "tags": [
+      "powerline",
+      "utility",
+      "electrical"
+    ],
+    "contexts": [
+      "street",
+      "industrial"
+    ],
+    "category": [
+      "prop",
+      "utility"
+    ]
+  },
+  "airconditioner": {
+    "tags": [
+      "hvac",
+      "roof",
+      "utility"
+    ],
+    "contexts": [
+      "roof"
+    ],
+    "category": [
+      "prop"
+    ]
+  },
+  "money": {
+    "tags": [
+      "money",
+      "cash",
+      "loot"
+    ],
+    "contexts": [
+      "heist",
+      "gang_hideout"
+    ],
+    "category": [
+      "prop",
+      "valuables"
+    ]
+  },
+  "gold": {
+    "tags": [
+      "gold",
+      "loot",
+      "valuables"
+    ],
+    "contexts": [
+      "heist",
+      "vault"
+    ],
+    "category": [
+      "prop",
+      "valuables"
+    ]
+  },
+  "goldbar": {
+    "tags": [
+      "gold",
+      "gold_bar",
+      "loot",
+      "valuables"
+    ],
+    "contexts": [
+      "vault",
+      "heist"
+    ],
+    "category": [
+      "prop",
+      "valuables"
+    ]
+  },
+  "jewellery": {
+    "tags": [
+      "jewellery",
+      "loot",
+      "valuables"
+    ],
+    "contexts": [
+      "heist",
+      "vault"
+    ],
+    "category": [
+      "prop",
+      "valuables"
+    ]
+  },
+  "safedepositbox": {
+    "tags": [
+      "safe_deposit_box",
+      "vault",
+      "bank"
+    ],
+    "contexts": [
+      "bank",
+      "vault"
+    ],
+    "category": [
+      "prop",
+      "bank"
+    ]
+  },
+  "safedepositboxes": {
+    "tags": [
+      "safe_deposit_box",
+      "vault",
+      "bank"
+    ],
+    "contexts": [
+      "bank",
+      "vault"
+    ],
+    "category": [
+      "prop",
+      "bank"
+    ]
+  },
+  "vault": {
+    "tags": [
+      "vault",
+      "bank",
+      "secure"
+    ],
+    "contexts": [
+      "bank"
+    ],
+    "category": [
+      "prop",
+      "bank"
+    ]
+  },
+  "vaultdoor": {
+    "tags": [
+      "vault",
+      "bank",
+      "secure"
+    ],
+    "contexts": [
+      "bank"
+    ],
+    "category": [
+      "prop",
+      "bank"
+    ]
+  },
+  "vaultgate": {
+    "tags": [
+      "vault",
+      "bank",
+      "secure"
+    ],
+    "contexts": [
+      "bank"
+    ],
+    "category": [
+      "prop",
+      "bank"
+    ]
+  },
+  "vaulttrolley": {
+    "tags": [
+      "vault",
+      "bank",
+      "trolley"
+    ],
+    "contexts": [
+      "bank"
+    ],
+    "category": [
+      "prop",
+      "bank"
+    ]
+  },
+  "tellerdesk": {
+    "tags": [
+      "teller_desk",
+      "bank",
+      "counter"
+    ],
+    "contexts": [
+      "bank"
+    ],
+    "category": [
+      "prop",
+      "bank"
+    ]
+  },
+  "metaldetector": {
+    "tags": [
+      "metal_detector",
+      "security"
+    ],
+    "contexts": [
+      "bank",
+      "checkpoint"
+    ],
+    "category": [
+      "prop",
+      "security"
+    ]
+  },
+  "displaycase": {
+    "tags": [
+      "display_case",
+      "retail",
+      "jewellery"
+    ],
+    "contexts": [
+      "jewellery_store",
+      "museum"
+    ],
+    "category": [
+      "prop",
+      "commercial"
+    ]
+  },
+  "lab": {
+    "tags": [
+      "lab",
+      "drug_lab",
+      "clandestine"
+    ],
+    "contexts": [
+      "gang_hideout"
+    ],
+    "category": [
+      "prop",
+      "crime"
+    ]
+  },
+  "chemical": {
+    "tags": [
+      "chemical",
+      "drug_lab",
+      "hazard"
+    ],
+    "contexts": [
+      "gang_hideout"
+    ],
+    "category": [
+      "prop",
+      "crime"
+    ]
+  },
+  "powder": {
+    "tags": [
+      "powder",
+      "drugs",
+      "contraband"
+    ],
+    "contexts": [
+      "gang_hideout"
+    ],
+    "category": [
+      "prop",
+      "crime"
+    ]
+  },
+  "zipbag": {
+    "tags": [
+      "zip_bag",
+      "drugs",
+      "contraband"
+    ],
+    "contexts": [
+      "gang_hideout"
+    ],
+    "category": [
+      "prop",
+      "crime"
+    ]
+  },
+  "pills": {
+    "tags": [
+      "pills",
+      "drugs",
+      "contraband"
+    ],
+    "contexts": [
+      "gang_hideout"
+    ],
+    "category": [
+      "prop",
+      "crime"
+    ]
+  },
+  "emergencydrop": {
+    "tags": [
+      "airdrop",
+      "supply_drop",
+      "loot"
+    ],
+    "contexts": [
+      "battle_royale"
+    ],
+    "category": [
+      "prop",
+      "loot"
+    ]
+  },
+  "parachute": {
+    "tags": [
+      "parachute",
+      "airdrop"
+    ],
+    "contexts": [
+      "battle_royale"
+    ],
+    "category": [
+      "prop",
+      "loot"
+    ]
+  },
+  "medicalbox": {
+    "tags": [
+      "medical",
+      "first_aid",
+      "loot"
+    ],
+    "contexts": [
+      "battle_royale"
+    ],
+    "category": [
+      "prop",
+      "loot"
+    ]
+  },
+  "bandage": {
+    "tags": [
+      "bandage",
+      "medical",
+      "loot"
+    ],
+    "contexts": [
+      "battle_royale"
+    ],
+    "category": [
+      "prop",
+      "loot"
+    ]
+  },
+  "c4": {
+    "tags": [
+      "c4",
+      "explosive",
+      "loot"
+    ],
+    "contexts": [
+      "battle_royale"
+    ],
+    "category": [
+      "prop",
+      "loot"
+    ]
+  },
+  "pallet": {
+    "tags": [
+      "pallet",
+      "industrial",
+      "cover"
+    ],
+    "contexts": [
+      "warehouse"
+    ],
+    "category": [
+      "prop",
+      "industrial"
+    ]
+  },
+  "propane": {
+    "tags": [
+      "propane",
+      "tank",
+      "hazard",
+      "explosive"
+    ],
+    "contexts": [
+      "industrial"
+    ],
+    "category": [
+      "prop",
+      "hazard"
+    ]
+  },
+  "padlock": {
+    "tags": [
+      "padlock",
+      "security",
+      "hardware"
+    ],
+    "contexts": [
+      "gate",
+      "fence"
+    ],
+    "category": [
+      "prop",
+      "hardware"
+    ]
+  },
+  "shippingcontainer": {
+    "tags": [
+      "shipping_container",
+      "cargo",
+      "industrial"
+    ],
+    "contexts": [
+      "warehouse",
+      "port"
+    ],
+    "category": [
+      "prop",
+      "industrial"
+    ]
+  }
+}

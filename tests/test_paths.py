@@ -18,6 +18,23 @@ from synty_inventory.paths import (
 SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
 
 
+def _canonical_text(path: Path) -> str:
+    """Strip the packaged-copy banner so checkout and package-data can be compared."""
+    lines = []
+    skip_blank = False
+    for line in path.read_text(encoding="utf-8").splitlines(keepends=True):
+        stripped = line.strip()
+        if stripped.startswith("<!-- packaged copy of") or stripped.startswith("# packaged copy of"):
+            skip_blank = True
+            continue
+        if skip_blank and stripped == "":
+            skip_blank = False
+            continue
+        skip_blank = False
+        lines.append(line)
+    return "".join(lines)
+
+
 def _clear_synti_env(monkeypatch):
     monkeypatch.delenv("SYNTI_CONFIG", raising=False)
     for env in CONFIG_KEYS.values():
@@ -134,9 +151,13 @@ def test_packaged_example_and_skill_exist():
     assert sk.is_file(), sk
     assert "synty-inventory" in sk.read_text(encoding="utf-8")
     root = SRC_ROOT.parent
-    assert ex.read_text(encoding="utf-8") == (root / "config.example.yaml").read_text(
-        encoding="utf-8"
+    checkout_ex = root / "config.example.yaml"
+    checkout_sk = root / "skill" / "SKILL.md"
+    assert "packaged copy of" in ex.read_text(encoding="utf-8")
+    assert "packaged copy of" in sk.read_text(encoding="utf-8")
+    assert _canonical_text(ex) == checkout_ex.read_text(encoding="utf-8"), (
+        f"packaged example drifted from checkout copy:\n  packaged: {ex}\n  checkout: {checkout_ex}"
     )
-    assert sk.read_text(encoding="utf-8") == (root / "skill" / "SKILL.md").read_text(
-        encoding="utf-8"
+    assert _canonical_text(sk) == checkout_sk.read_text(encoding="utf-8"), (
+        f"packaged skill drifted from checkout copy:\n  packaged: {sk}\n  checkout: {checkout_sk}"
     )

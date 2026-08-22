@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Iterable
 
 from .catalog import load_all_catalogs
 from .project import slim_row

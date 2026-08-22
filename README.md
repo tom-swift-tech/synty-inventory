@@ -17,7 +17,7 @@ changes what the asset *is*.
 Does **not** need the Unity Editor. This repo is **not** affiliated with
 Synty Studios. It does **not** include Synty assets or generated catalogs.
 
-Requires Python 3.11+ and Synty packs you already license.
+Requires Python 3.11+, numpy, and Synty packs you already license.
 
 ## Quick start
 
@@ -64,7 +64,8 @@ also be set with `SYNTI_UNITY_ROOT`, `SYNTI_EXTRACTED_ROOT`, `SYNTI_CATALOGS`,
 `SYNTI_SYNTY_GLB_ROOT`, or `--config PATH`. Two further settings —
 `vlm_local_url` / `vlm_local_model` (`SYNTI_VLM_LOCAL_URL` /
 `SYNTI_VLM_LOCAL_MODEL`) — configure `review`'s local Ollama call and default
-sensibly (`http://localhost:11434`, `gemma4:e4b`) when unset.
+sensibly (`http://localhost:11434`, `gemma4:26b`) when unset. `gemma4:e4b`
+is opt-in for smoke tests only.
 
 ```bash
 synty-inventory config
@@ -206,17 +207,19 @@ Re-scan merges by the precedence table above. Human / `locked_fields` /
 disk. `scan --rebuild` keeps only human fields.
 
 Unreal trees are discovered when present; that path is implemented, not
-proven against live packs.
+proven against live packs. Overlays apply only when the folder name equals
+`pack_id` (or an explicit override table).
 
 ### Godot / Unreal file paths
 
 `godot_root` / `unreal_root` are separate, optional reference trees — not
 part of the Unity scan itself — that `enrich` overlays onto each cataloged
 asset by stem match: `sources/godot.py` and `sources/unreal.py` map a
-top-level folder name under the root to a `pack_id` (`SLUG_PACK_OVERRIDES`,
-falling back to a normalized guess for an unmapped folder), index every
-`.tscn` / `.uasset` under that pack's tree, and wire `files.godot_scene` /
-`files.unreal_uasset` to a path relative to the root (forward slashes).
+top-level folder name under the root to a `pack_id` (Godot: `SLUG_PACK_OVERRIDES`
+only — unmapped folders are skipped and warned; Unreal: the folder name must
+equal `pack_id`, or an explicit override), index every `.tscn` / `.uasset`
+under that pack's tree, and wire `files.godot_scene` / `files.unreal_uasset`
+to a path relative to the root (forward slashes).
 Neither field carries a provenance stamp — like `files.glb`, `files` is
 scanner-owned and refreshed wholesale on every rescan. A reference
 `unreal_root` never overwrites `files.unreal_uasset` already set by a
@@ -231,7 +234,7 @@ onto a pack as `vlm_reviewed` provenance (`POLYGON_City/catalog.json` is the
 reference shape). It needs a threejs-v2 pack (`threejs_v2` config key, a
 `manifest.json` GLB listing), a `synty-glb` checkout (`synty_glb_root`) to
 render stills, and a local [Ollama](https://ollama.com) server with a
-vision-capable model pulled (`ollama pull gemma4:e4b`).
+vision-capable model pulled (`ollama pull gemma4:26b`).
 
 ```bash
 synty-inventory review --pack POLYGON_SciFi_Space --limit 20
@@ -266,14 +269,14 @@ the gizmo instead of the asset (observed: a wall anchor reviewed as
 model to ignore a small teal humanoid, which covers stills cached from
 older gizmo renders.
 
-**Model choice**: the code default is `gemma4:e4b` for speed, but piloting
-settled the question: e4b does NOT ground on these renders — it produces
-plausible, confident, wrong output (a table reviewed as a wooden crate) and
-must not be trusted for batches. `gemma4:26b` grounds correctly and runs
-~15–20 s/asset on an otherwise-idle GPU (minutes/asset under GPU
-contention) — set `vlm_local_model: "gemma4:26b"` in `config.yaml` for real
-runs. Exclude `FX_*` from review (`--match SM_`): translucent light-shaft
-FX render as plain shapes and no vision model can recover their function.
+**Model choice**: the code default is `gemma4:26b` because it grounds on
+these renders (~15–20 s/asset on an otherwise-idle GPU; minutes/asset under
+GPU contention). `gemma4:e4b` is opt-in for throwaway smoke tests
+(`--model gemma4:e4b` or `SYNTI_VLM_LOCAL_MODEL`) — it produces plausible,
+confident, wrong output (a table reviewed as a wooden crate) and must not
+be trusted for batches. Exclude `FX_*` from review (`--match SM_`):
+translucent light-shaft FX render as plain shapes and no vision model can
+recover their function.
 
 `gauntlet` is a live acceptance suite (expects `POLYGON_City` and, for the
 assembly gates, `POLYGON_SciFi_Space`): the v1 sign gates plus bounds
@@ -322,10 +325,15 @@ that prints JSON. The skill tells an agent to start from `suggest` -> recipe
 -> `recipe <id> --engine <engine>` for assemblies, and `search`/`details`/
 `placement` for single pieces.
 
+Edit `skill/SKILL.md` and `config.example.yaml` (repo root), then copy into
+`src/synty_inventory/` (`skill.md` / `config.example.yaml`) so the wheel
+stays in sync. The packaged copies are not the files to edit.
+
 ## Tests
 
 ```bash
-python -m pytest
+python -m pytest                  # fixture suite (CI)
+synty-inventory gauntlet          # live catalogs on this machine
 ```
 
 ## License

@@ -24,8 +24,9 @@ from ..paths import rel_posix
 # slug (folder name directly under godot_root) -> pack_id. Explicit, not a
 # normalization guess: the Godot export slug carries a drop-revision suffix
 # ("-01") and drops "Polygon" from City's folder name, neither of which a
-# generic normalizer could safely reverse for the packs that don't exist on
-# disk yet (guessing wrong would silently misfile a whole pack's scenes).
+# generic normalizer could safely reverse. New Godot export folders get an
+# override *before* they are used — do not guess a pack_id. Guessing wrong
+# silently misfiles a whole pack's scenes onto nobody (or the wrong pack).
 SLUG_PACK_OVERRIDES: dict[str, str] = {
     "particle-fx": "POLYGON_Particle_FX",
     "polygon-city-01": "POLYGON_City",
@@ -39,14 +40,13 @@ _DEMO_SCENE_STEMS = {"demo", "overview"}
 
 
 def _normalize_slug(name: str) -> str:
-    """Fallback slug -> pack_id guess for a folder with no override entry:
-    strip a trailing drop-revision suffix ("-01"), title-case each hyphen
-    segment, join with "_". ``"polygon-scifi-city-02"`` -> ``"Polygon_Scifi_City"``
-    — close to, but not guaranteed to equal, a real ``POLYGON_SciFi_City`` id
-    (multi-word compounds like "SciFi"/"PostApoc" don't round-trip through
-    title-case). Good enough to surface an unmapped tree for discovery
-    rather than dropping it silently; add an explicit
-    ``SLUG_PACK_OVERRIDES`` entry once the real pack_id is confirmed."""
+    """Guess a pack_id from an unmapped folder name — for the warning only.
+
+    Never used to attach scenes. ``"polygon-scifi-city-02"`` ->
+    ``"Polygon_Scifi_City"``: close to, but not equal to, ``POLYGON_SciFi_City``
+    (multi-word compounds like "SciFi"/"PostApoc" don't round-trip). Add an
+    explicit ``SLUG_PACK_OVERRIDES`` entry before scanning a new export.
+    """
     import re
 
     stem = re.sub(r"-\d+$", "", name.strip().lower())
@@ -55,19 +55,41 @@ def _normalize_slug(name: str) -> str:
 
 
 def discover_pack_dirs(godot_root: Path | None) -> dict[str, Path]:
-    """pack_id -> pack tree root, for every subdirectory of ``godot_root``.
-    ``SLUG_PACK_OVERRIDES`` wins when the slug is known; otherwise falls
-    back to ``_normalize_slug`` so a new drop still shows up (under a
-    best-guess id) instead of vanishing until the override map is updated."""
+    """pack_id -> pack tree root for mapped subdirectories of ``godot_root``.
+
+    Only folders listed in ``SLUG_PACK_OVERRIDES`` are returned. Unmapped
+    folders are skipped (see ``unmapped_pack_dirs``) so a guessed id cannot
+    attach another pack's scenes.
+    """
     if godot_root is None or not Path(godot_root).is_dir():
         return {}
     out: dict[str, Path] = {}
     for child in sorted(Path(godot_root).iterdir()):
         if not child.is_dir():
             continue
-        pack_id = SLUG_PACK_OVERRIDES.get(child.name) or _normalize_slug(child.name)
+        pack_id = SLUG_PACK_OVERRIDES.get(child.name)
+        if pack_id is None:
+            continue
         out[pack_id] = child
     return out
+
+
+def unmapped_pack_dirs(godot_root: Path | None) -> list[dict[str, str]]:
+    """Folders under ``godot_root`` with no ``SLUG_PACK_OVERRIDES`` entry.
+
+    Each item is ``{slug, guess}``. Reported to the operator; never applied
+    as an overlay.
+    """
+    if godot_root is None or not Path(godot_root).is_dir():
+        return []
+    rows: list[dict[str, str]] = []
+    for child in sorted(Path(godot_root).iterdir()):
+        if not child.is_dir():
+            continue
+        if child.name in SLUG_PACK_OVERRIDES:
+            continue
+        rows.append({"slug": child.name, "guess": _normalize_slug(child.name)})
+    return rows
 
 
 @lru_cache(maxsize=16)

@@ -1,20 +1,23 @@
+import pytest
+
 from synty_inventory.catalog import build_catalog
 from synty_inventory.discover import discover
 from synty_inventory.paths import ConfigError, load_config
 from synty_inventory.schema import validate_catalog
 
 
+@pytest.mark.live
 def test_scan_polygon_city_if_present():
     try:
         cfg = load_config(require=False)
     except ConfigError:
-        return
+        pytest.skip("POLYGON_City not on this machine")
     extracted = cfg.get("extracted_root")
     if extracted is None:
-        return
+        pytest.skip("POLYGON_City not on this machine")
     root = extracted / "POLYGON_City"
     if not root.is_dir():
-        return
+        pytest.skip("POLYGON_City not on this machine")
     refs = discover(root)
     assert refs and refs[0].pack_id == "POLYGON_City"
     doc = build_catalog(refs[0], include_shared=False)

@@ -40,7 +40,7 @@ SETTING_KEYS: dict[str, str] = {
 }
 SETTING_DEFAULTS: dict[str, str] = {
     "vlm_local_url": "http://localhost:11434",
-    "vlm_local_model": "gemma4:e4b",
+    "vlm_local_model": "gemma4:26b",
 }
 
 
