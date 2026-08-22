@@ -125,7 +125,14 @@ MODULAR_BUILDING = {
 
 
 def _load_table(name: str):
-    return json.loads(pkg_files("synty_inventory").joinpath("data", name).read_text(encoding="utf-8"))
+    resource = pkg_files("synty_inventory").joinpath("data", name)
+    try:
+        return json.loads(resource.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:  # missing or corrupt package data
+        raise RuntimeError(
+            f"synty_inventory package data {name!r} is missing or invalid ({exc}); "
+            "reinstall the package"
+        ) from exc
 
 
 TOKEN_TAGS: dict[str, dict] = _load_table("token_tags.json")

@@ -5,10 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path, PureWindowsPath
 
-try:
-    import yaml
-except ImportError:  # stdlib fallback — config.yaml is simple key: value
-    yaml = None
+import yaml  # hard dependency (pyproject [project].dependencies) — no fallback parser
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 EXAMPLE_NAME = "config.example.yaml"
@@ -81,18 +78,8 @@ def skill_file() -> Path:
 def _load_yaml(path: Path) -> dict:
     if not path.is_file():
         return {}
-    text = path.read_text(encoding="utf-8")
-    if yaml is not None:
-        data = yaml.safe_load(text) or {}
-        return data if isinstance(data, dict) else {}
-    out: dict[str, str] = {}
-    for line in text.splitlines():
-        raw = line.split("#", 1)[0].strip()
-        if not raw or ":" not in raw:
-            continue
-        key, val = raw.split(":", 1)
-        out[key.strip()] = val.strip().strip('"').strip("'")
-    return out
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return data if isinstance(data, dict) else {}
 
 
 def _as_path(raw: str, base: Path) -> Path:

@@ -27,8 +27,6 @@ from typing import Iterable
 from .catalog import load_all_catalogs
 from .project import slim_row
 
-PACKAGE_RECIPES_DIR = Path(__file__).parent / "recipes"
-
 RECIPE_REQUIRED = ("id", "kind", "label", "description", "steps")
 STEP_REQUIRED = ("role", "select")
 SELECT_KEYS = {

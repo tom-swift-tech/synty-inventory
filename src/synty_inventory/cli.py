@@ -135,6 +135,25 @@ def _warn_unmapped_godot(godot_root: Path | None) -> None:
         )
 
 
+def _warn_unmapped_unreal(unreal_root: Path | None) -> None:
+    if unreal_root is None:
+        return
+    from .sources.unreal import collision_pack_dirs, unmapped_pack_dirs
+
+    for row in unmapped_pack_dirs(unreal_root):
+        print(
+            f"warning: unmapped Unreal export folder {row['slug']!r} "
+            f"(guess {row['guess']!r}) — skipped; add SLUG_PACK_OVERRIDES before using it",
+            file=sys.stderr,
+        )
+    for row in collision_pack_dirs(unreal_root):
+        print(
+            f"warning: Unreal export folders collide on pack_id {row['pack_id']!r} — "
+            f"kept {row['kept']!r}, skipped {row['dropped']!r}; fix SLUG_PACK_OVERRIDES",
+            file=sys.stderr,
+        )
+
+
 def _catalogs(args, cfg) -> Path:
     if getattr(args, "out", None):
         return Path(args.out)
@@ -191,6 +210,7 @@ def cmd_scan(args, cfg) -> int:
     godot_root = _engine_root(cfg, "godot_root")
     unreal_root = _engine_root(cfg, "unreal_root")
     _warn_unmapped_godot(godot_root)
+    _warn_unmapped_unreal(unreal_root)
     refs = discover(target, extracted_root=cfg.get("extracted_root"))
     # Generator-fed GEN_* packs live under threejs_v2, not the Unity root
     # (docs/gen_manifest_v1.md). Default scans pick them all up; an explicit
@@ -291,6 +311,7 @@ def cmd_enrich(args, cfg) -> int:
     godot_root = _engine_root(cfg, "godot_root")
     unreal_root = _engine_root(cfg, "unreal_root")
     _warn_unmapped_godot(godot_root)
+    _warn_unmapped_unreal(unreal_root)
     from .enrich import enrich_catalog
     from .catalog import write_catalog
 

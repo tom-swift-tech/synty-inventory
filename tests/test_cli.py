@@ -233,3 +233,44 @@ def test_main_search_details_recipe(tmp_path: Path, monkeypatch, capsys):
     assert code == 4
     out = json.loads(capsys.readouterr().out)
     assert out["complete"] is False
+
+
+def test_scan_and_enrich_warn_unmapped_engine_folders(tmp_path: Path, capsys, monkeypatch):
+    """cmd_scan/cmd_enrich must actually invoke the godot/unreal warning
+    helpers — pins the operator-visibility guarantee, not just the
+    underlying sources.* functions."""
+    from synty_inventory.cli import cmd_enrich, cmd_scan
+    from synty_inventory.sources import unreal
+
+    unity = tmp_path / "unity"
+    catalogs = tmp_path / "catalogs"
+    godot_root = tmp_path / "godot"
+    unreal_root = tmp_path / "unreal"
+    for d in (unity, catalogs, godot_root, unreal_root):
+        d.mkdir()
+    (godot_root / "polygon-scifi-city-02").mkdir()
+    (unreal_root / "polygon-city-01").mkdir()
+    (unreal_root / "POLYGON_City").mkdir()
+    (unreal_root / "unreal-city").mkdir()
+    monkeypatch.setitem(unreal.SLUG_PACK_OVERRIDES, "unreal-city", "POLYGON_City")
+
+    cfg = {
+        "unity_root": unity,
+        "catalogs": catalogs,
+        "godot_root": godot_root,
+        "unreal_root": unreal_root,
+    }
+    args = SimpleNamespace(index=False, path=None, pack=None, out=None)
+
+    assert cmd_scan(args, cfg) != 0  # no packs under the empty unity root
+    err = capsys.readouterr().err
+    assert "unmapped Godot export folder 'polygon-scifi-city-02'" in err
+    assert "unmapped Unreal export folder 'polygon-city-01'" in err
+    assert "collide on pack_id 'POLYGON_City'" in err
+    assert "kept 'unreal-city', skipped 'POLYGON_City'" in err
+
+    assert cmd_enrich(args, cfg) != 0  # no catalogs to enrich
+    err = capsys.readouterr().err
+    assert "unmapped Godot export folder" in err
+    assert "unmapped Unreal export folder" in err
+    assert "collide on pack_id 'POLYGON_City'" in err
