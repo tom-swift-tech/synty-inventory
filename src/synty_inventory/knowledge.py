@@ -28,7 +28,7 @@ import json
 import re
 from copy import deepcopy
 from dataclasses import replace
-from pathlib import Path
+from importlib.resources import files as pkg_files
 
 from .naming import ParsedName, parse_name, title_from_tokens
 from .schema import TYPE_MIGRATION, empty_module, empty_part
@@ -122,11 +122,10 @@ MODULAR_BUILDING = {
 # Tables live in package data (data/*.json). Edit those files, not literals
 # here. CURATED is the quality bar for a handful of POI pieces; TOKEN_TAGS
 # enriches the legacy fallback path; PACK_STYLES maps pack_id -> style.
-_DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
 def _load_table(name: str):
-    return json.loads((_DATA_DIR / name).read_text(encoding="utf-8"))
+    return json.loads(pkg_files("synty_inventory").joinpath("data", name).read_text(encoding="utf-8"))
 
 
 TOKEN_TAGS: dict[str, dict] = _load_table("token_tags.json")

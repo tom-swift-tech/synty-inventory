@@ -134,8 +134,9 @@ def test_search_type_and_nonplaceable_filters(tmp_path: Path):
             ],
         }
     )
-    city["assets"][1]["placeable"] = False
-    city["assets"][1]["kind"] = "animation"
+    clip = next(a for a in city["assets"] if a["id"] == "A_Police_Idle_01")
+    assert clip["placeable"] is False
+    assert clip["kind"] == "animation"
     write_catalog(tmp_path / "POLYGON_City.json", city)
 
     hidden = search_assets(tmp_path, "police")

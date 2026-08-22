@@ -382,11 +382,14 @@ REPRESENTATIVE_STEMS = [
 
 
 def test_knowledge_tables_load_from_package_data():
-    from synty_inventory.knowledge import CURATED, PACK_STYLES, TOKEN_TAGS, _DATA_DIR
+    from importlib.resources import files as pkg_files
 
-    assert (_DATA_DIR / "curated.json").is_file()
-    assert (_DATA_DIR / "token_tags.json").is_file()
-    assert (_DATA_DIR / "pack_styles.json").is_file()
+    from synty_inventory.knowledge import CURATED, PACK_STYLES, TOKEN_TAGS
+
+    data = pkg_files("synty_inventory").joinpath("data")
+    assert data.joinpath("curated.json").is_file()
+    assert data.joinpath("token_tags.json").is_file()
+    assert data.joinpath("pack_styles.json").is_file()
     assert set(CURATED) == {"SM_Prop_Sign_Police_01", "SM_Prop_Sign_Barber_01"}
     assert CURATED["SM_Prop_Sign_Police_01"]["semantic_detail"] == "police_station"
     assert "police" in TOKEN_TAGS and "barber" in TOKEN_TAGS

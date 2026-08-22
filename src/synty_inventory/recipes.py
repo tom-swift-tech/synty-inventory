@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import re
+from importlib.resources import files as pkg_files
 from pathlib import Path
 from typing import Iterable
 
@@ -210,9 +211,16 @@ def load_recipes(catalogs_dir: Path | None, viewer_data: Path | None = None) -> 
         doc.setdefault("source", origin)
         recipes[doc["id"]] = doc
 
-    if PACKAGE_RECIPES_DIR.is_dir():
-        for p in sorted(PACKAGE_RECIPES_DIR.glob("*.json")):
-            add(_read_json(p), "package")
+    root = pkg_files("synty_inventory").joinpath("recipes")
+    if root.is_dir():
+        for entry in sorted(root.iterdir(), key=lambda e: e.name):
+            if not entry.name.endswith(".json"):
+                continue
+            try:
+                doc = json.loads(entry.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                doc = None
+            add(doc, "package")
     if viewer_data and (viewer_data / "types").is_dir():
         for p in sorted((viewer_data / "types").glob("*.json")):
             doc = _read_json(p)
