@@ -216,8 +216,21 @@ def search_assets(
     engine: str | None = None,
     fields: list[str] | None = None,
 ) -> list[dict]:
+    # Phase 2: FTS5 candidate retrieval when a fresh search.db exists
+    # (built by scan / scan --index); linear catalog walk otherwise.
+    # Ranking is _score either way — the DB adds a capped BM25 bonus for
+    # prose relevance and, via porter stemming, recall the substring
+    # scorer lacks. Invisible to agents: same verbs, same rows.
+    from . import searchdb
+
+    cand = searchdb.candidates(catalogs_dir, query)
+    source = (
+        cand
+        if cand is not None
+        else ((pid, asset, 0.0) for pid, _doc, asset in _iter_assets(catalogs_dir, pack))
+    )
     scored: list[tuple[float, str, dict]] = []
-    for pid, _doc, asset in _iter_assets(catalogs_dir, pack):
+    for pid, asset, bm25_bonus in source:
         if not _match_filters(asset, pack, tags, category, constraints, pid):
             continue
         if not _match_v2_filters(
@@ -229,7 +242,7 @@ def search_assets(
             include_nonplaceable=include_nonplaceable,
         ):
             continue
-        s = _score(query, asset)
+        s = _score(query, asset) + bm25_bonus
         # measured pieces are more useful to an assembler than unmeasured ones
         if (asset.get("bounds") or {}).get("source") == "measured":
             s += 3

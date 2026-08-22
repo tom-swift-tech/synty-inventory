@@ -154,8 +154,23 @@ def cmd_discover(args, cfg) -> int:
 
 
 def cmd_scan(args, cfg) -> int:
-    target = Path(args.path) if args.path else require_path(cfg, "unity_root")
     catalogs_dir = _catalogs(args, cfg)
+    if args.index:
+        # Rebuild the discovery index + derived search.db from the catalogs
+        # already on disk — no pack scan, no source tree needed.
+        from .searchdb import db_path
+
+        idx = rebuild_index(catalogs_dir)
+        db = db_path(catalogs_dir)
+        emit_json(
+            {
+                "ok": True,
+                "index": str(idx),
+                "search_db": str(db) if db.is_file() else None,
+            }
+        )
+        return 0
+    target = Path(args.path) if args.path else require_path(cfg, "unity_root")
     viewer = _viewer(cfg)
     threejs_v2 = _threejs_v2(cfg)
     godot_root = _engine_root(cfg, "godot_root")
@@ -475,6 +490,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--include-shared", action="store_true", help="Include PolygonGeneric in each pack")
     s.add_argument("--from-package", action="store_true", help="Index the .unitypackage even if extracted exists")
     s.add_argument("--rebuild", action="store_true", help="Drop auto-derived values on disk; keep only human-locked fields")
+    s.add_argument("--index", action="store_true", help="Only rebuild index.json + search.db from catalogs on disk (no pack scan)")
     s.add_argument(
         "--extract-previews",
         action="store_true",

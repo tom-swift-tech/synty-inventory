@@ -118,7 +118,14 @@ def rebuild_index(catalogs_dir: Path, run_summaries: list[dict] | None = None) -
         "recipes": sorted(load_recipes(catalogs_dir)),
         "hint": "search/suggest/recipe/kit return slim rows; `details <id>` is the full record; `--fields a,b,c` widens",
     }
-    return write_index(catalogs_dir, packs, extra_doc)
+    path = write_index(catalogs_dir, packs, extra_doc)
+    # Phase 2: search.db is derived from the catalogs and rebuilt wherever
+    # the index is — one choke point keeps it consistent with every scan/
+    # enrich path. Built last, so its mtime marks it fresh.
+    from . import searchdb  # local import: searchdb loads catalogs via us
+
+    searchdb.build(catalogs_dir)
+    return path
 
 
 def load_all_catalogs(catalogs_dir: Path) -> list[dict]:

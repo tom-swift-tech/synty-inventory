@@ -480,5 +480,34 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root:
         f"canonical POI query set = {poi_bytes} bytes (ceiling {TOKEN_BUDGET_BYTES})",
     )
 
+    # Phase 2 pin: search.db is derived from the catalogs; when present it
+    # must be fresh and row-complete (assets, placeable, fts all matching
+    # the JSON source of record). Absent = linear fallback, correct by
+    # construction — pass with a note (fixture dirs; same precedent as the
+    # godot/threejs skip gates). Live runs build it via scan / scan --index.
+    from . import searchdb
+
+    if searchdb.db_path(catalogs_dir).is_file():
+        want_total = sum(len(d.get("assets") or []) for d in docs)
+        want_placeable = sum(
+            1 for d in docs for a in d.get("assets") or [] if a.get("placeable") is not False
+        )
+        counts = searchdb.row_counts(catalogs_dir)
+        fresh = searchdb.is_fresh(catalogs_dir)
+        db_ok = (
+            fresh
+            and counts is not None
+            and counts["assets"] == want_total
+            and counts["placeable"] == want_placeable
+            and counts["fts"] == want_total
+        )
+        gate(
+            "search_db",
+            db_ok,
+            f"fresh={fresh} rows={counts} vs catalogs assets={want_total} placeable={want_placeable}",
+        )
+    else:
+        gate("search_db", True, "search.db absent — linear fallback (build with scan --index)")
+
     ok = all(g["ok"] for g in gates)
     return {"ok": ok, "gates": gates}

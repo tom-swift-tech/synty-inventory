@@ -8,6 +8,8 @@ tasks/
 # Generated catalogs / Synty previews if someone points config in-repo
 catalogs/
 previews/
+# Derived FTS index (rebuilt by scan / scan --index; JSON is source of record)
+search.db
 
 .venv/
 venv/
