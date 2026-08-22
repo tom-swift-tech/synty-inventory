@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from .catalog import load_all_catalogs
+from .project import slim_row
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 
@@ -49,32 +50,6 @@ def engine_files(asset: dict, engine: str | None) -> dict:
     if eng in {"godot", "threejs"}:
         return {"glb": files.get("glb"), "godot_scene": files.get("godot_scene")}
     return dict(files)
-
-
-def _result(pid: str, asset: dict, score: float | None = None, engine: str | None = None, why: bool = False) -> dict:
-    out = {
-        "pack_id": pid,
-        "id": asset.get("id"),
-        "name": asset.get("name"),
-        "type": asset.get("type"),
-        "placeable": asset.get("placeable"),
-        "category": asset.get("category"),
-        "tags": asset.get("tags"),
-        "semantic_role": asset.get("semantic_role"),
-        "semantic_detail": asset.get("semantic_detail"),
-        ("why" if why else "description"): asset.get("description"),
-        "placement": asset.get("placement"),
-        "module": asset.get("module"),
-        "part": asset.get("part"),
-        "bounds": asset.get("bounds"),
-        "dimensions": asset.get("dimensions"),
-        "files": engine_files(asset, engine),
-        "paths": asset.get("paths"),
-        "ai_notes": asset.get("ai_notes"),
-    }
-    if score is not None:
-        out["score"] = round(score, 2)
-    return out
 
 
 def _match_v2_filters(
@@ -239,6 +214,7 @@ def search_assets(
     part_classes: list[str] | None = None,
     include_nonplaceable: bool = False,
     engine: str | None = None,
+    fields: list[str] | None = None,
 ) -> list[dict]:
     scored: list[tuple[float, str, dict]] = []
     for pid, _doc, asset in _iter_assets(catalogs_dir, pack):
@@ -261,7 +237,7 @@ def search_assets(
             continue
         scored.append((s, pid, asset))
     scored.sort(key=lambda r: (-r[0], r[1], r[2].get("id") or ""))
-    return [_result(pid, asset, s, engine) for s, pid, asset in scored[:limit]]
+    return [slim_row(pid, asset, engine=engine, fields=fields, score=s) for s, pid, asset in scored[:limit]]
 
 
 def get_asset_details(catalogs_dir: Path, asset_id_or_name: str) -> dict | None:
@@ -319,6 +295,7 @@ def suggest_assets_for(
     limit: int = 12,
     include_nonplaceable: bool = False,
     engine: str | None = None,
+    fields: list[str] | None = None,
 ) -> list[dict]:
     extra = _expand_context(context)
     low = context.lower()
@@ -358,7 +335,7 @@ def suggest_assets_for(
             continue
         scored.append((s, pid, asset))
     scored.sort(key=lambda r: (-r[0], r[1], r[2].get("id") or ""))
-    return [_result(pid, asset, s, engine, why=True) for s, pid, asset in scored[:limit]]
+    return [slim_row(pid, asset, engine=engine, fields=fields, score=s) for s, pid, asset in scored[:limit]]
 
 
 def get_placement_guidance(catalogs_dir: Path, asset_id: str) -> dict | None:

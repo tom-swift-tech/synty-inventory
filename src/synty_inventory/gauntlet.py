@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from .query import (
     suggest_assets_for,
     suggest_recipes_for,
 )
-from .recipes import load_recipes, resolve_recipe
+from .recipes import kit_family, load_recipes, resolve_recipe
 from .schema import validate_catalog
 from .sources.godot import SLUG_PACK_OVERRIDES as GODOT_SLUG_PACK_OVERRIDES
 from .sources.godot import discover_pack_dirs as discover_godot_pack_dirs
@@ -33,6 +34,12 @@ GODOT_COVERAGE_FLOOR = 0.90
 
 
 QUALITY_IDS = ("SM_Prop_Sign_Police_01", "SM_Prop_Sign_Barber_01")
+
+# Ceiling in JSON bytes for the canonical POI query set (see token_budget
+# gate). Measured 48 KB on the full 12-pack catalogs with slim rows and
+# recipe limit_per_step=16; pinned ~33% above so real regressions trip the
+# gate without being brittle to a handful of new assets.
+TOKEN_BUDGET_BYTES = 64_000
 
 
 def _rich_enough(asset: dict) -> list[str]:
@@ -451,6 +458,27 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root:
         and not a["id"].upper().startswith(("SM_", "SK_", "CHR_"))
     ]
     gate("nonplaceable_packs", not nonplace, f"{len(nonplace)} ANIMATION_/INTERFACE_ non-mesh assets still placeable {nonplace[:5]}")
+
+    # Phase 1 pin: the canonical "assemble a POI" call set must stay cheap
+    # in an agent's context. Slim rows put the full-catalog set at ~48 KB
+    # (search 20 ≈ 4.6 KB, suggest ≈ 3 KB, ship_kit + main_street_row
+    # resolves ≈ 37 KB, kit Apartment ≈ 3.5 KB) vs ~290 KB before
+    # projection. Partial/fixture catalogs emit less and pass trivially.
+    poi_calls: list = [
+        search_assets(catalogs_dir, "police station", limit=20),
+        suggest_assets_for(catalogs_dir, "police station facade"),
+        kit_family(catalogs_dir, "Apartment", "POLYGON_City"),
+    ]
+    for rid, pack in (("ship_kit", None), ("main_street_row", "POLYGON_City")):
+        rec = recipes.get(rid)
+        if rec:
+            poi_calls.append(resolve_recipe(catalogs_dir, rec, pack=pack))
+    poi_bytes = sum(len(json.dumps(c)) for c in poi_calls)
+    gate(
+        "token_budget",
+        poi_bytes <= TOKEN_BUDGET_BYTES,
+        f"canonical POI query set = {poi_bytes} bytes (ceiling {TOKEN_BUDGET_BYTES})",
+    )
 
     ok = all(g["ok"] for g in gates)
     return {"ok": ok, "gates": gates}

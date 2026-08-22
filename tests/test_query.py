@@ -85,6 +85,12 @@ def test_query_api(tmp_path: Path):
 
     hits = search_assets(tmp_path, "police")
     assert hits[0]["id"] == "SM_Prop_Sign_Police_01"
+    # slim rows by default: prose/placement stay behind `details` / --fields
+    assert hits[0]["pack"] == "POLYGON_City"
+    assert "description" not in hits[0] and "placement" not in hits[0]
+    wide = search_assets(tmp_path, "police", fields=["description", "placement"])
+    assert wide[0]["description"].startswith("Police Sign")
+    assert wide[0]["placement"]["mount"] == "wall"
 
     details = get_asset_details(tmp_path, "SM_Prop_Sign_Police_01")
     assert details["semantic_role"] == "building_identity"

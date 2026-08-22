@@ -18,6 +18,28 @@ obey `placement`, `bounds`, `module` / `part` and the recipe constraints.
 One catalog serves every engine: `--engine unity|unreal|godot|threejs` only
 selects which `files.*` path is printed; semantics never change.
 
+## Slim rows first, `details` second
+
+Read `<catalogs>/index.json` before anything else: per-pack asset / placeable
+/ measured / reviewed counts, kit family names and recipe ids — it answers
+"what is here" without a query. Every list verb (`search`, `suggest`,
+`recipe`, `kit`) then returns **slim rows** (~200 B):
+
+```
+{"id", "pack", "type", "role", "size": [x,y,z] m | null, "file", "score"?}
+```
+
+plus, only when the asset has them: `sockets` (ship-hull socket count),
+`slots` (mech slot count), `kit` + `kit_role` (module family/role),
+`part_class`, `glb_node` (node inside a bundle GLB). `file` is the one path
+for the target `--engine` (GLB fallback). Everything else — `description`,
+`placement`, `bounds` with pivot, `part` sockets/mount, `mech`
+skeleton/slots/variants — lives in the full record: get it with
+`details <id>` for the pieces you actually picked, or widen list rows with
+`--fields description,placement,part,mech,bounds,files` when you need a
+field across many rows. `recipe` caps eligible pieces per step at 16 by
+default (`eligible_count` reports the full pool; `--limit N` widens).
+
 ## Command
 
 ```
@@ -43,13 +65,13 @@ scan` first (`scan --rebuild` after rule/precedence changes).
 | Purpose | CLI |
 |---|---|
 | packs on disk | `list-packs` |
-| find pieces | `search QUERY [--pack P] [--type T] [--role R] [--module-role M] [--part-class C] [--tags a,b] [--category sign] [--constraints exterior_only] [--engine E] [--include-nonplaceable]` |
-| one record | `details ID` |
-| context → recipe pointer + ranked pieces | `suggest "fighter space ship" [--pack P] [--engine E]` → `{"recipes":[…],"assets":[…]}` (`--assets-only` for a bare list) |
+| find pieces (slim rows) | `search QUERY [--pack P] [--type T] [--role R] [--module-role M] [--part-class C] [--tags a,b] [--category sign] [--constraints exterior_only] [--engine E] [--fields a,b,c] [--include-nonplaceable]` |
+| one full record | `details ID` |
+| context → recipe pointer + ranked slim rows | `suggest "fighter space ship" [--pack P] [--engine E] [--fields a,b,c]` → `{"recipes":[…],"assets":[…]}` (`--assets-only` for a bare list) |
 | how to mount it | `placement ID` |
 | all grammars | `recipes [--pack P]` |
-| resolve a grammar to pieces with bounds + files | `recipe ID [--pack P] [--engine E] [--limit N]` (exit 4 when a required step has no candidates) |
-| modular family grouped by role | `kit Apartment` / `kit "*"` |
+| resolve a grammar to slim candidate rows | `recipe ID [--pack P] [--engine E] [--fields a,b,c] [--limit N]` (exit 4 when a required step has no candidates) |
+| modular family grouped by role (slim rows) | `kit Apartment` / `kit "*"` `[--pack P] [--engine E] [--fields a,b,c]` |
 
 ## Record fields that matter
 
@@ -67,17 +89,17 @@ scan` first (`scan --rebuild` after rule/precedence changes).
 ## How to assemble (buildings, blocks, ships)
 
 1. `suggest "<what the user wants>"`. If `recipes` is non-empty, take the first id.
-2. `recipe <id> --pack <pack> --engine <engine>`. Each `resolved_steps[]` entry has `role`, `count`, `layout`, `required`, `note` and `eligible[]` pieces with `bounds` and `files`. Stop and report if `complete` is false.
+2. `recipe <id> --pack <pack> --engine <engine>`. Each `resolved_steps[]` entry has `role`, `count`, `layout`, `required`, `note` and `eligible[]` slim rows (id, size, file). Stop and report if `complete` is false. Pick pieces from the slim rows, then `details <id>` (or re-run with `--fields part,mech,bounds`) for the sockets/mounts/pivots of the pieces you chose.
 3. Place step by step using `bounds.size` to stack / tile, `grid.snap` for positions, the recipe `constraints` (`do_not_scale`, `engines_at_rear`, `mirror_wings_in_pairs`, `one_identity_sign_per_frontage`, …) as hard rules.
 4. Modular buildings: `kit <family>` gives the family grouped by role — base → floors × n → roof, corners on corners, doors at street level, stairs/fire escapes on the blank side. Only `hero` shells stand alone.
-5. Ship kits: one `body`, `cockpit` at +Z, engines at -Z, wings in mirrored ± X pairs, gear under -Y. Put each child on the socket named by its `mount.parent_role` (mirror the copy for the opposite side): `body_pos + body.part.sockets[role].position - child.part.mount.position`, child unrotated (its `mount.normal` already opposes the socket normal; greebles may instead be rotated so `mount.normal == -socket.normal` onto any face); overlap the hull by 0.1–0.3 m when `mount.fit` is low or `source` is `aabb`. If `sockets`/`mount` are null, fall back to `bounds` faces. Whole `SM_Ship_*` are references, not parts.
-6. Mech kits (`recipe mech_kit`): pick ONE `SM_Veh_Mech_*` body, then either (a) load the master body GLB and set geo-node visibility to one of `mech.variants` (mix regions across variants freely — every combination is factory-compatible per slot), or (b) parent standalone attachment GLBs to `part.attach_bone` with identity local transform (pieces are authored in bone space). `l`/`r` slots come in mirrored pairs — fill both. One cockpit, one head; weapons go on `hand`/`chest` slots.
+5. Ship kits: one `body`, `cockpit` at +Z, engines at -Z, wings in mirrored ± X pairs, gear under -Y. Slim rows carry only the socket count — `details` on the hull and each chosen child gives `part.sockets` / `part.mount`. Put each child on the socket named by its `mount.parent_role` (mirror the copy for the opposite side): `body_pos + body.part.sockets[role].position - child.part.mount.position`, child unrotated (its `mount.normal` already opposes the socket normal; greebles may instead be rotated so `mount.normal == -socket.normal` onto any face); overlap the hull by 0.1–0.3 m when `mount.fit` is low or `source` is `aabb`. If `sockets`/`mount` are null, fall back to `bounds` faces. Whole `SM_Ship_*` are references, not parts.
+6. Mech kits (`recipe mech_kit`): pick ONE `SM_Veh_Mech_*` body (`details` it for `mech.skeleton/slots/variants`), then either (a) load the master body GLB and set geo-node visibility to one of `mech.variants` (mix regions across variants freely — every combination is factory-compatible per slot), or (b) parent standalone attachment GLBs to `part.attach_bone` with identity local transform (pieces are authored in bone space). `l`/`r` slots come in mirrored pairs — fill both. One cockpit, one head; weapons go on `hand`/`chest` slots.
 7. Instantiate the file for the target engine at authored scale.
 
 ## How to pick and place a single piece
 
 1. `search` / `suggest` for the context (`police station facade`, `first-floor barber pole`).
-2. `details` on the chosen id — read `semantic_role`, `description`, `bounds`.
+2. `details` on the chosen id — the full record: `description`, `bounds` with pivot, `placement`, `part`, `mech`.
 3. `placement` before instantiating: `mount` `wall` → attach via `attachment` (`back_side` / `side_bracket`) to the street facade; honour `preferred_floors`, `constraints` (`exterior_only`, `do_not_cover_windows`, `civic_facade_only`, `roadway_view`) and `preferred_contexts`.
 4. One identity sign per frontage.
 

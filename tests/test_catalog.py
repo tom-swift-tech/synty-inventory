@@ -64,3 +64,10 @@ def test_rebuild_index_keeps_other_packs(tmp_path: Path):
     assert by_id["PackA"]["errors"] == ["only this run"]
     assert by_id["PackB"]["assets"] == 3
     assert by_id["PackB"]["errors"] == []
+    # discovery header (Phase 1): totals + per-pack stats + recipe ids
+    assert index["totals"]["assets"] == 7
+    assert index["totals"]["placeable"] == 7
+    assert index["totals"]["reviewed"] == 0
+    assert by_id["PackA"]["placeable"] == 4
+    assert by_id["PackA"]["kits"] == []
+    assert "ship_kit" in index["recipes"]

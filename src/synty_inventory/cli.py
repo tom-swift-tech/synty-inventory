@@ -295,6 +295,7 @@ def cmd_search(args, cfg) -> int:
             part_classes=_csv(args.part_class),
             include_nonplaceable=args.include_nonplaceable,
             engine=args.engine,
+            fields=_csv(args.fields),
         )
     )
     return 0
@@ -340,11 +341,9 @@ def cmd_recipe(args, cfg) -> int:
             return _fail(f"ambiguous recipe {args.id}: {cands}", 3)
     if rec is None:
         return _fail(f"recipe not found: {args.id}", 3)
-    out = recipes.resolve_recipe(catalogs_dir, rec, pack=args.pack, limit_per_step=args.limit)
-    if args.engine:
-        for step in out["resolved_steps"]:
-            for piece in step["eligible"]:
-                piece["files"] = query.engine_files(piece, args.engine)
+    out = recipes.resolve_recipe(
+        catalogs_dir, rec, pack=args.pack, limit_per_step=args.limit, engine=args.engine, fields=_csv(args.fields)
+    )
     emit_json(out)
     return 0 if out.get("complete") else 4
 
@@ -352,9 +351,9 @@ def cmd_recipe(args, cfg) -> int:
 def cmd_kit(args, cfg) -> int:
     catalogs_dir = _catalogs(args, cfg)
     if args.family == "*" or args.family.lower() == "all":
-        emit_json(recipes.kit_families(catalogs_dir, args.pack))
+        emit_json(recipes.kit_families(catalogs_dir, args.pack, engine=args.engine, fields=_csv(args.fields)))
         return 0
-    fams = recipes.kit_family(catalogs_dir, args.family, args.pack)
+    fams = recipes.kit_family(catalogs_dir, args.family, args.pack, engine=args.engine, fields=_csv(args.fields))
     if not fams:
         return _fail(f"no module family matches: {args.family}", 3)
     emit_json(fams)
@@ -379,6 +378,7 @@ def cmd_suggest(args, cfg) -> int:
         limit=args.limit,
         include_nonplaceable=args.include_nonplaceable,
         engine=args.engine,
+        fields=_csv(args.fields),
     )
     if args.assets_only:
         emit_json(assets)
@@ -514,6 +514,7 @@ def build_parser() -> argparse.ArgumentParser:
     se.add_argument("--part-class", dest="part_class", default=None)
     se.add_argument("--include-nonplaceable", action="store_true")
     se.add_argument("--engine", choices=query.ENGINES, default=None, help="which files.* to print")
+    se.add_argument("--fields", default=None, help="comma list of full-record fields to add to each slim row (e.g. description,placement,part)")
     se.set_defaults(func=cmd_search)
 
     rl = sub.add_parser("recipes", help="List assembly recipes (package + asset-viewer types + user)")
@@ -523,13 +524,16 @@ def build_parser() -> argparse.ArgumentParser:
     rc = sub.add_parser("recipe", help="Resolve one recipe: grammar + eligible pieces with bounds/files")
     rc.add_argument("id")
     rc.add_argument("--pack", default=None)
-    rc.add_argument("--limit", type=int, default=40, help="eligible pieces per step")
+    rc.add_argument("--limit", type=int, default=16, help="eligible pieces per step (eligible_count reports the full pool)")
     rc.add_argument("--engine", choices=query.ENGINES, default=None)
+    rc.add_argument("--fields", default=None, help="comma list of full-record fields to add to each slim row (e.g. description,placement,part)")
     rc.set_defaults(func=cmd_recipe)
 
     kt = sub.add_parser("kit", help="Module family grouped by role (use '*' for all families)")
     kt.add_argument("family")
     kt.add_argument("--pack", default=None)
+    kt.add_argument("--engine", choices=query.ENGINES, default=None)
+    kt.add_argument("--fields", default=None, help="comma list of full-record fields to add to each slim row (e.g. description,placement,part)")
     kt.set_defaults(func=cmd_kit)
 
     de = sub.add_parser("details", help="get_asset_details(id)")
@@ -542,6 +546,7 @@ def build_parser() -> argparse.ArgumentParser:
     su.add_argument("--limit", type=int, default=12)
     su.add_argument("--include-nonplaceable", action="store_true")
     su.add_argument("--engine", choices=query.ENGINES, default=None)
+    su.add_argument("--fields", default=None, help="comma list of full-record fields to add to each slim row (e.g. description,placement,part)")
     su.add_argument("--assets-only", action="store_true", help="v1 output: a bare list of assets")
     su.set_defaults(func=cmd_suggest)
 

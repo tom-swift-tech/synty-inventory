@@ -121,10 +121,15 @@ def test_resolve_ship_kit_and_apartment(tmp_path):
     assert by_role["floor"]["eligible"][0]["id"] == "SM_Bld_Apartment_Floor_01"
     assert by_role["roof"]["eligible"][0]["id"] == "SM_Bld_Apartment_Roof_01"
     assert apt["complete"] is True
-    # every eligible piece carries bounds + per-engine files
+    # every eligible piece is a slim row: measured size + one file path
     piece = by_role["floor"]["eligible"][0]
-    assert piece["bounds"]["size"] == [5, 3, 5]
-    assert piece["files"]["glb"].endswith("SM_Bld_Apartment_Floor_01.glb")
+    assert piece["size"] == [5, 3, 5]
+    assert piece["file"].endswith("SM_Bld_Apartment_Floor_01.glb")
+    assert "bounds" not in piece and "files" not in piece  # full record is `details`
+    # --fields widens with full-record fields; --engine picks the file path
+    apt_wide = resolve_recipe(cat, recipes["apartment_block"], pack="POLYGON_City", fields=["bounds"])
+    wide = {s["role"]: s for s in apt_wide["resolved_steps"]}["floor"]["eligible"][0]
+    assert wide["bounds"]["size"] == [5, 3, 5]
 
 
 def test_missing_required_is_reported(tmp_path):
@@ -238,10 +243,14 @@ def _mech_catalog(tmp_path: Path) -> Path:
 def test_resolve_mech_kit(tmp_path):
     cat = _mech_catalog(tmp_path)
     recipes = load_recipes(cat)
-    res = resolve_recipe(cat, recipes["mech_kit"], pack="POLYGON_Mech")
+    res = resolve_recipe(cat, recipes["mech_kit"], pack="POLYGON_Mech", fields=["mech", "part"])
     by_role = {s["role"]: s for s in res["resolved_steps"]}
     assert [p["id"] for p in by_role["body"]["eligible"]] == ["SM_Veh_Mech_01"]
     assert by_role["body"]["eligible"][0]["mech"]["variants"]["SM_Veh_Mech_01"] == ["geo_l_lowerleg_knee_armor_01"]
     assert [p["id"] for p in by_role["leg"]["eligible"]] == ["SM_Mech_Leg_01_Armor_Kneepad_03"]
     assert by_role["leg"]["eligible"][0]["part"]["attach_bone"] == "LowerLeg_L"
     assert res["complete"] is True
+    # default (slim) rows advertise the slot/skeleton data without carrying it
+    slim = resolve_recipe(cat, recipes["mech_kit"], pack="POLYGON_Mech")
+    slim_body = {s["role"]: s for s in slim["resolved_steps"]}["body"]["eligible"][0]
+    assert "mech" not in slim_body and slim_body["slots"] == 1

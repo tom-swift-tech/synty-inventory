@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .catalog import load_all_catalogs
+from .project import slim_row
 
 PACKAGE_RECIPES_DIR = Path(__file__).parent / "recipes"
 
@@ -290,29 +291,13 @@ def asset_matches(asset: dict, pack_id: str, sel: dict) -> bool:
     return True
 
 
-def _piece_view(pack_id: str, asset: dict) -> dict:
-    return {
-        "pack_id": pack_id,
-        "id": asset.get("id"),
-        "name": asset.get("name"),
-        "type": asset.get("type"),
-        "semantic_role": asset.get("semantic_role"),
-        "semantic_detail": asset.get("semantic_detail"),
-        "module": asset.get("module"),
-        "part": asset.get("part"),
-        "mech": asset.get("mech"),
-        "bounds": asset.get("bounds"),
-        "placement": asset.get("placement"),
-        "files": asset.get("files"),
-        "tags": asset.get("tags"),
-    }
-
-
 def select_pieces(
     docs: Iterable[dict],
     sel: dict,
     pack: str | None = None,
     limit: int | None = None,
+    engine: str | None = None,
+    fields: list[str] | None = None,
 ) -> list[dict]:
     out: list[dict] = []
     for doc in docs:
@@ -321,8 +306,8 @@ def select_pieces(
             continue
         for asset in doc.get("assets") or []:
             if asset_matches(asset, pid, sel):
-                out.append(_piece_view(pid, asset))
-    out.sort(key=lambda p: (p["pack_id"], p["id"] or ""))
+                out.append(slim_row(pid, asset, engine=engine, fields=fields))
+    out.sort(key=lambda p: (p["pack"], p["id"] or ""))
     return out[:limit] if limit else out
 
 
@@ -330,13 +315,15 @@ def resolve_recipe(
     catalogs_dir: Path,
     recipe: dict,
     pack: str | None = None,
-    limit_per_step: int = 40,
+    limit_per_step: int = 16,
+    engine: str | None = None,
+    fields: list[str] | None = None,
 ) -> dict:
     docs = load_all_catalogs(catalogs_dir)
     steps_out = []
     missing_required = []
     for step in recipe.get("steps") or []:
-        pieces = select_pieces(docs, step.get("select") or {}, pack=pack, limit=limit_per_step)
+        pieces = select_pieces(docs, step.get("select") or {}, pack=pack, limit=limit_per_step, engine=engine, fields=fields)
         total = len(select_pieces(docs, step.get("select") or {}, pack=pack))
         if step.get("required") and not pieces:
             missing_required.append(step.get("role"))
@@ -355,8 +342,15 @@ def resolve_recipe(
     return out
 
 
-def kit_families(catalogs_dir: Path, pack: str | None = None) -> dict[str, dict]:
-    """Group module pieces by family → role → ids (what an assembler stacks)."""
+def kit_families(
+    catalogs_dir: Path,
+    pack: str | None = None,
+    engine: str | None = None,
+    fields: list[str] | None = None,
+) -> dict[str, dict]:
+    """Group module pieces by family → role → slim rows (what an assembler
+    stacks). Pack and kit are already on the family entry, so per-piece rows
+    keep only id / size / file (plus any ``fields`` asked for)."""
     out: dict[str, dict] = {}
     for doc in load_all_catalogs(catalogs_dir):
         pid = doc.get("pack_id") or ""
@@ -370,9 +364,10 @@ def kit_families(catalogs_dir: Path, pack: str | None = None) -> dict[str, dict]
             key = f"{fam}@{pid}"
             entry = out.setdefault(key, {"family": fam, "pack_id": pid, "roles": {}, "count": 0})
             role = module.get("role") or "misc"
-            entry["roles"].setdefault(role, []).append(
-                {"id": asset.get("id"), "bounds": asset.get("bounds"), "files": asset.get("files")}
-            )
+            row = slim_row(pid, asset, engine=engine, fields=fields)
+            for drop in ("pack", "type", "role", "kit", "kit_role"):
+                row.pop(drop, None)
+            entry["roles"].setdefault(role, []).append(row)
             entry["count"] += 1
     for entry in out.values():
         for role in entry["roles"]:
@@ -380,8 +375,14 @@ def kit_families(catalogs_dir: Path, pack: str | None = None) -> dict[str, dict]
     return dict(sorted(out.items()))
 
 
-def kit_family(catalogs_dir: Path, family: str, pack: str | None = None) -> list[dict]:
-    fams = kit_families(catalogs_dir, pack)
+def kit_family(
+    catalogs_dir: Path,
+    family: str,
+    pack: str | None = None,
+    engine: str | None = None,
+    fields: list[str] | None = None,
+) -> list[dict]:
+    fams = kit_families(catalogs_dir, pack, engine=engine, fields=fields)
     needle = family.lower()
     return [v for k, v in fams.items() if v["family"].lower() == needle or needle in v["family"].lower()]
 

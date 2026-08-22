@@ -49,14 +49,30 @@ def write_catalog(path: Path, doc: dict) -> Path:
     return path
 
 
-def write_index(catalogs_dir: Path, packs: list[dict]) -> Path:
+def write_index(catalogs_dir: Path, packs: list[dict], extra: dict | None = None) -> Path:
     doc = {
         "version": CATALOG_VERSION,
         "updated_at": now_iso(),
         "catalogs_dir": posix(catalogs_dir),
+        **(extra or {}),
         "packs": packs,
     }
     return write_catalog(catalogs_dir / "index.json", doc)
+
+
+def _pack_stats(doc: dict) -> dict:
+    """Discovery stats for index.json — what an agent reads before any query."""
+    assets = doc.get("assets") or []
+    placeable = [a for a in assets if a.get("placeable") is not False]
+    reviewed = sum(1 for a in assets if (a.get("provenance") or {}).get("description") == "vlm_reviewed")
+    measured = sum(1 for a in placeable if (a.get("bounds") or {}).get("source") == "measured")
+    kits = sorted({(a.get("module") or {}).get("family") for a in assets if (a.get("module") or {}).get("family")})
+    return {
+        "placeable": len(placeable),
+        "measured": measured,
+        "reviewed": reviewed,
+        "kits": kits,
+    }
 
 
 def rebuild_index(catalogs_dir: Path, run_summaries: list[dict] | None = None) -> Path:
@@ -76,6 +92,7 @@ def rebuild_index(catalogs_dir: Path, run_summaries: list[dict] | None = None) -
             "pack_id": pid,
             "engine": doc.get("engine"),
             "assets": doc.get("asset_count") or len(doc.get("assets") or []),
+            **_pack_stats(doc),
             "catalog": extra.get("catalog") or posix(catalog_path(catalogs_dir, pid)),
             "errors": extra.get("errors") or [],
             "source": extra["source"] if "source" in extra else doc.get("source"),
@@ -84,7 +101,24 @@ def rebuild_index(catalogs_dir: Path, run_summaries: list[dict] | None = None) -
         if pid not in by_id:
             by_id[pid] = extra
     packs = [by_id[key] for key in sorted(by_id)]
-    return write_index(catalogs_dir, packs)
+    # Discovery header: totals + recipe ids, so an agent's first read answers
+    # "what is here and what can I ask for" without loading any catalog.
+    # Viewer-derived building types are added at query time (`recipes` verb);
+    # only package + user recipes are known from the catalogs dir alone.
+    from .recipes import load_recipes  # local import: recipes imports catalog
+
+    totals = {
+        "assets": sum(p.get("assets") or 0 for p in packs),
+        "placeable": sum(p.get("placeable") or 0 for p in packs),
+        "measured": sum(p.get("measured") or 0 for p in packs),
+        "reviewed": sum(p.get("reviewed") or 0 for p in packs),
+    }
+    extra_doc = {
+        "totals": totals,
+        "recipes": sorted(load_recipes(catalogs_dir)),
+        "hint": "search/suggest/recipe/kit return slim rows; `details <id>` is the full record; `--fields a,b,c` widens",
+    }
+    return write_index(catalogs_dir, packs, extra_doc)
 
 
 def load_all_catalogs(catalogs_dir: Path) -> list[dict]:
