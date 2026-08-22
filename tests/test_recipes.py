@@ -5,7 +5,6 @@ from pathlib import Path
 
 from synty_inventory.catalog import write_catalog
 from synty_inventory.recipes import (
-    PACKAGE_RECIPES_DIR,
     kit_family,
     load_recipes,
     match_recipes,
@@ -98,12 +97,17 @@ def _catalogs(tmp_path: Path) -> Path:
 
 
 def test_package_recipes_are_valid():
-    files = sorted(PACKAGE_RECIPES_DIR.glob("*.json"))
-    assert {f.stem for f in files} >= {"ship_kit", "station_interior", "main_street_row", "apartment_block"}
-    for f in files:
-        doc = json.loads(f.read_text(encoding="utf-8"))
-        assert validate_recipe(doc) == [], (f.name, validate_recipe(doc))
-        assert doc["id"] == f.stem
+    from importlib.resources import files as pkg_files
+
+    root = pkg_files("synty_inventory").joinpath("recipes")
+    entries = sorted((e for e in root.iterdir() if e.name.endswith(".json")), key=lambda e: e.name)
+    stems = {e.name.removesuffix(".json") for e in entries}
+    assert stems >= {"ship_kit", "station_interior", "main_street_row", "apartment_block"}
+    for e in entries:
+        doc = json.loads(e.read_text(encoding="utf-8"))
+        stem = e.name.removesuffix(".json")
+        assert validate_recipe(doc) == [], (e.name, validate_recipe(doc))
+        assert doc["id"] == stem
 
 
 def test_resolve_ship_kit_and_apartment(tmp_path):

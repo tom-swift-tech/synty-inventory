@@ -1,9 +1,12 @@
 from pathlib import Path
 
+from synty_inventory.sources import unreal
 from synty_inventory.sources.unreal import (
     apply_unreal_overlay,
     asset_index,
+    collision_pack_dirs,
     discover_pack_dirs,
+    unmapped_pack_dirs,
 )
 
 
@@ -25,8 +28,36 @@ def test_discover_pack_dirs_uses_folder_name_as_pack_id(tmp_path: Path):
     (tmp_path / "polygon-city-01").mkdir()
     mapped = discover_pack_dirs(tmp_path)
     assert mapped["POLYGON_City"] == tmp_path / "POLYGON_City"
-    assert mapped["polygon-city-01"] == tmp_path / "polygon-city-01"
     assert "Polygon_City" not in mapped
+    # A vendor slug is not pack-id shaped: never a bogus pack_id, reported
+    # instead so the operator adds SLUG_PACK_OVERRIDES.
+    assert "polygon-city-01" not in mapped
+    assert unmapped_pack_dirs(tmp_path) == [{"slug": "polygon-city-01", "guess": "Polygon_City"}]
+
+
+def test_discover_pack_dirs_override_beats_literal_and_reports_collision(tmp_path: Path, monkeypatch):
+    """Transitional layout: a renamed vendor drop mapped via overrides kept
+    beside the old literally-named export. The explicit mapping wins; the
+    dropped folder is reported, never silently discarded."""
+    (tmp_path / "POLYGON_City").mkdir()
+    (tmp_path / "unreal-city").mkdir()
+    monkeypatch.setitem(unreal.SLUG_PACK_OVERRIDES, "unreal-city", "POLYGON_City")
+    mapped = discover_pack_dirs(tmp_path)
+    assert mapped == {"POLYGON_City": tmp_path / "unreal-city"}
+    assert collision_pack_dirs(tmp_path) == [
+        {"pack_id": "POLYGON_City", "kept": "unreal-city", "dropped": "POLYGON_City"}
+    ]
+    # The overridden slug is mapped, not "unmapped"; the literal loser is a
+    # collision, not an unmapped folder.
+    assert unmapped_pack_dirs(tmp_path) == []
+
+
+def test_collision_and_unmapped_empty_on_clean_tree(tmp_path: Path):
+    (tmp_path / "POLYGON_City").mkdir()
+    assert collision_pack_dirs(tmp_path) == []
+    assert unmapped_pack_dirs(tmp_path) == []
+    assert collision_pack_dirs(None) == []
+    assert unmapped_pack_dirs(None) == []
 
 
 def test_asset_index_exact_and_case_insensitive_match(tmp_path: Path):
