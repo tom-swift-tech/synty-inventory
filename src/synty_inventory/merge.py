@@ -16,6 +16,7 @@ SCANNER_OWNED = ("id", "paths", "files", "kit", "guid", "engine_paths")
 # or curated (hand-authored, exact-id) override.
 PROVENANCE_RANK = {
     "rules": 1,
+    "declared": 2,
     "viewer": 2,
     "measured": 3,
     "vlm": 3,
@@ -71,7 +72,7 @@ def is_human_field(old: dict, field: str) -> bool:
         return True
     # Hash mismatch only counts as a human edit when provenance is absent.
     # Viewer/rules/vlm overlays often change text after the last stamp.
-    if prov in {"rules", "viewer", "vlm", "vlm_reviewed", "measured", "curated"}:
+    if prov in {"rules", "declared", "viewer", "vlm", "vlm_reviewed", "measured", "curated"}:
         return False
     auto = (old.get("_auto") or {}).get(field)
     if auto is None:
@@ -102,6 +103,12 @@ def merge_asset(old: dict | None, new: dict) -> dict:
     for key in ("kit", "guid", "shared_kit"):
         if new.get(key) is not None:
             out[key] = new[key]
+    # Generator provenance metadata is scanner-owned for GEN packs: a fresh
+    # scan re-reads the sidecar (docs/gen_manifest_v1.md) and must refresh
+    # the block (supersedes chain, new seed/created on regeneration).
+    for key in ("generation", "source", "license"):
+        if new.get(key) is not None:
+            out[key] = new[key]
     # Measured bounds always win; a fresh scan that has no measurement keeps
     # whatever bounds the old record had (measured or null). Never regress
     # measured → null, never accept a fake size.
@@ -122,7 +129,7 @@ def merge_asset(old: dict | None, new: dict) -> dict:
         old_prov = (old.get("provenance") or {}).get(field)
         new_prov = (new.get("provenance") or {}).get(field, "rules")
         # vlm / human incoming may replace rules; rules do not clobber vlm
-        # Plan precedence: human > curated > vlm_reviewed > measured > viewer > rules
+        # Plan precedence: human > curated > vlm_reviewed > measured > viewer/declared > rules
         # (with the curated->vlm_reviewed name/description/tags exception in
         # FORCE_OVERLAY_PAIRS above — a rescan must not discard the same
         # overlay that a single build_catalog() pass would have applied).

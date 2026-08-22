@@ -176,10 +176,21 @@ def cmd_scan(args, cfg) -> int:
     godot_root = _engine_root(cfg, "godot_root")
     unreal_root = _engine_root(cfg, "unreal_root")
     refs = discover(target, extracted_root=cfg.get("extracted_root"))
+    # Generator-fed GEN_* packs live under threejs_v2, not the Unity root
+    # (docs/gen_manifest_v1.md). Default scans pick them all up; an explicit
+    # --path may point straight at one GEN pack dir.
+    from .sources.manifest import discover_gen_packs, gen_pack_ref
+
+    if args.path:
+        gref = gen_pack_ref(target)
+        if gref is not None:
+            refs.append(gref)
+    else:
+        refs.extend(discover_gen_packs(threejs_v2))
     if args.pack:
         refs = [r for r in refs if args.pack.lower() in r.pack_id.lower()]
     if not refs:
-        return _fail(f"no Synty packs found under {target}")
+        return _fail(f"no Synty or GEN packs found under {target}")
     if threejs_v2 is None:
         print(
             "warning: threejs_v2 not configured (or path missing) — "
@@ -205,7 +216,12 @@ def cmd_scan(args, cfg) -> int:
 
     summaries = []
     for ref in refs:
-        if not ref.extracted_path and not ref.package_path and not ref.unreal_path:
+        if (
+            not ref.extracted_path
+            and not ref.package_path
+            and not ref.unreal_path
+            and not ref.extras.get("gen_dir")
+        ):
             summaries.append({"pack_id": ref.pack_id, "error": "no extracted tree or package"})
             continue
         doc, errors = scan_and_write(
@@ -242,6 +258,9 @@ def cmd_scan(args, cfg) -> int:
                 "errors": errors,
                 "source": doc.get("source"),
                 "measure": doc.get("_measure_stats"),
+                # Phase 3 permissive: sidecar problems are reported, not fatal
+                # (Phase 4's manifest_present gate hard-rejects).
+                "gen_errors": doc.get("_gen_errors") or [],
             }
         )
     rebuild_index(catalogs_dir, summaries)

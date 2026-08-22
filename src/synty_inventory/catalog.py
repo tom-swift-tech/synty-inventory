@@ -161,7 +161,15 @@ def build_catalog(
         "unitypackage": posix(ref.package_path) if ref.package_path else None,
         "unreal": posix(ref.unreal_path) if ref.unreal_path else None,
     }
-    if engine == "Unreal" and ref.unreal_path:
+    if engine == "GLB" and ref.extras.get("gen_dir"):
+        # Generator-fed pack (docs/gen_manifest_v1.md): skeletons come from
+        # the GLB stems + sidecar manifests, not a Unity/Unreal tree.
+        from .sources.manifest import scan_gen
+
+        gen_dir = ref.extras["gen_dir"]
+        raw = scan_gen(threejs_v2 or gen_dir.parent, ref.pack_id)
+        source["gen"] = posix(gen_dir)
+    elif engine == "Unreal" and ref.unreal_path:
         raw = scan_unreal(ref.unreal_path)
     elif ref.extracted_path and not from_package:
         raw = scan_extracted(ref.extracted_path, include_shared=include_shared)
@@ -178,7 +186,7 @@ def build_catalog(
     doc = {
         "pack_id": ref.pack_id,
         "engine": engine,
-        "origin": "Synty",
+        "origin": "Generated" if engine == "GLB" else "Synty",
         "style": knowledge.pack_style(ref.pack_id),
         "units": "meters",
         "version": CATALOG_VERSION,

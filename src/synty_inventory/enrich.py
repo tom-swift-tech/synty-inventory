@@ -10,6 +10,7 @@ from . import knowledge
 from .merge import stamp_auto
 from .sources.glb_measure import apply_measured_bounds, bundle_index, load_cache, save_cache
 from .sources.godot import apply_godot_overlay, scene_index
+from .sources.manifest import apply_gen_overlay, load_gen_entries
 from .sources.mech import apply_mech_catalog
 from .sources.sockets import apply_part_sockets
 from .sources.threejs_v2 import apply_threejs_overlay, bundle_glbs, catalog_by_id, glb_index
@@ -280,6 +281,7 @@ def enrich_catalog(
     bundles = bundle_index(threejs_v2, pack_id, bundle_glbs(threejs_v2, pack_id))
     godot_exact, godot_ci = scene_index(godot_root, pack_id)
     unreal_exact, unreal_ci = unreal_asset_index(unreal_root, pack_id)
+    gen_entries = load_gen_entries(threejs_v2, pack_id)  # empty unless GEN_* pack
 
     cache_path = (catalogs_dir / "_measure_cache.json") if catalogs_dir else None
     cache = load_cache(cache_path) if cache_path else {}
@@ -291,6 +293,7 @@ def enrich_catalog(
         apply_viewer_module(asset, pieces.get(asset["id"]))
         glb_rel = glb_exact.get(asset["id"]) or glb_ci.get(asset["id"].lower())
         apply_threejs_overlay(asset, tj_catalog.get(asset["id"]), glb_rel)
+        apply_gen_overlay(asset, gen_entries.get(asset["id"]))
         scene_rel = godot_exact.get(asset["id"]) or godot_ci.get(asset["id"].lower())
         apply_godot_overlay(asset, scene_rel)
         uasset_rel = unreal_exact.get(asset["id"]) or unreal_ci.get(asset["id"].lower())
@@ -311,6 +314,15 @@ def enrich_catalog(
             vlm_done += 1
 
     apply_mech_catalog(catalog, cache, stats)
+
+    if gen_entries:
+        # Phase 3 is permissive: a missing/invalid sidecar still ingests as a
+        # rules-only skeleton, but the errors are surfaced here (and via the
+        # scan summary). Phase 4's manifest_present gate hard-rejects.
+        stats["gen_declared"] = sum(1 for e in gen_entries.values() if e.manifest)
+        gen_errors = sorted(err for e in gen_entries.values() for err in e.errors)
+        if gen_errors:
+            catalog["_gen_errors"] = gen_errors
 
     if cache_path is not None and cache:
         save_cache(cache_path, cache)

@@ -271,7 +271,16 @@ MECH_REGIONS = (
     "uppershin",
 )
 MECH_SIDES = ("l", "r", "c")
-PROVENANCES = ("rules", "viewer", "vlm", "vlm_reviewed", "measured", "curated", "human")
+PROVENANCES = ("rules", "declared", "viewer", "vlm", "vlm_reviewed", "measured", "curated", "human")
+
+# Asset-level source of the mesh itself. Synty assets carry no "source" key
+# (absent => "synty"); generator-fed assets are stamped "generated" and must
+# carry a generation block + license (docs/gen_manifest_v1.md).
+ASSET_SOURCES = ("synty", "generated")
+GEN_PIVOTS = ("base", "center")
+# generation block keys a valid generated asset must carry (subset of what
+# ingest stores; see sources/manifest.py).
+GENERATION_REQUIRED = ("model", "pipeline_version", "prompt", "created")
 
 FILE_KEYS = ("unity_prefab", "unity_mesh", "unity_materials", "glb", "unreal_uasset", "godot_scene")
 
@@ -356,7 +365,7 @@ def empty_part() -> dict[str, Any]:
 
 SOCKET_AXES = ("+x", "-x", "+y", "-y", "+z", "-z")
 SOCKET_ROLES = ("front", "rear", "left", "right", "top", "bottom")
-SOCKET_SOURCES = ("measured", "aabb")
+SOCKET_SOURCES = ("measured", "aabb", "declared")
 
 
 def validate_socket(face: Any, prefix: str, errors: list[str], *, need_role: bool) -> None:
@@ -739,6 +748,36 @@ def validate_asset(asset: Any, prefix: str, errors: list[str]) -> None:
     for field, value in prov.items():
         if value not in PROVENANCES:
             errors.append(f"{prefix}.provenance.{field} invalid: {value!r}")
+    validate_generated(asset, prefix, errors)
+
+
+def validate_generated(asset: dict, prefix: str, errors: list[str]) -> None:
+    """Generated-asset invariants: source enum; generation block implies
+    source=="generated" and a license; required generation keys present.
+    Synty assets (no "source" key) are untouched."""
+    source = asset.get("source")
+    if source is not None and source not in ASSET_SOURCES:
+        errors.append(f"{prefix}.source invalid: {source!r}")
+    gen = asset.get("generation")
+    if gen is None:
+        if source == "generated":
+            errors.append(f"{prefix}.generation missing for source=generated")
+        return
+    if not isinstance(gen, dict):
+        errors.append(f"{prefix}.generation must be an object")
+        return
+    if source != "generated":
+        errors.append(f"{prefix}.source must be 'generated' when generation is present")
+    if not (isinstance(asset.get("license"), str) and asset["license"].strip()):
+        errors.append(f"{prefix}.license required for generated assets")
+    for key in GENERATION_REQUIRED:
+        if not gen.get(key):
+            errors.append(f"{prefix}.generation.{key} missing or empty")
+    size = gen.get("intended_size_m")
+    if size is not None and not (_is_vec3(size) and all(v > 0 for v in size)):
+        errors.append(f"{prefix}.generation.intended_size_m must be a positive [x,y,z]")
+    if gen.get("pivot") is not None and gen["pivot"] not in GEN_PIVOTS:
+        errors.append(f"{prefix}.generation.pivot invalid: {gen['pivot']!r}")
 
 
 def validate_catalog(doc: dict) -> list[str]:
