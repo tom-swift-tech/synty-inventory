@@ -6,6 +6,7 @@ import pytest
 from synty_inventory.paths import (
     CONFIG_KEYS,
     ConfigError,
+    _as_path,
     example_file,
     find_config_file,
     load_config,
@@ -69,6 +70,13 @@ def test_source_has_no_machine_paths():
         if host_abs.search(text):
             offenders.append(str(path.relative_to(root)))
     assert offenders == []
+
+
+def test_as_path_keeps_windows_drive_absolute(tmp_path: Path):
+    """C:/... must not be joined onto the config dir on POSIX (Linux CI)."""
+    assert posix(_as_path("C:/lib/Unity", tmp_path)) == "C:/lib/Unity"
+    assert posix(_as_path(r"D:\extracted", tmp_path)).replace("\\", "/") == "D:/extracted"
+    assert _as_path("viewer/data", tmp_path) == tmp_path / "viewer" / "data"
 
 
 def test_load_config_from_explicit_file(tmp_path: Path, monkeypatch):

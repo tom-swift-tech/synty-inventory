@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 try:
     import yaml
@@ -96,10 +96,13 @@ def _load_yaml(path: Path) -> dict:
 
 
 def _as_path(raw: str, base: Path) -> Path:
-    path = Path(str(raw).strip()).expanduser()
-    if not path.is_absolute():
-        path = (base / path)
-    return path
+    text = str(raw).strip()
+    path = Path(text).expanduser()
+    # Drive-letter paths (C:/...) are absolute on Windows but relative on
+    # POSIX — without this, Linux CI joins them onto the config directory.
+    if path.is_absolute() or PureWindowsPath(text).is_absolute():
+        return path
+    return base / path
 
 
 def find_config_file(explicit: Path | None = None) -> Path | None:
