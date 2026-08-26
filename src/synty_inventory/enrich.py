@@ -12,8 +12,14 @@ from .sources.glb_measure import apply_measured_bounds, bundle_index, load_cache
 from .sources.godot import apply_godot_overlay, scene_index
 from .sources.manifest import apply_gen_overlay, load_gen_entries
 from .sources.mech import apply_mech_catalog
-from .sources.sockets import apply_part_sockets
-from .sources.threejs_v2 import apply_threejs_overlay, bundle_glbs, catalog_by_id, glb_index
+from .sources.sockets import apply_part_sockets, apply_prop_contact
+from .sources.threejs_v2 import (
+    _tune_kit_placement,
+    apply_threejs_overlay,
+    bundle_glbs,
+    catalog_by_id,
+    glb_index,
+)
 from .sources.unreal import apply_unreal_overlay, asset_index as unreal_asset_index
 from .sources.viewer import (
     apply_viewer_module,
@@ -293,6 +299,7 @@ def enrich_catalog(
         apply_viewer_module(asset, pieces.get(asset["id"]))
         glb_rel = glb_exact.get(asset["id"]) or glb_ci.get(asset["id"].lower())
         apply_threejs_overlay(asset, tj_catalog.get(asset["id"]), glb_rel)
+        _tune_kit_placement(asset)
         apply_gen_overlay(asset, gen_entries.get(asset["id"]))
         scene_rel = godot_exact.get(asset["id"]) or godot_ci.get(asset["id"].lower())
         apply_godot_overlay(asset, scene_rel)
@@ -300,6 +307,7 @@ def enrich_catalog(
         apply_unreal_overlay(asset, uasset_rel)
         apply_measured_bounds(asset, threejs_v2, cache, stats, bundles=bundles)
         apply_part_sockets(asset, threejs_v2, cache, stats)
+        apply_prop_contact(asset, threejs_v2, cache, stats)
         stamp_auto(asset)
         if vlm_fn is None:
             continue

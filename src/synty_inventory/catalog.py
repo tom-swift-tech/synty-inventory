@@ -182,6 +182,13 @@ def build_catalog(
     else:
         raw = []
 
+    # Converted GLBs that have no Unity prefab/FBX still belong in the catalog.
+    if engine != "GLB" and threejs_v2 is not None:
+        from .sources.threejs_v2 import glb_raw_assets
+
+        have = {r.id for r in raw}
+        raw.extend(extra for extra in glb_raw_assets(threejs_v2, ref.pack_id) if extra.id not in have)
+
     assets = [skeleton_asset(r, ref.pack_id, viewer_data) for r in raw]
     doc = {
         "pack_id": ref.pack_id,

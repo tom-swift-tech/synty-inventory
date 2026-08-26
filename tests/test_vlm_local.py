@@ -112,4 +112,38 @@ def test_defaults_match_setting_defaults():
 
     assert vlm.LOCAL_DEFAULT_URL == SETTING_DEFAULTS["vlm_local_url"]
     assert vlm.LOCAL_DEFAULT_MODEL == SETTING_DEFAULTS["vlm_local_model"]
-    assert SETTING_DEFAULTS["vlm_local_model"] == "gemma4:26b"
+    assert vlm.HOSTED_DEFAULT_MODEL == "grok-4.6"
+
+
+def test_hosted_endpoint_defaults_to_grok_46_on_xai(monkeypatch):
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+    monkeypatch.delenv("SYNTI_VLM_MODEL", raising=False)
+    monkeypatch.delenv("SYNTI_VLM_BASE_URL", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("SYNTI_VLM_API_KEY", raising=False)
+    key, base, model = vlm._endpoint()
+    assert key == "test-key"
+    assert base == "https://api.x.ai/v1"
+    assert model == "grok-4.6"
+
+
+def test_query_hosted_vlm_posts_images_and_json_format(monkeypatch, tmp_path):
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+    seen = {}
+
+    def fake_urlopen(req, timeout=None):
+        seen["url"] = req.full_url
+        seen["body"] = json.loads(req.data.decode("utf-8"))
+        return _FakeResponse({"choices": [{"message": {"content": '{"name": "Bay"}'}}]})
+
+    monkeypatch.setattr(vlm.urllib.request, "urlopen", fake_urlopen)
+    result = vlm.query_hosted_vlm([_image(tmp_path)], "describe")
+    assert result == {"name": "Bay"}
+    assert seen["url"] == "https://api.x.ai/v1/chat/completions"
+    assert seen["body"]["model"] == "grok-4.6"
+    assert seen["body"]["response_format"] == {"type": "json_object"}
+    assert seen["body"]["reasoning"] == {"effort": "low"}
+    content = seen["body"]["messages"][0]["content"]
+    assert content[0]["type"] == "text"
+    assert content[1]["type"] == "image_url"
+    assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")

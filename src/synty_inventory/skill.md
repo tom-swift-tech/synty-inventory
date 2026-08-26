@@ -74,6 +74,11 @@ scan` first (`scan --rebuild` after rule/precedence changes).
 | all grammars | `recipes [--pack P]` |
 | resolve a grammar to slim candidate rows | `recipe ID [--pack P] [--engine E] [--fields a,b,c] [--limit N]` (exit 4 when a required step has no candidates) |
 | modular family grouped by role (slim rows) | `kit Apartment` / `kit "*"` `[--pack P] [--engine E] [--fields a,b,c]` |
+| stills-grounded assembler fields (Grok 4.6) | `vision --calibrate` / `vision --pack P [--ids a,b] [--match SM_Sign_]` |
+
+Do **not** run `review` (Ollama) on POLYGON_City / SciFi_City / Starter. Do
+**not** use `scan --vlm`. `vision` may write type/role/mount; it must never
+write `placement.contact` or ship/mech sockets.
 
 ## Record fields that matter
 
@@ -97,6 +102,12 @@ scan` first (`scan --rebuild` after rule/precedence changes).
 5. Ship kits: one `body`, `cockpit` at +Z, engines at -Z, wings in mirrored ± X pairs, gear under -Y. Slim rows carry only the socket count — `details` on the hull and each chosen child gives `part.sockets` / `part.mount`. Put each child on the socket named by its `mount.parent_role` (mirror the copy for the opposite side): `body_pos + body.part.sockets[role].position - child.part.mount.position`, child unrotated (its `mount.normal` already opposes the socket normal; greebles may instead be rotated so `mount.normal == -socket.normal` onto any face); overlap the hull by 0.1–0.3 m when `mount.fit` is low or `source` is `aabb`. If `sockets`/`mount` are null, fall back to `bounds` faces. Whole `SM_Ship_*` are references, not parts.
 6. Mech kits (`recipe mech_kit`): pick ONE `SM_Veh_Mech_*` body (`details` it for `mech.skeleton/slots/variants`), then either (a) load the master body GLB and set geo-node visibility to one of `mech.variants` (mix regions across variants freely — every combination is factory-compatible per slot), or (b) parent standalone attachment GLBs to `part.attach_bone` with identity local transform (pieces are authored in bone space). `l`/`r` slots come in mirrored pairs — fill both. One cockpit, one head; weapons go on `hand`/`chest` slots.
 7. Instantiate the file for the target engine at authored scale.
+
+## How to assemble (do not float)
+
+- Buildings: `recipe apartment_block` + `module.role` (`door` / `corner` / `floor` / `roof`) + stack on `bounds.size.y`. Street `module.street_side` (+Z). A silent `SM_Bld_Apartment_01` is a floor bay, not a shell.
+- Signs, poles, billboards, roof tanks: `placement.contact` against the **host module facade or roof cap**. Pose = host_cap - contact.position, normals opposed. Constraint `seat_on_contact`. Never `host.bounds.max`.
+- Ships: `recipe ship_kit` + `part.sockets` / `part.mount`. Mechs: `recipe mech_kit` + `part.slot` / `part.attach_bone`.
 
 ## How to pick and place a single piece
 

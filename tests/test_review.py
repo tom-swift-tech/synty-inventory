@@ -121,6 +121,52 @@ def test_resume_skips_already_reviewed_assets(tmp_path: Path):
     assert ids == {"SM_Prop_Crate_01", "SM_Prop_Barrel_01"}
 
 
+def test_review_merges_prose_without_dropping_structure(tmp_path: Path):
+    pack_dir = _pack(tmp_path, "POLYGON_Pack", ["models/SM_Bld_Shop_Cover_01.glb"])
+    _write(
+        pack_dir / "catalog.json",
+        {
+            "pack_id": "POLYGON_Pack",
+            "assets": [
+                {
+                    "id": "SM_Bld_Shop_Cover_01",
+                    "name": "Shop Cover",
+                    "reviewed": False,
+                    "type": "prop",
+                    "semantic_role": "shop_canopy",
+                    "placement": {"mount": "wall"},
+                    "file": "models/SM_Bld_Shop_Cover_01.glb",
+                }
+            ],
+        },
+    )
+    result = review_pack(
+        "POLYGON_Pack",
+        threejs_v2_root=tmp_path,
+        synty_glb_root=tmp_path,
+        render_fn=_fake_render([]),
+        query_fn=_fake_query(
+            {
+                "SM_Bld_Shop_Cover_01": {
+                    "name": "Slatted Shop Canopy",
+                    "description": "A low-poly shop canopy with tan slats.",
+                    "tags": ["awning"],
+                    "category": "prop",
+                    "semantic_role": "vehicle",
+                    "type": "vehicle",
+                }
+            }
+        ),
+    )
+    assert result["ok"] is True
+    entry = json.loads((pack_dir / "catalog.json").read_text(encoding="utf-8"))["assets"][0]
+    assert entry["name"] == "Slatted Shop Canopy"
+    assert entry["type"] == "prop"
+    assert entry["semantic_role"] == "shop_canopy"
+    assert entry["placement"] == {"mount": "wall"}
+    assert entry["reviewed"] is True
+
+
 def test_limit_counts_only_newly_reviewed_assets(tmp_path: Path):
     _pack(
         tmp_path,

@@ -165,6 +165,8 @@ synty-inventory kit Apartment                      # modules grouped by role
 synty-inventory kit "*"                            # every family
 synty-inventory validate
 synty-inventory gauntlet
+synty-inventory vision --calibrate
+synty-inventory vision --pack POLYGON_City --ids SM_Bld_Apartment_01 --dry-run
 synty-inventory review --pack POLYGON_SciFi_Space --limit 20
 ```
 
@@ -227,14 +229,39 @@ natively-Unreal-sourced pack (`scan --pack` on an Unreal root). Both roots
 default to unset (`null`) and are a no-op when missing — no Unreal export
 tree exists on any known machine today.
 
+### Hosted Grok vision (assembler fields)
+
+`vision` is the stills-grounded pass that may write **structure**. It calls
+Grok 4.6 (`XAI_API_KEY`, `https://api.x.ai/v1`) on contact sheets
+(LEFT=front, RIGHT=quarter) or front+quarter renders (`gizmo=0`), enum-locks
+the JSON, and **merge-not-replace**s into the pack's threejs-v2
+`catalog.json`. Allowed: name, description, tags, `semantic_role`,
+`module.role` on buildings, mount / attachment / orientation / floors /
+contexts / constraints, and `type` except on `part.class` rows. Forbidden:
+`placement.contact`, ship/mech sockets, `SM_Veh_Part_*` / `SM_Mech_*` (prose
+only). Do **not** use `scan --vlm` (free-form placement, stale contract) or
+`review` (Ollama/Gemma4) on POLYGON_City / SciFi_City / Starter.
+
+```bash
+synty-inventory vision --calibrate          # 20 City gold stills; never writes
+synty-inventory vision --pack POLYGON_City --match SM_Sign_ --limit 20
+synty-inventory vision --pack POLYGON_City --ids SM_Bld_Apartment_01 --dry-run
+```
+
+After a pack is labelled: `scan --rebuild --pack POLYGON_City` then `gauntlet`.
+Stills default to `tools/viewer/tasks/vision_qa/stills/<pack>/<id>.png`
+(`--stills-root` / `SYNTI_VISION_STILLS` to override). Missing stills render
+`front,quarter` via synty-glb with `--no-gizmo`.
+
 ### Local VLM review
 
-`review` produces the `catalog.json` that `sources/threejs_v2.py` overlays
-onto a pack as `vlm_reviewed` provenance (`POLYGON_City/catalog.json` is the
-reference shape). It needs a threejs-v2 pack (`threejs_v2` config key, a
-`manifest.json` GLB listing), a `synty-glb` checkout (`synty_glb_root`) to
-render stills, and a local [Ollama](https://ollama.com) server with a
-vision-capable model pulled (`ollama pull gemma4:26b`).
+`review` is **prose only** (name, description, tags). It must not run on
+POLYGON_City / POLYGON_SciFi_City / POLYGON_Starter — Gemma4 already
+overwrote those stills catalogs once. It needs a threejs-v2 pack
+(`threejs_v2` config key, a `manifest.json` GLB listing), a `synty-glb`
+checkout (`synty_glb_root`) to render stills, and a local
+[Ollama](https://ollama.com) server with a vision-capable model pulled
+(`ollama pull gemma4:26b`).
 
 ```bash
 synty-inventory review --pack POLYGON_SciFi_Space --limit 20

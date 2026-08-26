@@ -7,6 +7,7 @@ from pathlib import Path
 
 from synty_inventory.gauntlet import GODOT_COVERAGE_FLOOR, run_gauntlet
 from synty_inventory.schema import CATALOG_VERSION
+from synty_inventory.sources.godot import SLUG_PACK_OVERRIDES
 
 
 def _touch(path: Path) -> None:
@@ -71,7 +72,7 @@ def _write_catalog(catalogs_dir: Path, pack_id: str, assets: list[dict]) -> None
 
 def _mapped_godot_root(tmp_path: Path) -> Path:
     root = tmp_path / "godot"
-    for slug in ("particle-fx", "polygon-city-01", "polygon-starter"):
+    for slug in SLUG_PACK_OVERRIDES:
         (root / slug).mkdir(parents=True)
     return root
 
@@ -136,8 +137,27 @@ def test_godot_paths_fails_below_coverage_floor(tmp_path: Path):
     # GODOT_COVERAGE_FLOOR.
     assets = [_asset("SM_Bld_Door_00", godot_scene="polygon-city-01/SM_Bld_Door_00.tscn")]
     assets += [_asset(f"SM_Bld_Door_{i:02d}", godot_scene=None) for i in range(1, 20)]
+    for a in assets[1:]:
+        a["files"]["unity_prefab"] = f"Assets/Synty/{a['id']}.prefab"
     _write_catalog(catalogs_dir, "POLYGON_City", assets)
     result = run_gauntlet(catalogs_dir, godot_root=godot_root)
     gate = _gate(result, "godot_paths")
     assert gate["ok"] is False
     assert (1 / 20) < GODOT_COVERAGE_FLOOR
+
+
+def test_godot_paths_ignores_glb_only_stems_in_coverage_denominator(tmp_path: Path):
+    godot_root = _mapped_godot_root(tmp_path)
+    for i in range(20):
+        _touch(godot_root / "polygon-city-01" / f"SM_Bld_Door_{i:02d}.tscn")
+    catalogs_dir = tmp_path / "catalogs"
+    assets = [
+        _asset(f"SM_Bld_Door_{i:02d}", godot_scene=f"polygon-city-01/SM_Bld_Door_{i:02d}.tscn")
+        for i in range(20)
+    ]
+    extras = [_asset(f"SM_GlbOnly_{i:02d}", godot_scene=None, kind="mesh") for i in range(50)]
+    _write_catalog(catalogs_dir, "POLYGON_City", assets + extras)
+    result = run_gauntlet(catalogs_dir, godot_root=godot_root)
+    gate = _gate(result, "godot_paths")
+    assert gate["ok"] is True
+    assert "20/20" in gate["detail"] or "100.0%" in gate["detail"]

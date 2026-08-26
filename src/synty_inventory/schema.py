@@ -118,8 +118,19 @@ TYPES = (
     "weapon",
     "skybox",
 )
-# v1 → v2 type renames
-TYPE_MIGRATION = {"building/modular": "building/module"}
+# Viewer / v1 type names → v2 TYPES. Unmapped values are dropped by overlay.
+TYPE_MIGRATION = {
+    "building/modular": "building/module",
+    "building/kit": "building/module",
+    "building/hero": "building/shell",
+    "building": "building/shell",
+    "environment/road": "environment/city_layout",
+    "environment/nature": "environment",
+    "prop/street": "prop",
+    "prop/furniture": "prop",
+    "prop/interior": "prop",
+    "character/attach": "character/part",
+}
 
 # Types that are scene-placeable by default. Everything else is data (clips,
 # icons, skeleton parts, skyboxes) unless a source says otherwise.
@@ -184,7 +195,37 @@ MOUNTS = (
     "none",
     "free",
 )
-MOUNT_ALIASES = {"facade": "wall", "n/a": "none", "": "none"}
+MOUNT_ALIASES = {
+    "facade": "wall",
+    "n/a": "none",
+    "": "none",
+    "floor": "ground",
+    "street": "ground",
+    "sidewalk": "ground",
+}
+
+# Exact viewer / vision-QA roles, applied before the catch-all `_building$` pattern
+# (that pattern is what turned a shop canopy / apartment bay into building_shell).
+ROLE_ALIASES: dict[str, tuple[str, str]] = {
+    "shop_canopy": ("facade_dressing", "shop_canopy"),
+    "park_path_tile": ("ground_surface", "park_path_tile"),
+    "sidewalk_tile": ("ground_surface", "sidewalk_tile"),
+    "apartment_entrance_module": ("building_module", "apartment_entrance_module"),
+    "apartment_floor_module": ("building_module", "apartment_floor_module"),
+    "building_roof": ("building_module", "building_roof"),
+    "billboard_frame": ("advertisement", "billboard_frame"),
+    "billboard_advertisement": ("advertisement", "billboard_advertisement"),
+    "rooftop_billboard_frame": ("advertisement", "rooftop_billboard_frame"),
+}
+
+# Stills / viewer role strings → module.role (kit stack slot).
+MODULE_ROLE_FROM_STILLS: dict[str, str] = {
+    "apartment_entrance_module": "door",
+    "apartment_floor_module": "floor",
+    "building_roof": "roof",
+    "rooftop_spire": "spire",
+    "office_tower_module": "shell",
+}
 
 ATTACHMENTS = (
     "base_to_ground",
@@ -299,6 +340,7 @@ def empty_placement() -> dict[str, Any]:
         "preferred_floors": [1],
         "constraints": [],
         "preferred_contexts": [],
+        "contact": None,
     }
 
 
@@ -541,6 +583,9 @@ def normalize_semantic_role(role: str | None, detail: str | None = None) -> tupl
     role = (role or "").strip()
     if role in SEMANTIC_ROLES:
         return role, detail or ""
+    if role in ROLE_ALIASES:
+        enum, aliased = ROLE_ALIASES[role]
+        return enum, detail or aliased
     for pat, enum in _ROLE_PATTERNS:
         m = pat.match(role)
         if m:
@@ -588,6 +633,7 @@ def migrate_asset_v1(asset: dict) -> dict:
         ("preferred_contexts", []),
     ):
         place.setdefault(k, deepcopy(default))
+    place.setdefault("contact", None)
     a["placement"] = place
     if "bounds" not in a:
         dims = a.get("dimensions") or {}
@@ -690,6 +736,8 @@ def validate_asset(asset: Any, prefix: str, errors: list[str]) -> None:
             errors.append(f"{prefix}.placement.attachment invalid: {place.get('attachment')!r}")
         _check_tokens(place.get("constraints", []), f"{prefix}.placement.constraints", errors)
         _check_tokens(place.get("preferred_contexts", []), f"{prefix}.placement.preferred_contexts", errors)
+        if place.get("contact") is not None:
+            validate_socket(place["contact"], f"{prefix}.placement.contact", errors, need_role=False)
     else:
         errors.append(f"{prefix}.placement must be an object")
     validate_bounds(asset.get("bounds"), prefix, errors)

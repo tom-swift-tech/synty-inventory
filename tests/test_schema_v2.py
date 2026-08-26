@@ -127,6 +127,17 @@ def test_role_normalisation():
     assert normalize_semantic_role("displays_syn_corp") == ("advertisement", "syn_corp")
     assert normalize_semantic_role("building_module", "floor") == ("building_module", "floor")
     assert normalize_semantic_role("totally_new_thing") == ("unknown", "totally_new_thing")
+    assert normalize_semantic_role("shop_canopy") == ("facade_dressing", "shop_canopy")
+    assert normalize_semantic_role("park_path_tile") == ("ground_surface", "park_path_tile")
+    assert normalize_semantic_role("sidewalk_tile") == ("ground_surface", "sidewalk_tile")
+    assert normalize_semantic_role("apartment_entrance_module") == (
+        "building_module",
+        "apartment_entrance_module",
+    )
+    assert normalize_semantic_role("billboard_frame") == ("advertisement", "billboard_frame")
+    assert normalize_semantic_role("building_roof") == ("building_module", "building_roof")
+    # Must not fall through to the `.*_building$` pattern.
+    assert normalize_semantic_role("shop_canopy")[0] != "building_shell"
 
 
 def test_pivot_classification():

@@ -21,6 +21,8 @@ from .paths import SETTING_DEFAULTS
 
 LOCAL_DEFAULT_URL = SETTING_DEFAULTS["vlm_local_url"]
 LOCAL_DEFAULT_MODEL = SETTING_DEFAULTS["vlm_local_model"]
+HOSTED_DEFAULT_MODEL = "grok-4.6"
+HOSTED_XAI_BASE = "https://api.x.ai/v1"
 
 
 def vlm_available() -> bool:
@@ -39,7 +41,7 @@ def _endpoint() -> tuple[str, str, str]:
         or ("https://api.x.ai/v1" if os.environ.get("XAI_API_KEY") else "https://api.openai.com/v1")
     )
     model = os.environ.get("SYNTI_VLM_MODEL") or (
-        "grok-2-vision-1212" if os.environ.get("XAI_API_KEY") else "gpt-4o-mini"
+        HOSTED_DEFAULT_MODEL if os.environ.get("XAI_API_KEY") else "gpt-4o-mini"
     )
     return key, base.rstrip("/"), model
 
@@ -127,6 +129,68 @@ def enrich_asset_vlm(asset: dict, image_path: Path | None = None) -> dict | None
         asset.setdefault("provenance", {})["placement"] = "vlm"
         changed = True
     return asset if changed else None
+
+
+def _image_content(path: Path) -> dict | None:
+    """OpenAI-compatible image_url block for one still on disk."""
+    path = Path(path)
+    if not path.is_file():
+        return None
+    b64 = base64.b64encode(path.read_bytes()).decode("ascii")
+    mime = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
+    return {
+        "type": "image_url",
+        "image_url": {"url": f"data:{mime};base64,{b64}", "detail": "high"},
+    }
+
+
+def query_hosted_vlm(
+    image_paths: Sequence[Path],
+    prompt: str,
+    *,
+    model: str | None = None,
+    timeout: int = 180,
+    temperature: float = 0.0,
+    max_attempts: int = 3,
+) -> dict | None:
+    """Ask a hosted vision model (Grok 4.6 on xAI by default) to return JSON.
+
+    Used by ``synty-inventory vision``. Does not mutate an asset. Returns the
+    parsed object, or None once attempts are exhausted.
+    """
+    if not vlm_available():
+        return None
+    key, base, default_model = _endpoint()
+    model = model or default_model
+    content: list[dict] = [{"type": "text", "text": prompt}]
+    for raw in image_paths:
+        block = _image_content(Path(raw))
+        if block is not None:
+            content.append(block)
+    if len(content) < 2:
+        return None
+    body: dict = {
+        "model": model,
+        "messages": [{"role": "user", "content": content}],
+        "temperature": temperature,
+        "response_format": {"type": "json_object"},
+    }
+    # Grok 4.x defaults to high reasoning; catalog JSON does not need it.
+    if str(model).startswith("grok-4"):
+        body["reasoning"] = {"effort": "low"}
+    data = json.dumps(body).encode("utf-8")
+    url = f"{base}/chat/completions"
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    for _ in range(max(1, max_attempts)):
+        try:
+            req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            text = (((payload.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
+            return _parse_json_object(text)
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError, ValueError):
+            continue
+    return None
 
 
 def _parse_json_object(text: str) -> dict:

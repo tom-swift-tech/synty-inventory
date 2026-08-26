@@ -240,11 +240,50 @@ def test_no_flat_cap_falls_back_to_aabb_face():
     assert m["position"] == pytest.approx([0.0, 2.0, -1.0])
     assert m["area"] is None and m["fit"] == 0.0
     assert m["parent_role"] == "front"
-    # body: rounded ends still yield six sockets, the missing caps as aabb
     body = sk.analyse_part(verts, tris, "body", "any")
     assert len(body["sockets"]) == 6
     assert {s["role"]: s["source"] for s in body["sockets"]}["bottom"] == "measured"
     assert {s["role"]: s["source"] for s in body["sockets"]}["front"] == "aabb"
+
+
+def test_prop_contact_wall_is_minus_z_cap(tmp_path: Path):
+    v, t = box_mesh([-0.5, 0.0, -0.05], [0.5, 1.0, 0.05])
+    pack = tmp_path / "POLYGON_City"
+    glb = pack / "models" / "Models" / "SM_Prop_Sign_Police_01.glb"
+    glb.parent.mkdir(parents=True)
+    write_mesh_glb(glb, v, t)
+    asset = {
+        "id": "SM_Prop_Sign_Police_01",
+        "type": "prop/signage",
+        "placeable": True,
+        "placement": {"mount": "wall", "constraints": []},
+        "files": {"glb": "POLYGON_City/models/Models/SM_Prop_Sign_Police_01.glb"},
+        "part": {"class": None},
+    }
+    stats: dict = {}
+    sk.apply_prop_contact(asset, tmp_path, {}, stats)
+    contact = asset["placement"]["contact"]
+    assert contact["axis"] == "-z"
+    assert contact["normal"][2] < -0.5
+    assert contact["position"][2] == pytest.approx(-0.05)
+    assert "seat_on_contact" in asset["placement"]["constraints"]
+    assert stats.get("contact_measured") == 1
+
+
+def test_prop_contact_skips_buildings_and_ship_parts():
+    stats: dict = {}
+    bld = {"type": "building/module", "placeable": True, "placement": {"mount": "ground"}, "files": {"glb": "x"}}
+    sk.apply_prop_contact(bld, None, {}, stats)
+    assert "contact" not in (bld.get("placement") or {}) or bld["placement"].get("contact") is None
+    ship = {
+        "type": "vehicle/part",
+        "placeable": True,
+        "part": {"class": "engine"},
+        "placement": {"mount": "socket"},
+        "files": {"glb": "x"},
+    }
+    sk.apply_prop_contact(ship, None, {}, stats)
+    assert ship["placement"].get("contact") is None
 
 
 def test_apply_part_sockets_uses_cache_and_stats(tmp_path: Path, monkeypatch):

@@ -31,7 +31,9 @@ from .review import DEFAULT_VIEWS as REVIEW_DEFAULT_VIEWS
 from .review import review_pack
 from .schema import validate_catalog
 from .unitypackage import extract_previews
-from .vlm import enrich_asset_vlm, vlm_available
+from .vision import DEFAULT_VIEWS as VISION_DEFAULT_VIEWS
+from .vision import default_stills_root, vision_pack
+from .vlm import HOSTED_DEFAULT_MODEL, enrich_asset_vlm, vlm_available
 
 
 def configure_stdio() -> None:
@@ -223,6 +225,9 @@ def cmd_scan(args, cfg) -> int:
             refs.append(gref)
     else:
         refs.extend(discover_gen_packs(threejs_v2))
+        from .sources.threejs_v2 import discover_converted_packs
+
+        refs.extend(discover_converted_packs(threejs_v2, {r.pack_id for r in refs}))
     if args.pack:
         refs = [r for r in refs if args.pack.lower() in r.pack_id.lower()]
     if not refs:
@@ -257,6 +262,7 @@ def cmd_scan(args, cfg) -> int:
             and not ref.package_path
             and not ref.unreal_path
             and not ref.extras.get("gen_dir")
+            and not ref.extras.get("threejs_dir")
         ):
             summaries.append({"pack_id": ref.pack_id, "error": "no extracted tree or package"})
             continue
@@ -515,6 +521,64 @@ def cmd_gauntlet(args, cfg) -> int:
     return 0 if result["ok"] else 2
 
 
+def _load_ids_file(path: Path) -> list[str]:
+    raw = path.read_text(encoding="utf-8")
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return [ln.strip() for ln in raw.splitlines() if ln.strip() and not ln.startswith("#")]
+    if isinstance(data, list):
+        return [str(x) for x in data if str(x).strip()]
+    if isinstance(data, dict):
+        if isinstance(data.get("ids"), list):
+            return [str(x) for x in data["ids"] if str(x).strip()]
+        pack_ids = data.get("ids")
+        if isinstance(pack_ids, dict):
+            out: list[str] = []
+            for values in pack_ids.values():
+                if isinstance(values, list):
+                    out.extend(str(x) for x in values if str(x).strip())
+            return out
+    return []
+
+
+def cmd_vision(args, cfg) -> int:
+    """Grok 4.6 stills pass. Do not use ``review`` (Ollama) on City/SciFi/Starter."""
+    threejs_v2 = _threejs_v2(cfg)
+    stills_root = Path(args.stills_root) if args.stills_root else default_stills_root()
+    views = tuple(v.strip() for v in args.views.split(",") if v.strip()) if args.views else VISION_DEFAULT_VIEWS
+    ids = _csv(args.ids) or []
+    if args.ids_file:
+        ids.extend(_load_ids_file(Path(args.ids_file)))
+    ids = ids or None
+    apply = (not args.dry_run) and (not args.calibrate)
+    if args.apply:
+        apply = True
+    if args.calibrate:
+        apply = False
+    if apply and threejs_v2 is None:
+        return _fail("vision --apply needs threejs_v2 configured")
+    result = vision_pack(
+        args.pack or "POLYGON_City",
+        threejs_v2_root=threejs_v2,
+        stills_root=stills_root,
+        synty_glb_root=cfg.get("synty_glb_root"),
+        catalogs_dir=cfg.get("catalogs"),
+        ids=ids,
+        match=args.match,
+        limit=args.limit or None,
+        model=args.model or HOSTED_DEFAULT_MODEL,
+        views=views,
+        apply=apply,
+        force=args.force,
+        calibrate=args.calibrate,
+        gold_path=Path(args.gold) if args.gold else None,
+        vlm_timeout=args.vlm_timeout,
+    )
+    emit_json(result)
+    return 0 if result.get("ok") else 2
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="synty-inventory",
@@ -650,6 +714,40 @@ def build_parser() -> argparse.ArgumentParser:
         help="seconds to wait per VLM call (default: 600; raise for larger/slower model tags)",
     )
     rv.set_defaults(func=cmd_review)
+
+    vis = sub.add_parser(
+        "vision",
+        help="Grok 4.6 stills pass: enum-locked JSON merged into threejs-v2 catalog.json (not Ollama review)",
+    )
+    vis.add_argument("--pack", default=None, help="threejs-v2 pack_id (default POLYGON_City; calibrate uses gold pack)")
+    vis.add_argument("--ids", default=None, help="comma list of stems (overrides match/limit)")
+    vis.add_argument(
+        "--ids-file",
+        dest="ids_file",
+        default=None,
+        help="JSON list / {ids:[...]} / newline stems (merged with --ids; overrides match)",
+    )
+    vis.add_argument("--match", default=None, help="only stems containing this substring")
+    vis.add_argument("--limit", type=int, default=0, help="max assets this run (0 = no limit)")
+    vis.add_argument("--model", default=None, help=f"hosted vision model (default: {HOSTED_DEFAULT_MODEL})")
+    vis.add_argument("--stills-root", dest="stills_root", default=None, help="contact-sheet root (pack/id.png)")
+    vis.add_argument(
+        "--views",
+        default=None,
+        help=f"comma list of harness views when rendering (default: {','.join(VISION_DEFAULT_VIEWS)})",
+    )
+    vis.add_argument("--calibrate", action="store_true", help="score ~20 City gold stills vs packaged gold; never writes")
+    vis.add_argument("--gold", default=None, help="override gold JSON (default: packaged vision_gold_city.json)")
+    vis.add_argument("--dry-run", action="store_true", help="do not write catalog.json")
+    vis.add_argument("--apply", action="store_true", help="write catalog.json (ignored with --calibrate)")
+    vis.add_argument("--force", action="store_true", help="re-label assets already marked reviewed")
+    vis.add_argument(
+        "--vlm-timeout",
+        type=int,
+        default=180,
+        help="seconds to wait per hosted VLM call (default: 180)",
+    )
+    vis.set_defaults(func=cmd_vision)
     return p
 
 

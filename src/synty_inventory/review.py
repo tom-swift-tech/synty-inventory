@@ -258,6 +258,26 @@ def _build_entry(stem: str, rel_path: str, draft: dict) -> dict:
     return entry
 
 
+def _merge_review_entry(existing: dict | None, entry: dict) -> dict:
+    """Keep structural fields on an existing row; review only fills prose.
+
+    Assigning ``by_id[stem] = entry`` used to drop type / role / placement
+    from inspector catalogs. New stems still get the six-field prose row.
+    """
+    if not existing:
+        return entry
+    out = dict(existing)
+    for key in ("name", "description", "tags", "file"):
+        val = entry.get(key)
+        if val not in (None, "", []):
+            out[key] = val
+    out["reviewed"] = True
+    out["id"] = entry.get("id") or existing.get("id")
+    if entry.get("file"):
+        out["file"] = entry["file"]
+    return out
+
+
 def review_pack(
     pack_id: str,
     *,
@@ -346,7 +366,7 @@ def review_pack(
             continue
 
         entry = _build_entry(stem, rel_path, draft)
-        by_id[stem] = entry
+        by_id[stem] = _merge_review_entry(existing, entry)
         reviewed_ids.append(stem)
 
         # Write after every asset, not just at the end, so an interrupted

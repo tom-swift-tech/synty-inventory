@@ -146,6 +146,37 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root:
         f"mount={None if not place else place.get('placement', {}).get('mount')}",
     )
 
+    def _contact_axis(asset: dict | None, axis: str) -> bool:
+        c = ((asset or {}).get("placement") or {}).get("contact") or {}
+        n = c.get("normal") or []
+        pos = c.get("position") or []
+        if len(n) != 3 or len(pos) != 3:
+            return False
+        sign = 1.0 if axis[0] == "+" else -1.0
+        idx = {"x": 0, "y": 1, "z": 2}[axis[-1]]
+        if n[idx] * sign < 0.5:
+            return False
+        b = (asset or {}).get("bounds") or {}
+        mn, mx = b.get("min"), b.get("max")
+        if isinstance(mn, list) and isinstance(mx, list) and len(mn) == 3:
+            centre = [(mn[i] + mx[i]) / 2.0 for i in range(3)]
+            if all(abs(pos[i] - centre[i]) < 1e-3 for i in range(3)):
+                return False
+        return True
+
+    barber = get_asset_details(catalogs_dir, "SM_Prop_Sign_Barber_01")
+    billboard = get_asset_details(catalogs_dir, "SM_Prop_Billboard_01")
+    tank = get_asset_details(catalogs_dir, "SM_Prop_Water_Tower_01")
+    police_ok = _contact_axis(details, "-z")
+    barber_n = ((barber or {}).get("placement") or {}).get("contact") or {}
+    barber_ok = _contact_axis(barber, "-z") or _contact_axis(barber, "-x") or _contact_axis(barber, "+x")
+    roof_ok = _contact_axis(billboard, "-y") or _contact_axis(tank, "-y")
+    gate(
+        "prop_contact_seated",
+        bool(police_ok and barber_ok and roof_ok),
+        f"police={police_ok} barber={barber_ok} n={barber_n.get('normal')} roof={roof_ok}",
+    )
+
     sug_police = suggest_assets_for(catalogs_dir, "police station facade")
     sug_barber = suggest_assets_for(catalogs_dir, "first-floor barber pole")
     sug_bill = suggest_assets_for(catalogs_dir, "roadside billboard without windows")
@@ -291,7 +322,20 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root:
                 else:
                     dangling.append(f"{pid}/{a.get('id')}: {rel}")
 
-        godot_placeable = [a for doc in docs if doc.get("pack_id") in mapped for a in (doc.get("assets") or []) if _geometry(a)]
+        # Godot scenes are Unity-prefab exports. GLB-only stems (no prefab)
+        # cannot have a .tscn; counting them as uncovered would fail the
+        # floor after a threejs-v2 union scan.
+        def _godot_eligible(a: dict) -> bool:
+            files = a.get("files") or {}
+            return _geometry(a) and bool(files.get("unity_prefab") or files.get("godot_scene"))
+
+        godot_placeable = [
+            a
+            for doc in docs
+            if doc.get("pack_id") in mapped
+            for a in (doc.get("assets") or [])
+            if _godot_eligible(a)
+        ]
         covered = sum(1 for a in godot_placeable if (a.get("files") or {}).get("godot_scene"))
         cov_ratio = (covered / len(godot_placeable)) if godot_placeable else 0
         worst_godot = _pack_breakdown(lambda a: bool((a.get("files") or {}).get("godot_scene")))

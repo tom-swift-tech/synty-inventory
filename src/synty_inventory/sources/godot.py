@@ -28,9 +28,31 @@ from ..paths import rel_posix
 # override *before* they are used — do not guess a pack_id. Guessing wrong
 # silently misfiles a whole pack's scenes onto nobody (or the wrong pack).
 SLUG_PACK_OVERRIDES: dict[str, str] = {
-    "particle-fx": "POLYGON_Particle_FX",
+    # "particle-fx" (Synty's hand-made 13-effect export) is intentionally
+    # unmapped: superseded for catalog purposes by polygon-particle-fx-01,
+    # which contains those scenes verbatim plus the 178 GPUParticles3D
+    # rebuilds. One pack_id maps to exactly one folder (discover_pack_dirs).
+    "polygon-particle-fx-01": "POLYGON_Particle_FX",
     "polygon-city-01": "POLYGON_City",
     "polygon-starter": "POLYGON_Starter",
+    # Synty-shipped Godot exports (previously unmapped)
+    "polygon-battle-royale-01": "POLYGON_BattleRoyale",
+    "polygon-gang-warfare-01": "POLYGON_Gang_Warfare",
+    "polygon-heist-01": "POLYGON_Heist",
+    "polygon-military-01": "POLYGON_Military",
+    "polygon-sci-fi-city-01": "POLYGON_SciFi_City",
+    # locally converted via tools/godot_convert (Unidot / FBX pipelines)
+    "polygon-adult-face-plates": "POLYGON_AdultFacePlates",
+    "polygon-coffee-shop": "POLYGON_Coffee_Shop",
+    "polygon-mech-01": "POLYGON_Mech",
+    "polygon-military-warehouse-map-01": "POLYGON_Military_Warehouse_Map",
+    "polygon-prototype-01": "POLYGON_Prototype",
+    "polygon-quad-bike-01": "POLYGON_QuadBike",
+    "polygon-sci-fi-space-01": "POLYGON_SciFi_Space",
+    "polygon-war-01": "POLYGON_War",
+    "simple-sky": "SIMPLE_Sky",
+    # polygon-stunt-plane / polygon-water-guns: no catalog pack_id exists yet;
+    # add here once those packs are cataloged
 }
 
 # Scenes every Godot export ships (top-level demo/showcase levels), never a

@@ -1,0 +1,151 @@
+{
+  "pack_id": "POLYGON_City",
+  "notes": "Assembler-safe gold for Grok 4.6 vision calibration. Compare stills, not filenames. Do not score name/description. contact/sockets are measured — not in this file.",
+  "assets": [
+    {
+      "id": "SM_Bld_Apartment_01",
+      "type": "building/module",
+      "semantic_role": "building_module",
+      "module_role": "floor",
+      "mount": "ground",
+      "attachment": "bottom"
+    },
+    {
+      "id": "SM_Bld_Apartment_Corner_01",
+      "type": "building/module",
+      "semantic_role": "building_module",
+      "module_role": "corner",
+      "mount": "ground",
+      "attachment": "bottom"
+    },
+    {
+      "id": "SM_Bld_Apartment_Door_01",
+      "type": "building/module",
+      "semantic_role": "building_module",
+      "module_role": "door",
+      "mount": "ground",
+      "attachment": "bottom"
+    },
+    {
+      "id": "SM_Bld_Apartment_Roof_01",
+      "type": "building/module",
+      "semantic_role": "building_module",
+      "module_role": "roof",
+      "mount": "ground",
+      "attachment": "bottom"
+    },
+    {
+      "id": "SM_Bld_Apartment_Stairs_01",
+      "type": "building/module",
+      "semantic_role": "building_module",
+      "module_role": "stairs",
+      "mount": "ground",
+      "attachment": "bottom"
+    },
+    {
+      "id": "SM_Bld_Shop_Cover_01",
+      "type": "prop",
+      "semantic_role": "facade_dressing",
+      "mount": ["wall", "roof"],
+      "attachment": ["bottom", "back_side"]
+    },
+    {
+      "id": "SM_Bld_Shop_01",
+      "type": "building/shell",
+      "semantic_role": "building_shell",
+      "module_role": "hero",
+      "mount": "ground"
+    },
+    {
+      "id": "SM_Bld_Shop_Corner_01",
+      "type": ["building/shell", "building/module"],
+      "semantic_role": ["building_shell", "building_module"],
+      "module_role": "corner",
+      "mount": "ground"
+    },
+    {
+      "id": "SM_Bld_CityHall_01",
+      "type": "building/shell",
+      "semantic_role": "building_shell",
+      "module_role": "hero",
+      "mount": "ground"
+    },
+    {
+      "id": "SM_Bld_Spire_01",
+      "type": ["building/module", "prop"],
+      "semantic_role": ["roof_dressing", "building_module"],
+      "module_role": "spire",
+      "mount": "roof"
+    },
+    {
+      "id": "SM_Bld_Cover_01",
+      "type": "building/module",
+      "semantic_role": "building_module",
+      "module_role": "roof",
+      "mount": "roof"
+    },
+    {
+      "id": "SM_Prop_Sign_Barber_01",
+      "type": "prop/signage",
+      "semantic_role": "building_identity",
+      "mount": "wall",
+      "attachment": "side_bracket",
+      "preferred_floors": [1]
+    },
+    {
+      "id": "SM_Prop_Sign_Police_01",
+      "type": "prop/signage",
+      "semantic_role": "building_identity",
+      "mount": "wall",
+      "attachment": "back_side"
+    },
+    {
+      "id": "SM_Prop_Sign_Hospital_01",
+      "type": "prop/signage",
+      "semantic_role": "building_identity",
+      "mount": "wall",
+      "attachment": "back_side"
+    },
+    {
+      "id": "SM_Prop_Billboard_01",
+      "type": "prop/signage",
+      "semantic_role": "advertisement",
+      "mount": "roof",
+      "attachment": "bottom"
+    },
+    {
+      "id": "SM_Env_GrassPath_Straight_01",
+      "type": "environment/city_layout",
+      "semantic_role": "ground_surface",
+      "semantic_detail": "park_path_tile",
+      "mount": "ground"
+    },
+    {
+      "id": "SM_Env_Sidewalk_Straight_01",
+      "type": "environment/city_layout",
+      "semantic_role": "ground_surface",
+      "semantic_detail": "sidewalk_tile",
+      "mount": "ground"
+    },
+    {
+      "id": "SM_Env_Road_01",
+      "type": "environment/city_layout",
+      "semantic_role": "road_surface",
+      "mount": "ground"
+    },
+    {
+      "id": "SM_Bld_FireEscape_01",
+      "type": ["building/module", "prop"],
+      "semantic_role": "facade_dressing",
+      "module_role": ["stairs", "misc", "wall"],
+      "mount": ["wall", "module"]
+    },
+    {
+      "id": "SM_Bld_OfficeSquare_01",
+      "type": "building/module",
+      "semantic_role": "building_module",
+      "module_role": "floor",
+      "mount": "ground"
+    }
+  ]
+}

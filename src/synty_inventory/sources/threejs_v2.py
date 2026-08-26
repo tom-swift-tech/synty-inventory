@@ -18,8 +18,13 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
+from ..discover import PackRef
 from ..merge import may_overlay
+from ..naming import should_skip
+from ..scan import RawAsset
 from ..schema import (
+    MODULE_ROLE_FROM_STILLS,
+    MODULE_ROLES,
     TYPE_MIGRATION,
     TYPES,
     normalize_attachment,
@@ -82,6 +87,47 @@ def glb_index(threejs_v2_dir: Path | None, pack_id: str) -> tuple[dict[str, str]
     return exact, ci
 
 
+def glb_raw_assets(threejs_v2_dir: Path | None, pack_id: str) -> list[RawAsset]:
+    """One RawAsset per converted GLB stem. Fills catalog holes the Unity
+    prefab scan misses (GLB-only meshes, package-shared kit dumped into this
+    pack's threejs-v2 folder). Overlay later wires ``files.glb``."""
+    exact, _ = glb_index(threejs_v2_dir, pack_id)
+    out: list[RawAsset] = []
+    for stem, rel in exact.items():
+        if stem.lower() in BUNDLE_STEMS:
+            continue
+        if should_skip(rel, stem):
+            continue
+        out.append(RawAsset(id=stem, kit=None, shared=False, engine="Unity"))
+    out.sort(key=lambda a: a.id)
+    return out
+
+
+def discover_converted_packs(
+    threejs_v2_dir: Path | None, existing_ids: set[str] | None = None
+) -> list[PackRef]:
+    """Packs that have a converted tree but no Unity/Unreal scan root.
+
+    Coffee Shop, and any future convert-only drop, otherwise never appear in
+    synty_catalogs.
+    """
+    have = existing_ids or set()
+    refs: list[PackRef] = []
+    if threejs_v2_dir is None or not threejs_v2_dir.is_dir():
+        return refs
+    for path in sorted(threejs_v2_dir.iterdir()):
+        if not path.is_dir() or path.name.startswith(("_", ".")):
+            continue
+        if path.name.startswith("GEN_"):
+            continue
+        if path.name in have:
+            continue
+        if not (path / "manifest.json").is_file():
+            continue
+        refs.append(PackRef(pack_id=path.name, engine="Unity", extras={"threejs_dir": path}))
+    return refs
+
+
 def bundle_glbs(threejs_v2_dir: Path | None, pack_id: str) -> list[str]:
     """Bundle GLBs (many assets as named nodes) listed in the pack manifest."""
     manifest = load_manifest(threejs_v2_dir, pack_id)
@@ -135,15 +181,26 @@ def apply_threejs_overlay(asset: dict, entry: dict | None, glb_rel: str | None) 
 
     raw_role = entry.get("semantic_role")
     if raw_role and _allowed(asset, "semantic_role"):
-        role, detail = normalize_semantic_role(raw_role, raw_role)
+        role, detail = normalize_semantic_role(raw_role)
         asset["semantic_role"] = role
         asset["semantic_detail"] = detail
         prov["semantic_role"] = "vlm_reviewed"
 
     etype = TYPE_MIGRATION.get(entry.get("type") or "", entry.get("type") or "")
-    if etype in TYPES and _allowed(asset, "type"):
+    if (
+        etype in TYPES
+        and _allowed(asset, "type")
+        and not (asset.get("part") or {}).get("class")
+    ):
         asset["type"] = etype
         prov["type"] = "vlm_reviewed"
+
+    if _allowed(asset, "module") and not (asset.get("part") or {}).get("class"):
+        mrole = _stills_module_role(entry, asset.get("id") or "")
+        if mrole:
+            module = asset.setdefault("module", {})
+            module["role"] = mrole
+            prov["module"] = "vlm_reviewed"
 
     notes = (entry.get("ai_notes") or "").strip()
     if notes and _allowed(asset, "ai_notes"):
@@ -171,4 +228,65 @@ def apply_threejs_overlay(asset: dict, entry: dict | None, glb_rel: str | None) 
             if c not in pc:
                 pc.append(c)
 
+    _tune_kit_placement(asset)
     return asset
+
+
+def _stills_module_role(entry: dict, asset_id: str) -> str | None:
+    explicit = None
+    module = entry.get("module")
+    if isinstance(module, dict):
+        explicit = module.get("role")
+    elif isinstance(module, str):
+        explicit = module
+    if not explicit:
+        explicit = entry.get("module_role")
+    if explicit in MODULE_ROLES:
+        return explicit
+    low = (asset_id or "").lower()
+    for token, role in (
+        ("roof", "roof"),
+        ("door", "door"),
+        ("corner", "corner"),
+        ("stair", "stairs"),
+        ("window", "window"),
+    ):
+        if token in low:
+            return role
+    raw = (entry.get("semantic_role") or "").strip()
+    mapped = MODULE_ROLE_FROM_STILLS.get(raw)
+    if mapped and mapped in MODULE_ROLES:
+        return mapped
+    etype = entry.get("type") or ""
+    migrated = TYPE_MIGRATION.get(etype, etype)
+    if not str(migrated).startswith("building") and not etype.startswith("building"):
+        return None
+    if "floor" in low:
+        return "floor"
+    if etype in {"building/kit", "building/modular"} or migrated == "building/module":
+        return "floor"
+    if etype == "building/hero" or migrated == "building/shell":
+        return "hero"
+    return None
+
+
+def _tune_kit_placement(asset: dict) -> None:
+    """Stackable kit pieces are not ground props. Roofs are not storey 1."""
+    role = (asset.get("module") or {}).get("role")
+    if role not in {"roof", "floor", "corner", "door", "base", "hero", "shell", "stairs"}:
+        return
+    place = asset.setdefault("placement", {})
+    cons = [c for c in (place.get("constraints") or []) if c != "ground_only"]
+    for token in ("snap_to_grid", "seat_on_contact"):
+        if token not in cons:
+            cons.append(token)
+    place["constraints"] = cons
+    if role == "roof":
+        place["preferred_floors"] = []
+        place["height"] = "roof"
+    elif role == "door":
+        place["preferred_floors"] = [1]
+    elif role == "floor":
+        place["preferred_floors"] = []
+        if place.get("height") in {"grade", "ground"}:
+            place["height"] = "storey"

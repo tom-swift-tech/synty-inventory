@@ -245,6 +245,14 @@ def _choose_mount(
     def rec(axis: str) -> dict[str, Any]:
         return _face_record(axis, caps[axis])  # type: ignore[arg-type]
 
+    # Wall/roof/ground props: the stills-chosen axis is the contact, not the
+    # pivot-at-plane foot (a sign's bottom sits on y=0 and would otherwise win).
+    if part_class == "_prop" and preferred:
+        for a in preferred:
+            if caps[a] is not None:
+                return rec(a)
+        return _aabb_face(preferred[0], mn, mx)
+
     # 1. pivot-at-the-mating-plane beats the class axis (pylon pods, gear
     #    hung from the pivot, greebles pivoted on their base) -- provided the
     #    cap is a comparable face, so a small foot near the pivot does not
@@ -391,3 +399,69 @@ def apply_part_sockets(
     stats["sockets_analysed"] = stats.get("sockets_analysed", 0) + 1
     if (part["mount"] or {}).get("source") == "aabb":
         stats["sockets_mount_aabb"] = stats.get("sockets_mount_aabb", 0) + 1
+
+
+# Parent face the prop seats on → mates_axis for analyse_part (child cap is opposite).
+_PROP_MOUNT_MATES = {
+    "wall": "+z",
+    "roof": "+y",
+    "ground": "+y",
+    "floor": "+y",
+    "ceiling": "-y",
+}
+
+
+def apply_prop_contact(
+    asset: dict,
+    threejs_v2_dir: Path | None,
+    cache: dict[str, Any],
+    stats: dict[str, int],
+) -> None:
+    """Fill ``placement.contact`` for wall/roof/ground props.
+
+    Same measured cap as ship ``part.mount``. Buildings and ship parts skip
+    (they stack / use sockets). Rank measured — stills must not invent this.
+    """
+    if (asset.get("part") or {}).get("class"):
+        return
+    if str(asset.get("type") or "").startswith("building"):
+        return
+    if not asset.get("placeable"):
+        return
+    place = asset.get("placement")
+    if not isinstance(place, dict):
+        return
+    mates = _PROP_MOUNT_MATES.get(place.get("mount") or "")
+    if not mates:
+        return
+    glb_rel = (asset.get("files") or {}).get("glb")
+    if not glb_rel or threejs_v2_dir is None:
+        stats["contact_missing_glb"] = stats.get("contact_missing_glb", 0) + 1
+        return
+    result = analyse_cached(
+        threejs_v2_dir,
+        glb_rel,
+        "_prop",
+        mates,
+        cache,
+        node_name=(asset.get("files") or {}).get("glb_node"),
+    )
+    contact = (result or {}).get("mount")
+    if not contact:
+        stats["contact_failed"] = stats.get("contact_failed", 0) + 1
+        return
+    place["contact"] = {
+        "axis": contact.get("axis"),
+        "position": contact.get("position"),
+        "normal": contact.get("normal"),
+        "fit": contact.get("fit"),
+        "source": contact.get("source"),
+    }
+    cons = list(place.get("constraints") or [])
+    if "seat_on_contact" not in cons:
+        cons.append("seat_on_contact")
+    if place.get("mount") == "roof":
+        cons = [c for c in cons if c != "ground_only"]
+        place["preferred_floors"] = []
+    place["constraints"] = cons
+    stats["contact_measured"] = stats.get("contact_measured", 0) + 1
