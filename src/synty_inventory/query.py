@@ -59,6 +59,7 @@ def _match_v2_filters(
     roles: list[str] | None,
     module_roles: list[str] | None,
     part_classes: list[str] | None,
+    footprint_classes: list[str] | None = None,
     include_nonplaceable: bool,
 ) -> bool:
     if not include_nonplaceable and asset.get("placeable") is False:
@@ -70,6 +71,8 @@ def _match_v2_filters(
     if module_roles and ((asset.get("module") or {}).get("role") or "") not in set(module_roles):
         return False
     if part_classes and ((asset.get("part") or {}).get("class") or "") not in set(part_classes):
+        return False
+    if footprint_classes and ((asset.get("footprint") or {}).get("class") or "") not in set(footprint_classes):
         return False
     return True
 
@@ -212,6 +215,7 @@ def search_assets(
     roles: list[str] | None = None,
     module_roles: list[str] | None = None,
     part_classes: list[str] | None = None,
+    footprint_classes: list[str] | None = None,
     include_nonplaceable: bool = False,
     engine: str | None = None,
     fields: list[str] | None = None,
@@ -239,6 +243,7 @@ def search_assets(
             roles=roles,
             module_roles=module_roles,
             part_classes=part_classes,
+            footprint_classes=footprint_classes,
             include_nonplaceable=include_nonplaceable,
         ):
             continue

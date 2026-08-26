@@ -371,6 +371,7 @@ def cmd_search(args, cfg) -> int:
             roles=_csv(args.role),
             module_roles=_csv(args.module_role),
             part_classes=_csv(args.part_class),
+            footprint_classes=_csv(args.footprint_class),
             include_nonplaceable=args.include_nonplaceable,
             engine=args.engine,
             fields=_csv(args.fields),
@@ -469,6 +470,121 @@ def cmd_placement(args, cfg) -> int:
         return _fail(f"asset not found: {args.id}", 3)
     emit_json(rec)
     return 0
+
+
+def cmd_footprint(args, cfg) -> int:
+    """Derive ground-plan footprints for one or more packs.
+
+    Pure geometry off the threejs-v2 GLBs: no VLM, no render, no network.
+    Cached by mtime+size+algorithm version, so the first run per pack is the
+    expensive one and every run after it is free.
+    """
+    from datetime import datetime, timezone
+
+    from .catalog import write_catalog
+    from .sources.footprint import CACHE_NAME, apply_footprint, decode_count, reset_decode_count
+    from .sources.glb_measure import load_cache, save_cache
+
+    catalogs_dir = _catalogs(args, cfg)
+    if not catalogs_dir.is_dir():
+        return _fail(f"catalogs directory not found: {catalogs_dir}")
+    threejs_v2 = _threejs_v2(cfg)
+    if threejs_v2 is None:
+        return _fail("threejs_v2 root is not configured — see `synty-inventory config`")
+
+    docs = load_all_catalogs(catalogs_dir)
+    wanted = _csv(args.pack)
+    if wanted:
+        docs = [d for d in docs if any(w.lower() in d["pack_id"].lower() for w in wanted)]
+        if not docs:
+            return _fail(f"no catalog matched {args.pack!r} under {catalogs_dir}", 2)
+    if not docs:
+        return _fail("no catalogs found — run scan first", 2)
+    only_ids = set(_csv(args.ids) or [])
+
+    cache_path = catalogs_dir / CACHE_NAME
+    cache = load_cache(cache_path)
+    reset_decode_count()
+
+    packs: list[dict] = []
+    below = False
+    for doc in docs:
+        grid = doc.get("grid") or {}
+        snap = float(grid.get("snap") or 0.25)
+        tile = float(grid["tile"]) if grid.get("tile") else None
+        stats: dict[str, int] = {}
+        classes: dict[str, int] = {}
+        failures: list[dict] = []
+        eligible = 0
+
+        for asset in doc["assets"]:
+            if only_ids and asset.get("id") not in only_ids:
+                continue
+            if not asset.get("placeable"):
+                continue
+            eligible += 1
+            status = apply_footprint(
+                asset, threejs_v2, cache, stats, snap=snap, tile_m=tile, force=args.rebuild
+            )
+            if status in {"measured", "cached"}:
+                cls = (asset.get("footprint") or {}).get("class")
+                if cls:
+                    classes[cls] = classes.get(cls, 0) + 1
+            elif status != "skipped":
+                failures.append({"id": asset["id"], "reason": status, "detail": _footprint_detail(asset, status)})
+
+        got = stats.get("footprint_measured", 0) + stats.get("footprint_cached", 0)
+        coverage = round(got / eligible, 4) if eligible else 1.0
+        packs.append(
+            {
+                "pack_id": doc["pack_id"],
+                "eligible": eligible,
+                "measured": stats.get("footprint_measured", 0),
+                "cached": stats.get("footprint_cached", 0),
+                "skipped": stats.get("footprint_skipped", 0),
+                "missing_glb": stats.get("footprint_missing_glb", 0),
+                "undecodable": stats.get("footprint_undecodable", 0),
+                "degenerate": stats.get("footprint_degenerate", 0),
+                "coverage": coverage,
+                "class_histogram": dict(sorted(classes.items())),
+                "failures": failures,
+            }
+        )
+        if eligible and coverage < args.min_coverage:
+            below = True
+        if not args.dry_run:
+            write_catalog(catalog_path(catalogs_dir, doc["pack_id"]), doc)
+
+    if not args.dry_run and cache:
+        save_cache(cache_path, cache)
+
+    report = {
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "footprint_version": _footprint_version(),
+        "decodes": decode_count(),
+        "dry_run": bool(args.dry_run),
+        "packs": packs,
+    }
+    if args.report:
+        dest = Path(args.report)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    emit_json(report)
+    return 4 if below else 0
+
+
+def _footprint_version() -> int:
+    from .sources.footprint import FOOTPRINT_VERSION
+
+    return FOOTPRINT_VERSION
+
+
+def _footprint_detail(asset: dict, status: str) -> str:
+    """Every failure row carries a non-empty detail (spec AC8)."""
+    glb = (asset.get("files") or {}).get("glb")
+    if status == "missing_glb":
+        return "no files.glb on the record"
+    return f"{status} for {glb or asset.get('id')}"
 
 
 def cmd_validate(args, cfg) -> int:
@@ -644,6 +760,12 @@ def build_parser() -> argparse.ArgumentParser:
     se.add_argument("--role", default=None, help="comma list of semantic_role enums")
     se.add_argument("--module-role", dest="module_role", default=None)
     se.add_argument("--part-class", dest="part_class", default=None)
+    se.add_argument(
+        "--footprint-class",
+        dest="footprint_class",
+        default=None,
+        help="comma list of footprint class enums (compact, l_plan, u_plan, radial, thin, point, irregular)",
+    )
     se.add_argument("--include-nonplaceable", action="store_true")
     se.add_argument("--engine", choices=query.ENGINES, default=None, help="which files.* to print")
     se.add_argument("--fields", default=None, help="comma list of full-record fields to add to each slim row (e.g. description,placement,part)")
@@ -689,6 +811,21 @@ def build_parser() -> argparse.ArgumentParser:
     va = sub.add_parser("validate", help="Schema-check written catalogs")
     va.add_argument("--pack", default=None)
     va.set_defaults(func=cmd_validate)
+
+    fp = sub.add_parser("footprint", help="Derive ground-plan footprints from the threejs-v2 GLBs")
+    fp.add_argument("--pack", default=None, help="comma list of pack ids (substring match); all packs when omitted")
+    fp.add_argument("--ids", default=None, help="comma list of asset ids to restrict to")
+    fp.add_argument("--rebuild", action="store_true", help="ignore the cache and re-decode every mesh")
+    fp.add_argument("--dry-run", dest="dry_run", action="store_true", help="report only; write no catalog and no cache")
+    fp.add_argument("--report", default=None, help="write the JSON report to this path as well as stdout")
+    fp.add_argument(
+        "--min-coverage",
+        dest="min_coverage",
+        type=float,
+        default=0.95,
+        help="exit 4 when a pack's coverage falls below this (default 0.95)",
+    )
+    fp.set_defaults(func=cmd_footprint)
 
     g = sub.add_parser("gauntlet", help="Run acceptance gates against live catalogs")
     g.set_defaults(func=cmd_gauntlet)
