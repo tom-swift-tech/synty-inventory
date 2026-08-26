@@ -57,7 +57,7 @@ from ..schema import FOOTPRINT_CLASSES
 from .glb_geometry import load_triangles
 from .glb_measure import _cache_key
 
-FOOTPRINT_VERSION = 2  # bump to invalidate cached analyses when the algorithm changes
+FOOTPRINT_VERSION = 3  # bump to invalidate cached analyses when the algorithm changes
 CACHE_NAME = "_footprint_cache.json"
 
 # Decode counter, so a warm run can be asserted to touch no meshes (AC6).
@@ -93,6 +93,8 @@ _EPS = 1e-9
 # the radius is, and it is what a stacker compares within a kit family.
 _RADIAL_R_RATIO = 0.85
 _RADIAL_TOP4 = 0.35
+_RADIAL_MIN_VERTS = 8  # a 4-vertex rectangle cannot be round
+_RADIAL_FILL = (0.70, 0.86)  # a circle inscribed in its own AABB fills pi/4
 _RADIAL_VERTS = 16  # regular ring emitted in place of the lattice staircase
 _WALL_UP_COS = 0.25  # |normal.y| below this is a wall, not a roof or floor
 _CLOSE_M = 0.5  # gap width the enclosure fill bridges (curtain-wall pane joints)
@@ -630,8 +632,27 @@ def ring_radii(ring: list[list[float]]) -> tuple[float, list[float]] | None:
     return float(np.percentile(radii, 5) / hi), [float(centre[0]), float(centre[1])]
 
 
-def _is_radial(top4: float | None, ratio: float | None) -> bool:
+def _is_radial(top4: float | None, ratio: float | None, verts: int = 0, fill: float = 0.0) -> bool:
+    """Four conditions, because no one of them is sufficient.
+
+    ``top4`` (wall-normal spread) is the primary signal and comes off the
+    mesh, where the lattice cannot blur it. ``ratio`` is a weak guard: a
+    4-vertex rectangle has all four corners equidistant from its centre, so
+    it scores 1.0 and passes trivially -- which is how six BattleRoyale road
+    tiles with ragged shoulder geometry got circularised, their rectangles
+    replaced by 16-gons missing the AABB by 4.5 m.
+
+    Hence the two shape conditions. A traced circle carries many vertices
+    before substitution; a rectangle carries four. And a circle inscribed in
+    its own bounding box fills pi/4 ~ 0.785 -- OfficeRound_01 measures 0.766
+    and Trashbin_01 0.762, while the road tiles sit at 0.526 and a collapsed
+    gas tower at 0.684, which is correct: it is not round any more.
+    """
     if top4 is None or ratio is None:
+        return False
+    if verts < _RADIAL_MIN_VERTS:
+        return False
+    if not _RADIAL_FILL[0] <= fill <= _RADIAL_FILL[1]:
         return False
     return ratio >= _RADIAL_R_RATIO and top4 < _RADIAL_TOP4
 
@@ -825,8 +846,12 @@ def analyze_footprint_detail(
     # a chain's outline is wrong, and stamping radius_m on something labelled
     # thin is incoherent. Only a shape that survives to the radial branch
     # gets the substitution and the radius.
-    prelim = _classify(outer, total_area, fill_ratio_of(total_area, extent), False)
-    radial = _is_radial(top4, measured[0] if measured else None) and prelim not in ("point", "thin")
+    prelim_fill = fill_ratio_of(total_area, extent)
+    prelim = _classify(outer, total_area, prelim_fill, False)
+    radial = (
+        _is_radial(top4, measured[0] if measured else None, len(outer), prelim_fill)
+        and prelim not in ("point", "thin")
+    )
     radius_m: float | None = None
     traced_ring, traced_area = outer, total_area
     if radial and measured is not None:
@@ -835,13 +860,29 @@ def analyze_footprint_detail(
         # surface and overstates a 6.00 m tower as 6.31 m.
         radius = math.sqrt(outer_area / math.pi)
         centre = measured[1]
-        radius_m = round(radius, 4)
         ring = _regular_ring(centre, radius, lo, hi)
-        ring_area = abs(_shoelace(ring))
-        total_area = total_area - outer_area + ring_area
-        outer = ring
-        if total_area <= _EPS:
-            return None, REASON_DEGENERATE
+        # Check the substitution instead of predicting it. A regular ring
+        # must still reach the mesh's own XZ extent -- an inscribed 16-gon
+        # is short of the true circle by r*(1-cos(11.25 deg)) ~ 2 %, and
+        # anything beyond that means the shape was not a disc.
+        # SM_Bld_GasTower_Destroyed_01 is a collapsed tank whose traced fill
+        # sits in the circular window but whose debris the ring cannot cover:
+        # it missed by 1.24 m on a 16.4 m radius.
+        gap = max(
+            abs(min(p[0] for p in ring) - lo[0]),
+            abs(max(p[0] for p in ring) - hi[0]),
+            abs(min(p[1] for p in ring) - lo[1]),
+            abs(max(p[1] for p in ring) - hi[1]),
+        )
+        if gap <= radius * 0.03 + effective_snap * 2:
+            radius_m = round(radius, 4)
+            ring_area = abs(_shoelace(ring))
+            total_area = total_area - outer_area + ring_area
+            outer = ring
+            if total_area <= _EPS:
+                return None, REASON_DEGENERATE
+        else:
+            radial = False
 
     grade_hi = float(lo3[1]) + grade_band_m
     grade_sel = verts[:, 1] <= grade_hi + _EPS
