@@ -9,6 +9,7 @@ GLB with several parts.
 from __future__ import annotations
 
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -145,6 +146,125 @@ def test_u_plan(tmp_path):
     assert fp is not None
     assert fp["class"] == "u_plan"
     assert len(fp["polygon_m"]) == 8
+
+
+# --- T1.5 radial -------------------------------------------------------------
+
+
+def cylinder(radius: float, height: float, segments: int = 32, centre=(0.0, 0.0)):
+    """Closed prism approximating a cylinder, centred on the XZ origin."""
+    import math
+
+    cx, cz = centre
+    verts: list[list[float]] = [[cx, 0.0, cz], [cx, height, cz]]
+    for k in range(segments):
+        theta = 2.0 * math.pi * k / segments
+        x = cx + radius * math.cos(theta)
+        z = cz + radius * math.sin(theta)
+        verts.append([x, 0.0, z])
+        verts.append([x, height, z])
+    tris: list[list[int]] = []
+    for k in range(segments):
+        b0 = 2 + 2 * k
+        b1 = 2 + 2 * ((k + 1) % segments)
+        tris.append([b0, b1, b1 + 1])
+        tris.append([b0, b1 + 1, b0 + 1])
+        tris.append([0, b1, b0])
+        tris.append([1, b0 + 1, b1 + 1])
+    return verts, tris
+
+
+def test_radial_cylinder(tmp_path):
+    verts, tris = cylinder(5.0, 20.0)
+    path = tmp_path / "tower.glb"
+    write_mesh_glb(path, verts, tris)
+    fp = analyze_footprint(path)
+    assert fp is not None
+    assert fp["class"] == "radial"
+    # Conservative by up to one cell, never under: see the module docstring.
+    assert 5.0 <= fp["radius_m"] <= 5.0 + 0.25
+    assert len(fp["polygon_m"]) == 16, "the lattice staircase must be replaced"
+    # Ring vertices are clamped to the AABB, so compare against the real
+    # circle rather than an unclamped 16-gon.
+    assert fp["area_m2"] == pytest.approx(math.pi * 5.0**2, rel=0.05)
+
+
+def test_box_is_not_radial(tmp_path):
+    path = write(tmp_path, "boxy", ([0, 0, 0], [8, 20, 8]))
+    fp = analyze_footprint(path)
+    assert fp is not None
+    assert fp["class"] == "compact"
+    assert fp["radius_m"] is None
+
+
+def test_l_plan_is_not_radial(tmp_path):
+    path = write(tmp_path, "ell2", ([0, 0, 0], [5, 3, 10]), ([5, 0, 0], [10, 3, 5]))
+    fp = analyze_footprint(path)
+    assert fp is not None
+    assert fp["class"] == "l_plan"
+    assert fp["radius_m"] is None
+
+
+def test_radial_ring_stays_inside_bounds(tmp_path):
+    """INV-1 still holds once the traced ring is swapped for a regular one."""
+    verts, tris = cylinder(3.0, 10.0)
+    path = tmp_path / "tower2.glb"
+    write_mesh_glb(path, verts, tris)
+    fp = analyze_footprint(path)
+    assert fp is not None
+    for x, z in fp["polygon_m"]:
+        assert -3.0 - 1e-3 <= x <= 3.0 + 1e-3
+        assert -3.0 - 1e-3 <= z <= 3.0 + 1e-3
+
+
+def test_wall_spectrum_separates_round_from_square(tmp_path):
+    from synty_inventory.sources.footprint import wall_spectrum
+    from synty_inventory.sources.glb_geometry import load_triangles
+
+    rv, rt = cylinder(5.0, 20.0)
+    round_path = tmp_path / "round.glb"
+    write_mesh_glb(round_path, rv, rt)
+    square_path = write(tmp_path, "square", ([-5, 0, -5], [5, 20, 5]))
+
+    v, t = load_triangles(round_path)
+    assert wall_spectrum(v, t) < 0.35
+
+    v, t = load_triangles(square_path)
+    assert wall_spectrum(v, t) >= 0.85
+
+
+def test_hollow_shell_is_filled(tmp_path):
+    """Synty building shells carry wall planes and no floor or roof slab.
+    Without a hole fill, SM_Bld_OfficeSquare_01 rasterises to 4.9 % of its
+    own bounding box and reports a wall ribbon as its footprint."""
+    # Four wall slabs enclosing a 15x15 void, open top and bottom.
+    path = write(
+        tmp_path,
+        "hollow",
+        ([0, 0, 0], [15, 12, 0.4]),
+        ([0, 0, 14.6], [15, 12, 15]),
+        ([0, 0, 0], [0.4, 12, 15]),
+        ([14.6, 0, 0], [15, 12, 15]),
+    )
+    fp = analyze_footprint(path)
+    assert fp is not None
+    assert fp["area_m2"] == pytest.approx(225.0, abs=0.5)
+    assert fp["fill_ratio"] >= 0.99
+    assert fp["class"] == "compact"
+    assert len(fp["polygon_m"]) == 4
+
+
+def test_hollow_cylinder_is_radial(tmp_path):
+    """A hollow round tower must reach radial via the filled ring, not by
+    accident of its wall ribbon."""
+    verts, tris = cylinder(6.0, 20.0)
+    path = tmp_path / "hollow_tower.glb"
+    write_mesh_glb(path, verts, tris)
+    fp = analyze_footprint(path)
+    assert fp is not None
+    assert fp["class"] == "radial"
+    assert 6.0 <= fp["radius_m"] <= 6.0 + 0.25
+    assert fp["area_m2"] == pytest.approx(math.pi * 6.0**2, rel=0.05)
 
 
 # --- invariants --------------------------------------------------------------

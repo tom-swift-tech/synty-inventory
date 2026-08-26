@@ -29,6 +29,13 @@ ever exceed the AABB, so the clamp is exact rather than an approximation.
 Rings are outer-only in v1: interior holes (a courtyard, a floor hatch) are
 not represented. Holes matter for walkability, not for packing.
 
+**Everything here is conservative by up to one cell.** Rasterisation rounds
+the occupied region outward, so areas and radii read up to ~0.25 m proud of
+the true surface (a 6.00 m tower measures 6.12 m). That bias is deliberate
+and deliberately uncorrected: for a packer, over-reporting occupancy fails
+safe -- two POIs will be spaced slightly generously rather than allowed to
+intersect.
+
 All coordinates are local metres in the same space as ``bounds`` (GLB local,
 Y-up, origin = the prefab pivot). Everything here is a ``source: measured``
 derivation; when the mesh cannot be decoded the caller leaves the field null
@@ -48,7 +55,7 @@ from .glb_geometry import load_triangles
 
 FOOTPRINT_VERSION = 1  # bump to invalidate cached analyses when the algorithm changes
 
-FOOTPRINT_CLASSES = ("point", "thin", "compact", "l_plan", "u_plan", "irregular")
+FOOTPRINT_CLASSES = ("point", "thin", "radial", "compact", "l_plan", "u_plan", "irregular")
 
 DEFAULT_SNAP = 0.25
 DEFAULT_GRADE_BAND_M = 0.5
@@ -60,6 +67,18 @@ _THIN_MIN_M = 0.5
 _THIN_MAX_M = 1.0
 _COMPACT_FILL = 0.85
 _EPS = 1e-9
+
+# Radial detection. A cylinder spreads its wall area across dozens of
+# directions at a constant radius; a box puts ~90 % of it into four. Measured
+# on POLYGON_City: OfficeRound top4=0.12 r=0.996, OfficeOctagon 0.60/0.842,
+# OfficeSquare 1.00/0.707 (exactly 1/sqrt(2), as a square must be). A round
+# tower has no face to name, so its exact silhouette is not information --
+# the radius is, and it is what a stacker compares within a kit family.
+_RADIAL_R_RATIO = 0.85
+_RADIAL_TOP4 = 0.35
+_RADIAL_VERTS = 16  # regular ring emitted in place of the lattice staircase
+_WALL_UP_COS = 0.25  # |normal.y| below this is a wall, not a roof or floor
+_CLOSE_CELLS = 2  # 0.5 m: bridges curtain-wall pane joints, not real gaps
 
 # Reasons returned alongside a null block. Mirror spec section 7.
 REASON_OK = "ok"
@@ -160,18 +179,161 @@ def _rasterise(
     snap: float,
     shape: tuple[int, int],
 ) -> np.ndarray:
-    """Occupancy grid, strict first; inclusive only if strict finds nothing
-    (a planar asset whose XZ projection is a segment)."""
-    for strict in (True, False):
+    """Occupancy grid.
+
+    Two rasters with different jobs, because one cannot do both. A triangle's
+    XZ projection is degenerate for a zero-thickness curtain-wall pane *and*
+    for the side face of a solid box, so no per-triangle test separates them.
+
+    - ``solid`` (strict) decides area and the outer boundary. Contact does
+      not count, so abutting parts do not inflate each other.
+    - ``barrier`` (inclusive) decides enclosure only. It picks up the
+      zero-thickness panes that make a Synty curtain wall watertight --
+      ``SM_Bld_OfficeSquare_01`` is a hollow glass shaft whose panes strict
+      testing drops entirely, leaving a leaky mullion frame.
+
+    Cells enclosed by the barrier are unioned onto the solid. The barrier's
+    own one-cell bleed never reaches the result, so the outline stays exact.
+    """
+    xz = verts[:, [0, 2]]
+
+    def raster(strict: bool) -> np.ndarray:
         grid = np.zeros(shape, dtype=bool)
-        xz = verts[:, [0, 2]]
         for tri in tris:
             hit = _tri_cells(xz[tri], origin, snap, shape, strict=strict)
             if hit is not None:
                 grid[hit[0], hit[1]] = True
-        if grid.any():
-            return grid
+        return grid
+
+    solid = raster(True)
+    barrier = raster(False)
+    if not barrier.any():
+        return solid
+    interior = _close_and_fill(barrier) & ~barrier
+    if not solid.any():
+        return _resolve_diagonals(barrier | interior)
+    return _resolve_diagonals(solid | interior)
+
+
+def _shift_or(grid: np.ndarray) -> np.ndarray:
+    """One step of 4-neighbour dilation."""
+    out = grid.copy()
+    out[1:, :] |= grid[:-1, :]
+    out[:-1, :] |= grid[1:, :]
+    out[:, 1:] |= grid[:, :-1]
+    out[:, :-1] |= grid[:, 1:]
+    return out
+
+
+def _dilate(grid: np.ndarray, k: int) -> np.ndarray:
+    for _ in range(k):
+        grid = _shift_or(grid)
     return grid
+
+
+def _resolve_diagonals(grid: np.ndarray) -> np.ndarray:
+    """Break every corner-only contact so boundary tracing is unambiguous.
+
+    Where a 2x2 block holds two occupied cells on a diagonal, the region
+    pinches to a point and the lattice vertex there has two outgoing edges --
+    the tracer cannot know which continues the ring, and picking wrong
+    strands it (``SM_Bld_OfficeSquare_02`` traced to ``open_ring``). Filling
+    one of the two empty cells removes the ambiguity entirely rather than
+    asking the tracer to resolve it, and errs occupied, consistent with the
+    rest of this module.
+    """
+    for _ in range(16):  # each pass can create new diagonals; converges fast
+        a = grid[:-1, :-1]
+        b = grid[1:, :-1]
+        c = grid[:-1, 1:]
+        d = grid[1:, 1:]
+        fix_b = a & d & ~b & ~c
+        fix_a = b & c & ~a & ~d
+        if not fix_b.any() and not fix_a.any():
+            break
+        grid = grid.copy()
+        grid[1:, :-1] |= fix_b
+        grid[:-1, :-1] |= fix_a
+    return grid
+
+
+def _flood_border(free: np.ndarray) -> np.ndarray:
+    """Cells of ``free`` reachable from the grid border by 4-connected steps."""
+    nx, nz = free.shape
+    seen = np.zeros_like(free)
+    queue: deque[tuple[int, int]] = deque()
+    for x in range(nx):
+        for z in (0, nz - 1):
+            if free[x, z] and not seen[x, z]:
+                seen[x, z] = True
+                queue.append((x, z))
+    for z in range(nz):
+        for x in (0, nx - 1):
+            if free[x, z] and not seen[x, z]:
+                seen[x, z] = True
+                queue.append((x, z))
+    while queue:
+        x, z = queue.popleft()
+        for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            ax, az = x + dx, z + dz
+            if 0 <= ax < nx and 0 <= az < nz and free[ax, az] and not seen[ax, az]:
+                seen[ax, az] = True
+                queue.append((ax, az))
+    return seen
+
+
+def _fill_holes(grid: np.ndarray) -> np.ndarray:
+    """Mark every empty cell not reachable from the border as occupied.
+
+    Synty building shells are hollow -- they carry wall planes and no floor
+    or roof slab, so ``SM_Bld_OfficeSquare_01`` rasterises to 179 of 3,660
+    cells: a wall ribbon, not a ground plan. Enclosed area is what blocks a
+    placement, so it is filled before anything is traced or measured.
+
+    This is what spec A3 means by "interior holes are not represented".
+    """
+    return grid | ~_flood_border(~grid)
+
+
+def _close_and_fill(grid: np.ndarray, k: int = _CLOSE_CELLS) -> np.ndarray:
+    """Fill anything the outside cannot reach through a gap wider than 2k.
+
+    A plain hole fill only works on a watertight ribbon. Synty curtain-wall
+    shafts leak at every mullion joint -- ``SM_Bld_OfficeSquare_01`` (a
+    hollow shaft, catalogued "open top, no doors") rasterises to 179 cells
+    where a complete 15 m perimeter needs ~240, so flood fill escapes
+    through the joints and nothing is enclosed.
+
+    This *opens the free space* rather than closing the solid. Morphological
+    closing was the obvious move and is wrong: dilating then eroding the
+    solid fills concavities smaller than the element, which rounds off the
+    notch of an L-plan -- the exact feature this module exists to capture.
+    Flooding the dilated free space instead asks "could an agent of radius k
+    reach this cell from outside?". A 5 m L-notch is open to the outside and
+    survives; a 0.25 m pane joint is not passable and the interior fills.
+
+    Padding is required: the raster is exactly the mesh AABB, so the shape
+    touches all four borders and there would otherwise be no outside to
+    flood from.
+    """
+    pad = k + 1
+    g = np.pad(grid, pad, constant_values=False)
+    outside = _flood_border(~_dilate(g, k))
+    unreachable = ~(_dilate(outside, k) & ~g)
+
+    # The opening cannot reach into a 90 degree concave corner either, so it
+    # fillets every reflex corner to depth k -- which would round off the
+    # notch of an L-plan, the exact feature this module exists to capture.
+    # Discriminate by size: a real enclosure (a hollow shaft's interior) runs
+    # to thousands of cells, a corner fillet is k(k+1)/2 of them. Only keep
+    # additions big enough to be a room.
+    added = unreachable & ~g
+    if added.any():
+        floor_cells = (2 * k + 1) ** 2
+        for mask in _components(added):
+            if int(mask.sum()) < floor_cells:
+                unreachable &= ~mask
+    return _resolve_diagonals(unreachable[pad:-pad, pad:-pad])
 
 
 # --- components --------------------------------------------------------------
@@ -301,6 +463,54 @@ def _simplify(ring: list[list[float]]) -> list[list[float]]:
     return keep if len(keep) >= 4 else ring
 
 
+def _rdp(points: list[list[float]], eps: float) -> list[list[float]]:
+    """Ramer-Douglas-Peucker on an open polyline; max deviation <= eps."""
+    if len(points) < 3:
+        return points
+    a = np.asarray(points[0], dtype=np.float64)
+    b = np.asarray(points[-1], dtype=np.float64)
+    seg = b - a
+    seg_len = float(np.hypot(seg[0], seg[1]))
+    pts = np.asarray(points[1:-1], dtype=np.float64)
+    if seg_len < _EPS:
+        dist = np.linalg.norm(pts - a, axis=1)
+    else:
+        # numpy 2.x removed the 2-D cross product; this is the same determinant.
+        rel = pts - a
+        dist = np.abs(seg[0] * rel[:, 1] - seg[1] * rel[:, 0]) / seg_len
+    idx = int(np.argmax(dist))
+    if float(dist[idx]) <= eps:
+        return [points[0], points[-1]]
+    split = idx + 1
+    left = _rdp(points[: split + 1], eps)
+    right = _rdp(points[split:], eps)
+    return left[:-1] + right
+
+
+def _simplify_staircase(ring: list[list[float]], eps: float) -> list[list[float]]:
+    """Collapse lattice staircases into the straight edge they approximate.
+
+    A facet that is not axis-aligned traces as a stair of half-cell steps --
+    an octagon arrives with 174 vertices for its 8 real faces. Simplifying at
+    one cell removes the steps while leaving any genuine corner, whose
+    deviation from a chord is far larger than a cell.
+
+    This does NOT restore a corner that was filleted away; RDP collapses a
+    staircase to a chord, which bevels the corner rather than sharpening it.
+    Corner fillets are prevented in ``_close_and_fill`` instead.
+    """
+    if len(ring) < 5 or eps <= 0:
+        return ring
+    pts = np.asarray(ring, dtype=np.float64)
+    start = int(np.argmin(pts[:, 0] + pts[:, 1] * 1e-6))
+    rolled = ring[start:] + ring[:start]
+    far = int(np.argmax(np.linalg.norm(np.asarray(rolled) - np.asarray(rolled[0]), axis=1)))
+    first = _rdp(rolled[: far + 1], eps)
+    second = _rdp(rolled[far:] + [rolled[0]], eps)
+    out = first[:-1] + second[:-1]
+    return out if len(out) >= 4 else ring
+
+
 def _shoelace(ring: list[list[float]]) -> float:
     total = 0.0
     n = len(ring)
@@ -329,10 +539,88 @@ def _reflex_count(ring: list[list[float]]) -> int:
     return count
 
 
+# --- radial detection --------------------------------------------------------
+
+
+def wall_spectrum(verts: np.ndarray, tris: np.ndarray) -> float | None:
+    """Fraction of near-vertical face area in the four heaviest 5-degree
+    heading bins: ~1.0 for a box, ~0.1 for a cylinder.
+
+    This is the same normal-binning primitive pass 2 needs to find a glazed
+    facade, built once here.
+    """
+    if not len(tris):
+        return None
+    a, b, c = verts[tris[:, 0]], verts[tris[:, 1]], verts[tris[:, 2]]
+    raw = np.cross(b - a, c - a)
+    mag = np.linalg.norm(raw, axis=1)
+    ok = mag > 1e-9
+    if not ok.any():
+        return None
+    normals = raw[ok] / mag[ok, None]
+    areas = mag[ok] / 2.0
+
+    walls = np.abs(normals[:, 1]) < _WALL_UP_COS
+    if not walls.any():
+        return None
+    heading = np.degrees(np.arctan2(normals[walls, 2], normals[walls, 0])) % 360.0
+    hist, _ = np.histogram(heading, bins=72, range=(0.0, 360.0), weights=areas[walls])
+    total = float(hist.sum())
+    if total <= _EPS:
+        return None
+    return float(np.sort(hist / total)[-4:].sum())
+
+
+def ring_radii(ring: list[list[float]]) -> tuple[float, list[float]] | None:
+    """``(p5/p95 radius ratio, centre)`` of a traced ring.
+
+    Percentiles, not min/max: a circle traced on a 0.25 m lattice is a
+    staircase whose radii spread by roughly a cell either way, which drives a
+    min/max ratio to 0.93 on a perfect cylinder. Measured on the ring rather
+    than on raw vertices because a tiered plinth like
+    ``SM_Bld_OfficeRound_Base_01`` carries interior geometry that drags a
+    vertex-based ratio to 0.56 and splits a kit family in two.
+
+    This is only a sanity guard. ``wall_spectrum`` is the discriminator: it
+    reads the mesh, so the lattice cannot blur it.
+    """
+    if len(ring) < 4:
+        return None
+    pts = np.asarray(ring, dtype=np.float64)
+    centre = (pts.min(axis=0) + pts.max(axis=0)) / 2.0
+    radii = np.linalg.norm(pts - centre, axis=1)
+    hi = float(np.percentile(radii, 95))
+    if hi <= _EPS:
+        return None
+    return float(np.percentile(radii, 5) / hi), [float(centre[0]), float(centre[1])]
+
+
+def _is_radial(top4: float | None, ratio: float | None) -> bool:
+    if top4 is None or ratio is None:
+        return False
+    return ratio >= _RADIAL_R_RATIO and top4 < _RADIAL_TOP4
+
+
+def _regular_ring(centre: list[float], radius: float, lo: np.ndarray, hi: np.ndarray) -> list[list[float]]:
+    """CCW regular ring of ``_RADIAL_VERTS`` vertices, clamped to the AABB.
+
+    Every vertex sits at ``radius`` from the centre and a cylinder's AABB is
+    ``2r`` on both axes, so the clamp is a no-op in the normal case and only
+    bites on an eccentric mesh.
+    """
+    ring: list[list[float]] = []
+    for k in range(_RADIAL_VERTS):
+        theta = 2.0 * math.pi * k / _RADIAL_VERTS
+        x = min(max(centre[0] + radius * math.cos(theta), lo[0]), hi[0])
+        z = min(max(centre[1] + radius * math.sin(theta), lo[1]), hi[1])
+        ring.append([round(float(x), 4), round(float(z), 4)])
+    return ring
+
+
 # --- classification ----------------------------------------------------------
 
 
-def _classify(ring: list[list[float]], area_m2: float, fill_ratio: float) -> str:
+def _classify(ring: list[list[float]], area_m2: float, fill_ratio: float, radial: bool = False) -> str:
     if area_m2 < _POINT_AREA_M2:
         return "point"
     xs = [p[0] for p in ring]
@@ -340,6 +628,8 @@ def _classify(ring: list[list[float]], area_m2: float, fill_ratio: float) -> str
     span = sorted((max(xs) - min(xs), max(zs) - min(zs)))
     if span[0] < _THIN_MIN_M and span[1] >= _THIN_MAX_M:
         return "thin"
+    if radial:
+        return "radial"
     verts = len(ring)
     reflex = _reflex_count(ring)
     if verts == 4 and fill_ratio >= _COMPACT_FILL:
@@ -417,6 +707,7 @@ def analyze_footprint_detail(
 
     total_area = 0.0
     outer: list[list[float]] | None = None
+    outer_area = 0.0
     for i, mask in enumerate(masks):
         rings = _trace_rings(mask)
         if rings is None:
@@ -424,7 +715,11 @@ def analyze_footprint_detail(
         best: list[list[float]] | None = None
         best_area = 0.0
         for lattice in rings:
-            ring = _orient_ccw(_simplify(_to_metres(lattice, lo, effective_snap, lo, hi)))
+            ring = _simplify_staircase(
+                _orient_ccw(_simplify(_to_metres(lattice, lo, effective_snap, lo, hi))),
+                effective_snap,
+            )
+            ring = _orient_ccw(_simplify(ring))
             area = abs(_shoelace(ring))
             if area > best_area:
                 best_area, best = area, ring
@@ -432,9 +727,31 @@ def analyze_footprint_detail(
             return None, REASON_OPEN_RING
         total_area += best_area
         if i == 0:
-            outer = best
+            outer, outer_area = best, best_area
     if outer is None or total_area <= _EPS:
         return None, REASON_DEGENERATE
+
+    # A round tower has no face to name and its lattice staircase is noise,
+    # not shape: 200-odd vertices that no packer or stacker reads. Replace it
+    # with a regular ring and record the radius, which is the number that
+    # actually compares across a kit family.
+    top4 = wall_spectrum(verts, tris)
+    measured = ring_radii(outer)
+    radial = _is_radial(top4, measured[0] if measured else None)
+    radius_m: float | None = None
+    if radial and measured is not None:
+        # Area-equivalent radius, not the circumradius: the outermost
+        # staircase corner sits a diagonal half-cell proud of the true
+        # surface and overstates a 6.00 m tower as 6.31 m.
+        radius = math.sqrt(outer_area / math.pi)
+        centre = measured[1]
+        radius_m = round(radius, 4)
+        ring = _regular_ring(centre, radius, lo, hi)
+        ring_area = abs(_shoelace(ring))
+        total_area = total_area - outer_area + ring_area
+        outer = ring
+        if total_area <= _EPS:
+            return None, REASON_DEGENERATE
 
     grade_hi = float(lo3[1]) + grade_band_m
     grade_sel = verts[:, 1] <= grade_hi + _EPS
@@ -461,7 +778,8 @@ def analyze_footprint_detail(
         "grade_area_m2": round(grade_area, 4),
         "overhang_ratio": round(max(0.0, 1.0 - (grade_area / total_area)), 4),
         "fill_ratio": round(fill_ratio, 4),
-        "class": _classify(outer, total_area, fill_ratio),
+        "class": _classify(outer, total_area, fill_ratio, radial),
+        "radius_m": radius_m,
         "tile_cells": _tile_cells(outer, tile_m, effective_snap),
         "snap_m": effective_snap,
         "grade_band_m": [round(float(lo3[1]), 5), round(grade_hi, 5)],
