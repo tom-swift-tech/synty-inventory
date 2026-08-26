@@ -57,7 +57,7 @@ from ..schema import FOOTPRINT_CLASSES
 from .glb_geometry import load_triangles
 from .glb_measure import _cache_key
 
-FOOTPRINT_VERSION = 1  # bump to invalidate cached analyses when the algorithm changes
+FOOTPRINT_VERSION = 2  # bump to invalidate cached analyses when the algorithm changes
 CACHE_NAME = "_footprint_cache.json"
 
 # Decode counter, so a warm run can be asserted to touch no meshes (AC6).
@@ -722,6 +722,11 @@ def _tile_cells(ring: list[list[float]], tile_m: float | None, snap: float) -> l
 # --- public ------------------------------------------------------------------
 
 
+def fill_ratio_of(area: float, extent: np.ndarray) -> float:
+    box = float(extent[0] * extent[1])
+    return min(area / box, 1.0) if box > _EPS else 1.0
+
+
 def analyze_footprint_detail(
     path: Path,
     node_name: str | None = None,
@@ -815,7 +820,13 @@ def analyze_footprint_detail(
     # actually compares across a kit family.
     # Already computed above to pick the raster resolution.
     measured = ring_radii(outer)
-    radial = _is_radial(top4, measured[0] if measured else None)
+    # Classify the traced ring FIRST. A chain or a spade handle is radially
+    # symmetric and also thin, and thin/point win: substituting a 16-gon for
+    # a chain's outline is wrong, and stamping radius_m on something labelled
+    # thin is incoherent. Only a shape that survives to the radial branch
+    # gets the substitution and the radius.
+    prelim = _classify(outer, total_area, fill_ratio_of(total_area, extent), False)
+    radial = _is_radial(top4, measured[0] if measured else None) and prelim not in ("point", "thin")
     radius_m: float | None = None
     if radial and measured is not None:
         # Area-equivalent radius, not the circumradius: the outermost
@@ -846,8 +857,7 @@ def analyze_footprint_detail(
             grade_area += max(abs(_shoelace(_orient_ccw(_simplify(_to_metres(r, lo, effective_snap, lo, hi))))) for r in rings)
     grade_area = min(grade_area, total_area)
 
-    box_area = float(extent[0] * extent[1])
-    fill_ratio = min(total_area / box_area, 1.0) if box_area > _EPS else 1.0
+    fill_ratio = fill_ratio_of(total_area, extent)
 
     block = {
         "polygon_m": outer,
