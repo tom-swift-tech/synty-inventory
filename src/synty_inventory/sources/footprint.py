@@ -828,6 +828,7 @@ def analyze_footprint_detail(
     prelim = _classify(outer, total_area, fill_ratio_of(total_area, extent), False)
     radial = _is_radial(top4, measured[0] if measured else None) and prelim not in ("point", "thin")
     radius_m: float | None = None
+    traced_ring, traced_area = outer, total_area
     if radial and measured is not None:
         # Area-equivalent radius, not the circumradius: the outermost
         # staircase corner sits a diagonal half-cell proud of the true
@@ -858,6 +859,19 @@ def analyze_footprint_detail(
     grade_area = min(grade_area, total_area)
 
     fill_ratio = fill_ratio_of(total_area, extent)
+    cls = _classify(outer, total_area, fill_ratio, radial)
+    if radial and cls != "radial":
+        # The substitution shrinks the ring to an inscribed 16-gon, and that
+        # can drop a marginal asset under the point threshold -- so a shape
+        # that passed the pre-check can still classify point or thin after
+        # it. Restoring the traced ring is the only consistent outcome:
+        # radius_m is non-null iff class is radial (INV-11), and a 16-gon on
+        # something labelled point is not what was measured.
+        outer, total_area = traced_ring, traced_area
+        radius_m = None
+        grade_area = min(grade_area, total_area)
+        fill_ratio = fill_ratio_of(total_area, extent)
+        cls = _classify(outer, total_area, fill_ratio, False)
 
     block = {
         "polygon_m": outer,
@@ -866,7 +880,7 @@ def analyze_footprint_detail(
         "grade_area_m2": round(grade_area, 4),
         "overhang_ratio": round(max(0.0, 1.0 - (grade_area / total_area)), 4),
         "fill_ratio": round(fill_ratio, 4),
-        "class": _classify(outer, total_area, fill_ratio, radial),
+        "class": cls,
         "radius_m": radius_m,
         "tile_cells": _tile_cells(outer, tile_m, effective_snap),
         "snap_m": effective_snap,
