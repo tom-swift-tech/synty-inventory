@@ -47,13 +47,29 @@ from __future__ import annotations
 import math
 from collections import deque
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
+from ..merge import is_human_field, may_overlay
 from ..naming import SKIP_STEM_RE
 from .glb_geometry import load_triangles
+from .glb_measure import _cache_key
 
 FOOTPRINT_VERSION = 1  # bump to invalidate cached analyses when the algorithm changes
+CACHE_NAME = "_footprint_cache.json"
+
+# Decode counter, so a warm run can be asserted to touch no meshes (AC6).
+_DECODES = {"count": 0}
+
+
+def decode_count() -> int:
+    return _DECODES["count"]
+
+
+def reset_decode_count() -> None:
+    _DECODES["count"] = 0
+
 
 FOOTPRINT_CLASSES = ("point", "thin", "radial", "compact", "l_plan", "u_plan", "irregular")
 
@@ -87,6 +103,7 @@ REASON_NO_TRIANGLES = "no_renderable_triangles"
 REASON_NON_FINITE = "non_finite_positions"
 REASON_OPEN_RING = "open_ring"
 REASON_DEGENERATE = "degenerate_silhouette"
+REASON_MISSING_GLB = "glb_missing"
 
 
 def is_collision_node(name: str) -> bool:
@@ -671,6 +688,7 @@ def analyze_footprint_detail(
     """``(footprint block, reason)``. The block is None on any failure and the
     reason names it — callers report the reason and leave the field null."""
     got = load_triangles(path, node_name, exclude=is_collision_node)
+    _DECODES["count"] += 1
     if got is None:
         return None, REASON_UNDECODABLE
     verts, tris = got
@@ -849,3 +867,104 @@ def check_invariants(block: dict, box_min_xz: list[float], box_max_xz: list[floa
     if not 0.0 <= block.get("overhang_ratio", 0.0) < 1.0:
         return "invariant_4"
     return None
+
+
+# --- enrichment --------------------------------------------------------------
+
+
+def footprint_cache_path(catalogs_dir: Path) -> Path:
+    """``<catalogs>/_footprint_cache.json`` — sibling of the measure cache."""
+    return catalogs_dir / CACHE_NAME
+
+
+def analyze_cached(
+    threejs_v2_dir: Path,
+    glb_rel: str,
+    cache: dict[str, Any],
+    node_name: str | None = None,
+    *,
+    snap: float = DEFAULT_SNAP,
+    tile_m: float | None = None,
+    force: bool = False,
+) -> tuple[dict | None, str, bool]:
+    """``(block, reason, was_cached)``.
+
+    Keyed like ``glb_measure.measure_cached`` (relative path + node + mtime +
+    size) with ``FOOTPRINT_VERSION`` folded in, so a re-exported GLB or an
+    algorithm change both re-analyse. Failures are cached too: an undecodable
+    mesh stays undecodable, and re-decoding it on every scan would cost the
+    most on exactly the assets that can never succeed.
+    """
+    abs_path = threejs_v2_dir / glb_rel
+    key = _cache_key(abs_path)
+    if key is None:
+        return None, REASON_MISSING_GLB, False
+    cache_id = f"{glb_rel}#{node_name}" if node_name else glb_rel
+    entry = cache.get(cache_id)
+    if (
+        not force
+        and entry
+        and entry.get("key") == key
+        and entry.get("version") == FOOTPRINT_VERSION
+    ):
+        return entry.get("footprint"), entry.get("reason", REASON_OK), True
+    block, reason = analyze_footprint_detail(abs_path, node_name, snap=snap, tile_m=tile_m)
+    cache[cache_id] = {
+        "key": key,
+        "version": FOOTPRINT_VERSION,
+        "footprint": block,
+        "reason": reason,
+    }
+    return block, reason, False
+
+
+def apply_footprint(
+    asset: dict,
+    threejs_v2_dir: Path | None,
+    cache: dict[str, Any],
+    stats: dict[str, int],
+    *,
+    snap: float = DEFAULT_SNAP,
+    tile_m: float | None = None,
+    force: bool = False,
+) -> str:
+    """Set ``asset['footprint']`` from the GLB; leave it null otherwise.
+
+    Returns one of ``measured | cached | skipped | missing_glb |
+    undecodable | degenerate``. Runs after ``apply_measured_bounds`` because
+    ``fill_ratio`` is relative to the measured box.
+
+    Non-placeable records (animation clips, HUD sprites, skeletons) have no
+    ground plan and are skipped rather than reported as failures.
+    """
+
+    def done(kind: str) -> str:
+        stats[f"footprint_{kind}"] = stats.get(f"footprint_{kind}", 0) + 1
+        return kind
+
+    if is_human_field(asset, "footprint") or not may_overlay(asset, "footprint", "measured"):
+        return done("skipped")
+    if not asset.get("placeable"):
+        return done("skipped")
+
+    files = asset.get("files") or {}
+    glb_rel = files.get("glb")
+    if not glb_rel or threejs_v2_dir is None:
+        return done("missing_glb")
+
+    block, reason, was_cached = analyze_cached(
+        threejs_v2_dir,
+        glb_rel,
+        cache,
+        files.get("glb_node"),
+        snap=snap,
+        tile_m=tile_m,
+        force=force,
+    )
+    if block is None:
+        asset["footprint"] = None
+        return done("degenerate" if reason.startswith(("degenerate", "invariant", "open_ring")) else reason)
+
+    asset["footprint"] = block
+    asset.setdefault("provenance", {})["footprint"] = "measured"
+    return done("cached" if was_cached else "measured")

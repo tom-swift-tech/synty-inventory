@@ -81,6 +81,7 @@ SEMANTIC_FIELDS = (
     "module",
     "part",
     "mech",
+    "footprint",
     "ai_notes",
 )
 
