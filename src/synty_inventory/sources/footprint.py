@@ -53,6 +53,7 @@ import numpy as np
 
 from ..merge import is_human_field, may_overlay
 from ..naming import SKIP_STEM_RE
+from ..schema import FOOTPRINT_CLASSES
 from .glb_geometry import load_triangles
 from .glb_measure import _cache_key
 
@@ -71,7 +72,7 @@ def reset_decode_count() -> None:
     _DECODES["count"] = 0
 
 
-FOOTPRINT_CLASSES = ("point", "thin", "radial", "compact", "l_plan", "u_plan", "irregular")
+FOOTPRINT_CLASSES = FOOTPRINT_CLASSES  # re-exported; the enum lives in schema.py
 
 DEFAULT_SNAP = 0.25
 DEFAULT_GRADE_BAND_M = 0.5

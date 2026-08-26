@@ -410,6 +410,106 @@ SOCKET_AXES = ("+x", "-x", "+y", "-y", "+z", "-z")
 SOCKET_ROLES = ("front", "rear", "left", "right", "top", "bottom")
 SOCKET_SOURCES = ("measured", "aabb", "declared")
 
+# Ground-plan footprint (sources/footprint.py). A measured derivation like
+# bounds, but a polygon rather than a box. Never defaulted onto a record:
+# absent means never analysed, null means analysed and failed, and the two
+# must stay distinguishable or a scan would touch all 13,745 records.
+FOOTPRINT_CLASSES = ("point", "thin", "radial", "compact", "l_plan", "u_plan", "irregular")
+FOOTPRINT_SOURCES = ("measured",)
+
+
+def validate_footprint(footprint: Any, bounds: Any, prefix: str, errors: list[str]) -> None:
+    """Schema + geometric invariants (spec INV-1..4) for one footprint block.
+
+    The analyser self-checks before writing, so a violation reaching disk
+    means something else edited the record. Checking again here is what lets
+    ``synty-inventory validate`` catch that.
+    """
+    if footprint is None:
+        return
+    if not isinstance(footprint, dict):
+        errors.append(f"{prefix}.footprint must be an object or null")
+        return
+
+    ring = footprint.get("polygon_m")
+    if not isinstance(ring, list) or len(ring) < 4:
+        errors.append(f"{prefix}.footprint.polygon_m must be a ring of >= 4 points")
+        return
+    for i, pt in enumerate(ring):
+        if not (isinstance(pt, list) and len(pt) == 2 and all(isinstance(v, (int, float)) for v in pt)):
+            errors.append(f"{prefix}.footprint.polygon_m[{i}] must be [x,z]")
+            return
+
+    if footprint.get("class") not in FOOTPRINT_CLASSES:
+        errors.append(f"{prefix}.footprint.class invalid: {footprint.get('class')!r}")
+    if footprint.get("source") not in FOOTPRINT_SOURCES:
+        errors.append(f"{prefix}.footprint.source invalid: {footprint.get('source')!r}")
+    if not isinstance(footprint.get("version"), int):
+        errors.append(f"{prefix}.footprint.version must be an int")
+    if not isinstance(footprint.get("components"), int) or footprint["components"] < 1:
+        errors.append(f"{prefix}.footprint.components must be a positive int")
+
+    radius = footprint.get("radius_m")
+    if footprint.get("class") == "radial":
+        if not isinstance(radius, (int, float)) or radius <= 0:
+            errors.append(f"{prefix}.footprint.radius_m required and positive for class radial")
+    elif radius is not None:
+        errors.append(f"{prefix}.footprint.radius_m must be null unless class is radial")
+
+    tile = footprint.get("tile_cells")
+    if tile is not None and not (
+        isinstance(tile, list) and len(tile) == 2 and all(isinstance(v, int) and v >= 1 for v in tile)
+    ):
+        errors.append(f"{prefix}.footprint.tile_cells must be [nx,nz] of positive ints or null")
+
+    area = footprint.get("area_m2")
+    grade = footprint.get("grade_area_m2")
+    fill = footprint.get("fill_ratio")
+    overhang = footprint.get("overhang_ratio")
+    for key, value in (
+        ("area_m2", area),
+        ("grade_area_m2", grade),
+        ("fill_ratio", fill),
+        ("overhang_ratio", overhang),
+    ):
+        if not isinstance(value, (int, float)):
+            errors.append(f"{prefix}.footprint.{key} must be a number")
+            return
+
+    tol = 1e-3
+    # INV-3
+    if area <= 0:
+        errors.append(f"{prefix}.footprint.area_m2 must be > 0")
+    if not 0.0 < fill <= 1.0 + tol:
+        errors.append(f"{prefix}.footprint.fill_ratio out of range: {fill}")
+    # INV-4
+    if grade > area + tol:
+        errors.append(f"{prefix}.footprint.grade_area_m2 exceeds area_m2")
+    if not 0.0 <= overhang < 1.0:
+        errors.append(f"{prefix}.footprint.overhang_ratio out of range: {overhang}")
+    # INV-1: the polygon may never escape the measured box
+    if isinstance(bounds, dict) and _is_vec3(bounds.get("min")) and _is_vec3(bounds.get("max")):
+        lo, hi = bounds["min"], bounds["max"]
+        for x, z in ring:
+            if x < lo[0] - tol or x > hi[0] + tol or z < lo[2] - tol or z > hi[2] + tol:
+                errors.append(f"{prefix}.footprint.polygon_m escapes bounds")
+                break
+        box = (hi[0] - lo[0]) * (hi[2] - lo[2])
+        if box > 0 and area > box + tol:
+            errors.append(f"{prefix}.footprint.area_m2 exceeds the bounds footprint")
+    # INV-2: no duplicate consecutive vertices, ring wound CCW
+    for i in range(len(ring)):
+        if abs(ring[i][0] - ring[i - 1][0]) <= 1e-9 and abs(ring[i][1] - ring[i - 1][1]) <= 1e-9:
+            errors.append(f"{prefix}.footprint.polygon_m has a duplicate vertex at {i}")
+            break
+    shoelace = 0.0
+    for i in range(len(ring)):
+        x0, z0 = ring[i]
+        x1, z1 = ring[(i + 1) % len(ring)]
+        shoelace += x0 * z1 - x1 * z0
+    if shoelace < 0:
+        errors.append(f"{prefix}.footprint.polygon_m must be wound counter-clockwise")
+
 
 def validate_socket(face: Any, prefix: str, errors: list[str], *, need_role: bool) -> None:
     if not isinstance(face, dict):
@@ -779,6 +879,8 @@ def validate_asset(asset: Any, prefix: str, errors: list[str]) -> None:
     mech = asset.get("mech")
     if mech is not None:
         validate_mech(mech, f"{prefix}.mech", errors)
+    if "footprint" in asset:
+        validate_footprint(asset["footprint"], asset.get("bounds"), prefix, errors)
     files = asset.get("files")
     if not isinstance(files, dict):
         errors.append(f"{prefix}.files must be an object")
