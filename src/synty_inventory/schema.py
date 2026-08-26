@@ -485,7 +485,9 @@ def validate_footprint(footprint: Any, bounds: Any, prefix: str, errors: list[st
     # INV-4
     if grade > area + tol:
         errors.append(f"{prefix}.footprint.grade_area_m2 exceeds area_m2")
-    if not 0.0 <= overhang < 1.0:
+    # 1.0 is legitimate: a hanging sign or pole-mounted fixture has nothing
+    # at all within the grade band.
+    if not 0.0 <= overhang <= 1.0:
         errors.append(f"{prefix}.footprint.overhang_ratio out of range: {overhang}")
     # INV-1: the polygon may never escape the measured box
     if isinstance(bounds, dict) and _is_vec3(bounds.get("min")) and _is_vec3(bounds.get("max")):

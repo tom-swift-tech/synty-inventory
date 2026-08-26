@@ -514,6 +514,7 @@ def cmd_footprint(args, cfg) -> int:
         tile = float(grid["tile"]) if grid.get("tile") else None
         stats: dict[str, int] = {}
         classes: dict[str, int] = {}
+        by_type: dict[str, dict[str, int]] = {}
         failures: list[dict] = []
         eligible = 0
 
@@ -530,6 +531,11 @@ def cmd_footprint(args, cfg) -> int:
                 cls = (asset.get("footprint") or {}).get("class")
                 if cls:
                     classes[cls] = classes.get(cls, 0) + 1
+                    # A tree's outline is "irregular" in the same sense a
+                    # cathedral's would be. Split by type so the flat
+                    # histogram cannot read as alarming when it is foliage.
+                    bucket = by_type.setdefault(asset.get("type") or "?", {})
+                    bucket[cls] = bucket.get(cls, 0) + 1
             elif status != "skipped":
                 failures.append({"id": asset["id"], "reason": status, "detail": _footprint_detail(asset, status)})
 
@@ -547,6 +553,7 @@ def cmd_footprint(args, cfg) -> int:
                 "degenerate": stats.get("footprint_degenerate", 0),
                 "coverage": coverage,
                 "class_histogram": dict(sorted(classes.items())),
+                "class_by_type": {t: dict(sorted(c.items())) for t, c in sorted(by_type.items())},
                 "failures": failures,
             }
         )

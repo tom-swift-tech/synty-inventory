@@ -84,8 +84,14 @@ def test_rejects_fill_ratio_over_one():
     assert any("fill_ratio out of range" in e for e in errs(bad(fill_ratio=1.5)))
 
 
-def test_rejects_overhang_of_one():
-    assert any("overhang_ratio out of range" in e for e in errs(bad(overhang_ratio=1.0)))
+def test_accepts_overhang_of_one():
+    """A pole-mounted sign has nothing within the grade band, so an overhang
+    of exactly 1.0 is legitimate rather than a violation."""
+    assert not [e for e in errs(bad(overhang_ratio=1.0, grade_area_m2=0.0)) if "overhang" in e]
+
+
+def test_rejects_overhang_above_one():
+    assert any("overhang_ratio out of range" in e for e in errs(bad(overhang_ratio=1.2)))
 
 
 def test_rejects_short_ring():

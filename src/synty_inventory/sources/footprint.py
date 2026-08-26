@@ -95,7 +95,17 @@ _RADIAL_R_RATIO = 0.85
 _RADIAL_TOP4 = 0.35
 _RADIAL_VERTS = 16  # regular ring emitted in place of the lattice staircase
 _WALL_UP_COS = 0.25  # |normal.y| below this is a wall, not a roof or floor
-_CLOSE_CELLS = 2  # 0.5 m: bridges curtain-wall pane joints, not real gaps
+_CLOSE_M = 0.5  # gap width the enclosure fill bridges (curtain-wall pane joints)
+
+# Refinement. An axis-aligned box is already exact at the pack's snap: its
+# outline lies on cell boundaries. A curved or 45-degree piece is not -- the
+# quarter-round SM_Bld_Base_Floor_Round_01 measured 5.375 m2 against a true
+# 4.76, because a 7-vertex outline was rasterised at 0.25 m and re-traced
+# outward as a staircase. Refining every asset would cost ~64x the cells for
+# nothing on the majority; the wall spectrum already tells us which is which,
+# so only the pieces that need it pay.
+_REFINE_TOP4 = 0.90  # below this share of wall area in 4 headings = not axis-aligned
+_REFINE_FACTOR = 8
 
 # Reasons returned alongside a null block. Mirror spec section 7.
 REASON_OK = "ok"
@@ -227,7 +237,8 @@ def _rasterise(
     barrier = raster(False)
     if not barrier.any():
         return solid
-    interior = _close_and_fill(barrier) & ~barrier
+    k = max(1, int(round(_CLOSE_M / snap)))
+    interior = _close_and_fill(barrier, k) & ~barrier
     if not solid.any():
         return _resolve_diagonals(barrier | interior)
     return _resolve_diagonals(solid | interior)
@@ -313,7 +324,7 @@ def _fill_holes(grid: np.ndarray) -> np.ndarray:
     return grid | ~_flood_border(~grid)
 
 
-def _close_and_fill(grid: np.ndarray, k: int = _CLOSE_CELLS) -> np.ndarray:
+def _close_and_fill(grid: np.ndarray, k: int) -> np.ndarray:
     """Fill anything the outside cannot reach through a gap wider than 2k.
 
     A plain hole fill only works on a watertight ribbon. Synty curtain-wall
@@ -516,6 +527,12 @@ def _simplify_staircase(ring: list[list[float]], eps: float) -> list[list[float]
     This does NOT restore a corner that was filleted away; RDP collapses a
     staircase to a chord, which bevels the corner rather than sharpening it.
     Corner fillets are prevented in ``_close_and_fill`` instead.
+
+    On a refined raster the tolerance is two cells, not one: ``_resolve_
+    diagonals`` fills every diagonal contact along a 45-degree edge, turning
+    a clean staircase into a sawtooth whose teeth are a full cell deep. One
+    cell cannot absorb that -- a right-triangle ceiling came back with 162
+    vertices. Two cells is still 6 cm at the refined snap.
     """
     if len(ring) < 5 or eps <= 0:
         return ring
@@ -638,6 +655,33 @@ def _regular_ring(centre: list[float], radius: float, lo: np.ndarray, hi: np.nda
 # --- classification ----------------------------------------------------------
 
 
+def _right_angle_corners(ring: list[list[float]]) -> int:
+    """Corners within ~15 degrees of square.
+
+    ``l_plan`` and ``u_plan`` describe buildings with real corners. Matching
+    on vertex count and reflex count alone let a staircased arc through --
+    the quarter-round floor wedge classified ``u_plan`` on an 8-vertex ring
+    whose "corners" were raster steps. A shape without square corners is
+    ``irregular``, which is honest.
+    """
+    n = len(ring)
+    square = 0
+    for i in range(n):
+        prev = ring[(i - 1) % n]
+        cur = ring[i]
+        nxt = ring[(i + 1) % n]
+        ax, az = cur[0] - prev[0], cur[1] - prev[1]
+        bx, bz = nxt[0] - cur[0], nxt[1] - cur[1]
+        la = math.hypot(ax, az)
+        lb = math.hypot(bx, bz)
+        if la < _EPS or lb < _EPS:
+            continue
+        cos = abs((ax * bx + az * bz) / (la * lb))
+        if cos < 0.26:  # ~75-105 degrees
+            square += 1
+    return square
+
+
 def _classify(ring: list[list[float]], area_m2: float, fill_ratio: float, radial: bool = False) -> str:
     if area_m2 < _POINT_AREA_M2:
         return "point"
@@ -652,9 +696,10 @@ def _classify(ring: list[list[float]], area_m2: float, fill_ratio: float, radial
     reflex = _reflex_count(ring)
     if verts == 4 and fill_ratio >= _COMPACT_FILL:
         return "compact"
-    if verts == 6 and reflex == 1:
+    square = _right_angle_corners(ring)
+    if verts == 6 and reflex == 1 and square == 6:
         return "l_plan"
-    if verts == 8 and reflex == 2:
+    if verts == 8 and reflex == 2 and square == 8:
         return "u_plan"
     return "irregular"
 
@@ -707,6 +752,15 @@ def analyze_footprint_detail(
         return None, REASON_DEGENERATE
 
     effective_snap = float(snap)
+    # Refine only where the mesh is not axis-aligned; see _REFINE_TOP4.
+    # A flat slab (ceiling, floor, road tile, decal) has no vertical faces at
+    # all, so the spectrum is None -- and its outline is the whole asset, so
+    # it refines too. SM_Bld_Base_Ceiling_45_01 is a 45-degree triangle that
+    # read 10 % over at the pack snap for exactly this reason.
+    top4 = wall_spectrum(verts, tris)
+    refined = top4 is None or top4 < _REFINE_TOP4
+    if refined:
+        effective_snap = float(snap) / _REFINE_FACTOR
     while max(math.ceil(extent[0] / effective_snap), math.ceil(extent[1] / effective_snap)) > _MAX_CELLS_PER_AXIS:
         effective_snap *= 2.0
 
@@ -720,7 +774,12 @@ def analyze_footprint_detail(
         return None, REASON_DEGENERATE
 
     cell_area = effective_snap * effective_snap
-    masks = [m for m in _components(grid) if int(m.sum()) * cell_area >= min_component_m2 - _EPS]
+    # One cell of the raster actually in use, never a constant: at the pack
+    # snap 0.0625 m2 IS one cell, but at the refined snap it is 64 of them,
+    # and small props (SM_Env_Flower_01 is 0.234 x 0.218 m) fall under their
+    # own minimum. The coarse raster was inflating them past it.
+    min_component = max(min_component_m2 if effective_snap >= snap else 0.0, cell_area)
+    masks = [m for m in _components(grid) if int(m.sum()) * cell_area >= min_component - _EPS]
     if not masks:
         return None, REASON_DEGENERATE
 
@@ -736,7 +795,7 @@ def analyze_footprint_detail(
         for lattice in rings:
             ring = _simplify_staircase(
                 _orient_ccw(_simplify(_to_metres(lattice, lo, effective_snap, lo, hi))),
-                effective_snap,
+                effective_snap * (2.0 if refined else 1.0),
             )
             ring = _orient_ccw(_simplify(ring))
             area = abs(_shoelace(ring))
@@ -754,7 +813,7 @@ def analyze_footprint_detail(
     # not shape: 200-odd vertices that no packer or stacker reads. Replace it
     # with a regular ring and record the radius, which is the number that
     # actually compares across a kit family.
-    top4 = wall_spectrum(verts, tris)
+    # Already computed above to pick the raster resolution.
     measured = ring_radii(outer)
     radial = _is_radial(top4, measured[0] if measured else None)
     radius_m: float | None = None
@@ -779,7 +838,7 @@ def analyze_footprint_detail(
     if len(grade_tris):
         grade_grid = _rasterise(verts, grade_tris, lo, effective_snap, shape)
         for mask in _components(grade_grid):
-            if int(mask.sum()) * cell_area < min_component_m2 - _EPS:
+            if int(mask.sum()) * cell_area < min_component - _EPS:
                 continue
             rings = _trace_rings(mask)
             if rings is None:
@@ -865,7 +924,9 @@ def check_invariants(block: dict, box_min_xz: list[float], box_max_xz: list[floa
         return "invariant_3"
     if block.get("grade_area_m2", 0.0) > area + tol:
         return "invariant_4"
-    if not 0.0 <= block.get("overhang_ratio", 0.0) < 1.0:
+    # 1.0 is legitimate: a hanging sign or a pole-mounted fixture has nothing
+    # at all within the grade band.
+    if not 0.0 <= block.get("overhang_ratio", 0.0) <= 1.0:
         return "invariant_4"
     return None
 

@@ -171,7 +171,7 @@ def test_token_budget_unmoved_by_footprints(tmp_path):
     assert _gate(with_fp, "token_budget")["detail"] == _gate(without, "token_budget")["detail"]
 
 
-@pytest.mark.parametrize("field,value", [("area_m2", 0.0), ("fill_ratio", 1.9), ("overhang_ratio", 1.0)])
+@pytest.mark.parametrize("field,value", [("area_m2", 0.0), ("fill_ratio", 1.9), ("overhang_ratio", 1.2)])
 def test_numeric_invariants_trip(tmp_path, field, value):
     bad = _asset("SM_B_01")
     bad["footprint"][field] = value
