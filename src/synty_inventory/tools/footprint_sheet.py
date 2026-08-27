@@ -47,7 +47,8 @@ ROWS_PER_PAGE = 8
 CSS = """
   .bg   { fill: #10141a; }
   .box  { fill: none; stroke: #3a4554; stroke-width: 1.2; }
-  .poly { fill: #22d3ee22; stroke: #22d3ee; stroke-width: 1.6; stroke-linejoin: round; }
+  .rast { fill: #64748b; fill-opacity: 0.55; stroke: none; }
+  .poly { fill: none; stroke: #22d3ee; stroke-width: 1.6; stroke-linejoin: round; }
   .seg  { stroke: #f59e0b; stroke-width: 3; stroke-linecap: round; }
   .ctr  { fill: #f472b6; }
   .id   { fill: #cbd5e1; font: 8px ui-monospace, monospace; }
@@ -57,7 +58,7 @@ CSS = """
 """
 
 
-def _cell_svg(x0: int, y0: int, aid: str, block: dict | None, reason: str, box: tuple) -> list[str]:
+def _cell_svg(x0: int, y0: int, aid: str, block: dict | None, reason: str, box: tuple, raster=None) -> list[str]:
     out = [f'<rect x="{x0}" y="{y0}" width="{CELL}" height="{CELL}" class="bg"/>']
     inner = CELL - 2 * PAD
     bx0, bz0, bx1, bz1 = box
@@ -80,6 +81,36 @@ def _cell_svg(x0: int, y0: int, aid: str, block: dict | None, reason: str, box: 
 
     label = html.escape(aid[:30])
     out.append(f'<text x="{x0 + 6}" y="{y0 + 13}" class="id">{label}</text>')
+
+    # The mesh's own occupancy raster, under the emitted ring. This is the
+    # point of the sheet: drawing the polygon against the AABB only shows
+    # whether it fits its box, which a wrong polygon can do. Grey is what the
+    # mesh projects to; cyan is what we emitted. Daylight between them is the
+    # error, and it is visible without reading a number.
+    if raster is not None:
+        grid, r_origin, r_snap = raster
+        nx, nz = grid.shape
+        cw = r_snap * scale
+        for ix in range(nx):
+            col = grid[ix]
+            iz = 0
+            while iz < nz:
+                if not col[iz]:
+                    iz += 1
+                    continue
+                run = iz
+                while run < nz and col[run]:
+                    run += 1
+                # one rect per vertical run of occupied cells
+                gx = r_origin[0] + ix * r_snap
+                gz0 = r_origin[1] + iz * r_snap
+                gz1 = r_origin[1] + run * r_snap
+                px, py = to_px(gx, gz1)
+                out.append(
+                    f'<rect x="{px:.2f}" y="{py:.2f}" width="{cw:.2f}" '
+                    f'height="{(gz1 - gz0) * scale:.2f}" class="rast"/>'
+                )
+                iz = run
 
     if block is None:
         out.append(f'<text x="{x0 + 6}" y="{y0 + CELL - 8}" class="warn">{html.escape(reason)}</text>')
@@ -113,7 +144,46 @@ def _cell_svg(x0: int, y0: int, aid: str, block: dict | None, reason: str, box: 
     return out
 
 
-def build_pages(rows: list[tuple[str, dict | None, str, tuple]], title: str) -> list[str]:
+def compute_raster(path, node_name, snap: float):
+    """Re-derive the mesh's occupancy grid for the overlay.
+
+    Mirrors the analyser's own setup (same triangles, same collision filter,
+    same refinement decision), so what is drawn is what the polygon was
+    derived from rather than an approximation of it.
+    """
+    import math
+
+    import numpy as np
+
+    from ..sources import footprint as F
+
+    got = F.load_triangles(path, node_name, exclude=F.is_collision_node)
+    if got is None:
+        return None
+    verts, tris = got
+    if not len(tris) or not np.isfinite(verts).all():
+        return None
+    lo3, hi3 = verts.min(axis=0), verts.max(axis=0)
+    lo = np.array([lo3[0], lo3[2]], dtype=np.float64)
+    hi = np.array([hi3[0], hi3[2]], dtype=np.float64)
+    extent = hi - lo
+    if extent[0] <= 1e-9 and extent[1] <= 1e-9:
+        return None
+    eff = float(snap)
+    top4 = F.wall_spectrum(verts, tris)
+    if top4 is None or top4 < F._REFINE_TOP4:
+        eff = float(snap) / F._REFINE_FACTOR
+    while max(math.ceil(extent[0] / eff), math.ceil(extent[1] / eff)) > F._MAX_CELLS_PER_AXIS:
+        eff *= 2.0
+    shape = (max(int(math.ceil(extent[0] / eff)), 1), max(int(math.ceil(extent[1] / eff)), 1))
+    try:
+        grid = F._rasterise(verts, tris, lo, eff, shape)
+    except Exception:
+        return None
+    return grid, (float(lo[0]), float(lo[1])), eff
+
+
+def build_pages(rows: list, title: str) -> list[str]:
     per_page = COLS * ROWS_PER_PAGE
     pages: list[str] = []
     for pno in range(0, len(rows), per_page):
@@ -123,10 +193,12 @@ def build_pages(rows: list[tuple[str, dict | None, str, tuple]], title: str) -> 
         body = [f'<rect width="{width}" height="{height}" class="bg"/>']
         head = f"{title} — {pno + 1}..{pno + len(chunk)} of {len(rows)}"
         body.append(f'<text x="8" y="20" class="hdr">{html.escape(head)}</text>')
-        for i, (aid, block, reason, box) in enumerate(chunk):
+        for i, row in enumerate(chunk):
+            aid, block, reason, box = row[0], row[1], row[2], row[3]
+            raster = row[4] if len(row) > 4 else None
             cx = (i % COLS) * CELL
             cy = (i // COLS) * CELL + 30
-            body.extend(_cell_svg(cx, cy, aid, block, reason, box))
+            body.extend(_cell_svg(cx, cy, aid, block, reason, box, raster))
         pages.append(
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
             f'viewBox="0 0 {width} {height}"><style>{CSS}</style>' + "".join(body) + "</svg>"
@@ -181,7 +253,8 @@ def main(argv: list[str] | None = None) -> int:
         b = asset.get("bounds") or {}
         mn, mx = b.get("min"), b.get("max")
         box = (mn[0], mn[2], mx[0], mx[2]) if mn and mx else (0.0, 0.0, 1.0, 1.0)
-        rows.append((asset["id"], block, reason, box))
+        raster = compute_raster(threejs / glb, (asset.get("files") or {}).get("glb_node"), snap)
+        rows.append((asset["id"], block, reason, box, raster))
         if args.limit and len(rows) >= args.limit:
             break
 
