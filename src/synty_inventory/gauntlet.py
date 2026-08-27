@@ -16,7 +16,7 @@ from .query import (
     suggest_recipes_for,
 )
 from .recipes import kit_family, load_recipes, resolve_recipe
-from .schema import validate_catalog
+from .schema import FOOTPRINT_CLASSES, validate_catalog, validate_footprint
 from .sources.godot import SLUG_PACK_OVERRIDES as GODOT_SLUG_PACK_OVERRIDES
 from .sources.godot import discover_pack_dirs as discover_godot_pack_dirs
 
@@ -502,6 +502,43 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root:
         and not a["id"].upper().startswith(("SM_", "SK_", "CHR_"))
     ]
     gate("nonplaceable_packs", not nonplace, f"{len(nonplace)} ANIMATION_/INTERFACE_ non-mesh assets still placeable {nonplace[:5]}")
+
+    # Ground-plan footprints (sources/footprint.py). One sweep, every
+    # non-null block in every catalog, re-asserting the geometric invariants
+    # the analyser self-checks before writing. This is the gate that stands
+    # between a bad polygon and whatever consumes these catalogs -- a POI
+    # solver reading them off disk has no other check.
+    fp_errors: list[str] = []
+    fp_classes: Counter = Counter()
+    fp_present = 0
+    fp_null = 0
+    for d in docs:
+        pid = d.get("pack_id", "?")
+        for a in d["assets"]:
+            if "footprint" not in a:
+                continue
+            block = a["footprint"]
+            if block is None:
+                fp_null += 1
+                continue
+            fp_present += 1
+            fp_classes[block.get("class")] += 1
+            before = len(fp_errors)
+            validate_footprint(block, a.get("bounds"), f"{pid}:{a.get('id')}", fp_errors)
+            if len(fp_errors) > before + 2:
+                del fp_errors[before + 2:]  # cap per-asset noise
+    analysed = fp_present + fp_null
+    if analysed:
+        gate(
+            "footprint_invariants",
+            not fp_errors,
+            f"{fp_present} footprints, {fp_null} null, {len(fp_errors)} invariant violations {fp_errors[:3]}",
+        )
+        gate(
+            "footprint_classes",
+            all(c in FOOTPRINT_CLASSES for c in fp_classes),
+            f"{dict(sorted(fp_classes.items(), key=lambda kv: -kv[1]))}",
+        )
 
     # Phase 1 pin: the canonical "assemble a POI" call set must stay cheap
     # in an agent's context. Slim rows put the full-catalog set at ~48 KB

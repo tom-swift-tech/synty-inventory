@@ -120,7 +120,63 @@ Catalogs are written to the `catalogs:` path. Each pack is
 | `mech` | on `SM_Veh_Mech_*` bodies: `skeleton` (bone names), `slots[]` (`region`, `side`, `bone`, `geo_nodes`), `variants` (factory loadouts → the `geo_*` nodes each activates). The master body GLB contains every armor/weapon option as named `geo_*` nodes — assemble by toggling geo-node visibility to a `variants` set, or by parenting standalone `SM_Mech_*` attachment GLBs to their `attach_bone`. |
 | `files` | `unity_prefab`, `unity_mesh`, `unity_materials`, `glb` (+ `glb_node` for meshes packed in bundle GLBs), `unreal_uasset`, `godot_scene`. `paths` is the v1 alias. |
 | `provenance` | per-field source, see precedence below. |
+| `footprint` | ground plan measured from the GLB — `polygon_m` (CCW ring, XZ local metres), `area_m2`, `grade_area_m2`, `overhang_ratio`, `fill_ratio`, `class`, `radius_m`, `tile_cells`, `components`, `snap_m`, `grade_band_m`. See below. |
 
+
+### `footprint` — the ground plan
+
+`bounds` says how big an asset's box is; `footprint` says what shape its
+ground plan actually is. An L-plan office, a landing pad with an overhanging
+lip and a solid cube all share a box — they do not share a footprint, and a
+packer that only sees the box spaces everything conservatively.
+
+```
+synty-inventory footprint [--pack CSV] [--ids CSV] [--rebuild] [--dry-run]
+                          [--report PATH] [--min-coverage F]
+```
+
+Deterministic mesh math — no VLM, no render, no network. Cached in
+`<catalogs>/_footprint_cache.json` by mtime+size+`FOOTPRINT_VERSION`, so the
+first run per pack is the expensive one (~6 min for 800 assets) and every run
+after it is free. Bumping `FOOTPRINT_VERSION` invalidates every entry without
+`--rebuild`.
+
+Things a consumer must know:
+
+- **`null` is a legitimate state.** The mesh could not be decoded, or it is a
+  zero-thickness kit card (`SM_Bld_Base_Wall_Thin_*`, neon flats, billboards)
+  whose AABB has no XZ depth, so any positive area would violate its own
+  bounding box. ~115 of 10,185 across all packs. Check before use.
+- **`area_m2` is enclosed area, not silhouette.** Synty building shells are
+  hollow — no floor or roof slab — so the raw wall ribbon of a 15 × 15 m shaft
+  is only 179 of 3,660 cells. Interior voids are filled, because a hollow
+  shell still blocks its whole floorplate.
+- **Measures are conservative by up to one cell and never under.** A 6.00 m
+  tower reads 6.12 m. Deliberate: over-reporting occupancy fails safe.
+- **`radius_m` is set iff `class == "radial"`.** A round tower has no face to
+  name, so its traced outline is replaced by a regular 16-gon and the radius
+  is recorded — that is the number that compares across a kit family.
+- **`overhang_ratio` of 1.0** means nothing at all sits within the grade band
+  (a pole-mounted sign). Legitimate, not an error.
+- **Never in slim rows.** `details <id>` for the full block, or widen a list
+  query with `--fields footprint`.
+
+`class` is one of `point`, `thin`, `radial`, `compact`, `l_plan`, `u_plan`,
+`irregular`, first match wins in that order. It is a convenience — `fill_ratio`
+is the number to filter on if you want "box-like enough to pack as a box".
+
+Verify a pass before trusting it:
+
+```
+python -m synty_inventory.tools.diff_catalog --before <backup>.zip --after <catalogs>
+python -m synty_inventory.tools.footprint_sheet --pack P --type buildable --out DIR
+```
+
+`diff_catalog` proves the pass was additive — it permits only *additions* at
+`footprint`, `provenance.footprint` and `_auto.footprint`, and fails on any
+other added, changed or removed key path, or any gained or dropped record.
+`footprint_sheet` renders a contact-sheet SVG (AABB in grey, polygon in cyan)
+so a systematic error shows up as a block of wrong cells.
 Catalog-level `grid` (`snap 0.25`, module/tile/story sizes) and
 `conventions` (street axis `+z`, rotate step, scale `1.0`) are written once
 per pack.

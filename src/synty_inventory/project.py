@@ -54,6 +54,11 @@ def slim_row(
     present — absence means "not that kind of asset", and omitting keeps
     rows tight. ``fields`` copies named top-level record fields verbatim
     (``files`` honours ``engine`` via the full per-engine dict).
+
+    ``footprint`` is never in a default row (spec INV-7). A ring runs from 4
+    to 16 vertices, so putting one on every search hit would spend the
+    token budget's remaining headroom on data no ranking step reads. It is
+    reachable with ``--fields footprint``, and in full via ``details``.
     """
     module = asset.get("module") or {}
     part = asset.get("part") or {}

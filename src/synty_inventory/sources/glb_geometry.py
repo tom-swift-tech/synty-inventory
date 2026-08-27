@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import struct
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -130,9 +131,20 @@ def _read_accessor(doc: dict, blob: bytes, acc_idx: int) -> np.ndarray | None:
     return np.array(rows, dtype=np.float64)
 
 
-def load_triangles(path: Path, node_name: str | None = None) -> tuple[np.ndarray, np.ndarray] | None:
+def load_triangles(
+    path: Path,
+    node_name: str | None = None,
+    exclude: Callable[[str], bool] | None = None,
+) -> tuple[np.ndarray, np.ndarray] | None:
     """(vertices [N,3] float64 world-space, triangles [M,3] int) for every
-    triangle-list primitive under ``node_name`` (or the whole scene)."""
+    triangle-list primitive under ``node_name`` (or the whole scene).
+
+    ``exclude`` is an optional predicate on node name; a node it matches is
+    skipped along with its entire subtree. Used by ``sources.footprint`` to
+    drop collision hulls (``naming.SKIP_STEM_RE``) that the pack scanner
+    already refuses to catalog but which still live inside some GLBs.
+    Default None preserves the original behaviour for every existing caller.
+    """
     got = read_glb(path)
     if got is None:
         return None
@@ -154,6 +166,8 @@ def load_triangles(path: Path, node_name: str | None = None) -> tuple[np.ndarray
         if not (0 <= idx < len(nodes)):
             return
         node = nodes[idx]
+        if exclude is not None and exclude(node.get("name") or ""):
+            return
         world = parent @ _node_matrix(node)
         active = active or node_name is None or node.get("name") == node_name
         mesh_idx = node.get("mesh")

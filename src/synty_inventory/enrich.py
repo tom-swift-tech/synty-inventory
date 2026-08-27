@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import knowledge
 from .merge import stamp_auto
+from .sources.footprint import CACHE_NAME as FOOTPRINT_CACHE_NAME, apply_footprint
 from .sources.glb_measure import apply_measured_bounds, bundle_index, load_cache, save_cache
 from .sources.godot import apply_godot_overlay, scene_index
 from .sources.manifest import apply_gen_overlay, load_gen_entries
@@ -291,6 +292,11 @@ def enrich_catalog(
 
     cache_path = (catalogs_dir / "_measure_cache.json") if catalogs_dir else None
     cache = load_cache(cache_path) if cache_path else {}
+    fp_cache_path = (catalogs_dir / FOOTPRINT_CACHE_NAME) if catalogs_dir else None
+    fp_cache = load_cache(fp_cache_path) if fp_cache_path else {}
+    grid = catalog.get("grid") or {}
+    fp_snap = float(grid.get("snap") or 0.25)
+    fp_tile = float(grid["tile"]) if grid.get("tile") else None
     stats = {"measured": 0, "missing_glb": 0, "measure_failed": 0, "skipped": 0, "disagree": 0}
 
     vlm_done = 0
@@ -308,6 +314,7 @@ def enrich_catalog(
         apply_measured_bounds(asset, threejs_v2, cache, stats, bundles=bundles)
         apply_part_sockets(asset, threejs_v2, cache, stats)
         apply_prop_contact(asset, threejs_v2, cache, stats)
+        apply_footprint(asset, threejs_v2, fp_cache, stats, snap=fp_snap, tile_m=fp_tile)
         stamp_auto(asset)
         if vlm_fn is None:
             continue
@@ -334,6 +341,8 @@ def enrich_catalog(
 
     if cache_path is not None and cache:
         save_cache(cache_path, cache)
+    if fp_cache_path is not None and fp_cache:
+        save_cache(fp_cache_path, fp_cache)
     catalog["_measure_stats"] = stats
     return catalog
 

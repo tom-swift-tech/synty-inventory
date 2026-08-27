@@ -73,6 +73,7 @@ scan` first (`scan --rebuild` after rule/precedence changes).
 | resolve a grammar to slim candidate rows | `recipe ID [--pack P] [--engine E] [--fields a,b,c] [--limit N]` (exit 4 when a required step has no candidates) |
 | modular family grouped by role (slim rows) | `kit Apartment` / `kit "*"` `[--pack P] [--engine E] [--fields a,b,c]` |
 | stills-grounded assembler fields (Grok 4.6) | `vision --calibrate` / `vision --pack P [--ids a,b] [--match SM_Sign_]` |
+| ground-plan polygons from the GLBs | `footprint [--pack CSV] [--ids CSV] [--rebuild] [--dry-run] [--report PATH] [--min-coverage F]` (exit 4 below coverage) |
 
 Do **not** run `review` (Ollama) on POLYGON_City / SciFi_City / Starter. Do
 **not** use `scan --vlm`. `vision` may write type/role/mount; it must never
@@ -84,7 +85,8 @@ write `placement.contact` or ship/mech sockets.
 - `type` — `building/shell`, `building/interior_module`, `vehicle/spacecraft`, `vehicle/part`, `sign`, `prop`, …
 - `semantic_role` + `semantic_detail` — `building_identity` / `police_station`, `advertisement` / `displays_burger`, `vehicle_part` / `engine`.
 - `bounds` — `{min,max,size,pivot,source}` metres, measured from the mesh. `null` = unmeasured (fall back to `size_hint`, and say so). `pivot` tells you whether the origin is `bottom_center`, `center`, `corner`, …
-- `module` — `family`, `role` (`hero|shell|corner|door|roof|stairs|floor|base`), `footprint_class`, `stackable_on`, `street_side`.
+- `module` — `family`, `role` (`hero|shell|corner|door|roof|stairs|floor|base`), `footprint_class`, `stackable_on`, `street_side`. `footprint_class` and `blank_sides` are legacy and near-empty — use the `footprint` block below instead.
+- `footprint` — the **ground plan**, measured from the mesh, `details`-only (never in slim rows; `--fields footprint` to widen). `polygon_m` is a CCW ring in XZ local metres, `area_m2` is the **enclosed** area (Synty shells are hollow — a wall ribbon still blocks its whole floorplate), `fill_ratio` is that against the AABB, `class` is `point|thin|radial|compact|l_plan|u_plan|irregular`, `radius_m` is set **iff** `class == radial` (a round tower has no face to name; the radius is what compares across a kit family), `overhang_ratio` 1.0 means nothing at grade (pole-mounted sign). **`null` is a legitimate state** — the mesh could not be decoded, or it is a zero-thickness kit card whose AABB has no depth. ~115 of 10,185 across all packs. Consumers must handle it. Measures are conservative by up to one cell and never under: a 6.00 m tower reads 6.12 m, which fails safe for a packer.
 - `part` — `class` (`body|cockpit|engine|wing|gear|greeble`), `mates_axis` (`-z` engine → rear socket of the body), `symmetric`, `size_class`, `mount` (this part's own attachment face: `axis`, `position`, `normal`, `fit`, `source`, `parent_role` = the hull socket it fits unrotated) and, on `body` hulls, `sockets[]` (`role` front/rear/left/right/top/bottom + the same fields). `source: measured` is a flat cap found in the mesh; `aabb` is the face-centre fallback — trust it less. Positions are local metres, same space as `bounds`. Read `mount.parent_role` rather than assuming the class axis: `Engine_08/09` are pylon pods that mount by their `+x` plate on the `left` socket (mirror for `right`), and wings mount by their root cap on the `right`/`left` socket (`normal` may be tilted — that is the dihedral; place by position, do not rotate it flush).
 - `part.slot` + `part.attach_bone` (mech attachments, `SM_Mech_*`) — `slot` is `{region, side l|r|c}` (arm/leg/chest/head/hips/foot/back/hand/cockpit/neck/…); `attach_bone` is the skeleton bone to parent the piece to.
 - `mech` (on `SM_Veh_Mech_*` bodies) — `skeleton` (bone names), `slots[]` (`region`, `side`, `bone`, `geo_nodes`), `variants` (factory loadouts → the geo nodes each activates). The master body GLB contains EVERY armor/weapon option as named `geo_*` nodes: assemble either by toggling geo-node visibility to match a `variants` set, or by parenting standalone `SM_Mech_*` attachment GLBs to their `attach_bone`.
@@ -122,4 +124,5 @@ write `placement.contact` or ship/mech sockets.
 - `recipe mech_kit` must be `complete`; every `SM_Mech_*` attachment has `part.slot` + `part.attach_bone`; bodies carry `mech.skeleton/slots/variants`.
 - Do not use `PolygonGeneric` trees/roads as building heroes; do not place `placeable: false` records.
 - Do not treat `*_Convex` / `Collisions/` as renderables (the scanner already drops them).
+- Never assume `footprint` exists or is non-null — check before using `area_m2` or `polygon_m`, and fall back to `bounds` when it is null.
 - `synty-inventory gauntlet` must stay all-green after any catalog change.
