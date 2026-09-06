@@ -202,15 +202,46 @@ def test_overview_heuristic_fires_on_the_catalogue_grid(fixture_pack):
     placements = [
         {"asset_id": p.asset_id, "pos_m": p.pos_m, "yaw_deg": p.yaw_deg} for p in overview_doc.placements
     ]
-    is_overview, modal_nn, frac = stats.is_overview_scene(placements)
-    assert is_overview is True
-    assert modal_nn == pytest.approx(4.0)
-    assert frac == pytest.approx(1.0)
+    check = stats.is_overview_scene(placements)
+    assert check.is_overview is True
+    assert check.placements == 100 == stats.MIN_LAYOUT_PLACEMENTS  # the fixture grid sits exactly on the floor
+    assert check.distinct_ratio == pytest.approx(1.0)
 
 
 def test_overview_heuristic_does_not_fire_on_the_demo_layout(fixture_pack):
     index = GuidIndex.build(fixture_pack["root"])
     demo_doc = parse_scene(fixture_pack["demo_scene"], index, fixture_pack["catalog"])
     placements = [{"asset_id": p.asset_id, "pos_m": p.pos_m, "yaw_deg": p.yaw_deg} for p in demo_doc.placements]
-    is_overview, _modal_nn, _frac = stats.is_overview_scene(placements)
-    assert is_overview is False
+    check = stats.is_overview_scene(placements)
+    # 8 placements, all distinct -- a one-of-each ratio, but far below the 100-placement floor: a small
+    # authored scene is not a catalogue grid (Sci-Fi City's 16-object Demo_TriplanarDirt is the real case).
+    assert check.distinct_ratio == pytest.approx(1.0)
+    assert check.is_overview is False
+
+
+def _synthetic(n: int, distinct: int) -> list[dict]:
+    # `distinct` unique ids, the rest repeats of the first; positions irrelevant (no spacing term any more)
+    return [
+        {"asset_id": f"A_{i if i < distinct else 0:03d}", "pos_m": (float(i), 0.0, 0.0), "yaw_deg": 0.0}
+        for i in range(n)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("n", "distinct", "expected"),
+    [
+        (100, 90, True),  # both thresholds met exactly
+        (100, 89, False),  # ratio just under 0.9
+        (99, 99, False),  # one placement under the floor, even at ratio 1.0
+        (602, 602, True),  # Sci-Fi City Overview.unity as measured 2026-09-06
+        (333, 333, True),  # City Overview.unity as measured
+        (5177, 246, False),  # City Demo.unity as measured (0.048)
+        (2357, 366, False),  # Sci-Fi City Demo.unity as measured (0.155)
+        (16, 8, False),  # Sci-Fi City Demo_TriplanarDirt as measured (0.5)
+        (0, 0, False),
+    ],
+)
+def test_overview_rule_thresholds(n, distinct, expected):
+    check = stats.is_overview_scene(_synthetic(n, distinct))
+    assert check.is_overview is expected
+    assert check.placements == n and check.distinct == distinct

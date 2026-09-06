@@ -19,6 +19,7 @@ venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.pytest_tmp/
 *.egg-info/
 .eggs/
 dist/

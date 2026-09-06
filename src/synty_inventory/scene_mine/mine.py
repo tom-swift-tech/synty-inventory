@@ -35,14 +35,15 @@ class OverviewSceneError(SceneMineError):
     rather than an authored layout -- refused even when named explicitly
     with ``--scene`` (AC8)."""
 
-    def __init__(self, scene: str, modal_nn_m: float, frac_at_mode: float) -> None:
+    def __init__(self, scene: str, placements: int, distinct: int) -> None:
         self.scene = scene
-        self.modal_nn_m = modal_nn_m
-        self.frac_at_mode = frac_at_mode
+        self.placements = placements
+        self.distinct = distinct
         super().__init__(
-            f"{scene}: Overview heuristic fired -- {frac_at_mode:.0%} of placements sit at the modal "
-            f"nearest-neighbour distance {modal_nn_m:.1f} m and almost every placement is a distinct asset "
-            "(spec §7); refusing to mine a catalogue grid as a layout"
+            f"{scene}: Overview heuristic fired -- {distinct} distinct assets across {placements} placements "
+            f"({distinct / placements:.0%}, one-of-each; spec §7 as re-set 2026-09-06: >= {stats.MIN_LAYOUT_PLACEMENTS} "
+            f"placements and distinct/placements >= {stats.OVERVIEW_DISTINCT_RATIO}); refusing to mine a catalogue "
+            "grid as a layout"
         )
 
 
@@ -120,8 +121,16 @@ def mine_pack(
     catalog_path: Path,
     adjacency_radius_m: float = 6.0,
     cell_m: float = 20.0,
+    min_stats_placements: int = stats.MIN_LAYOUT_PLACEMENTS,
 ) -> SceneGrammar:
     """Mine every scene in ``scenes`` into one ``scene-grammar/1`` document.
+
+    A scene with fewer than ``min_stats_placements`` resolved placements is
+    ``stats_excluded``: it keeps its ``scenes[]`` row and may still supply the
+    look and cameras (first non-duplicate scene), but contributes nothing to
+    ``placements[]`` or the statistics -- Sci-Fi City's 16-object
+    ``Demo_TriplanarDirt`` must not dilute the 2,357-placement Demo's density
+    and spacing (2026-09-06). Tests on small fixtures lower the floor.
 
     Raises :class:`OverviewSceneError` / :class:`ResolveRateError` (CLI exit
     3), or lets ``unity_yaml.SceneParseError`` / ``guid_index.GuidIndexError``
@@ -177,9 +186,9 @@ def mine_pack(
         all_unresolved.extend(scene_unresolved)
         warnings.extend(scene_doc.warnings)
 
-        overview, modal_nn, frac = stats.is_overview_scene(placements)
-        if overview:
-            raise OverviewSceneError(scene_str, modal_nn, frac)
+        check = stats.is_overview_scene(placements)
+        if check.is_overview:
+            raise OverviewSceneError(scene_str, check.placements, check.distinct)
 
         resolved = len(placements)
         total = resolved + len(scene_unresolved)
@@ -188,11 +197,15 @@ def mine_pack(
 
         key = _dedupe_key(placements)
         dup_of = seen_keys.get(key)
+        stats_excluded = resolved < min_stats_placements
         if dup_of is None:
             seen_keys[key] = i
+        if dup_of is None and not stats_excluded:
             scene_placements.append(placements)
         else:
-            scene_placements.append([])  # duplicate: contributes to nothing but scenes[]
+            # duplicate or below the floor: contributes to nothing but scenes[] (and, if it is the first
+            # non-duplicate scene, the look + cameras below)
+            scene_placements.append([])
 
         scene_rows.append(
             {
@@ -203,6 +216,7 @@ def mine_pack(
                 "resolved": resolved,
                 "unresolved": len(scene_unresolved),
                 "duplicate_of": dup_of,
+                "stats_excluded": stats_excluded,
             }
         )
 

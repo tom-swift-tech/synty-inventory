@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter, defaultdict
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, NamedTuple, Sequence
 
 import numpy as np
 
@@ -368,24 +368,37 @@ def streets(scenes: Sequence[Sequence[Placement]], roles: Mapping[str, str]) -> 
     }
 
 
-def is_overview_scene(placements: Sequence[Placement]) -> tuple[bool, float, float]:
-    """spec §7: true when >=80% of placements share one modal nearest-any-id
-    XZ distance (binned to 0.1 m, +-5% of that mode) AND the distinct-asset
-    count is >=90% of the placement count -- ``Overview.unity`` is a
-    one-of-each catalogue grid, not a layout, and looks exactly like this.
-    Returns ``(is_overview, modal_nn_m, fraction_at_mode)``."""
+# Fewer resolved placements than this and a scene is not a layout: it cannot be a catalogue grid (the Overview
+# rule below needs the count) and it contributes nothing to the layout statistics (``mine_pack`` marks it
+# ``stats_excluded``; it still supplies look and cameras). Set from the 2026-09-06 measurement of the five real
+# scenes (map_builder ``tasks/s9_review/sg_overview_heuristic_measured.json``): the catalogue Overviews have
+# 333 / 602 placements, the one small authored scene (Sci-Fi City ``Demo_TriplanarDirt``) has 16.
+MIN_LAYOUT_PLACEMENTS = 100
+# Overview grids place one of each asset: distinct ids / placements was 1.000 on both real Overviews and
+# 0.048 / 0.155 on the two Demo layouts.
+OVERVIEW_DISTINCT_RATIO = 0.9
+
+
+class OverviewCheck(NamedTuple):
+    is_overview: bool
+    placements: int
+    distinct: int
+
+    @property
+    def distinct_ratio(self) -> float:
+        return self.distinct / self.placements if self.placements else 0.0
+
+
+def is_overview_scene(placements: Sequence[Placement]) -> OverviewCheck:
+    """spec §7 as re-set on 2026-09-06 (todo D10): a scene is a catalogue grid
+    when it has at least :data:`MIN_LAYOUT_PLACEMENTS` placements AND its
+    distinct-asset count is at least :data:`OVERVIEW_DISTINCT_RATIO` of the
+    placement count -- ``Overview.unity`` places one of each asset. The
+    spec's original nearest-neighbour spacing term is gone: measured on the
+    real packs, only 16-24 % of an Overview's placements sit at the modal
+    spacing (the grids are not uniform), while the Demo layouts' modal
+    spacing is 0.0 m from stacked pieces -- it separated nothing."""
     n = len(placements)
-    if n == 0:
-        return False, 0.0, 0.0
-    if n == 1:
-        return False, 0.0, 0.0
-    _xz, dist = _pairwise_dist_xz(placements)
-    np.fill_diagonal(dist, np.inf)
-    nn = dist.min(axis=1).tolist()
-    binned = [round(v / 0.1) * 0.1 for v in nn]
-    mode, _count = Counter(binned).most_common(1)[0]
-    tol = 0.05 * mode
-    frac_at_mode = sum(1 for v in nn if abs(v - mode) <= tol) / n
     distinct = len({p["asset_id"] for p in placements})
-    is_overview = frac_at_mode >= 0.8 and distinct >= 0.9 * n
-    return is_overview, float(mode), frac_at_mode
+    is_overview = n >= MIN_LAYOUT_PLACEMENTS and distinct >= OVERVIEW_DISTINCT_RATIO * n
+    return OverviewCheck(is_overview, n, distinct)

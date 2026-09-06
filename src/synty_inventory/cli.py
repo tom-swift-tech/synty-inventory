@@ -662,6 +662,9 @@ def cmd_scene_mine(args, cfg) -> int:
 
     out_dir = Path(args.sg_out) if args.sg_out else catalogs_dir
 
+    mine_kwargs = {}
+    if args.min_stats_placements is not None:
+        mine_kwargs["min_stats_placements"] = args.min_stats_placements
     try:
         grammar = mine_pack(
             args.pack,
@@ -670,6 +673,7 @@ def cmd_scene_mine(args, cfg) -> int:
             catalog_path=cpath,
             adjacency_radius_m=args.adjacency_radius_m,
             cell_m=args.cell_m,
+            **mine_kwargs,
         )
     except (OverviewSceneError, ResolveRateError) as exc:
         return _fail(str(exc), 3)
@@ -957,6 +961,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sg.add_argument("--adjacency-radius-m", dest="adjacency_radius_m", type=float, default=6.0)
     sg.add_argument("--cell-m", dest="cell_m", type=float, default=20.0)
+    sg.add_argument(
+        "--min-stats-placements",
+        dest="min_stats_placements",
+        type=int,
+        default=None,
+        help="a scene with fewer resolved placements is stats_excluded: look/cameras only, no statistics "
+        "(default 100, the Overview floor; lower it only for small test fixtures)",
+    )
     sg.add_argument("--report", default=None, help="write the scene-mine-report/1 JSON here as well as stdout")
     sg.set_defaults(func=cmd_scene_mine)
 

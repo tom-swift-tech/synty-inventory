@@ -30,6 +30,7 @@ synty-inventory scene-mine --pack POLYGON_City \
 | `--out` | the catalogs directory | directory the grammar JSON is written into |
 | `--adjacency-radius-m` | `6.0` | XZ radius for the `adjacency` co-occurrence stat |
 | `--cell-m` | `20.0` | grid cell size for the `density` stat |
+| `--min-stats-placements` | `100` | statistics floor: a scene with fewer resolved placements is `stats_excluded` (look/cameras only, see below); lower it only for small test fixtures |
 | `--report` | — | also write the `scene-mine-report/1` JSON (summary + `unresolved`) to this path |
 
 ### Exit codes
@@ -97,19 +98,40 @@ counts are visible) but **nothing** to `placements[]`, the stats blocks, or
 `cameras[]` — only the look/render-settings of the *first* non-duplicate
 scene are kept as the pack's `look`.
 
+## Statistics floor (`stats_excluded`)
+
+A scene with fewer than 100 resolved placements (`stats.MIN_LAYOUT_PLACEMENTS`,
+CLI `--min-stats-placements`) is too small to be a layout sample. It keeps its
+`scenes[]` row with `stats_excluded: true`, and if it is the first
+non-duplicate scene it still supplies the pack's `look` and `cameras`, but
+none of its placements reach `placements[]` or any statistics block. The real
+case is Sci-Fi City: `Demo_TriplanarDirt.unity` has 16 objects and is not a
+duplicate of `Demo.unity` (2,357), so without the floor its 16 placements
+would have been folded into the Demo's density and spacing (2026-09-06).
+
 ## Overview-scene heuristic
 
 Synty ships a `Overview.unity` (or similarly named) scene in most packs that
 is a one-of-each catalogue grid, not an authored layout — mining it would
-poison every layout statistic with an artificial uniform grid. A scene is
-refused as an Overview grid, even when named explicitly with `--scene`,
+poison every layout statistic. A scene is refused as an Overview grid
+(`OverviewSceneError`, exit 3), even when named explicitly with `--scene`,
 when **both**:
 
-- at least 80% of its resolved placements share one modal nearest-*any*-id
-  XZ distance, binned to 0.1 m, within ±5% of that mode; **and**
+- it has at least 100 resolved placements (the same floor as above — below
+  it a scene is not a layout, so it cannot be a catalogue either); **and**
 - the number of distinct asset ids is at least 90% of the placement count
-  (i.e. almost every placement is a different asset — a grid of one-of-each,
-  not a repeated layout).
+  (almost every placement is a different asset — a grid of one-of-each, not
+  a repeated layout).
+
+The rule was re-set on 2026-09-06 from the five real scenes (map_builder
+`tasks/s9_review/sg_overview_heuristic_measured.json`): distinct/placements
+is 1.000 on both Overviews (City 333, Sci-Fi City 602) against 0.048 / 0.155
+on the Demo layouts and 0.5 on the 16-object `Demo_TriplanarDirt`. The
+spec's original spacing term ("≥ 80 % of placements at one modal
+nearest-neighbour distance") is gone: the real Overviews are not uniform
+grids (16–24 % at the mode) and the Demos' modal spacing is 0.0 m from
+stacked pieces, so it separated nothing — the default `--exclude Overview*`
+glob stays as belt-and-braces, but AC8 now passes on the rule itself.
 
 ## `look`
 

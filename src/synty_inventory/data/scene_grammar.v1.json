@@ -24,7 +24,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["index", "path", "sha256", "placements", "resolved", "unresolved", "duplicate_of"],
+        "required": ["index", "path", "sha256", "placements", "resolved", "unresolved", "duplicate_of", "stats_excluded"],
         "properties": {
           "index": { "type": "integer", "minimum": 0 },
           "path": { "type": "string" },
@@ -32,7 +32,11 @@
           "placements": { "type": "integer", "minimum": 0 },
           "resolved": { "type": "integer", "minimum": 0 },
           "unresolved": { "type": "integer", "minimum": 0 },
-          "duplicate_of": { "type": ["integer", "null"], "minimum": 0 }
+          "duplicate_of": { "type": ["integer", "null"], "minimum": 0 },
+          "stats_excluded": {
+            "type": "boolean",
+            "description": "True when the scene has fewer resolved placements than the miner's statistics floor (100): its row is kept and it may supply look/cameras, but it contributes nothing to placements[] or the statistics blocks."
+          }
         }
       }
     },

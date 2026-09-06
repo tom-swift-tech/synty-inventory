@@ -59,12 +59,15 @@ def test_scene_mine_success_writes_grammar(fixture_env, capsys):
             str(info["demo_scene"]),
             "--out",
             str(out_dir),
+            "--min-stats-placements",
+            "1",  # the fixture Demo has 8 placements, below the default 100 floor
         ]
     )
     assert code == 0
     report = json.loads(capsys.readouterr().out)
     assert report["schema"] == "scene-mine-report/1"
     assert report["resolve_rate"] == 1.0
+    assert report["scenes"][0]["stats_excluded"] is False
     dest = out_dir / f"{build_fixture.PACK_ID}.scene_grammar.json"
     assert dest.is_file()
     doc = json.loads(dest.read_text(encoding="utf-8"))
@@ -90,7 +93,8 @@ def test_scene_mine_overview_scene_exits_3(fixture_env, capsys):
     )
     assert code == 3
     err = capsys.readouterr().err
-    assert "Overview" in err
+    # AC8: refused by the rule itself, not by the `Overview*` discovery glob (bypassed here by --scene)
+    assert "Overview heuristic fired" in err and "100 distinct assets across 100 placements" in err
     assert not out_dir.exists() or not any(out_dir.iterdir())
 
 

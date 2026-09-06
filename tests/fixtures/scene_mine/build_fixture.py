@@ -435,16 +435,16 @@ def _demo_scene_text() -> str:
 
 
 def _overview_scene_text() -> tuple[str, list[dict]]:
-    """5x5 grid of 25 distinct prefabs at a uniform 4 m pitch -- Synty's
-    catalogue-scene shape (spec §7 Overview heuristic): every nearest-any-id
-    distance is exactly the grid pitch, and every placement is a distinct
-    asset."""
+    """10x10 grid of 100 distinct prefabs at a uniform 4 m pitch -- Synty's
+    catalogue-scene shape (spec §7 Overview heuristic as re-set 2026-09-06:
+    at least ``stats.MIN_LAYOUT_PLACEMENTS`` = 100 placements, every one a
+    distinct asset). 100 exactly, so the test sits on the floor."""
     parts = [HEADER, _render_settings_block(LIGHTING_SETTINGS_GUID)]
     overview_prefabs = []
     fid = 9000
-    for r in range(5):
-        for c in range(5):
-            n = r * 5 + c
+    for r in range(10):
+        for c in range(10):
+            n = r * 10 + c
             ov_guid = guid(200 + n)
             overview_prefabs.append({"guid": ov_guid, "id": f"OV_Prefab_{n:02d}", "type": "prop"})
             parts.append(
