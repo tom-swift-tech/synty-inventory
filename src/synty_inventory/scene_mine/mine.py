@@ -211,9 +211,13 @@ def mine_pack(
                 look_doc, look_warnings = extract_look(scene_doc, index, extracted_root)
                 warnings.extend(look_warnings)
                 first_render_settings = scene_doc.render_settings
+                # Cameras come from the same scene as the look: a camera is a vantage *in* one scene, and the
+                # consumer (CaptureSyntyDemo) opens exactly this scene. Pooling every non-duplicate scene's
+                # cameras put Demo_TriplanarDirt's "Main Camera" into the Sci-Fi City grammar (2026-09-06) --
+                # same id, different scene, rendered against the wrong layout.
+                cameras.extend(extract_cameras(scene_doc))
             elif scene_doc.render_settings is not None and first_render_settings is not None:
                 render_diffs.extend(_diff_render_settings(first_render_settings, scene_doc.render_settings, scene_str))
-            cameras.extend(extract_cameras(scene_doc))
 
     non_dup_placements = [p for lst in scene_placements for p in lst]
     non_dup_scene_lists = [lst for lst in scene_placements if lst]

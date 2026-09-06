@@ -151,9 +151,11 @@ its one `!u!108` directional Light, and its one global `!u!114 Volume`
 
 ## `cameras`
 
-One row per `!u!20 Camera` pooled across every non-duplicate scene (unlike
-`look`, which only keeps the first non-duplicate scene's render settings,
-cameras from every non-duplicate scene are kept): `id` (its GameObject's name), world
+One row per `!u!20 Camera` in the **first non-duplicate scene** — the same
+scene `look` comes from, because a camera is a vantage in one particular
+layout and the capture consumer opens exactly that scene (pooling every
+scene's cameras put `Demo_TriplanarDirt.unity`'s `Main Camera` into the
+Sci-Fi City grammar under the same id): `id` (its GameObject's name), world
 `position_m`/`yaw_deg`, `pitch_deg` (`= -(Unity Euler x)`, so a camera
 looking *up* reports a **positive** pitch), `fov_deg`, `enabled`.
 
