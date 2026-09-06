@@ -224,6 +224,7 @@ synty-inventory gauntlet
 synty-inventory vision --calibrate
 synty-inventory vision --pack POLYGON_City --ids SM_Bld_Apartment_01 --dry-run
 synty-inventory review --pack POLYGON_SciFi_Space --limit 20
+synty-inventory scene-mine --pack POLYGON_SciFi_City
 ```
 
 `search`/`suggest` filters: `--type`, `--role`, `--module-role`,
@@ -381,6 +382,34 @@ reference machine: `POLYGON_City` 333/337, `POLYGON_Starter` 52/55,
 `POLYGON_Particle_FX` 0/12 — that pack's Godot export ships only ~13 demo
 particle scenes, none matching its 12 mesh-kind catalog entries). CI uses
 `pytest` and a fake fixture pack.
+
+### Scene mining (scene-mine)
+
+`scene-mine` mines a Synty pack's own demo `.unity` scenes into
+`<out>/<PACK_ID>.scene_grammar.json`: every `PrefabInstance` placement
+(world-composed position/rotation/scale, resolved against the pack's
+catalog by GUID), plus lighting/fog/skybox/post-processing (`look`),
+cameras, and layout statistics (histogram, roles, adjacency, spacing,
+rotation, scale, ground offset, density, streets). See
+[`docs/scene_grammar.md`](docs/scene_grammar.md) for the full field-by-field
+definitions, the Overview-scene refusal heuristic, and the exit codes.
+
+```bash
+synty-inventory scene-mine --pack POLYGON_SciFi_City
+synty-inventory scene-mine --pack POLYGON_City --scene .../Demo.unity --report report.json
+```
+
+Requires the pack's `source.extracted` tree on disk (needs the real prefab
+`.meta` GUIDs, not just the catalog). Scene discovery defaults to every
+`*.unity` under the pack's `Scenes/` folder excluding `Overview*`; pass
+`--scene` (repeatable) to name specific scenes instead. A scene that still
+looks like Synty's own catalogue-grid `Overview.unity` — even one named
+explicitly — is refused (exit 3), as is a scene whose resolved/placements
+ratio falls below 0.95. Nothing is written on any failure.
+
+Exit codes: `0` written, `2` bad input (missing catalog/scenes dir), `3`
+Overview-scene or resolve-rate refusal, `6` malformed scene YAML or schema
+violation.
 
 ## Mesh analysis
 

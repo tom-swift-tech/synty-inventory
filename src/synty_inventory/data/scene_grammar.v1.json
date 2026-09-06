@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scene-grammar/1",
+  "title": "Scene grammar mined from a Synty pack's demo scenes (S9-SG, tasks/s9_scene_grammar_spec.md §4)",
+  "description": "Written by `synty-inventory scene-mine` next to the pack catalog; read by map_builder.grammar.SceneGrammar. Lengths in metres, angles in degrees [0, 360), colours linear RGB [0, 1], floats rounded to 4 dp. The file is the single source of truth for both repos: inventoryagent keeps the master copy, map_builder a verbatim copy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "pack_id", "catalog", "scenes", "placements", "unresolved", "histogram", "roles", "adjacency", "spacing", "rotation", "scale", "ground", "density", "streets", "look", "cameras", "provenance"],
+  "properties": {
+    "schema": { "const": "scene-grammar/1" },
+    "pack_id": { "type": "string", "minLength": 1 },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "version", "sha256"],
+      "properties": {
+        "path": { "type": "string" },
+        "version": { "type": "integer" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["index", "path", "sha256", "placements", "resolved", "unresolved", "duplicate_of"],
+        "properties": {
+          "index": { "type": "integer", "minimum": 0 },
+          "path": { "type": "string" },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "placements": { "type": "integer", "minimum": 0 },
+          "resolved": { "type": "integer", "minimum": 0 },
+          "unresolved": { "type": "integer", "minimum": 0 },
+          "duplicate_of": { "type": ["integer", "null"], "minimum": 0 }
+        }
+      }
+    },
+    "placements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scene", "asset_id", "instance_name", "pos_m", "yaw_deg", "pitch_deg", "roll_deg", "scale", "parent_path", "static"],
+        "properties": {
+          "scene": { "type": "integer", "minimum": 0 },
+          "file_id": { "type": "integer", "description": "The PrefabInstance's Unity fileID (the sort key inside a scene, and the handle for one-off editor checks such as AC4)." },
+          "asset_id": { "type": "string", "minLength": 1 },
+          "instance_name": { "type": "string" },
+          "pos_m": { "$ref": "#/$defs/vec3" },
+          "yaw_deg": { "$ref": "#/$defs/deg" },
+          "pitch_deg": { "type": "number" },
+          "roll_deg": { "type": "number" },
+          "scale": { "$ref": "#/$defs/vec3" },
+          "parent_path": { "type": "string", "description": "Slash-joined names of the scene Transform chain above the instance; empty at the scene root." },
+          "static": { "type": "boolean" }
+        }
+      }
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scene", "guid", "asset_path", "reason"],
+        "properties": {
+          "scene": { "type": "integer", "minimum": 0 },
+          "guid": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+          "asset_path": { "type": ["string", "null"] },
+          "reason": { "enum": ["no_meta", "not_in_catalog", "not_placeable"] },
+          "instance_name": { "type": "string" },
+          "hint": { "type": ["string", "null"], "description": "Name-based guess (m_Name minus the ` (n)` suffix) reported for a human, never used to resolve (spec A3)." },
+          "count": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "histogram": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 1 } },
+    "roles": { "type": "object", "additionalProperties": { "$ref": "#/$defs/role" } },
+    "adjacency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["radius_m", "pairs"],
+      "properties": {
+        "radius_m": { "type": "number", "exclusiveMinimum": 0 },
+        "pairs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["a", "b", "count", "p_b_given_a", "mean_offset_m"],
+            "properties": {
+              "a": { "type": "string" },
+              "b": { "type": "string" },
+              "count": { "type": "integer", "minimum": 1 },
+              "p_b_given_a": { "type": "number", "minimum": 0 },
+              "mean_offset_m": { "$ref": "#/$defs/vec3", "description": "Mean offset of b from a in a's yaw-aligned local frame." }
+            }
+          }
+        }
+      }
+    },
+    "spacing": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["n", "nn_same_m_p50", "nn_same_m_p90", "nn_any_m_p50"],
+        "properties": {
+          "n": { "type": "integer", "minimum": 1 },
+          "nn_same_m_p50": { "type": ["number", "null"], "minimum": 0 },
+          "nn_same_m_p90": { "type": ["number", "null"], "minimum": 0 },
+          "nn_any_m_p50": { "type": ["number", "null"], "minimum": 0 }
+        }
+      }
+    },
+    "rotation": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cardinal_frac", "yaw_hist_deg", "non_cardinal_yaws_deg"],
+        "properties": {
+          "cardinal_frac": { "type": "number", "minimum": 0, "maximum": 1 },
+          "yaw_hist_deg": { "type": "object", "propertyNames": { "enum": ["0", "90", "180", "270"] }, "additionalProperties": { "type": "integer", "minimum": 0 } },
+          "non_cardinal_yaws_deg": { "type": "array", "items": { "$ref": "#/$defs/deg" } }
+        }
+      }
+    },
+    "scale": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["unit_frac", "min", "max", "n"],
+        "properties": {
+          "unit_frac": { "type": "number", "minimum": 0, "maximum": 1 },
+          "min": { "$ref": "#/$defs/vec3" },
+          "max": { "$ref": "#/$defs/vec3" },
+          "n": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "ground": {
+      "type": "object",
+      "description": "Per asset id, the instance y relative to the nearest road/ground tile top. Empty when the pack has no road role.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["y_rel_p50", "y_rel_p90"],
+        "properties": {
+          "y_rel_p50": { "type": "number" },
+          "y_rel_p90": { "type": "number" }
+        }
+      }
+    },
+    "density": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cell_m", "cells", "per_cell_p50", "per_cell_p90", "per_cell_max", "by_role_per_cell_p50"],
+      "properties": {
+        "cell_m": { "type": "number", "exclusiveMinimum": 0 },
+        "cells": { "type": "integer", "minimum": 0, "description": "Occupied cells (at least one placement)." },
+        "per_cell_p50": { "type": "number", "minimum": 0 },
+        "per_cell_p90": { "type": "number", "minimum": 0 },
+        "per_cell_max": { "type": "integer", "minimum": 0 },
+        "by_role_per_cell_p50": { "type": "object", "propertyNames": { "$ref": "#/$defs/role" }, "additionalProperties": { "type": "number", "minimum": 0 } }
+      }
+    },
+    "streets": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["road_asset_ids", "axis_deg", "module_m", "run_lengths_p50", "run_lengths_p90", "width_m_p50", "building_setback_m_p50"],
+      "properties": {
+        "road_asset_ids": { "type": "array", "items": { "type": "string" } },
+        "axis_deg": { "type": ["number", "null"] },
+        "module_m": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "run_lengths_p50": { "type": ["number", "null"], "minimum": 0 },
+        "run_lengths_p90": { "type": ["number", "null"], "minimum": 0 },
+        "width_m_p50": { "type": ["number", "null"], "minimum": 0 },
+        "building_setback_m_p50": { "type": ["number", "null"], "minimum": 0 }
+      }
+    },
+    "look": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["sun", "sky", "ambient", "fog", "post", "lighting_settings_path"],
+      "properties": {
+        "sun": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["azimuth_deg", "elevation_deg", "intensity", "color_rgb", "shadows"],
+          "properties": {
+            "azimuth_deg": { "$ref": "#/$defs/deg", "description": "Package convention (LookBuilder.SunDirection): 0 = +Z, 90 = +X, clockwise from above, towards the sun." },
+            "elevation_deg": { "type": "number", "minimum": -90, "maximum": 90 },
+            "intensity": { "type": "number", "minimum": 0 },
+            "color_rgb": { "$ref": "#/$defs/rgb" },
+            "shadows": { "enum": ["none", "hard", "soft"] }
+          }
+        },
+        "sky": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "material_path", "zenith_rgb", "horizon_rgb"],
+          "properties": {
+            "kind": { "enum": ["material", "gradient", "none"] },
+            "material_path": { "type": ["string", "null"], "description": "Asset path, or `builtin:Default-Skybox` for Unity's built-in skybox GUID 0000000000000000f000000000000000." },
+            "zenith_rgb": { "oneOf": [{ "$ref": "#/$defs/rgb" }, { "type": "null" }] },
+            "horizon_rgb": { "oneOf": [{ "$ref": "#/$defs/rgb" }, { "type": "null" }] }
+          }
+        },
+        "ambient": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "sky_rgb", "equator_rgb", "ground_rgb", "intensity"],
+          "properties": {
+            "mode": { "enum": ["skybox", "trilight", "flat", "custom"] },
+            "sky_rgb": { "$ref": "#/$defs/rgb" },
+            "equator_rgb": { "$ref": "#/$defs/rgb" },
+            "ground_rgb": { "$ref": "#/$defs/rgb" },
+            "intensity": { "type": "number", "minimum": 0 }
+          }
+        },
+        "fog": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "color_rgb", "density", "start_m", "end_m"],
+          "properties": {
+            "mode": { "enum": ["none", "linear", "exp", "exp2"] },
+            "color_rgb": { "$ref": "#/$defs/rgb" },
+            "density": { "type": "number", "minimum": 0 },
+            "start_m": { "type": "number" },
+            "end_m": { "type": "number" }
+          }
+        },
+        "post": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["profile_path", "overrides", "unparsed"],
+          "properties": {
+            "profile_path": { "type": ["string", "null"] },
+            "overrides": {
+              "type": "object",
+              "description": "Component name (the override asset's m_Name: Bloom, Vignette, ColorAdjustments, Tonemapping, LiftGammaGain, ...) -> parameter name -> value, only for parameters with m_OverrideState 1. Scalars stay scalars; colours become [r,g,b,a]; vectors [x,y,z(,w)]; enums stay the serialised integer unless the miner knows the name (Tonemapping.mode: none|neutral|aces).",
+              "additionalProperties": { "type": "object", "additionalProperties": true }
+            },
+            "unparsed": { "type": "array", "items": { "type": "string" }, "description": "Script GUIDs (or m_Name) of override components the miner could not read; never fabricated values." }
+          }
+        },
+        "lighting_settings_path": { "type": ["string", "null"] }
+      }
+    },
+    "cameras": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "position_m", "yaw_deg", "pitch_deg", "fov_deg", "enabled"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "position_m": { "$ref": "#/$defs/vec3" },
+          "yaw_deg": { "$ref": "#/$defs/deg" },
+          "pitch_deg": { "type": "number", "minimum": -90, "maximum": 90, "description": "Positive = looking up (the negation of Unity's euler x)." },
+          "fov_deg": { "type": "number", "exclusiveMinimum": 0, "maximum": 179 },
+          "enabled": { "type": "boolean" }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "tool_version", "generated_at", "adjacency_radius_m", "cell_m"],
+      "properties": {
+        "tool": { "type": "string" },
+        "tool_version": { "type": "string" },
+        "generated_at": { "type": "string" },
+        "adjacency_radius_m": { "type": "number", "exclusiveMinimum": 0 },
+        "cell_m": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "findings": {
+      "type": "object",
+      "description": "Observations the slice records but does not act on (spec AC9 / A9).",
+      "additionalProperties": false,
+      "properties": {
+        "non_unit_scale_placements": { "type": "integer", "minimum": 0 },
+        "non_unit_scale_asset_ids": { "type": "integer", "minimum": 0 },
+        "render_settings_diffs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "vec3": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+    "rgb": { "type": "array", "items": { "type": "number", "minimum": 0 }, "minItems": 3, "maxItems": 3 },
+    "deg": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 },
+    "role": { "enum": ["building", "road", "prop", "vehicle", "character", "fx", "unknown"] }
+  }
+}

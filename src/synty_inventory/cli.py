@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import sys
 from pathlib import Path
@@ -594,6 +595,103 @@ def _footprint_detail(asset: dict, status: str) -> str:
     return f"{status} for {glb or asset.get('id')}"
 
 
+_SHARED_SYNTY_DIRS = {"PolygonGeneric", "SyntyPackageHelper"}
+
+
+def _sg_catalogs_dir(args, cfg) -> Path:
+    """scene-mine's own ``--catalogs`` override -- distinct from the global
+    ``--out`` (which `_catalogs` reads and which this subcommand repurposes
+    for the grammar *output* directory, see ``--out`` below)."""
+    if getattr(args, "catalogs", None):
+        return Path(args.catalogs)
+    return require_path(cfg, "catalogs")
+
+
+def _find_pack_dir(extracted_root: Path) -> str | None:
+    """The one directory under ``Assets/Synty/`` that isn't a shared helper
+    folder -- there is exactly one per extracted pack (spec §3.1)."""
+    synty = extracted_root / "Assets" / "Synty"
+    if not synty.is_dir():
+        return None
+    candidates = sorted(d.name for d in synty.iterdir() if d.is_dir() and d.name not in _SHARED_SYNTY_DIRS)
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def cmd_scene_mine(args, cfg) -> int:
+    """Mine a Synty pack's demo scenes into ``<out>/<PACK_ID>.scene_grammar.json``
+    (spec ``tasks/s9_scene_grammar_spec.md``)."""
+    import jsonschema
+
+    from .catalog import catalog_path, load_catalog
+    from .scene_mine.guid_index import GuidIndexError
+    from .scene_mine.mine import OverviewSceneError, ResolveRateError, SceneMineError, mine_pack, write_grammar
+    from .scene_mine.unity_yaml import SceneParseError
+
+    catalogs_dir = _sg_catalogs_dir(args, cfg)
+    if not catalogs_dir.is_dir():
+        return _fail(f"catalogs directory not found: {catalogs_dir}", 2)
+    cpath = catalog_path(catalogs_dir, args.pack)
+    catalog = load_catalog(cpath)
+    if catalog is None:
+        return _fail(f"catalog not found: {cpath}", 2)
+    extracted = (catalog.get("source") or {}).get("extracted")
+    if not extracted:
+        return _fail(f"catalog {args.pack} has no source.extracted -- cannot find its Scenes/ dir", 2)
+    extracted_root = Path(extracted)
+    if not extracted_root.is_dir():
+        return _fail(f"extracted pack root not found: {extracted_root}", 2)
+
+    if args.scene:
+        scenes = [Path(s) for s in args.scene]
+        for s in scenes:
+            if not s.is_file():
+                return _fail(f"scene not found: {s}", 2)
+    else:
+        pack_dir = _find_pack_dir(extracted_root)
+        if pack_dir is None:
+            return _fail(f"expected exactly one pack directory under {extracted_root / 'Assets' / 'Synty'}", 2)
+        scenes_dir = extracted_root / "Assets" / "Synty" / pack_dir / "Scenes"
+        if not scenes_dir.is_dir():
+            return _fail(f"scenes directory not found: {scenes_dir}", 2)
+        excludes = args.exclude or ["Overview*"]
+        scenes = sorted(
+            p for p in scenes_dir.glob("*.unity") if not any(fnmatch.fnmatch(p.name, pat) for pat in excludes)
+        )
+        if not scenes:
+            return _fail(f"no *.unity scenes under {scenes_dir} after excluding {excludes}", 2)
+
+    out_dir = Path(args.sg_out) if args.sg_out else catalogs_dir
+
+    try:
+        grammar = mine_pack(
+            args.pack,
+            scenes,
+            catalog,
+            catalog_path=cpath,
+            adjacency_radius_m=args.adjacency_radius_m,
+            cell_m=args.cell_m,
+        )
+    except (OverviewSceneError, ResolveRateError) as exc:
+        return _fail(str(exc), 3)
+    except (SceneParseError, GuidIndexError, SceneMineError) as exc:
+        return _fail(str(exc), 6)
+
+    try:
+        dest = write_grammar(grammar, out_dir)
+    except jsonschema.ValidationError as exc:
+        return _fail(f"scene-grammar failed schema validation at {list(exc.path)}: {exc.message}", 6)
+
+    report = dict(grammar.report)
+    report["out"] = posix(dest)
+    report["exit_code"] = 0
+    if args.report:
+        report_path = Path(args.report)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    emit_json(report)
+    return 0
+
+
 def cmd_validate(args, cfg) -> int:
     catalogs_dir = _catalogs(args, cfg)
     if not catalogs_dir.is_dir():
@@ -836,6 +934,31 @@ def build_parser() -> argparse.ArgumentParser:
 
     g = sub.add_parser("gauntlet", help="Run acceptance gates against live catalogs")
     g.set_defaults(func=cmd_gauntlet)
+
+    sg = sub.add_parser(
+        "scene-mine", help="Mine a Synty pack's demo scenes into <out>/<PACK_ID>.scene_grammar.json"
+    )
+    sg.add_argument("--pack", required=True, help="pack_id, e.g. POLYGON_SciFi_City")
+    sg.add_argument(
+        "--scene",
+        action="append",
+        default=None,
+        help="explicit scene path(s), repeatable -- overrides default discovery + --exclude (still Overview-checked)",
+    )
+    sg.add_argument("--catalogs", default=None, help="catalogs directory (default: config catalogs)")
+    sg.add_argument(
+        "--out", dest="sg_out", default=None, help="grammar output directory (default: the catalogs directory)"
+    )
+    sg.add_argument(
+        "--exclude",
+        action="append",
+        default=None,
+        help="glob(s) excluded from default scene discovery, repeatable (default: Overview*)",
+    )
+    sg.add_argument("--adjacency-radius-m", dest="adjacency_radius_m", type=float, default=6.0)
+    sg.add_argument("--cell-m", dest="cell_m", type=float, default=20.0)
+    sg.add_argument("--report", default=None, help="write the scene-mine-report/1 JSON here as well as stdout")
+    sg.set_defaults(func=cmd_scene_mine)
 
     rv = sub.add_parser(
         "review",
