@@ -60,6 +60,11 @@ def _match_v2_filters(
     module_roles: list[str] | None,
     part_classes: list[str] | None,
     footprint_classes: list[str] | None = None,
+    gear_kinds: list[str] | None = None,
+    gear_slots: list[str] | None = None,
+    gear_fits: list[str] | None = None,
+    gear_coverage: list[str] | None = None,
+    gear_roles: list[str] | None = None,
     include_nonplaceable: bool,
 ) -> bool:
     if not include_nonplaceable and asset.get("placeable") is False:
@@ -74,6 +79,17 @@ def _match_v2_filters(
         return False
     if footprint_classes and ((asset.get("footprint") or {}).get("class") or "") not in set(footprint_classes):
         return False
+    gear = asset.get("gear") or {}
+    if gear_kinds and (gear.get("kind") or "") not in set(gear_kinds):
+        return False
+    if gear_slots and (gear.get("slot") or "") not in set(gear_slots):
+        return False
+    if gear_fits and (gear.get("fits") or "") not in set(gear_fits):
+        return False
+    if gear_coverage and (gear.get("coverage") or "") not in set(gear_coverage):
+        return False
+    if gear_roles and (gear.get("role") or "") not in set(gear_roles):
+        return False
     return True
 
 
@@ -83,6 +99,7 @@ def tokenize(text: str) -> list[str]:
 
 def _haystack(asset: dict) -> str:
     place = asset.get("placement") or {}
+    gear = asset.get("gear") or {}
     parts = [
         asset.get("id") or "",
         asset.get("name") or "",
@@ -98,6 +115,13 @@ def _haystack(asset: dict) -> str:
         place.get("height") or "",
         " ".join(place.get("constraints") or []),
         " ".join(place.get("preferred_contexts") or []),
+        gear.get("kind") or "",
+        gear.get("slot") or "",
+        gear.get("fits") or "",
+        gear.get("coverage") or "",
+        gear.get("role") or "",
+        gear.get("paintFamily") or "",
+        "two_handed" if gear.get("twoHanded") is True else ("one_handed" if gear.get("twoHanded") is False else ""),
     ]
     return " ".join(parts).lower()
 
@@ -117,6 +141,16 @@ def _score(query: str, asset: dict, extra_tokens: list[str] | None = None) -> fl
     tags = {t.lower() for t in asset.get("tags") or []}
     cats = {c.lower() for c in asset.get("category") or []}
     ctx = {c.lower() for c in (asset.get("placement") or {}).get("preferred_contexts") or []}
+    gear = asset.get("gear") or {}
+    gear_vals = {
+        str(gear.get(k) or "").lower()
+        for k in ("kind", "slot", "fits", "coverage", "role", "paintFamily")
+        if gear.get(k)
+    }
+    if gear.get("twoHanded") is True:
+        gear_vals.add("two_handed")
+    elif gear.get("twoHanded") is False:
+        gear_vals.add("one_handed")
     if q and q in aid:
         score += 80
     if q and q in name:
@@ -134,6 +168,8 @@ def _score(query: str, asset: dict, extra_tokens: list[str] | None = None) -> fl
             score += 16
         if t in role:
             score += 20
+        if t in gear_vals:
+            score += 18
         if t in hay:
             score += 4
     # identity signs beat random props when the query is a building type
@@ -216,6 +252,11 @@ def search_assets(
     module_roles: list[str] | None = None,
     part_classes: list[str] | None = None,
     footprint_classes: list[str] | None = None,
+    gear_kinds: list[str] | None = None,
+    gear_slots: list[str] | None = None,
+    gear_fits: list[str] | None = None,
+    gear_coverage: list[str] | None = None,
+    gear_roles: list[str] | None = None,
     include_nonplaceable: bool = False,
     engine: str | None = None,
     fields: list[str] | None = None,
@@ -244,6 +285,11 @@ def search_assets(
             module_roles=module_roles,
             part_classes=part_classes,
             footprint_classes=footprint_classes,
+            gear_kinds=gear_kinds,
+            gear_slots=gear_slots,
+            gear_fits=gear_fits,
+            gear_coverage=gear_coverage,
+            gear_roles=gear_roles,
             include_nonplaceable=include_nonplaceable,
         ):
             continue

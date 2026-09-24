@@ -93,6 +93,7 @@ def _fts_extra(asset: dict) -> str:
     place = asset.get("placement") or {}
     module = asset.get("module") or {}
     part = asset.get("part") or {}
+    gear = asset.get("gear") or {}
     bits = [
         asset.get("id") or "",
         asset.get("type") or "",
@@ -108,6 +109,13 @@ def _fts_extra(asset: dict) -> str:
         module.get("family") or "",
         module.get("role") or "",
         part.get("class") or "",
+        gear.get("kind") or "",
+        gear.get("slot") or "",
+        gear.get("fits") or "",
+        gear.get("coverage") or "",
+        gear.get("role") or "",
+        gear.get("paintFamily") or "",
+        "two_handed" if gear.get("twoHanded") is True else ("one_handed" if gear.get("twoHanded") is False else ""),
     ]
     return " ".join(b for b in bits if b)
 

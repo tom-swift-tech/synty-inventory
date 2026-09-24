@@ -82,6 +82,15 @@ def slim_row(
         row["kit_role"] = module["role"]
     if part.get("class"):
         row["part_class"] = part["class"]
+    gear = asset.get("gear") or {}
+    if gear.get("kind"):
+        row["gear_kind"] = gear["kind"]
+    if gear.get("slot"):
+        row["gear_slot"] = gear["slot"]
+    if gear.get("fits"):
+        row["gear_fits"] = gear["fits"]
+    if gear.get("role"):
+        row["gear_role"] = gear["role"]
     node = (asset.get("files") or {}).get("glb_node")
     if node:
         row["glb_node"] = node

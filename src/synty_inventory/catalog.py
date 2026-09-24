@@ -133,9 +133,13 @@ def load_all_catalogs(catalogs_dir: Path) -> list[dict]:
     if not catalogs_dir.is_dir():
         return docs
     for path in sorted(catalogs_dir.glob("*.json")):
-        # index.json and private state (_measure_cache.json, ...) are not
-        # pack catalogs.
-        if path.name == "index.json" or path.name.startswith("_"):
+        # index.json, scene_grammar sidecars, and private state
+        # (_measure_cache.json, ...) are not pack catalogs.
+        if (
+            path.name == "index.json"
+            or path.name.startswith("_")
+            or path.name.endswith(".scene_grammar.json")
+        ):
             continue
         doc = load_catalog(path)
         if doc and isinstance(doc.get("assets"), list) and doc.get("pack_id"):

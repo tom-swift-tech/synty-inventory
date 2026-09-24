@@ -31,7 +31,7 @@ from dataclasses import replace
 from importlib.resources import files as pkg_files
 
 from .naming import ParsedName, parse_name, title_from_tokens
-from .schema import TYPE_MIGRATION, empty_module, empty_part
+from .schema import TYPE_MIGRATION, empty_gear, empty_module, empty_part
 
 WALL_PLAQUE = {
     "mount": "wall",
@@ -327,6 +327,8 @@ def _semantic_role(parsed: ParsedName, extra: dict) -> str:
     if parsed.kind == "vehicle":
         return "populates_street_or_lot"
     if parsed.kind == "character":
+        if parsed.family in {"ANIMAL", "ANIMALS"}:
+            return "populates_scene_as_animal"
         return "populates_scene_as_person"
     if parsed.kind == "environment":
         if "road" in tokens:
@@ -367,6 +369,8 @@ def _description(parsed: ParsedName, name: str, extra: dict, ptype: str) -> str:
             bits.append("Role: " + ", ".join(extra["contexts"]) + ".")
     elif ptype == "vehicle":
         bits.append(f"{name} -- vehicle. Sit on the road or a parking stall; do not scale; yaw to the lane.")
+    elif ptype == "character" and parsed.family in {"ANIMAL", "ANIMALS"}:
+        bits.append(f"{name} -- animal mesh or prefab. Place in fields, pens or yards at 1:1 scale.")
     elif ptype == "character":
         bits.append(f"{name} -- character mesh or prefab. Place on sidewalks or interiors at 1:1 scale.")
     elif ptype == "environment":
@@ -416,6 +420,7 @@ def _record(
     placement: dict,
     module: dict | None = None,
     part: dict | None = None,
+    gear: dict | None = None,
     name: str | None = None,
     dims: list[float] | None = None,
     placeable: bool | None = None,
@@ -443,6 +448,7 @@ def _record(
         "ai_notes": ai_notes,
         "module": module,
         "part": part,
+        "gear": gear,
         "parsed": parsed,
     }
     if placeable is not None:
@@ -467,13 +473,182 @@ def _infer_curated(parsed: ParsedName) -> dict:
     )
 
 
+
+_SAFE_TAG_RE = re.compile(r"^[a-z0-9][a-z0-9_\-+.]*$")
+
+# Sidekick modular part codes embedded as _NNCODE_SPECIESNN (e.g. _01HEAD_HU01).
+_SIDEKICK_SLOT_RE = re.compile(r"_(\d{2})([A-Za-z]{3,6})_([A-Za-z]{2}\d+)$")
+_SIDEKICK_SLOT_MAP = {
+    # code -> (attach_bone, tags, gear_slot)
+    "HEAD": ("HEAD", ["slot_head", "head"], "head"),
+    "HAIR": ("HAIR", ["slot_head", "hair", "head"], "head"),
+    "EBRL": ("EBRL", ["slot_face", "face", "brow"], "face"),
+    "EBRR": ("EBRR", ["slot_face", "face", "brow"], "face"),
+    "EYEL": ("EYEL", ["slot_face", "face", "eye"], "face"),
+    "EYER": ("EYER", ["slot_face", "face", "eye"], "face"),
+    "EARL": ("EARL", ["slot_face", "face", "ear"], "face"),
+    "EARR": ("EARR", ["slot_face", "face", "ear"], "face"),
+    "FCHR": ("FCHR", ["slot_face", "face"], "face"),
+    "TORS": ("TORS", ["slot_torso", "torso", "clothing"], "torso"),
+    "AUPL": ("AUPL", ["slot_shoulder", "arm", "shoulder"], "shoulder"),
+    "AUPR": ("AUPR", ["slot_shoulder", "arm", "shoulder"], "shoulder"),
+    "ALWL": ("ALWL", ["slot_wrist", "arm", "wrist"], "wrist"),
+    "ALWR": ("ALWR", ["slot_wrist", "arm", "wrist"], "wrist"),
+    "HNDL": ("HNDL", ["slot_hand_l", "hand", "hand_l"], "hand_l"),
+    "HNDR": ("HNDR", ["slot_hand_r", "hand", "hand_r"], "hand_r"),
+    "HIPS": ("HIPS", ["slot_belt", "hips", "belt"], "belt"),
+    "LEGL": ("LEGL", ["slot_legs", "legs"], "legs"),
+    "LEGR": ("LEGR", ["slot_legs", "legs"], "legs"),
+    "FOTL": ("FOTL", ["slot_feet", "feet"], "feet"),
+    "FOTR": ("FOTR", ["slot_feet", "feet"], "feet"),
+    "NOSE": ("NOSE", ["slot_face", "face", "nose"], "face"),
+    "TETH": ("TETH", ["slot_face", "face", "teeth"], "face"),
+    "TONG": ("TONG", ["slot_face", "face"], "face"),
+    "WRAP": ("WRAP", ["slot_torso", "torso", "clothing", "wrap"], "torso"),
+    # Sidekick attach sockets (Axxx codes) seen on Soldiers/Civilians packs
+    "AHED": ("AHED", ["slot_head", "head", "attach"], "head"),
+    "AFAC": ("AFAC", ["slot_face", "face", "attach"], "face"),
+    "ABAC": ("ABAC", ["slot_back", "back", "attach"], "back"),
+    "AHPF": ("AHPF", ["slot_belt", "hips", "belt", "attach"], "belt"),
+    "AHPB": ("AHPB", ["slot_belt", "hips", "belt", "attach"], "belt"),
+    "AHPL": ("AHPL", ["slot_belt", "hips", "belt", "attach"], "belt"),
+    "AHPR": ("AHPR", ["slot_belt", "hips", "belt", "attach"], "belt"),
+    "ASHL": ("ASHL", ["slot_shoulder", "shoulder", "attach"], "shoulder"),
+    "ASHR": ("ASHR", ["slot_shoulder", "shoulder", "attach"], "shoulder"),
+    "AEBL": ("AEBL", ["slot_wrist", "arm", "elbow", "attach"], "wrist"),
+    "AEBR": ("AEBR", ["slot_wrist", "arm", "elbow", "attach"], "wrist"),
+    "AKNL": ("AKNL", ["slot_legs", "legs", "knee", "attach"], "legs"),
+    "AKNR": ("AKNR", ["slot_legs", "legs", "knee", "attach"], "legs"),
+}
+
+_PAINT_FAMILY_TOKENS = {
+    "red", "blue", "green", "black", "white", "yellow", "orange", "pink",
+    "purple", "brown", "grey", "gray", "camo", "desert", "urban", "snow",
+    "tan", "olive", "chrome", "gold", "silver", "cyan", "teal", "navy",
+}
+_TWO_HANDED_TOKENS = {
+    "rifle", "shotgun", "sniper", "lmg", "minigun", "launcher", "bazooka",
+    "rocket", "mg", "carbine", "bow", "crossbow", "staff", "spear", "twohand", "2h",
+}
+_ONE_HANDED_TOKENS = {
+    "pistol", "handgun", "revolver", "knife", "dagger", "baton", "crowbar",
+    "hatchet", "axe", "sword", "machete", "smg", "uzi",
+}
+
+
+def _unique_tags(tags: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for t in tags:
+        tl = t.lower().strip()
+        if not tl or tl in seen or not _SAFE_TAG_RE.fullmatch(tl):
+            continue
+        seen.add(tl)
+        out.append(tl)
+    return out
+
+
+def _fits_from_stem(stem: str) -> str | None:
+    up = stem.upper()
+    if "ROBO" in up or re.search(r"_RO\d*$", up):
+        return "robot"
+    if "HUMN" in up or re.search(r"_HU\d*$", up):
+        return "human"
+    if "ALIEN" in up or re.search(r"_AL\d*$", up):
+        return "alien"
+    return None
+
+
+def _sidekick_part_meta(stem: str) -> tuple[str | None, list[str], str | None, str | None]:
+    """Return (attach_bone, tags, fits, gear_slot)."""
+    m = _SIDEKICK_SLOT_RE.search(stem)
+    fits = _fits_from_stem(stem)
+    if not m:
+        return None, [], fits, None
+    code = m.group(2).upper()
+    mapped = _SIDEKICK_SLOT_MAP.get(code)
+    if mapped:
+        bone, tags, gear_slot = mapped
+        return bone, list(tags), fits, gear_slot
+    return code, [f"slot_{code.lower()}"], fits, None
+
+
+def _paint_family_from_tokens(tokens: list[str]) -> str | None:
+    for t in tokens:
+        tl = t.lower()
+        if tl in _PAINT_FAMILY_TOKENS:
+            return tl
+    return None
+
+
+def _two_handed_from_tokens(tokens: list[str]) -> bool | None:
+    joined = " ".join(t.lower() for t in tokens)
+    if any(t in joined for t in _TWO_HANDED_TOKENS):
+        return True
+    if any(t in joined for t in _ONE_HANDED_TOKENS):
+        return False
+    return None
+
+
+def _coverage_from_hints(
+    *,
+    tags: list[str] | None = None,
+    tokens: list[str] | None = None,
+    sealed: bool = False,
+    armorish: bool = False,
+    clothingish: bool = False,
+) -> str | None:
+    tagset = {t.lower() for t in (tags or [])}
+    toks = [t.lower() for t in (tokens or [])]
+    joined = " ".join(toks)
+    if sealed or "coverage_sealed" in tagset or any(x in tagset for x in ("eva", "vacuum", "space")):
+        return "sealed"
+    if "suit" in joined or "sealed" in joined:
+        return "sealed"
+    if armorish or "armor" in tagset or "plate" in joined or "heavy" in joined:
+        return "heavy"
+    if "vest" in joined or "tactical" in joined or "medium" in joined:
+        return "medium"
+    if clothingish or "clothing" in tagset or any(x in joined for x in ("shirt", "pants", "jacket", "coat", "dress")):
+        return "light"
+    if any(x in tagset for x in ("face", "hair", "eye", "ear", "brow", "nose", "teeth")):
+        return "none"
+    return None
+
+
+def _make_gear(
+    *,
+    kind: str | None = None,
+    slot: str | None = None,
+    fits: str | None = None,
+    coverage: str | None = None,
+    role: str | None = None,
+    attach: bool | None = None,
+    two_handed: bool | None = None,
+    paint_family: str | None = None,
+) -> dict:
+    g = empty_gear()
+    g["kind"] = kind
+    g["slot"] = slot
+    g["fits"] = fits
+    g["coverage"] = coverage
+    g["role"] = role
+    g["attach"] = attach
+    g["twoHanded"] = two_handed
+    g["paintFamily"] = paint_family
+    return g
+
+
 # --- Part 3: non-placeable data (animation / character rig / UI / skybox / fx) ---
 
 _CLIP_PREFIX_RE = re.compile(r"^(A|Anim|ANIM)_", re.I)
+# Animations(_IK|_Static).fbx in SIMPLE_Farm are multi-clip containers, not meshes.
 _CLIP_WORD_RE = re.compile(
-    r"^(Idle|Walk|Run|Jump|Crouch|Strafe|Turn|Sprint|Fall|Land|Death|Hit|Aim|Fire|Reload)\b", re.I
+    r"^(?:(Idle|Walk|Run|Jump|Crouch|Strafe|Turn|Sprint|Fall|Land|Death|Hit|Aim|Fire|Reload)\b"
+    r"|Animations?(?:_|$))",
+    re.I,
 )
-_SK_PART_SUFFIX_RE = re.compile(r"_\d{2}[A-Za-z]{3,6}_HU\d+$")
+_SK_PART_SUFFIX_RE = re.compile(r"_\d{2}[A-Za-z]{3,6}_[A-Z]{2}\d+$", re.I)
 _BODY_PART_WORDS = (
     "head", "hair", "torso", "arm", "leg", "hand", "foot", "eye", "ear", "hip",
     "face", "brow", "tooth", "teeth", "knee", "elbow", "nose", "chest", "attach",
@@ -528,19 +703,59 @@ def _infer_nonplaceable(parsed: ParsedName) -> dict | None:
         body = "".join(t.lower() for t in parsed.tokens)
         is_part = bool(_SK_PART_SUFFIX_RE.search(parsed.id)) or any(w in body for w in _BODY_PART_WORDS)
         if is_part:
-            return _record(
-                parsed, type_="character/part", role="character_part", detail="body_part",
-                category=["character", "part"], tags=["character_part", "rig"],
-                description=f"{name} -- modular character body part. Assembles onto a skeleton rig; not placed standalone.",
-                ai_notes="Rig-attached body part. Combine with matching parts to build a full character.",
-                placement=deepcopy(_SOCKET_PLACEMENT), name=name,
+            slot_code, slot_tags, fits, gear_slot = _sidekick_part_meta(parsed.id)
+            tags = ["character_part", "rig", "wardrobe"] + slot_tags
+            if fits:
+                tags.append(f"fits_{fits}")
+            part = empty_part()
+            if slot_code:
+                part["attach_bone"] = slot_code
+            gear_kind = "other"
+            armorish = False
+            clothingish = "clothing" in tags or "wrap" in body
+            # Clothing/armor-ish torso wrap etc.
+            if any(t in tags for t in ("torso", "legs", "feet", "head")) and "hair" not in tags and "face" not in tags:
+                if "wrap" in body or "suit" in body or "armor" in body:
+                    part["class"] = "armor"
+                    tags.append("armor")
+                    gear_kind = "armor"
+                    armorish = True
+                elif clothingish:
+                    gear_kind = "clothing"
+            paint = _paint_family_from_tokens(parsed.tokens)
+            if paint:
+                tags.append(f"paint_{paint}")
+            coverage = _coverage_from_hints(
+                tags=tags, tokens=parsed.tokens, armorish=armorish, clothingish=clothingish,
             )
+            detail = slot_tags[0] if slot_tags else "body_part"
+            gear = _make_gear(
+                kind=gear_kind,
+                slot=gear_slot or "none",
+                fits=fits,
+                coverage=coverage,
+                role="wardrobe",
+                attach=True,
+                paint_family=paint,
+            )
+            return _record(
+                parsed, type_="character/part", role="character_part", detail=detail,
+                category=["character", "part", "wardrobe"], tags=_unique_tags(tags),
+                description=f"{name} -- modular character body part ({detail}). Assembles onto a skeleton rig; not placed standalone.",
+                ai_notes="Rig-attached wardrobe/body part. Combine with matching parts to build a full character.",
+                placement=deepcopy(_SOCKET_PLACEMENT), part=part, gear=gear, name=name,
+            )
+        fits = _fits_from_stem(parsed.id)
+        tags = ["character", "skeleton", "preset"]
+        if fits:
+            tags.append(f"fits_{fits}")
+        gear = _make_gear(kind="other", slot="none", fits=fits, role="preset", attach=False)
         return _record(
-            parsed, type_="character/skeleton", role="character", detail="",
-            category=["character"], tags=["character", "skeleton"],
-            description=f"{name} -- whole character skeleton/rig.",
-            ai_notes="Whole character. Place directly in the scene at 1:1 scale.",
-            placement=deepcopy(GROUND_PROP), name=name, placeable=True,
+            parsed, type_="character/skeleton", role="character", detail="preset",
+            category=["character", "preset"], tags=_unique_tags(tags),
+            description=f"{name} -- whole character skeleton/rig preset.",
+            ai_notes="Whole character preset. Place directly in the scene at 1:1 scale; not a wardrobe item.",
+            placement=deepcopy(GROUND_PROP), name=name, placeable=True, gear=gear,
         )
 
     if _UI_PREFIX_RE.match(parsed.id):
@@ -739,6 +954,84 @@ _WEAPON_MOD_SLOTS = {
 _WEAPON_NATIONALITY_TOKENS = {"american", "german", "russian", "british", "bandit", "swat"}
 
 
+
+def _optic_gear() -> dict:
+    """Weapon optic / scope attachment: sockets onto a weapon, not a hand."""
+    return _make_gear(kind="attachment", slot="none", fits="any", role="optic", attach=True)
+
+
+def _is_optic_weapon_part(subject_lower: list[str], joined: str) -> bool:
+    """True when the asset is clearly an optic/scope attachment, not a full gun.
+
+    Rules (all require SM_Wep_* already):
+    a) SM_Wep_Mod_* with mod slot in {scope, sight, ironsight} OR tokens contain
+       reddot/holo/optic
+    b) tokens contain attachment AND (scope|sight|optic|reddot|holo)
+    c) primary noun is scope: first non-nationality token is ``scope``, OR id
+       pattern like SM_Wep_*_Scope_* / SM_Wep_Scope_*
+    d) nationality + Scope (American_Scope, German_Scope, Russian_Scope)
+    e) Sniper_Scope (both tokens) = optic piece; bare Sniper / Rifle / Pistol /
+       Preset = still weapon
+    f) NEVER crosshair / UI (handled before this); NEVER microscope/satellite
+    """
+    if "crosshair" in joined or "crosshair" in subject_lower:
+        return False
+    if "microscope" in joined or "satellite" in joined:
+        return False
+
+    optic_tokens = {"scope", "sight", "optic", "reddot", "holo", "ironsight"}
+    nationality = _WEAPON_NATIONALITY_TOKENS
+
+    # a) Mod_* with optic slot or optic tokens
+    if subject_lower[:1] == ["mod"]:
+        rest = subject_lower[1:]
+        slot = next((t for t in rest if t in _WEAPON_MOD_SLOTS), None)
+        if slot in {"scope", "sight", "ironsight"}:
+            return True
+        if any(t in optic_tokens for t in rest) or any(
+            k in joined for k in ("reddot", "holo", "optic")
+        ):
+            return True
+
+    # b) attachment + (scope|sight|optic|reddot|holo) — also compound tokens
+    #    like SniperScope / RedDot in a single subject token (joined check)
+    if "attachment" in subject_lower and (
+        any(t in optic_tokens for t in subject_lower)
+        or any(k in joined for k in ("scope", "sight", "optic", "reddot", "holo"))
+    ):
+        return True
+
+    # e) Sniper_Scope (both tokens) OR compound SniperScope in joined;
+    #    bare Sniper / Rifle / Pistol / Preset alone stays a weapon
+    if ("sniper" in subject_lower and "scope" in subject_lower) or (
+        "sniper" in joined and "scope" in joined
+    ):
+        return True
+
+    # Strip nationality for primary-noun checks
+    non_nat = [t for t in subject_lower if t not in nationality]
+
+    # c) first non-nationality token is scope, or Scope appears as a structural token
+    if non_nat[:1] == ["scope"]:
+        return True
+    # SM_Wep_Scope_* / SM_Wep_*_Scope_* — subject contains scope not as gun name alone
+    if "scope" in subject_lower:
+        # bare "..._Scope_..." attachment-style ids (not a full weapon name like
+        # hypothetical future guns that include scope in a compound — those still
+        # need another optic cue; nationality+Scope handled in d)
+        if subject_lower[:1] == ["scope"]:
+            return True
+        # middle Scope token: e.g. American_Scope_Long, Attachment_SniperScope
+        if any(t == "scope" for t in subject_lower[1:]):
+            return True
+
+    # d) nationality + Scope
+    if any(t in nationality for t in subject_lower) and "scope" in subject_lower:
+        return True
+
+    return False
+
+
 def _infer_weapon(parsed: ParsedName) -> dict | None:
     if not parsed.id.upper().startswith("SM_WEP_"):
         return None
@@ -761,39 +1054,109 @@ def _infer_weapon(parsed: ParsedName) -> dict | None:
         part = empty_part()
         part["class"] = "weapon_mount"
         mod_name = title_from_tokens(subject[1:]) or name
+        is_optic = _is_optic_weapon_part(subject_lower, joined)
+        if is_optic:
+            tags = ["weapon_part", "weapon_mod", "attachment", "optic"]
+            if slot:
+                tags.append(slot)
+            elif "scope" in subject_lower or "scope" in joined:
+                tags.append("scope")
+            for extra in ("sight", "reddot", "holo"):
+                if extra in subject_lower or extra in joined:
+                    tags.append(extra)
+            return _record(
+                parsed, type_="weapon", role="weapon", detail="optic_attachment",
+                category=["weapon", "weapon_part"], tags=tags,
+                description=(
+                    f"{mod_name} -- weapon optic/scope attachment. Sockets onto a weapon "
+                    "rail/receiver; not a standalone weapon."
+                ),
+                ai_notes="Optic attachment. Mount on a weapon optic rail; never place standalone or in a character hand.",
+                placement=deepcopy(_WEAPON_MOD_PLACEMENT), part=part, name=mod_name,
+                gear=_optic_gear(),
+            )
         return _record(
             parsed, type_="weapon", role="weapon", detail="weapon_mod",
-            category=["weapon", "weapon_part"], tags=["weapon_part", "weapon_mod"] + ([slot] if slot else []),
+            category=["weapon", "weapon_part"], tags=["weapon_part", "weapon_mod", "attachment"] + ([slot] if slot else []),
             description=(
                 f"{mod_name} -- modular weapon component. Sockets onto a weapon body/rail; "
                 "not a standalone weapon."
             ),
             ai_notes="Weapon builder part. Attach to the matching socket on a weapon body; never place standalone.",
             placement=deepcopy(_WEAPON_MOD_PLACEMENT), part=part, name=mod_name,
+            gear=_make_gear(kind="attachment", slot="none", fits="any", role=None, attach=True),
         )
 
     if subject_lower[:1] == ["preset"]:
         preset_name = title_from_tokens(subject[1:]) or name
+        th = _two_handed_from_tokens(subject)
+        paint = _paint_family_from_tokens(subject)
+        wtags = ["weapon", "preset", "assembled"]
+        if paint:
+            wtags.append(f"paint_{paint}")
+        if th is True:
+            wtags.append("two_handed")
+        elif th is False:
+            wtags.append("one_handed")
         return _record(
             parsed, type_="weapon", role="weapon", detail="assembled_weapon",
-            category=["weapon"], tags=["weapon", "preset", "assembled"],
+            category=["weapon"], tags=wtags,
             description=(
                 f"{preset_name} -- pre-assembled weapon loadout (Wep_Mod parts combined into one "
                 "weapon). Equip whole; do not disassemble by default."
             ),
             ai_notes="Ready-to-use weapon assembly. Equip to a character hand socket.",
             placement=deepcopy(_WEAPON_SOCKET_PLACEMENT), name=preset_name,
+            gear=_make_gear(
+                kind="weapon", slot="hand_r", fits="any", role=None, attach=True,
+                two_handed=th, paint_family=paint,
+            ),
+        )
+
+    # Non-Mod optic attachments: SM_Wep_Scope_*, SM_Wep_Attachment_*Scope*,
+    # SM_Wep_American_Scope_*, SM_Wep_Sniper_Scope_*, etc.
+    if _is_optic_weapon_part(subject_lower, joined):
+        part = empty_part()
+        part["class"] = "weapon_mount"
+        tags = ["weapon_part", "attachment", "optic"]
+        if "scope" in subject_lower or "scope" in joined:
+            tags.append("scope")
+        for extra in ("sight", "reddot", "holo", "ironsight"):
+            if extra in subject_lower or extra in joined:
+                tags.append(extra)
+        return _record(
+            parsed, type_="weapon", role="weapon", detail="optic_attachment",
+            category=["weapon", "weapon_part"], tags=tags,
+            description=(
+                f"{name} -- weapon optic/scope attachment. Sockets onto a weapon "
+                "rail/receiver; not a standalone weapon."
+            ),
+            ai_notes="Optic attachment. Mount on a weapon optic rail; never place standalone or in a character hand.",
+            placement=deepcopy(_WEAPON_MOD_PLACEMENT), part=part, name=name,
+            gear=_optic_gear(),
         )
 
     detail_tokens = [t for t in subject_lower if t not in _WEAPON_NATIONALITY_TOKENS]
     detail = detail_tokens[0] if detail_tokens else (subject_lower[0] if subject_lower else "weapon")
     tags = ["weapon", detail] + [t for t in subject_lower if t in _WEAPON_NATIONALITY_TOKENS]
+    th = _two_handed_from_tokens(subject)
+    paint = _paint_family_from_tokens(subject)
+    if paint:
+        tags.append(f"paint_{paint}")
+    if th is True:
+        tags.append("two_handed")
+    elif th is False:
+        tags.append("one_handed")
     return _record(
         parsed, type_="weapon", role="weapon", detail=detail,
         category=["weapon"], tags=tags,
         description=f"{name} -- handheld weapon. Equip to a character hand socket or place in a weapon rack/loadout.",
         ai_notes="Weapon prop. Socket to a character hand bone when equipped; ground-place only in armories/loadout scenes.",
         placement=deepcopy(_WEAPON_SOCKET_PLACEMENT), name=name,
+        gear=_make_gear(
+            kind="weapon", slot="hand_r", fits="any", role=None, attach=True,
+            two_handed=th, paint_family=paint,
+        ),
     )
 
 
@@ -1285,12 +1648,134 @@ def _infer_chr_attach(parsed: ParsedName) -> dict | None:
     if not parsed.id.upper().startswith("SM_CHR_ATTACH_"):
         return None
     name = title_from_tokens(parsed.subject_tokens) or parsed.id
+    subject_l = [t.lower() for t in parsed.subject_tokens]
+    joined = "_".join(subject_l)
+    tags = ["character_attach", "rig", "wardrobe"]
+    detail = "attach_point"
+    part = empty_part()
+    gear_kind: str | None = "other"
+    gear_slot: str | None = "none"
+    part_class_hint = None
+    slot_map = (
+        (("helmet",), "helmet", "head", "armor", "helmet"),
+        (("hat", "beanie", "cap"), "hat", "head", "clothing", "clothing"),
+        (("visor",), "visor", "head", "armor", "armor"),
+        (("headset", "comm", "radio"), "headset", "head", "gadget", "gadget"),
+        (("hair", "beard", "brow"), "hair", "head", None, "other"),
+        (("mask",), "mask", "face", "armor", "armor"),
+        (("head", "face"), "head", "head", None, "other"),
+        (("backpack", "pack", "bag", "cage"), "backpack", "back", "pack", "pack"),
+        (("shoulder", "pad"), "shoulder", "shoulder", "armor", "armor"),
+        (("belt", "hip", "holster"), "belt", "belt", None, "other"),
+        (("boot", "shoe", "foot"), "boots", "feet", "clothing", "clothing"),
+        (("glove", "hand"), "gloves", "hand", "clothing", "clothing"),
+        (("armor", "chest", "vest", "plate"), "armor", "torso", "armor", "armor"),
+        (("suit",), "suit", "torso", "armor", "armor"),
+        (("tool", "wrench", "scanner"), "tool", "hand_r", None, "tool"),
+        (("implant", "cyber"), "implant", "implant", None, "implant"),
+    )
+    for keys, kind_tag, slot_tag, part_class, gkind in slot_map:
+        if any(k in joined for k in keys):
+            tags.extend([kind_tag, f"slot_{slot_tag}"])
+            detail = kind_tag
+            gear_slot = "none" if slot_tag == "hand" else slot_tag
+            part["attach_bone"] = slot_tag
+            gear_kind = gkind
+            part_class_hint = part_class
+            if part_class == "armor":
+                part["class"] = "armor"
+                tags.append("armor")
+            elif part_class == "pack":
+                tags.append("pack")
+            elif part_class == "clothing":
+                tags.append("clothing")
+            elif part_class == "gadget":
+                tags.extend(["gadget", "comms"])
+            elif gkind == "tool":
+                tags.append("tool")
+            elif gkind == "implant":
+                tags.append("implant")
+            break
+    else:
+        tags.append("slot_none")
+    for hint in ("miner", "mining", "civilian", "crew", "merc", "soldier", "medic", "scav", "eva", "space", "vacuum"):
+        if hint in joined or hint in subject_l:
+            tags.append("miner" if hint == "mining" else hint)
+    sealed = "space" in tags or "eva" in tags or "vacuum" in tags or "suit" in joined
+    if sealed:
+        tags.append("coverage_sealed")
+    paint = _paint_family_from_tokens(list(parsed.subject_tokens) + list(parsed.tokens))
+    if paint:
+        tags.append(f"paint_{paint}")
+    coverage = _coverage_from_hints(
+        tags=tags,
+        tokens=parsed.subject_tokens,
+        sealed=sealed,
+        armorish=gear_kind in {"armor", "helmet"} or part_class_hint == "armor",
+        clothingish=gear_kind == "clothing",
+    )
+    gear = _make_gear(
+        kind=gear_kind or "other",
+        slot=gear_slot,
+        fits="any",
+        coverage=coverage,
+        role="wardrobe",
+        attach=True,
+        paint_family=paint,
+    )
     return _record(
-        parsed, type_="character/part", role="character_part", detail="attach_point",
-        category=["character", "attachment"], tags=["character_attach", "rig"],
-        description=f"{name} -- character attachment/socket mesh. Parents to a character rig bone; not placed directly in a scene.",
-        ai_notes="Attach to the matching character rig socket. Never place standalone in a level.",
-        placement=deepcopy(_SOCKET_PLACEMENT), name=name,
+        parsed, type_="character/part", role="character_part", detail=detail,
+        category=["character", "attachment", "wardrobe"], tags=_unique_tags(tags),
+        description=f"{name} -- character attachment ({detail}). Parents to a character rig bone; not placed directly in a scene.",
+        ai_notes="Attach to the matching character rig socket. Wardrobe item, not a whole-character preset.",
+        placement=deepcopy(_SOCKET_PLACEMENT), part=part, gear=gear, name=name,
+    )
+
+
+def _infer_chr_preset(parsed: ParsedName) -> dict | None:
+    """POLYGON whole-character prefabs (SM_Chr_* excluding Attach) = presets, not wardrobe."""
+    up = parsed.id.upper()
+    if not up.startswith("SM_CHR_") or up.startswith("SM_CHR_ATTACH_"):
+        return None
+    subject_l = [t.lower() for t in parsed.subject_tokens]
+    joined = "_".join(subject_l)
+    name = title_from_tokens(parsed.subject_tokens) or parsed.id
+    tags = ["character", "preset"]
+    fits = "any"
+    if "alien" in joined:
+        fits = "alien"
+        tags.append("alien")
+    elif "android" in joined or "robot" in joined or "robo" in joined:
+        fits = "robot"
+        tags.append("robot")
+    else:
+        fits = "human"
+    tags.append(f"fits_{fits}")
+    for hint in ("crew", "miner", "mining", "civilian", "merc", "soldier", "medic", "scav", "space", "suit", "dead"):
+        if hint in joined or hint in subject_l:
+            tags.append("miner" if hint == "mining" else hint)
+    sealed = "suit" in joined or "space" in joined
+    if sealed:
+        tags.append("coverage_sealed")
+    paint = _paint_family_from_tokens(list(parsed.subject_tokens) + list(parsed.tokens))
+    if paint:
+        tags.append(f"paint_{paint}")
+    coverage = _coverage_from_hints(tags=tags, tokens=parsed.subject_tokens, sealed=sealed)
+    gear = _make_gear(
+        kind="other",
+        slot="none",
+        fits=fits,
+        coverage=coverage,
+        role="preset",
+        attach=False,
+        paint_family=paint,
+    )
+    return _record(
+        parsed, type_="character", role="character", detail="preset",
+        category=["character", "preset"], tags=_unique_tags(tags),
+        description=f"{name} -- whole-character preset prefab. Place as a complete NPC/actor; not a modular wardrobe piece.",
+        ai_notes="Character preset (full body). Do not treat as attachable clothing/armor; use Chr_Attach_* for wardrobe.",
+        placement=deepcopy(GROUND_PROP), name=name, placeable=True, gear=gear,
     )
 
 
@@ -1377,6 +1862,7 @@ _SCIFI_SPACE_RULES = (
     _infer_bld,
     _infer_env_scifi,
     _infer_prop_scifi,
+    _infer_chr_preset,
     _infer_chr_attach,
     _infer_hud_icon_signborder,
 )
@@ -1400,9 +1886,14 @@ def _infer_legacy(parsed: ParsedName) -> dict:
     if parsed.kind == "building" and "building" not in category:
         category.insert(0, "building")
     tags = list(extra["tags"])
+    if parsed.family in {"ANIMAL", "ANIMALS"}:
+        # The family token is consumed by parse_name; keep it searchable.
+        tags.insert(0, "animal")
+        if "animal" not in category:
+            category.insert(0, "animal")
     for t in parsed.subject_tokens:
         tl = t.lower()
-        if tl not in tags and not tl.isdigit():
+        if tl not in tags and not tl.isdigit() and _SAFE_TAG_RE.fullmatch(tl):
             tags.append(tl)
 
     placement = _placement_for(parsed, extra)

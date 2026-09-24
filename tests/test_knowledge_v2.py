@@ -786,3 +786,90 @@ def test_all_representative_stems_use_valid_enums():
         part = rec.get("part")
         if part and part.get("class") is not None:
             assert part["class"] in PART_CLASSES, (stem, part["class"])
+
+def test_sidekick_part_gets_slot_and_fits_tags():
+    rec = infer("SK_HUMN_BASE_01_01HEAD_HU01")
+    assert rec["type"] == "character/part"
+    assert "slot_head" in rec["tags"]
+    assert "fits_human" in rec["tags"]
+    assert "wardrobe" in rec["tags"]
+    assert rec["part"]["attach_bone"] == "HEAD"
+    assert rec["gear"]["role"] == "wardrobe"
+    assert rec["gear"]["slot"] == "head"
+    assert rec["gear"]["fits"] == "human"
+    assert rec["gear"]["attach"] is True
+
+
+def test_sidekick_robot_part_fits_robot():
+    rec = infer("SK_ROBO_BASE_01_01HEAD_RO01")
+    assert rec["type"] == "character/part"
+    assert "fits_robot" in rec["tags"]
+    assert "slot_head" in rec["tags"]
+    assert rec["gear"]["fits"] == "robot"
+    assert rec["gear"]["slot"] == "head"
+
+
+def test_chr_attach_helmet_is_wardrobe_armor():
+    rec = infer("SM_Chr_Attach_Helmet_01")
+    assert rec["type"] == "character/part"
+    assert "helmet" in rec["tags"]
+    assert "armor" in rec["tags"]
+    assert "slot_head" in rec["tags"]
+    assert rec["part"]["class"] == "armor"
+    assert rec["part"]["attach_bone"] == "head"
+    assert rec["gear"]["kind"] == "helmet"
+    assert rec["gear"]["slot"] == "head"
+    assert rec["gear"]["role"] == "wardrobe"
+    assert rec["gear"]["attach"] is True
+
+
+def test_chr_whole_prefab_is_preset_not_wardrobe_item():
+    rec = infer("SM_Chr_Crew_01_M")
+    assert rec["type"] == "character"
+    assert rec["semantic_detail"] == "preset"
+    assert "preset" in rec["tags"]
+    assert "crew" in rec["tags"]
+    assert "fits_human" in rec["tags"]
+    assert rec["gear"]["role"] == "preset"
+    assert rec["gear"]["fits"] == "human"
+    assert rec["gear"]["attach"] is False
+    assert "wardrobe" not in rec["tags"]
+
+
+def test_weapon_rifle_two_handed_gear():
+    rec = infer("SM_Wep_Rifle_01")
+    assert rec["type"] == "weapon"
+    assert rec["gear"]["kind"] == "weapon"
+    assert rec["gear"]["twoHanded"] is True
+    assert rec["gear"]["slot"] == "hand_r"
+    assert "two_handed" in rec["tags"]
+
+
+def test_weapon_pistol_one_handed_gear():
+    rec = infer("SM_Wep_Pistol_01")
+    assert rec["gear"]["twoHanded"] is False
+    assert "one_handed" in rec["tags"]
+
+
+def test_chr_attach_paint_family_from_colorway():
+    rec = infer("SM_Chr_Attach_Backpack_Red_01")
+    assert rec["gear"]["kind"] == "pack"
+    assert rec["gear"]["slot"] == "back"
+    assert rec["gear"]["paintFamily"] == "red"
+    assert "paint_red" in rec["tags"]
+
+
+def test_sidekick_attach_code_maps_to_gear_slot():
+    rec = infer("SK_HUMN_BASE_01_20ABAC_HU01")
+    assert rec["type"] == "character/part"
+    assert rec["gear"]["slot"] == "back"
+    assert "slot_back" in rec["tags"]
+
+
+def test_unity_duplicate_suffix_not_in_tags():
+    rec = infer("SM_Prop_Swamp_RitualPyre_01 (1)")
+    assert "(1)" not in rec["tags"]
+    assert all(
+        __import__("re").fullmatch(r"^[a-z0-9][a-z0-9_\-+.]*$", t) for t in rec["tags"]
+    )
+

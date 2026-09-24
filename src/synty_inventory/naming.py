@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 
 PREFIX_KIND = {
     "SM": "static_mesh",
+    # SIMPLE-line packs (SIMPLE_Farm_Animals) prefix meshes SA_ instead of SM_.
+    "SA": "static_mesh",
     "SK": "skeleton",
     "CH": "character",
     "CHR": "character",
@@ -33,6 +35,10 @@ FAMILY_KIND = {
     "CHR": "character",
     "CHARACTER": "character",
     "CHAR": "character",
+    # No creature type in the v2 schema; animals are placeable characters,
+    # told apart by the family (semantic detail populates_scene_as_animal).
+    "ANIMAL": "character",
+    "ANIMALS": "character",
     "ICON": "icon",
     "GEN": "generic",
     "GENERIC": "generic",
@@ -99,9 +105,13 @@ def should_skip(rel_path: str, stem: str) -> bool:
     return False
 
 
+_UNITY_DUP_TOKEN_RE = re.compile(r"^\(\d+\)$")
+
+
 def parse_name(raw: str) -> ParsedName:
     stem = normalize_stem(raw)
-    parts = [p for p in _TOKEN_SPLIT.split(stem) if p]
+    # Drop Unity duplicate-name suffixes like '(1)' so tags stay snake_case.
+    parts = [p for p in _TOKEN_SPLIT.split(stem) if p and not _UNITY_DUP_TOKEN_RE.fullmatch(p)]
     prefix = None
     family = None
     kind = "unknown"

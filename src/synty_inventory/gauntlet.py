@@ -183,9 +183,17 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root:
     top_p = sug_police[0]["id"] if sug_police else None
     top_b = sug_barber[0]["id"] if sug_barber else None
     top_bill = sug_bill[0]["id"] if sug_bill else None
+    # Any police identity sign is a right answer: POLYGON_Police_Station's own
+    # SM_Sign_Police_Station_01 legitimately outranks the City sign once installed.
+    top_p_rec = get_asset_details(catalogs_dir, top_p) if top_p else None
+    police_top_ok = bool(top_p_rec) and (
+        top_p_rec.get("type") == "prop/signage"
+        and top_p_rec.get("semantic_role") == "building_identity"
+        and "police" in (top_p_rec.get("tags") or [])
+    )
     gate(
         "suggest_contexts",
-        top_p == "SM_Prop_Sign_Police_01" and top_b == "SM_Prop_Sign_Barber_01" and bool(top_bill),
+        police_top_ok and top_b == "SM_Prop_Sign_Barber_01" and bool(top_bill),
         f"police->{top_p}; barber->{top_b}; billboard->{top_bill}",
     )
 

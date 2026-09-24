@@ -82,6 +82,7 @@ SEMANTIC_FIELDS = (
     "part",
     "mech",
     "footprint",
+    "gear",
     "ai_notes",
 )
 
@@ -277,6 +278,41 @@ PART_CLASSES = (
     "weapon_mount",
     "misc",
 )
+
+# Character wardrobe / loadout (Border Suns). Additive — does not replace asset
+# ``kind`` (prefab/mesh/…) or ``type`` (character/part, weapon, …). Null on
+# non-character assets. Tags (slot_*, fits_*, wardrobe, preset) stay for FTS.
+GEAR_KINDS = (
+    "clothing",
+    "armor",
+    "helmet",
+    "weapon",
+    "attachment",
+    "tool",
+    "gadget",
+    "implant",
+    "pack",
+    "prop",
+    "other",
+)
+GEAR_SLOTS = (
+    "head",
+    "face",
+    "torso",
+    "legs",
+    "feet",
+    "back",
+    "belt",
+    "shoulder",
+    "hand_l",
+    "hand_r",
+    "wrist",
+    "implant",
+    "none",
+)
+GEAR_FITS = ("human", "alien", "robot", "any")
+GEAR_COVERAGE = ("none", "light", "medium", "heavy", "sealed")
+GEAR_ROLES = ("wardrobe", "preset", "optic")
 SIZE_CLASSES = ("fighter", "bomber", "transport", "cruiser", "capital", "station")
 PIVOTS = ("corner", "center_bottom", "center", "other", "unknown")
 BOUNDS_SOURCES = ("measured", "vlm", "rules")
@@ -404,6 +440,44 @@ def empty_part() -> dict[str, Any]:
         "slot": None,
         "attach_bone": None,
     }
+
+
+def empty_gear() -> dict[str, Any]:
+    """Character-gear / wardrobe block. Absent or all-null on non-gear assets."""
+    return {
+        "kind": None,
+        "slot": None,
+        "fits": None,
+        "coverage": None,
+        "role": None,
+        "attach": None,
+        "twoHanded": None,
+        "paintFamily": None,
+    }
+
+
+def validate_gear(gear: Any, prefix: str, errors: list[str]) -> None:
+    if gear is None:
+        return
+    if not isinstance(gear, dict):
+        errors.append(f"{prefix}.gear must be an object or null")
+        return
+    if gear.get("kind") is not None and gear["kind"] not in GEAR_KINDS:
+        errors.append(f"{prefix}.gear.kind invalid: {gear.get('kind')!r}")
+    if gear.get("slot") is not None and gear["slot"] not in GEAR_SLOTS:
+        errors.append(f"{prefix}.gear.slot invalid: {gear.get('slot')!r}")
+    if gear.get("fits") is not None and gear["fits"] not in GEAR_FITS:
+        errors.append(f"{prefix}.gear.fits invalid: {gear.get('fits')!r}")
+    if gear.get("coverage") is not None and gear["coverage"] not in GEAR_COVERAGE:
+        errors.append(f"{prefix}.gear.coverage invalid: {gear.get('coverage')!r}")
+    if gear.get("role") is not None and gear["role"] not in GEAR_ROLES:
+        errors.append(f"{prefix}.gear.role invalid: {gear.get('role')!r}")
+    for bool_key in ("attach", "twoHanded"):
+        if gear.get(bool_key) is not None and not isinstance(gear.get(bool_key), bool):
+            errors.append(f"{prefix}.gear.{bool_key} must be bool or null")
+    pf = gear.get("paintFamily")
+    if pf is not None and (not isinstance(pf, str) or not _TOKEN_RE.match(pf)):
+        errors.append(f"{prefix}.gear.paintFamily must be snake_case string or null")
 
 
 SOCKET_AXES = ("+x", "-x", "+y", "-y", "+z", "-z")
@@ -676,6 +750,7 @@ _ROLE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"^dresses_exterior_ground$"), "ground_surface"),
     (re.compile(r"^populates_street_or_lot$"), "vehicle"),
     (re.compile(r"^populates_scene_as_person$"), "character"),
+    (re.compile(r"^populates_scene_as_animal$"), "character"),
     (re.compile(r"^visual_effect$"), "visual_effect"),
     (re.compile(r"^dresses_scene$"), "exterior_prop"),
 ]
@@ -755,6 +830,10 @@ def migrate_asset_v1(asset: dict) -> dict:
         a["part"].setdefault("sockets", None)
         a["part"].setdefault("slot", None)
         a["part"].setdefault("attach_bone", None)
+    a.setdefault("gear", empty_gear())
+    if isinstance(a["gear"], dict):
+        for gk, gv in empty_gear().items():
+            a["gear"].setdefault(gk, gv)
     a.setdefault("thumbnail", None)
     a.setdefault("ai_notes", "")
     a.setdefault("category", [])
@@ -881,6 +960,8 @@ def validate_asset(asset: Any, prefix: str, errors: list[str]) -> None:
     mech = asset.get("mech")
     if mech is not None:
         validate_mech(mech, f"{prefix}.mech", errors)
+    if "gear" in asset:
+        validate_gear(asset.get("gear"), prefix, errors)
     if "footprint" in asset:
         validate_footprint(asset["footprint"], asset.get("bounds"), prefix, errors)
     files = asset.get("files")

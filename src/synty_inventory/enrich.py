@@ -35,6 +35,7 @@ from .schema import (
     default_placeable,
     dimensions_from_bounds,
     empty_files,
+    empty_gear,
     empty_module,
     empty_part,
     empty_paths,
@@ -238,6 +239,7 @@ def skeleton_asset(
         "size_hint": [round(float(x), 4) for x in inferred["dimensions_hint"]] if inferred.get("dimensions_hint") else None,
         "module": deepcopy(inferred.get("module") or empty_module()),
         "part": deepcopy(inferred.get("part") or empty_part()),
+        "gear": deepcopy(inferred.get("gear") or empty_gear()),
         "files": files,
         "paths": paths_from_files(files),
         "thumbnail": raw.thumbnail,
@@ -357,6 +359,7 @@ def ensure_schema_defaults(asset: dict) -> dict:
     asset.setdefault("paths", empty_paths())
     asset.setdefault("module", empty_module())
     asset.setdefault("part", empty_part())
+    asset.setdefault("gear", empty_gear())
     asset.setdefault("bounds", None)
     asset.setdefault("semantic_detail", "")
     asset.setdefault("thumbnail", None)

@@ -281,10 +281,21 @@ def cmd_scan(args, cfg) -> int:
             rebuild=args.rebuild,
         )
         if args.extract_previews and ref.package_path:
+            # Signage plus character-gear / weapons (Border Suns wardrobe needs).
+            # Still scoped — not every swamp tree — so catalogs/previews stays lean.
+            _PREVIEW_TYPES = {
+                "prop/signage",
+                "character",
+                "character/part",
+                "character/skeleton",
+                "weapon",
+            }
             wanted = {
                 a["id"]
                 for a in doc["assets"]
-                if a.get("type") == "prop/signage" or "sign" in (a.get("category") or [])
+                if a.get("type") in _PREVIEW_TYPES
+                or "sign" in (a.get("category") or [])
+                or "character_attach" in (a.get("tags") or [])
             }
             dest = catalogs_dir / "previews" / ref.pack_id
             written = extract_previews(ref.package_path, dest, wanted_stems=wanted)
@@ -373,6 +384,11 @@ def cmd_search(args, cfg) -> int:
             module_roles=_csv(args.module_role),
             part_classes=_csv(args.part_class),
             footprint_classes=_csv(args.footprint_class),
+            gear_kinds=_csv(getattr(args, "gear_kind", None)),
+            gear_slots=_csv(getattr(args, "gear_slot", None)),
+            gear_fits=_csv(getattr(args, "gear_fits", None)),
+            gear_coverage=_csv(getattr(args, "gear_coverage", None)),
+            gear_roles=_csv(getattr(args, "gear_role", None)),
             include_nonplaceable=args.include_nonplaceable,
             engine=args.engine,
             fields=_csv(args.fields),
@@ -874,6 +890,36 @@ def build_parser() -> argparse.ArgumentParser:
         dest="footprint_class",
         default=None,
         help="comma list of footprint class enums (compact, l_plan, u_plan, radial, thin, point, irregular)",
+    )
+    se.add_argument(
+        "--gear-kind",
+        dest="gear_kind",
+        default=None,
+        help="comma list of gear.kind (clothing, armor, helmet, weapon, attachment, tool, gadget, implant, pack, prop, other)",
+    )
+    se.add_argument(
+        "--gear-slot",
+        dest="gear_slot",
+        default=None,
+        help="comma list of gear.slot (head, face, torso, legs, feet, back, belt, shoulder, hand_l, hand_r, wrist, implant, none)",
+    )
+    se.add_argument(
+        "--gear-fits",
+        dest="gear_fits",
+        default=None,
+        help="comma list of gear.fits (human, alien, robot, any)",
+    )
+    se.add_argument(
+        "--gear-coverage",
+        dest="gear_coverage",
+        default=None,
+        help="comma list of gear.coverage (none, light, medium, heavy, sealed)",
+    )
+    se.add_argument(
+        "--gear-role",
+        dest="gear_role",
+        default=None,
+        help="comma list of gear.role (wardrobe, preset, optic)",
     )
     se.add_argument("--include-nonplaceable", action="store_true")
     se.add_argument("--engine", choices=query.ENGINES, default=None, help="which files.* to print")

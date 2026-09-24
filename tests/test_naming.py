@@ -17,6 +17,24 @@ def test_parse_scifi_neon():
     assert "Neon" in p.subject_tokens
 
 
+def test_simple_pack_animal_is_character():
+    p = parse_name("SA_Animal_Horse_Black")
+    assert p.prefix == "SA"
+    assert p.family == "ANIMAL"
+    assert p.kind == "character"
+    rec = infer("SA_Animals_Cow_Brown")
+    assert rec["type"] == "character"
+    assert rec["semantic_role"] == "populates_scene_as_animal"
+    assert "animal" in rec["tags"] and "sa" not in rec["tags"]
+    # A prop that merely mentions an animal stays a prop.
+    assert infer("SM_Prop_Hunting_Animal_Head_01")["type"] == "prop"
+
+
+def test_simple_farm_animation_container_is_clip():
+    for stem in ("Animations", "Animations_IK", "Animations_Static"):
+        assert infer(stem)["type"] == "animation"
+
+
 def test_skip_collision():
     assert should_skip("Assets/Synty/PolygonCity/Models/Collisions/Foo.fbx", "SM_Prop_Box_01_Convex")
     assert not should_skip("Assets/Synty/PolygonCity/Prefabs/Props/SM_Prop_Sign_Police_01.prefab", "SM_Prop_Sign_Police_01")

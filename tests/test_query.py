@@ -230,3 +230,99 @@ def test_get_asset_details_exact_id_wins_over_substring(tmp_path: Path):
     rec = get_asset_details(tmp_path, "SM_Prop_Sign_Police_01")
     assert rec is not None
     assert rec["id"] == "SM_Prop_Sign_Police_01"
+
+
+def test_search_gear_filters(tmp_path: Path):
+    from synty_inventory.schema import empty_gear
+
+    catalogs = tmp_path / "catalogs"
+    catalogs.mkdir()
+    helmet_gear = empty_gear()
+    helmet_gear.update({
+        "kind": "helmet", "slot": "head", "fits": "human",
+        "coverage": "heavy", "role": "wardrobe", "attach": True,
+    })
+    prop_gear = empty_gear()
+    doc = {
+        "pack_id": "SIDEKICK_Test",
+        "engine": "Unity",
+        "origin": "Synty",
+        "style": "test",
+        "units": "meters",
+        "version": 2,
+        "scanned_at": "2026-09-16T00:00:00+00:00",
+        "grid": {"snap": 0.25, "module": 2.5, "tile": 5.0, "story": 3.0},
+        "conventions": {"street_axis": "+z", "rotate_deg": 90, "scale": 1, "up_axis": "+y"},
+        "asset_count": 2,
+        "assets": [
+            {
+                "id": "SM_Chr_Attach_Helmet_01",
+                "name": "Helmet",
+                "kind": "mesh",
+                "placeable": False,
+                "type": "character/part",
+                "category": ["character"],
+                "tags": ["helmet", "wardrobe", "slot_head", "fits_human"],
+                "description": "helmet",
+                "semantic_role": "character_part",
+                "semantic_detail": "helmet",
+                "placement": {
+                    "mount": "socket", "height": "n/a", "orientation": "align_to_parent",
+                    "attachment": "socket", "preferred_floors": [], "constraints": [],
+                    "preferred_contexts": [],
+                },
+                "bounds": None,
+                "dimensions": {"approx": None, "units": "meters", "source": "none"},
+                "files": {
+                    "unity_prefab": None, "unity_mesh": "a.fbx", "unity_materials": [],
+                    "glb": None, "unreal_uasset": None, "godot_scene": None,
+                },
+                "paths": {"prefab": None, "mesh": "a.fbx", "materials": []},
+                "thumbnail": None,
+                "ai_notes": "",
+                "module": {"family": None, "role": None, "footprint_class": None, "stackable_on": [], "street_side": None, "blank_sides": [], "sign_zones": []},
+                "part": {"class": "armor", "mates_axis": None, "symmetric": None, "size_class": None, "mount": None, "sockets": None, "slot": None, "attach_bone": "head"},
+                "gear": helmet_gear,
+            },
+            {
+                "id": "SM_Prop_Crate_01",
+                "name": "Crate",
+                "kind": "prefab",
+                "placeable": True,
+                "type": "prop",
+                "category": ["prop"],
+                "tags": ["crate"],
+                "description": "crate",
+                "semantic_role": "exterior_prop",
+                "semantic_detail": "",
+                "placement": {
+                    "mount": "ground", "height": "grade", "orientation": "upright",
+                    "attachment": "base_to_ground", "preferred_floors": [1], "constraints": [],
+                    "preferred_contexts": [],
+                },
+                "bounds": None,
+                "dimensions": {"approx": None, "units": "meters", "source": "none"},
+                "files": {
+                    "unity_prefab": "c.prefab", "unity_mesh": None, "unity_materials": [],
+                    "glb": None, "unreal_uasset": None, "godot_scene": None,
+                },
+                "paths": {"prefab": "c.prefab", "mesh": None, "materials": []},
+                "thumbnail": None,
+                "ai_notes": "",
+                "module": {"family": None, "role": None, "footprint_class": None, "stackable_on": [], "street_side": None, "blank_sides": [], "sign_zones": []},
+                "part": {"class": None, "mates_axis": None, "symmetric": None, "size_class": None, "mount": None, "sockets": None, "slot": None, "attach_bone": None},
+                "gear": prop_gear,
+            },
+        ],
+    }
+    (catalogs / "SIDEKICK_Test.json").write_text(__import__("json").dumps(doc), encoding="utf-8")
+    from synty_inventory import query
+
+    hits = query.search_assets(
+        catalogs, "helmet", gear_kinds=["helmet"], gear_slots=["head"], gear_fits=["human"],
+        include_nonplaceable=True,
+    )
+    assert len(hits) == 1
+    assert hits[0]["id"] == "SM_Chr_Attach_Helmet_01"
+    assert hits[0].get("gear_kind") == "helmet"
+    assert hits[0].get("gear_slot") == "head"
