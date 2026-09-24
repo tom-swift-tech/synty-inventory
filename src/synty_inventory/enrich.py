@@ -166,13 +166,17 @@ PACK_PREFIX_CLASS = {
 }
 
 
+REAL_MESH_PREFIXES = ("SM_", "SK_", "CHR_", "WEP_")
+
+
 def _apply_pack_overrides(inferred: dict, pack_id: str, raw) -> None:
     for prefix, (atype, kind, placeable, role) in PACK_PREFIX_CLASS.items():
         if not pack_id.startswith(prefix):
             continue
         stem_up = (raw.id or "").upper()
-        # real meshes inside these packs (demo props, targets) stay as classified
-        if stem_up.startswith(("SM_", "SK_", "CHR_")):
+        # real meshes inside these packs (demo props, targets, and the Wep_
+        # bows/arrows/swords ANIMATION_*_Combat ships for its clips) stay as classified
+        if stem_up.startswith(REAL_MESH_PREFIXES):
             return
         # INTERFACE_* FX_ stems are screen-space vignettes/flashes: keep the
         # fx type but they are not world-placeable.

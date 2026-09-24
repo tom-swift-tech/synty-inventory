@@ -7,6 +7,7 @@ from collections import Counter
 from pathlib import Path
 
 from .catalog import catalog_path, load_catalog
+from .enrich import REAL_MESH_PREFIXES
 from .merge import merge_catalog
 from .query import (
     get_asset_details,
@@ -500,14 +501,14 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root:
     gate("suggest_recipe_pointers", not wrong, "all assembly prompts point at the right recipe" if not wrong else "; ".join(wrong))
 
     # Clips, HUD widgets and screen-space FX in ANIMATION_/INTERFACE_ packs must
-    # not be offered to an assembler; only real SM_ demo meshes may stay placeable.
+    # not be offered to an assembler; only real demo meshes may stay placeable.
     nonplace = [
         a["id"]
         for d in docs
         for a in d["assets"]
         if d.get("pack_id", "").startswith(("ANIMATION_", "INTERFACE_"))
         and a.get("placeable")
-        and not a["id"].upper().startswith(("SM_", "SK_", "CHR_"))
+        and not a["id"].upper().startswith(REAL_MESH_PREFIXES)
     ]
     gate("nonplaceable_packs", not nonplace, f"{len(nonplace)} ANIMATION_/INTERFACE_ non-mesh assets still placeable {nonplace[:5]}")
 

@@ -39,6 +39,10 @@ FAMILY_KIND = {
     # told apart by the family (semantic detail populates_scene_as_animal).
     "ANIMAL": "character",
     "ANIMALS": "character",
+    # Unprefixed rigged masters: POLYGON_Kaiju's Kaiju_0x.fbx and
+    # POLYGON_Modular_Fantasy_Hero's ModularCharacter_0x prefabs.
+    "KAIJU": "character",
+    "MODULARCHARACTER": "character",
     "ICON": "icon",
     "GEN": "generic",
     "GENERIC": "generic",
@@ -55,9 +59,14 @@ SKIP_PATH_PARTS = (
     "/syntypackagehelper/",
     "/editor/",
     "/demosettings",
+    # Pose rigs for demo scenes (Modular_Fantasy_Hero Scenes/DemoFiles/CharacterPose.fbx).
+    "/demofiles/",
 )
 BULK_STEMS = {
     "CHARACTERS",
+    # Same bulk multi-character FBX under pack-specific names.
+    "ZOMBIES",
+    "MODULARCHARACTERS",
     "GENERIC_CHARACTERS",
     "DEMONSTRATION",
     "POLYGON_PROTOTYPE_DEMO_STATICMESHES",

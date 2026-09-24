@@ -35,6 +35,15 @@ def test_simple_farm_animation_container_is_clip():
         assert infer(stem)["type"] == "animation"
 
 
+def test_unprefixed_rigged_masters_are_characters():
+    assert infer("Kaiju_03")["type"] == "character"
+    assert infer("ModularCharacter_01")["type"] == "character"
+    # Bulk multi-character FBX and demo pose rigs are not catalog assets.
+    assert should_skip("Assets/Synty/PolygonCityZombies/Models/Zombies.fbx", "Zombies")
+    assert should_skip("Assets/Synty/PolygonFantasyHeroCharacters/Models/ModularCharacters.fbx", "ModularCharacters")
+    assert should_skip("Assets/Synty/PolygonFantasyHeroCharacters/Scenes/DemoFiles/CharacterPose.fbx", "CharacterPose")
+
+
 def test_skip_collision():
     assert should_skip("Assets/Synty/PolygonCity/Models/Collisions/Foo.fbx", "SM_Prop_Box_01_Convex")
     assert not should_skip("Assets/Synty/PolygonCity/Prefabs/Props/SM_Prop_Sign_Police_01.prefab", "SM_Prop_Sign_Police_01")
