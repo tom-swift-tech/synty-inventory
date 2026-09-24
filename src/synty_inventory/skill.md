@@ -118,6 +118,28 @@ write `placement.contact` or ship/mech sockets.
 3. `placement` before instantiating: `mount` `wall` → attach via `attachment` (`back_side` / `side_bracket`) to the street facade; honour `preferred_floors`, `constraints` (`exterior_only`, `do_not_cover_windows`, `civic_facade_only`, `roadway_view`) and `preferred_contexts`.
 4. One identity sign per frontage.
 
+## Dressing a scene (lessons from real builds)
+
+- **Colour lives in the atlas region, not the mesh or material name.** POLYGON
+  City's civilian cars are all one blue; Town's cars use another material and
+  still render blue. Render candidates side by side before promising variety,
+  and check the pack's `Materials/Alts/*_01_A/_B/_C` colourway atlases first
+  (same UV layout, different palette) - usually the real fix.
+- **Render a candidate before it goes into a bag**: look for props baked into
+  the mesh (Town `SM_Env_Tree_Large_01` is a treehouse with a tyre swing).
+- **Weighted bags, not equal picks**: everyday assets dominate, distinctive ones
+  are rare, and leave real empty space (a full lot reads fake).
+- **Heights and offsets come from the pack's Demo scene**, relative to the host
+  piece, whenever the Demo uses the prop. Seat against the MAX depth over the
+  prop's footprint (probe a grid), never one sample.
+- **Ids collide across packs** (Town and City share `SM_Env_Tree_01/02/03`,
+  `SM_Prop_ParkBench_01`, `SM_Env_Grass_01`): key rows by an alias
+  (`SM_Env_Tree_01__Town`), or one pack silently replaces the other.
+- A piece with `Generic_*` materials (PolygonGeneric) is not a themed-kit piece
+  even when that pack's catalog lists it: check the prefab path and materials.
+- City-scale assembly (measured City kit facts, Demo street grammar, park tiles):
+  see the `city-builder` skill in `tools/godot_skills/`.
+
 ## Quality checks
 
 - Police identity → `SM_Prop_Sign_Police_01` (white channel letters, wall, above the door, floors 1–2).
