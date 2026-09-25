@@ -22,6 +22,18 @@ SKIP_DIR_NAMES = {
     "syntypackagehelper",
 }
 
+# Shared kits that ship inside many packs but have no package of their own.
+# Each gets one standalone catalog scanned from a single host pack's copy.
+# PolygonGeneric: 101 extracted packs carry it, all with identical .meta GUIDs;
+# 90 are byte-identical and complete (495 prefabs / 467 meshes), the rest are
+# older subsets (tasks/generic_survey.py). POLYGON_War holds that complete
+# copy, was converted from its extracted tree, its threejs-v2 folder has every
+# SM_Gen_* GLB + VLM entry, and (unlike POLYGON_City) its Godot tree carries
+# PolygonGeneric -- so files.glb / godot_scene point into War's trees.
+SHARED_KIT_PACKS: dict[str, dict[str, str]] = {
+    "POLYGON_Generic": {"kit": "PolygonGeneric", "host_pack": "POLYGON_War"},
+}
+
 
 @dataclass
 class PackRef:
@@ -91,6 +103,24 @@ def _extracted_for(pack_id: str, extracted_root: Path | None) -> Path | None:
     return None
 
 
+def shared_kit_refs(extracted_root: Path | None) -> list[PackRef]:
+    """Synthetic refs for SHARED_KIT_PACKS whose host pack is extracted."""
+    refs = []
+    for pack_id, spec in SHARED_KIT_PACKS.items():
+        host = _extracted_for(spec["host_pack"], extracted_root)
+        if host is None or not (host / "Assets" / "Synty" / spec["kit"]).is_dir():
+            continue
+        refs.append(
+            PackRef(
+                pack_id=pack_id,
+                engine="Unity",
+                extracted_path=host,
+                extras={"shared_kit": spec["kit"], "host_pack": spec["host_pack"]},
+            )
+        )
+    return refs
+
+
 def discover(target: Path, extracted_root: Path | None = None) -> list[PackRef]:
     """Discover packs under a Unity root, an extracted root, a single pack, or a .unitypackage."""
     target = target.resolve()
@@ -157,6 +187,8 @@ def discover(target: Path, extracted_root: Path | None = None) -> list[PackRef]:
         for ref in list(found.values()):
             if ref.extracted_path is None:
                 ref.extracted_path = _extracted_for(ref.pack_id, extracted_root)
+    for ref in shared_kit_refs(extracted_root):
+        found.setdefault(ref.pack_id, ref)
 
     return sorted(found.values(), key=lambda r: r.pack_id)
 
