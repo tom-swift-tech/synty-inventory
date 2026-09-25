@@ -173,11 +173,7 @@ def _collect_files(assets_root: Path) -> list[RawFile]:
     return files
 
 
-def scan_extracted(
-    pack_root: Path, include_shared: bool = False, shared_out: set[str] | None = None
-) -> list[RawAsset]:
-    """``shared_out`` collects the prefab/mesh stems skipped as shared kit, so
-    the caller can keep their converted GLBs out too."""
+def scan_extracted(pack_root: Path, include_shared: bool = False) -> list[RawAsset]:
     assets_root = find_assets_root(pack_root)
     files = _collect_files(assets_root)
     guid_index = index_guids(assets_root)
@@ -203,8 +199,6 @@ def scan_extracted(
 
     for f in files:
         if f.shared and not include_shared:
-            if shared_out is not None and f.kind in {"prefab", "mesh"}:
-                shared_out.add(f.stem)
             continue
         if f.kind == "thumbnail":
             if f.stem in thumbs and not thumbs_shared.get(f.stem) and f.shared:
@@ -281,10 +275,8 @@ def scan_from_package_listing(
     pathnames: list[dict],
     include_shared: bool = False,
     pack_id: str | None = None,
-    shared_out: set[str] | None = None,
 ) -> list[RawAsset]:
-    """Build skeleton assets from unitypackage pathname entries.
-    ``shared_out``: as in ``scan_extracted``."""
+    """Build skeleton assets from unitypackage pathname entries."""
     by_stem: dict[str, RawAsset] = {}
     for row in pathnames:
         pathname = (row.get("pathname") or "").replace("\\", "/")
@@ -296,8 +288,6 @@ def scan_from_package_listing(
         low = pathname.lower()
         shared = "/polygongeneric/" in low
         if shared and not include_shared:
-            if shared_out is not None and (low.endswith(".prefab") or Path(low).suffix in MESH_EXTS):
-                shared_out.add(stem)
             continue
         rec = by_stem.get(stem)
         if rec is None:

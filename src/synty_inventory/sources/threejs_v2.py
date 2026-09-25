@@ -89,8 +89,8 @@ def glb_index(threejs_v2_dir: Path | None, pack_id: str) -> tuple[dict[str, str]
 
 def glb_raw_assets(threejs_v2_dir: Path | None, pack_id: str) -> list[RawAsset]:
     """One RawAsset per converted GLB stem. Fills catalog holes the Unity
-    prefab scan misses (GLB-only meshes). The caller drops stems the scan
-    skipped as shared kit. Overlay later wires ``files.glb``."""
+    prefab scan misses (GLB-only meshes, package-shared kit dumped into this
+    pack's threejs-v2 folder). Overlay later wires ``files.glb``."""
     exact, _ = glb_index(threejs_v2_dir, pack_id)
     out: list[RawAsset] = []
     for stem, rel in exact.items():
