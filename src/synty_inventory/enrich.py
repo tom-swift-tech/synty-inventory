@@ -9,10 +9,11 @@ from pathlib import Path
 from . import knowledge
 from .merge import stamp_auto
 from .sources.footprint import CACHE_NAME as FOOTPRINT_CACHE_NAME, apply_footprint
-from .sources.glb_measure import apply_measured_bounds, bundle_index, load_cache, save_cache
+from .sources.glb_measure import apply_measured_bounds, bundle_index, bundle_key, load_cache, save_cache
 from .sources.godot import apply_godot_overlay, scene_index
 from .sources.manifest import apply_gen_overlay, load_gen_entries
 from .sources.mech import apply_mech_catalog
+from .sources.prefab_glb import PrefabGlbResolver
 from .sources.sockets import apply_part_sockets, apply_prop_contact
 from .sources.threejs_v2 import (
     _tune_kit_placement,
@@ -292,6 +293,8 @@ def enrich_catalog(
     tj_catalog = catalog_by_id(threejs_v2, pack_id)
     glb_exact, glb_ci = glb_index(threejs_v2, pack_id)
     bundles = bundle_index(threejs_v2, pack_id, bundle_glbs(threejs_v2, pack_id))
+    extracted = (catalog.get("source") or {}).get("extracted")
+    prefab_glb = PrefabGlbResolver(Path(extracted) if extracted else None, threejs_v2, glb_exact, glb_ci)
     godot_exact, godot_ci = scene_index(godot_root, pack_id)
     unreal_exact, unreal_ci = unreal_asset_index(unreal_root, pack_id)
     gen_entries = load_gen_entries(threejs_v2, pack_id)  # empty unless GEN_* pack
@@ -303,7 +306,7 @@ def enrich_catalog(
     grid = catalog.get("grid") or {}
     fp_snap = float(grid.get("snap") or 0.25)
     fp_tile = float(grid["tile"]) if grid.get("tile") else None
-    stats = {"measured": 0, "missing_glb": 0, "measure_failed": 0, "skipped": 0, "disagree": 0}
+    stats = {"measured": 0, "missing_glb": 0, "measure_failed": 0, "skipped": 0, "disagree": 0, "prefab_glb": 0}
 
     vlm_done = 0
     for asset in catalog["assets"]:
@@ -311,6 +314,8 @@ def enrich_catalog(
         apply_viewer_module(asset, pieces.get(asset["id"]))
         glb_rel = glb_exact.get(asset["id"]) or glb_ci.get(asset["id"].lower())
         apply_threejs_overlay(asset, tj_catalog.get(asset["id"]), glb_rel)
+        if not glb_rel and bundle_key(asset["id"]) not in bundles:
+            _apply_prefab_glb(asset, prefab_glb, stats)
         _tune_kit_placement(asset)
         apply_gen_overlay(asset, gen_entries.get(asset["id"]))
         scene_rel = godot_exact.get(asset["id"]) or godot_ci.get(asset["id"].lower())
@@ -351,6 +356,22 @@ def enrich_catalog(
         save_cache(fp_cache_path, fp_cache)
     catalog["_measure_stats"] = stats
     return catalog
+
+
+def _apply_prefab_glb(asset: dict, resolver: PrefabGlbResolver, stats: dict) -> None:
+    """No GLB shares this asset's name: take the base mesh's GLB (+ node
+    selection) from what the prefab itself renders. Re-resolved on every
+    enrich so a re-convert or prefab change never leaves a stale mapping."""
+    sel = resolver.resolve(asset)
+    if sel is None:
+        return
+    files = asset.setdefault("files", {})
+    files["glb"], node = sel
+    if node:
+        files["glb_node"] = node
+    else:
+        files.pop("glb_node", None)
+    stats["prefab_glb"] += 1
 
 
 def ensure_schema_defaults(asset: dict) -> dict:

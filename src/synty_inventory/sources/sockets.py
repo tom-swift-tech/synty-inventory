@@ -61,7 +61,7 @@ from typing import Any
 import numpy as np
 
 from .glb_geometry import load_triangles
-from .glb_measure import _cache_key
+from .glb_measure import NodeSel, _cache_key, node_cache_tag
 
 SOCKETS_VERSION = 2  # bump to invalidate cached analyses when the algorithm changes
 
@@ -350,7 +350,7 @@ def analyse_cached(
     part_class: str | None,
     mates_axis: str | None,
     cache: dict[str, Any],
-    node_name: str | None = None,
+    node_name: NodeSel = None,
 ) -> dict[str, Any] | None:
     """Run ``analyse_part`` on a GLB through the shared measure cache
     (keyed like the AABB entries plus ``#sockets`` and the algorithm
@@ -359,7 +359,7 @@ def analyse_cached(
     key = _cache_key(abs_path)
     if key is None:
         return None
-    cache_id = f"{glb_rel}#{node_name}#sockets" if node_name else f"{glb_rel}#sockets"
+    cache_id = f"{glb_rel}#{node_cache_tag(node_name)}#sockets" if node_name else f"{glb_rel}#sockets"
     full_key = f"{key}:v{SOCKETS_VERSION}:{part_class}:{mates_axis}"
     entry = cache.get(cache_id)
     if entry and entry.get("key") == full_key:

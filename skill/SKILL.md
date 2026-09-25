@@ -31,7 +31,7 @@ Read `<catalogs>/index.json` before anything else: per-pack asset / placeable
 
 plus, only when the asset has them: `sockets` (ship-hull socket count),
 `slots` (mech slot count), `kit` + `kit_role` (module family/role),
-`part_class`, `glb_node` (node inside a bundle GLB). `file` is the one path
+`part_class`, `glb_node` (node name, or a list of node names, inside a shared GLB). `file` is the one path
 for the target `--engine` (GLB fallback). Everything else — `description`,
 `placement`, `bounds` with pivot, `part` sockets/mount, `mech`
 skeleton/slots/variants — lives in the full record: get it with
@@ -90,7 +90,7 @@ write `placement.contact` or ship/mech sockets.
 - `part` — `class` (`body|cockpit|engine|wing|gear|greeble`), `mates_axis` (`-z` engine → rear socket of the body), `symmetric`, `size_class`, `mount` (this part's own attachment face: `axis`, `position`, `normal`, `fit`, `source`, `parent_role` = the hull socket it fits unrotated) and, on `body` hulls, `sockets[]` (`role` front/rear/left/right/top/bottom + the same fields). `source: measured` is a flat cap found in the mesh; `aabb` is the face-centre fallback — trust it less. Positions are local metres, same space as `bounds`. Read `mount.parent_role` rather than assuming the class axis: `Engine_08/09` are pylon pods that mount by their `+x` plate on the `left` socket (mirror for `right`), and wings mount by their root cap on the `right`/`left` socket (`normal` may be tilted — that is the dihedral; place by position, do not rotate it flush).
 - `part.slot` + `part.attach_bone` (mech attachments, `SM_Mech_*`) — `slot` is `{region, side l|r|c}` (arm/leg/chest/head/hips/foot/back/hand/cockpit/neck/…); `attach_bone` is the skeleton bone to parent the piece to.
 - `mech` (on `SM_Veh_Mech_*` bodies) — `skeleton` (bone names), `slots[]` (`region`, `side`, `bone`, `geo_nodes`), `variants` (factory loadouts → the geo nodes each activates). The master body GLB contains EVERY armor/weapon option as named `geo_*` nodes: assemble either by toggling geo-node visibility to match a `variants` set, or by parenting standalone `SM_Mech_*` attachment GLBs to their `attach_bone`.
-- `files` — `unity_prefab`, `unity_mesh`, `glb` (+ `glb_node` inside bundle GLBs), `unreal_uasset`, `godot_scene`. `paths` is the v1 alias.
+- `files` — `unity_prefab`, `unity_mesh`, `glb` (+ `glb_node` — a node name or list of node names inside a shared GLB; measure only those), `unreal_uasset`, `godot_scene`. `paths` is the v1 alias.
 - Catalog `grid.snap` is 0.25 m; `conventions.street_axis` is `+z`; scale is always 1.0.
 
 ## How to assemble (buildings, blocks, ships)

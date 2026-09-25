@@ -96,17 +96,49 @@ def _corners(min_: list[float], max_: list[float]) -> np.ndarray:
     return np.array([[x, y, z, 1.0] for x in xs for y in ys for z in zs], dtype=np.float64)
 
 
-def measure_glb(path: Path, node_name: str | None = None) -> tuple[list[float], list[float]] | None:
+# A node selection inside a shared GLB (catalog ``files.glb_node``): one
+# node name, or a list of names when a prefab shows several meshes of one
+# FBX at once (a modular character preset is head + torso + legs + ...).
+NodeSel = str | list[str] | tuple[str, ...] | None
+
+
+def node_selected(name: str | None, node_sel: NodeSel) -> bool:
+    if node_sel is None:
+        return True
+    if isinstance(node_sel, str):
+        return name == node_sel
+    return name in node_sel
+
+
+def node_cache_tag(node_sel: NodeSel) -> str | None:
+    """Cache-id suffix for a selection. A single name stays as-is so every
+    existing cache entry keeps its key."""
+    if node_sel is None or isinstance(node_sel, str):
+        return node_sel
+    return "+".join(node_sel)
+
+
+def measure_glb(path: Path, node_name: NodeSel = None) -> tuple[list[float], list[float]] | None:
     """World-space (min, max) over every mesh primitive's POSITION accessor
     in the default scene, or None if the GLB has no measurable geometry.
 
     ``node_name`` restricts measurement to the subtree(s) rooted at nodes of
-    that name — bundle GLBs (``Characters.glb``) hold many assets as named
-    nodes, and this is how per-stem bounds come out of them."""
+    that name (or any of a list of names) — bundle GLBs (``Characters.glb``)
+    hold many assets as named nodes, and this is how per-stem bounds come
+    out of them."""
     doc = read_glb_json(path)
     if not doc:
         return None
-    return _measure_doc(doc, node_name)
+    skin_mats = None
+    if doc.get("skins"):
+        # Skinned meshes need the inverse bind matrices from the BIN chunk
+        # (see glb_geometry.skin_bind_matrices). Imported here because
+        # glb_geometry imports this module.
+        from .glb_geometry import read_glb, skin_bind_matrices
+
+        got = read_glb(path)
+        skin_mats = skin_bind_matrices(*got) if got else None
+    return _measure_doc(doc, node_name, skin_mats)
 
 
 def bundle_node_names(path: Path) -> list[str]:
@@ -117,7 +149,9 @@ def bundle_node_names(path: Path) -> list[str]:
     return [n.get("name") for n in doc.get("nodes") or [] if n.get("name") and n.get("mesh") is not None]
 
 
-def _measure_doc(doc: dict, node_name: str | None) -> tuple[list[float], list[float]] | None:
+def _measure_doc(
+    doc: dict, node_name: NodeSel, skin_mats: dict[int, np.ndarray] | None = None
+) -> tuple[list[float], list[float]] | None:
     accessors = doc.get("accessors") or []
     meshes = doc.get("meshes") or []
     nodes = doc.get("nodes") or []
@@ -137,8 +171,11 @@ def _measure_doc(doc: dict, node_name: str | None) -> tuple[list[float], list[fl
             return
         node = nodes[idx]
         world = parent @ _node_matrix(node)
-        active = active or node_name is None or node.get("name") == node_name
+        active = active or node_selected(node.get("name"), node_name)
         mesh_idx = node.get("mesh")
+        mesh_world = world
+        if skin_mats and node.get("skin") in skin_mats:
+            mesh_world = skin_mats[node["skin"]]
         if active and mesh_idx is not None and 0 <= mesh_idx < len(meshes):
             for prim in meshes[mesh_idx].get("primitives") or []:
                 pos_idx = (prim.get("attributes") or {}).get("POSITION")
@@ -151,7 +188,7 @@ def _measure_doc(doc: dict, node_name: str | None) -> tuple[list[float], list[fl
                 if acc.get("normalized"):
                     amin = _dequantize(amin, acc.get("componentType"))
                     amax = _dequantize(amax, acc.get("componentType"))
-                corners = _corners(amin, amax) @ world.T
+                corners = _corners(amin, amax) @ mesh_world.T
                 xyz = corners[:, :3]
                 global_min = np.minimum(global_min, xyz.min(axis=0))
                 global_max = np.maximum(global_max, xyz.max(axis=0))
@@ -197,7 +234,7 @@ def save_cache(cache_path: Path, cache: dict[str, Any]) -> None:
 
 
 def measure_cached(
-    threejs_v2_dir: Path, glb_rel: str, cache: dict[str, Any], node_name: str | None = None
+    threejs_v2_dir: Path, glb_rel: str, cache: dict[str, Any], node_name: NodeSel = None
 ) -> tuple[list[float], list[float]] | None:
     """Measure ``<threejs_v2_dir>/<glb_rel>`` (optionally one named node
     subtree), using/populating ``cache`` (keyed by relative path + node +
@@ -206,7 +243,7 @@ def measure_cached(
     key = _cache_key(abs_path)
     if key is None:
         return None
-    cache_id = f"{glb_rel}#{node_name}" if node_name else glb_rel
+    cache_id = f"{glb_rel}#{node_cache_tag(node_name)}" if node_name else glb_rel
     entry = cache.get(cache_id)
     if entry and entry.get("key") == key:
         return entry["min"], entry["max"]
@@ -265,7 +302,9 @@ def apply_measured_bounds(
     if should_skip(glb_rel or asset["id"], asset["id"]):
         stats["skipped"] = stats.get("skipped", 0) + 1
         return
-    node_name = None
+    # A stored node selection (bundle node or prefab-resolved nodes) must be
+    # honoured on re-enrich, or the whole shared GLB gets measured.
+    node_name = (asset.get("files") or {}).get("glb_node") if glb_rel else None
     if not glb_rel and bundles and bundle_key(asset["id"]) in bundles:
         # character meshes etc. ship as named nodes inside a bundle GLB
         glb_rel, node_name = bundles[bundle_key(asset["id"])]

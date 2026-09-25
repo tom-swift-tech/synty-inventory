@@ -55,7 +55,7 @@ from ..merge import is_human_field, may_overlay
 from ..naming import SKIP_STEM_RE
 from ..schema import FOOTPRINT_CLASSES
 from .glb_geometry import load_triangles
-from .glb_measure import _cache_key
+from .glb_measure import NodeSel, _cache_key, node_cache_tag
 
 FOOTPRINT_VERSION = 3  # bump to invalidate cached analyses when the algorithm changes
 CACHE_NAME = "_footprint_cache.json"
@@ -750,7 +750,7 @@ def fill_ratio_of(area: float, extent: np.ndarray) -> float:
 
 def analyze_footprint_detail(
     path: Path,
-    node_name: str | None = None,
+    node_name: NodeSel = None,
     *,
     snap: float = DEFAULT_SNAP,
     grade_band_m: float = DEFAULT_GRADE_BAND_M,
@@ -938,7 +938,7 @@ def analyze_footprint_detail(
 
 def analyze_footprint(
     path: Path,
-    node_name: str | None = None,
+    node_name: NodeSel = None,
     *,
     snap: float = DEFAULT_SNAP,
     grade_band_m: float = DEFAULT_GRADE_BAND_M,
@@ -947,7 +947,7 @@ def analyze_footprint(
 ) -> dict | None:
     """Ground-plan polygon for a threejs-v2 GLB, local metres, Y-up.
 
-    ``node_name`` selects one node inside a bundle GLB (catalog ``glb_node``);
+    ``node_name`` selects node(s) inside a shared GLB (catalog ``glb_node``);
     None analyses the whole scene. Returns the footprint block, or None when
     the mesh cannot be decoded (caller leaves the field null).
     """
@@ -1008,7 +1008,7 @@ def analyze_cached(
     threejs_v2_dir: Path,
     glb_rel: str,
     cache: dict[str, Any],
-    node_name: str | None = None,
+    node_name: NodeSel = None,
     *,
     snap: float = DEFAULT_SNAP,
     tile_m: float | None = None,
@@ -1026,7 +1026,7 @@ def analyze_cached(
     key = _cache_key(abs_path)
     if key is None:
         return None, REASON_MISSING_GLB, False
-    cache_id = f"{glb_rel}#{node_name}" if node_name else glb_rel
+    cache_id = f"{glb_rel}#{node_cache_tag(node_name)}" if node_name else glb_rel
     entry = cache.get(cache_id)
     if (
         not force

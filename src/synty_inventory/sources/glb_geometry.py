@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .glb_measure import GLB_MAGIC, CHUNK_JSON, _dequantize, _node_matrix
+from .glb_measure import GLB_MAGIC, CHUNK_JSON, NodeSel, _dequantize, _node_matrix, node_selected
 from .meshopt import MeshoptError, decode_index_buffer, decode_vertex_buffer
 
 CHUNK_BIN = 0x004E4942  # b'BIN\0'
@@ -31,7 +31,7 @@ _COMPONENT_DTYPE = {
     5125: np.uint32,
     5126: np.float32,
 }
-_TYPE_WIDTH = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}
+_TYPE_WIDTH = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT4": 16}
 
 
 def read_glb(path: Path) -> tuple[dict, bytes] | None:
@@ -131,13 +131,70 @@ def _read_accessor(doc: dict, blob: bytes, acc_idx: int) -> np.ndarray | None:
     return np.array(rows, dtype=np.float64)
 
 
+def node_world_matrices(doc: dict) -> dict[int, np.ndarray]:
+    """World matrix of every node reachable from the default scene."""
+    nodes = doc.get("nodes") or []
+    scenes = doc.get("scenes") or []
+    scene_idx = doc.get("scene", 0)
+    out: dict[int, np.ndarray] = {}
+    if not (0 <= scene_idx < len(scenes)):
+        return out
+
+    def walk(idx: int, parent: np.ndarray) -> None:
+        if not (0 <= idx < len(nodes)) or idx in out:
+            return
+        out[idx] = parent @ _node_matrix(nodes[idx])
+        for child in nodes[idx].get("children") or []:
+            walk(child, out[idx])
+
+    for r in scenes[scene_idx].get("nodes") or []:
+        walk(r, np.eye(4, dtype=np.float64))
+    return out
+
+
+def skin_bind_matrices(doc: dict, blob: bytes) -> dict[int, np.ndarray]:
+    """skin index -> the matrix that places that skin's mesh vertices in the
+    bind pose.
+
+    glTF ignores a skinned mesh node's own transform: a vertex goes through
+    ``world(joint) @ inverseBind(joint)``, weighted over its joints. In the
+    bind pose that product is the same for every joint (Character.glb:
+    agreement to 4e-6), so joint 0 stands for all. It matters because
+    gltfpack's KHR_mesh_quantization folds the position dequantisation of a
+    skinned mesh into its inverse bind matrices, not the node: measured
+    through the node, every Synty character came out a [-1, 1] box centred
+    on the origin (2.0 m wide, feet ~0.9 m below ground). A skin whose
+    matrices cannot be decoded is left out; callers fall back to the node.
+    """
+    skins = doc.get("skins") or []
+    if not skins:
+        return {}
+    worlds = node_world_matrices(doc)
+    out: dict[int, np.ndarray] = {}
+    for i, skin in enumerate(skins):
+        joints = skin.get("joints") or []
+        if not joints or joints[0] not in worlds:
+            continue
+        ibm_idx = skin.get("inverseBindMatrices")
+        if ibm_idx is None:
+            ibm0 = np.eye(4, dtype=np.float64)
+        else:
+            ibm = _read_accessor(doc, blob, ibm_idx)
+            if ibm is None or not len(ibm):
+                continue
+            ibm0 = ibm[0].reshape(4, 4).T  # glTF matrices are column-major
+        out[i] = worlds[joints[0]] @ ibm0
+    return out
+
+
 def load_triangles(
     path: Path,
-    node_name: str | None = None,
+    node_name: NodeSel = None,
     exclude: Callable[[str], bool] | None = None,
 ) -> tuple[np.ndarray, np.ndarray] | None:
     """(vertices [N,3] float64 world-space, triangles [M,3] int) for every
-    triangle-list primitive under ``node_name`` (or the whole scene).
+    triangle-list primitive under ``node_name`` — one node name or a list of
+    them (or the whole scene).
 
     ``exclude`` is an optional predicate on node name; a node it matches is
     skipped along with its entire subtree. Used by ``sources.footprint`` to
@@ -157,6 +214,7 @@ def load_triangles(
     if not (0 <= scene_idx < len(scenes)):
         return None
 
+    skin_mats = skin_bind_matrices(doc, blob)
     verts: list[np.ndarray] = []
     tris: list[np.ndarray] = []
     base = 0
@@ -169,8 +227,9 @@ def load_triangles(
         if exclude is not None and exclude(node.get("name") or ""):
             return
         world = parent @ _node_matrix(node)
-        active = active or node_name is None or node.get("name") == node_name
+        active = active or node_selected(node.get("name"), node_name)
         mesh_idx = node.get("mesh")
+        mesh_world = skin_mats.get(node["skin"], world) if "skin" in node else world
         if active and mesh_idx is not None and 0 <= mesh_idx < len(meshes):
             for prim in meshes[mesh_idx].get("primitives") or []:
                 if prim.get("mode", 4) != 4 or "indices" not in prim:
@@ -187,7 +246,7 @@ def load_triangles(
                     pos = np.array(
                         [_dequantize(list(row), acc.get("componentType")) for row in pos.tolist()], dtype=np.float64
                     )
-                hom = np.hstack([pos, np.ones((len(pos), 1))]) @ world.T
+                hom = np.hstack([pos, np.ones((len(pos), 1))]) @ mesh_world.T
                 verts.append(hom[:, :3])
                 t = ind.reshape(-1).astype(np.int64)
                 t = t[: len(t) - len(t) % 3].reshape(-1, 3)
