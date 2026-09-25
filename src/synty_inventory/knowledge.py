@@ -686,18 +686,29 @@ def _is_animation_clip(parsed: ParsedName) -> bool:
     return bool(_CLIP_WORD_RE.match(parsed.id))
 
 
+def _animation_clip_record(parsed: ParsedName) -> dict:
+    name = title_from_tokens(parsed.subject_tokens or parsed.tokens) or parsed.id
+    return _record(
+        parsed, type_="animation", role="animation_clip", detail="",
+        category=["animation"], tags=["animation", "clip"],
+        description=f"{name} -- animation clip, not a scene mesh.",
+        ai_notes="Animation data only; apply to a rigged character, never place in a scene.",
+        placement=deepcopy(_CLIP_PLACEMENT), name=name,
+    )
+
+
+def animation_clip(asset_id: str) -> dict:
+    """The clip record for a stem the caller knows is a clip from context
+    the stem lacks (e.g. its FBX sits in an ``Animations/`` folder)."""
+    return _animation_clip_record(parse_name(asset_id))
+
+
 def _infer_nonplaceable(parsed: ParsedName) -> dict | None:
     up = parsed.id.upper()
     name = title_from_tokens(parsed.subject_tokens or parsed.tokens) or parsed.id
 
     if _is_animation_clip(parsed):
-        return _record(
-            parsed, type_="animation", role="animation_clip", detail="",
-            category=["animation"], tags=["animation", "clip"],
-            description=f"{name} -- animation clip, not a scene mesh.",
-            ai_notes="Animation data only; apply to a rigged character, never place in a scene.",
-            placement=deepcopy(_CLIP_PLACEMENT), name=name,
-        )
+        return _animation_clip_record(parsed)
 
     if up.startswith(("SK_", "CHR_", "CH_")):
         body = "".join(t.lower() for t in parsed.tokens)

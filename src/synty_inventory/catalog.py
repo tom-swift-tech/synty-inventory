@@ -154,6 +154,7 @@ def build_catalog(
 ) -> dict:
     engine = ref.engine
     raw = []
+    shared_stems: set[str] = set()
     source = {
         "extracted": posix(ref.extracted_path) if ref.extracted_path else None,
         "unitypackage": posix(ref.package_path) if ref.package_path else None,
@@ -170,21 +171,22 @@ def build_catalog(
     elif engine == "Unreal" and ref.unreal_path:
         raw = scan_unreal(ref.unreal_path)
     elif ref.extracted_path and not from_package:
-        raw = scan_extracted(ref.extracted_path, include_shared=include_shared)
+        raw = scan_extracted(ref.extracted_path, include_shared=include_shared, shared_out=shared_stems)
     elif ref.package_path:
         listing = list_pathnames(ref.package_path)
         raw = scan_from_package_listing(
-            listing, include_shared=include_shared, pack_id=ref.pack_id
+            listing, include_shared=include_shared, pack_id=ref.pack_id, shared_out=shared_stems
         )
         source["listed_from_package"] = True
     else:
         raw = []
 
-    # Converted GLBs that have no Unity prefab/FBX still belong in the catalog.
+    # Converted GLBs that have no Unity prefab/FBX still belong in the catalog --
+    # except the bundled shared kit (PolygonGeneric) the scan left out on purpose.
     if engine != "GLB" and threejs_v2 is not None:
         from .sources.threejs_v2 import glb_raw_assets
 
-        have = {r.id for r in raw}
+        have = {r.id for r in raw} | shared_stems
         raw.extend(extra for extra in glb_raw_assets(threejs_v2, ref.pack_id) if extra.id not in have)
 
     assets = [skeleton_asset(r, ref.pack_id, viewer_data) for r in raw]

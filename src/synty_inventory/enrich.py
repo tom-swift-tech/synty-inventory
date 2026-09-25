@@ -170,6 +170,17 @@ PACK_PREFIX_CLASS = {
 REAL_MESH_PREFIXES = ("SM_", "SK_", "CHR_", "WEP_")
 
 
+def _is_clip_fbx(raw, inferred: dict) -> bool:
+    """A prefab-less FBX in an ``Animations/`` folder whose stem fell to the
+    generic prop fallback is a clip container, not a mesh -- POLYGON_Dogs
+    ships ``_POLYGON_Dog_Action_*`` clips there with no clip-looking stem."""
+    if raw.prefab or not raw.mesh or inferred.get("type") != "prop":
+        return False
+    if (raw.id or "").upper().startswith(REAL_MESH_PREFIXES):
+        return False
+    return "animations" in (part.lower() for part in raw.mesh.rel.split("/")[:-1])
+
+
 def _apply_pack_overrides(inferred: dict, pack_id: str, raw) -> None:
     for prefix, (atype, kind, placeable, role) in PACK_PREFIX_CLASS.items():
         if not pack_id.startswith(prefix):
@@ -200,6 +211,8 @@ def skeleton_asset(
     viewer_data: Path | None,
 ) -> dict:
     inferred = knowledge.infer(raw.id)
+    if _is_clip_fbx(raw, inferred):
+        inferred = knowledge.animation_clip(raw.id)
     _apply_pack_overrides(inferred, pack_id, raw)
     measured = measured_size(viewer_data, pack_id, raw.id)
     bounds = None

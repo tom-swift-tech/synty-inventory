@@ -76,6 +76,28 @@ def test_build_catalog_unions_glb_only_stems(tmp_path: Path):
     assert only["files"]["unity_prefab"] is None
 
 
+def test_build_catalog_keeps_shared_kit_glbs_out(tmp_path: Path):
+    # Converted packs carry the bundled PolygonGeneric GLBs; with shared kit
+    # excluded they must not come back as GLB-only records.
+    pack = tmp_path / "FakeGlbPack"
+    own = pack / "Assets" / "Synty" / "FakeGlb" / "Prefabs"
+    gen = pack / "Assets" / "Synty" / "PolygonGeneric" / "Models"
+    own.mkdir(parents=True)
+    gen.mkdir(parents=True)
+    (own / "SM_Prop_Crate_01.prefab").write_text("%YAML 1.1\n", encoding="utf-8")
+    (gen / "SM_Gen_Prop_Barrel_01.fbx").write_text("x", encoding="utf-8")
+    tj = tmp_path / "threejs"
+    _write(
+        tj / "FakeGlbPack" / "manifest.json",
+        {"models": ["models/Models/SM_Gen_Prop_Barrel_01.glb", "models/Models/SM_Prop_GlbOnly_01.glb"]},
+    )
+    ref = PackRef(pack_id="FakeGlbPack", engine="Unity", extracted_path=pack)
+    ids = {a["id"] for a in build_catalog(ref, threejs_v2=tj)["assets"]}
+    assert ids == {"SM_Prop_Crate_01", "SM_Prop_GlbOnly_01"}
+    shared = {a["id"] for a in build_catalog(ref, threejs_v2=tj, include_shared=True)["assets"]}
+    assert "SM_Gen_Prop_Barrel_01" in shared
+
+
 def test_glb_index_missing_manifest_returns_empty(tmp_path: Path):
     exact, ci = glb_index(tmp_path, "NoSuchPack")
     assert exact == {} and ci == {}
