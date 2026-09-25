@@ -18,6 +18,8 @@ import os
 import sqlite3
 from pathlib import Path
 
+from .paths import is_pack_catalog_file
+
 DB_NAME = "search.db"
 SCHEMA_VERSION = 1
 
@@ -60,11 +62,7 @@ def _catalog_files(catalogs_dir: Path) -> list[Path]:
     """Pack catalogs only — same filter as ``load_all_catalogs``."""
     if not catalogs_dir.is_dir():
         return []
-    return [
-        p
-        for p in sorted(catalogs_dir.glob("*.json"))
-        if p.name != "index.json" and not p.name.startswith("_")
-    ]
+    return [p for p in sorted(catalogs_dir.glob("*.json")) if is_pack_catalog_file(p)]
 
 
 def is_fresh(catalogs_dir: Path) -> bool:

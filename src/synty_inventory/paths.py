@@ -206,3 +206,20 @@ def rel_posix(path: Path, root: Path) -> str:
         return posix(path.resolve().relative_to(root.resolve()))
     except ValueError:
         return posix(path)
+
+
+def is_pack_catalog_file(path: Path) -> bool:
+    """True for ``<catalogs>/<PACK_ID>.json`` pack catalogs.
+
+    The catalogs dir also holds index.json, private state (``_measure_cache.json``
+    and friends) and scene-mine sidecars (``<PACK_ID>.scene_grammar.json``). The
+    sidecars carry a ``pack_id`` too, so a ``pack_id`` check alone lets them
+    through as fake catalogs — filter by name.
+    """
+    name = path.name
+    return (
+        name.endswith(".json")
+        and name != "index.json"
+        and not name.startswith("_")
+        and not name.endswith(".scene_grammar.json")
+    )

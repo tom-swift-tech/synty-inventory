@@ -10,7 +10,7 @@ from . import knowledge
 from .discover import PackRef
 from .enrich import enrich_catalog, skeleton_asset
 from .merge import merge_catalog
-from .paths import posix
+from .paths import is_pack_catalog_file, posix
 from .scan import scan_extracted, scan_from_package_listing, scan_unreal
 from .schema import (
     CATALOG_VERSION,
@@ -133,13 +133,7 @@ def load_all_catalogs(catalogs_dir: Path) -> list[dict]:
     if not catalogs_dir.is_dir():
         return docs
     for path in sorted(catalogs_dir.glob("*.json")):
-        # index.json, scene_grammar sidecars, and private state
-        # (_measure_cache.json, ...) are not pack catalogs.
-        if (
-            path.name == "index.json"
-            or path.name.startswith("_")
-            or path.name.endswith(".scene_grammar.json")
-        ):
+        if not is_pack_catalog_file(path):
             continue
         doc = load_catalog(path)
         if doc and isinstance(doc.get("assets"), list) and doc.get("pack_id"):

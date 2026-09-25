@@ -9,6 +9,7 @@ from pathlib import Path
 from .catalog import catalog_path, load_catalog
 from .enrich import REAL_MESH_PREFIXES
 from .merge import merge_catalog
+from .paths import is_pack_catalog_file
 from .query import (
     get_asset_details,
     get_placement_guidance,
@@ -86,7 +87,7 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root:
     docs = []
     if catalogs_dir.is_dir():
         for p in sorted(catalogs_dir.glob("*.json")):
-            if p.name == "index.json" or p.name.startswith("_"):
+            if not is_pack_catalog_file(p):
                 continue
             doc = load_catalog(p)
             if doc and doc.get("pack_id"):

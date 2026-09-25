@@ -42,6 +42,10 @@ def _is_catalog_name(name: str) -> bool:
         return False
     if any(part in name for part in SKIP_ZIP_PARTS):
         return False
+    # Scene-mine sidecars carry the same pack_id and would overwrite the
+    # pack's catalog in the {pack_id: doc} map.
+    if name.endswith(".scene_grammar.json"):
+        return False
     return Path(name).stem not in SKIP_STEMS
 
 
@@ -59,7 +63,7 @@ def load_side(path: Path) -> dict[str, dict]:
                     out[doc["pack_id"]] = doc
         return out
     for f in sorted(path.glob("*.json")):
-        if f.stem in SKIP_STEMS:
+        if not _is_catalog_name(f.name):
             continue
         doc = json.loads(f.read_text(encoding="utf-8"))
         if isinstance(doc, dict) and doc.get("pack_id"):
