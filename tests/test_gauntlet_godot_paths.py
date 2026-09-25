@@ -52,7 +52,7 @@ def _asset(aid: str, *, godot_scene: str | None, kind: str = "prefab") -> dict:
     }
 
 
-def _write_catalog(catalogs_dir: Path, pack_id: str, assets: list[dict]) -> None:
+def _write_catalog(catalogs_dir: Path, pack_id: str, assets: list[dict], source: dict | None = None) -> None:
     doc = {
         "pack_id": pack_id,
         "engine": "Unity",
@@ -66,6 +66,8 @@ def _write_catalog(catalogs_dir: Path, pack_id: str, assets: list[dict]) -> None
         "asset_count": len(assets),
         "assets": assets,
     }
+    if source is not None:
+        doc["source"] = source
     catalogs_dir.mkdir(parents=True, exist_ok=True)
     (catalogs_dir / f"{pack_id}.json").write_text(json.dumps(doc), encoding="utf-8")
 
@@ -161,3 +163,21 @@ def test_godot_paths_ignores_glb_only_stems_in_coverage_denominator(tmp_path: Pa
     gate = _gate(result, "godot_paths")
     assert gate["ok"] is True
     assert "20/20" in gate["detail"] or "100.0%" in gate["detail"]
+
+
+def test_godot_paths_checks_shared_kit_catalog_via_host_pack(tmp_path: Path):
+    # POLYGON_Generic has no Godot folder of its own; its scenes live in the
+    # host pack's tree, so the gate must still check its paths.
+    godot_root = _mapped_godot_root(tmp_path)
+    for i in range(20):
+        _touch(godot_root / "polygon-city-01" / f"SM_Gen_Prop_{i:02d}.tscn")
+    catalogs_dir = tmp_path / "catalogs"
+    assets = [
+        _asset(f"SM_Gen_Prop_{i:02d}", godot_scene=f"polygon-city-01/SM_Gen_Prop_{i:02d}.tscn")
+        for i in range(20)
+    ]
+    assets[0]["files"]["godot_scene"] = "polygon-city-01/no_such_file.tscn"
+    _write_catalog(catalogs_dir, "POLYGON_Generic", assets, source={"host_pack": "POLYGON_City"})
+    gate = _gate(run_gauntlet(catalogs_dir, godot_root=godot_root), "godot_paths")
+    assert gate["ok"] is False
+    assert "POLYGON_Generic/SM_Gen_Prop_00" in gate["detail"]
