@@ -224,14 +224,27 @@ def compose(
     local_scale: tuple[float, float, float],
 ) -> WorldXform:
     """``world = parent_world ∘ (T·R·S)`` -- the same recursion Unity's own
-    Transform hierarchy performs. ``world_scale`` is tracked only so a child
-    further down the chain gets the right *position*; it is never reported as
-    a placement's ``scale`` (world scale is ill-defined under rotation when a
-    non-uniform-scaled parent exists -- not observed in Synty demo scenes,
-    where every non-leaf Transform carries scale ``[1,1,1]``)."""
+    Transform hierarchy performs, exact for axis-sign parent scales.
+
+    A parent scale with negative components (a mirrored group -- the Elven
+    Realm Demo's House_07/House_15/Main_Building sit under ``(-1,1,1)``) is a
+    reflection ``S``; ``R_p·S·R_c·S_c = R_p·(S·R_c·S)·(S·S_c)``, so the child
+    rotation is conjugated by the mirror and the sign lands in the world
+    scale. Without that the child's yaw/roll come out un-mirrored and pitched
+    roof panels splay. Non-uniform parent *magnitudes* (a few props at e.g.
+    ``0.85,0.7,0.85``) would shear a rotated child and are only approximated
+    here: the magnitudes multiply per axis."""
     scaled = tuple(parent.scale[i] * local_pos[i] for i in range(3))
     rotated = rotate_vector(parent.rot, scaled)
     world_pos = tuple(parent.pos[i] + rotated[i] for i in range(3))
+    mx, my, mz = (-1.0 if c < 0 else 1.0 for c in parent.scale)
+    if (mx, my, mz) != (1.0, 1.0, 1.0):
+        # S·R(q)·S for diagonal sign matrix S: axis component i of the
+        # quaternion keeps its sign iff det(S)*s_i > 0 (a proper rotation
+        # conjugated by a reflection flips the axes the mirror doesn't).
+        det = mx * my * mz
+        qx, qy, qz, qw = local_rot
+        local_rot = (qx * det * mx, qy * det * my, qz * det * mz, qw)
     world_rot = _quat_normalize(_quat_mul(parent.rot, local_rot))
     world_scale = tuple(parent.scale[i] * local_scale[i] for i in range(3))
     return WorldXform(pos=world_pos, rot=world_rot, scale=world_scale)  # type: ignore[arg-type]
@@ -598,7 +611,7 @@ def parse_scene(path: Path, index: GuidIndex, catalog: Mapping[str, Any]) -> Sce
                 yaw_deg=round_deg_0_360(yaw),
                 pitch_deg=round(pitch, 4),
                 roll_deg=round(roll, 4),
-                scale=tuple(round(c, 4) for c in scale),  # type: ignore[arg-type]
+                scale=tuple(round(c, 4) for c in world.scale),  # type: ignore[arg-type]
                 parent_path=parent_path,
                 static=static,
             )

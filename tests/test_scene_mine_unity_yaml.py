@@ -245,3 +245,36 @@ def test_overview_rule_thresholds(n, distinct, expected):
     check = stats.is_overview_scene(_synthetic(n, distinct))
     assert check.is_overview is expected
     assert check.placements == n and check.distinct == distinct
+
+
+def _basis(rot, scale):
+    from synty_inventory.scene_mine.unity_yaml import _quat_to_matrix
+    m = _quat_to_matrix(rot)
+    return [[m[i][j] * scale[j] for j in range(3)] for i in range(3)]
+
+
+def _matmul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+
+
+@pytest.mark.parametrize("parent_scale", [(-1.0, 1.0, 1.0), (1.0, 1.0, -1.0), (-1.0, -1.0, 1.0)])
+def test_compose_mirrored_parent_matches_matrix_product(parent_scale):
+    """A child under a mirrored group (Elven Demo House_15 sits under
+    scale (-1,1,1)) must reproduce R_p*S_p*R_c*S_c exactly, not R_p*R_c*S_c."""
+    import math
+    from synty_inventory.scene_mine.unity_yaml import WorldXform, compose
+
+    def q(axis, deg):
+        s = math.sin(math.radians(deg) / 2)
+        n = math.sqrt(sum(a * a for a in axis))
+        return (axis[0] / n * s, axis[1] / n * s, axis[2] / n * s, math.cos(math.radians(deg) / 2))
+
+    parent = WorldXform(pos=(3.0, 0.0, -2.0), rot=q((0, 1, 0), 69.0), scale=parent_scale)
+    child_rot = q((0.3, 1.0, 0.2), 110.0)  # yaw + pitch + roll mixed
+    child_scale = (1.0, 1.0, -1.0)
+    w = compose(parent, (2.5, 1.0, 0.5), child_rot, child_scale)
+    want = _matmul(_basis(parent.rot, parent.scale), _basis(child_rot, child_scale))
+    got = _basis(w.rot, w.scale)
+    for i in range(3):
+        for j in range(3):
+            assert got[i][j] == pytest.approx(want[i][j], abs=1e-9)
