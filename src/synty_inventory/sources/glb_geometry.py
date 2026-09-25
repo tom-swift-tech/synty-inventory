@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import struct
 from collections.abc import Callable
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -101,7 +102,10 @@ def _buffer_view_bytes(doc: dict, blob: bytes, bv_idx: int) -> tuple[bytes, int]
     return blob[start:start + bv["byteLength"]], bv.get("byteStride", 0)
 
 
-def _read_accessor(doc: dict, blob: bytes, acc_idx: int) -> np.ndarray | None:
+def _read_accessor(
+    doc: dict, blob: bytes, acc_idx: int, views: dict[int, tuple[bytes, int] | None] | None = None
+) -> np.ndarray | None:
+    """``views`` memoises decoded bufferViews across calls that share them."""
     accessors = doc.get("accessors") or []
     if not (0 <= acc_idx < len(accessors)):
         return None
@@ -112,7 +116,13 @@ def _read_accessor(doc: dict, blob: bytes, acc_idx: int) -> np.ndarray | None:
     width = _TYPE_WIDTH.get(acc.get("type"))
     if dtype is None or width is None:
         return None
-    got = _buffer_view_bytes(doc, blob, acc["bufferView"])
+    bv_idx = acc["bufferView"]
+    if views is None:
+        got = _buffer_view_bytes(doc, blob, bv_idx)
+    else:
+        if bv_idx not in views:
+            views[bv_idx] = _buffer_view_bytes(doc, blob, bv_idx)
+        got = views[bv_idx]
     if got is None:
         return None
     data, stride = got
@@ -171,6 +181,10 @@ def skin_bind_matrices(doc: dict, blob: bytes) -> dict[int, np.ndarray]:
         return {}
     worlds = node_world_matrices(doc)
     out: dict[int, np.ndarray] = {}
+    # gltfpack packs every skin's IBMs into ONE meshopt bufferView; decoding
+    # it per skin was O(skins^2) — the 634-skin Fantasy Hero bundle stalled
+    # enrich for hours. Decode each view once.
+    views: dict[int, tuple[bytes, int] | None] = {}
     for i, skin in enumerate(skins):
         joints = skin.get("joints") or []
         if not joints or joints[0] not in worlds:
@@ -179,12 +193,27 @@ def skin_bind_matrices(doc: dict, blob: bytes) -> dict[int, np.ndarray]:
         if ibm_idx is None:
             ibm0 = np.eye(4, dtype=np.float64)
         else:
-            ibm = _read_accessor(doc, blob, ibm_idx)
+            ibm = _read_accessor(doc, blob, ibm_idx, views)
             if ibm is None or not len(ibm):
                 continue
             ibm0 = ibm[0].reshape(4, 4).T  # glTF matrices are column-major
         out[i] = worlds[joints[0]] @ ibm0
     return out
+
+
+@lru_cache(maxsize=8)
+def _skin_bind_matrices_cached(path: str, mtime_ns: int, size: int) -> dict[int, np.ndarray]:
+    got = read_glb(Path(path))
+    return skin_bind_matrices(*got) if got else {}
+
+
+def cached_skin_bind_matrices(path: Path) -> dict[int, np.ndarray]:
+    """``skin_bind_matrices`` for a GLB file, memoised on (path, mtime, size):
+    a bundle GLB is measured once per asset node, and re-decoding its IBMs
+    each time dominated enrich on character packs. Callers must not mutate
+    the returned matrices."""
+    st = path.stat()
+    return _skin_bind_matrices_cached(str(path), st.st_mtime_ns, st.st_size)
 
 
 def load_triangles(
@@ -214,7 +243,7 @@ def load_triangles(
     if not (0 <= scene_idx < len(scenes)):
         return None
 
-    skin_mats = skin_bind_matrices(doc, blob)
+    skin_mats = cached_skin_bind_matrices(path) if doc.get("skins") else {}
     verts: list[np.ndarray] = []
     tris: list[np.ndarray] = []
     base = 0

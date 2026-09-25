@@ -134,10 +134,9 @@ def measure_glb(path: Path, node_name: NodeSel = None) -> tuple[list[float], lis
         # Skinned meshes need the inverse bind matrices from the BIN chunk
         # (see glb_geometry.skin_bind_matrices). Imported here because
         # glb_geometry imports this module.
-        from .glb_geometry import read_glb, skin_bind_matrices
+        from .glb_geometry import cached_skin_bind_matrices
 
-        got = read_glb(path)
-        skin_mats = skin_bind_matrices(*got) if got else None
+        skin_mats = cached_skin_bind_matrices(path) or None
     return _measure_doc(doc, node_name, skin_mats)
 
 

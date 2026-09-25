@@ -85,3 +85,19 @@ def test_triangles_use_skin_bind_pose(tmp_path: Path):
     verts, tris = load_triangles(path, "Character_A")
     assert tris.shape == (1, 3)
     assert np.allclose(verts.min(axis=0), [-0.5, 1.0, -0.5]) and np.allclose(verts.max(axis=0), [0.5, 2.0, 0.5])
+
+
+def test_shared_ibm_view_decoded_once(tmp_path: Path, monkeypatch):
+    # gltfpack puts every skin's IBMs in one bufferView; decoding it per skin
+    # was O(skins^2) and stalled enrich for hours on a 634-skin bundle.
+    from synty_inventory.sources import glb_geometry
+
+    path = tmp_path / "Bundle.glb"
+    _skinned_glb(path)
+    doc, blob = glb_geometry.read_glb(path)
+    doc["skins"] = [{"joints": [0], "inverseBindMatrices": 2} for _ in range(5)]
+    calls = []
+    real = glb_geometry._buffer_view_bytes
+    monkeypatch.setattr(glb_geometry, "_buffer_view_bytes", lambda d, b, i: calls.append(i) or real(d, b, i))
+    mats = glb_geometry.skin_bind_matrices(doc, blob)
+    assert len(mats) == 5 and calls == [2]
