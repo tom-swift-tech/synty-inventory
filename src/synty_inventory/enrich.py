@@ -10,6 +10,7 @@ from . import knowledge
 from .merge import stamp_auto
 from .sources.footprint import CACHE_NAME as FOOTPRINT_CACHE_NAME, apply_footprint
 from .sources.glb_measure import apply_measured_bounds, bundle_index, bundle_key, load_cache, save_cache
+from .sources.glb_scale import apply_glb_scale
 from .sources.godot import apply_godot_overlay, scene_index
 from .sources.manifest import apply_gen_overlay, load_gen_entries
 from .sources.mech import apply_mech_catalog
@@ -338,6 +339,11 @@ def enrich_catalog(
         apply_godot_overlay(asset, scene_rel)
         uasset_rel = unreal_exact.get(asset["id"]) or unreal_ci.get(asset["id"].lower())
         apply_unreal_overlay(asset, uasset_rel)
+        # After every step that can wire files.glb (overlay, prefab, gen) and
+        # before the first geometry reader; the bundle fallback inside
+        # apply_measured_bounds only fires for character bundles, which the
+        # scale table never names.
+        apply_glb_scale(asset, host)
         apply_measured_bounds(asset, threejs_v2, cache, stats, bundles=bundles)
         apply_part_sockets(asset, threejs_v2, cache, stats)
         apply_prop_contact(asset, threejs_v2, cache, stats)

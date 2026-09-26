@@ -220,6 +220,7 @@ def load_triangles(
     path: Path,
     node_name: NodeSel = None,
     exclude: Callable[[str], bool] | None = None,
+    scale: float = 1.0,
 ) -> tuple[np.ndarray, np.ndarray] | None:
     """(vertices [N,3] float64 world-space, triangles [M,3] int) for every
     triangle-list primitive under ``node_name`` — one node name or a list of
@@ -230,6 +231,9 @@ def load_triangles(
     drop collision hulls (``naming.SKIP_STEM_RE``) that the pack scanner
     already refuses to catalog but which still live inside some GLBs.
     Default None preserves the original behaviour for every existing caller.
+
+    ``scale`` is the asset's ``files.glb_scale`` correction (sources.glb_scale),
+    applied to the world-space vertices so every analysis runs in true metres.
     """
     got = read_glb(path)
     if got is None:
@@ -293,4 +297,6 @@ def load_triangles(
     t = np.vstack(tris)
     if not len(t):
         return None
+    if scale != 1.0:
+        v = v * scale
     return v, t

@@ -62,6 +62,7 @@ import numpy as np
 
 from .glb_geometry import load_triangles
 from .glb_measure import NodeSel, _cache_key, node_cache_tag
+from .glb_scale import asset_glb_scale, scale_cache_tag
 
 SOCKETS_VERSION = 2  # bump to invalidate cached analyses when the algorithm changes
 
@@ -351,20 +352,23 @@ def analyse_cached(
     mates_axis: str | None,
     cache: dict[str, Any],
     node_name: NodeSel = None,
+    scale: float = 1.0,
 ) -> dict[str, Any] | None:
     """Run ``analyse_part`` on a GLB through the shared measure cache
     (keyed like the AABB entries plus ``#sockets`` and the algorithm
-    version / class inputs, so rule changes re-analyse)."""
+    version / class inputs, so rule changes re-analyse). ``scale`` is the
+    ``files.glb_scale`` correction and is part of the cache id."""
     abs_path = threejs_v2_dir / glb_rel
     key = _cache_key(abs_path)
     if key is None:
         return None
     cache_id = f"{glb_rel}#{node_cache_tag(node_name)}#sockets" if node_name else f"{glb_rel}#sockets"
+    cache_id += scale_cache_tag(scale)
     full_key = f"{key}:v{SOCKETS_VERSION}:{part_class}:{mates_axis}"
     entry = cache.get(cache_id)
     if entry and entry.get("key") == full_key:
         return entry.get("result")
-    geo = load_triangles(abs_path, node_name)
+    geo = load_triangles(abs_path, node_name, scale=scale)
     result = analyse_part(geo[0], geo[1], part_class, mates_axis) if geo else None
     cache[cache_id] = {"key": full_key, "result": result}
     return result
@@ -390,6 +394,7 @@ def apply_part_sockets(
     result = analyse_cached(
         threejs_v2_dir, glb_rel, part.get("class"), part.get("mates_axis"), cache,
         node_name=(asset.get("files") or {}).get("glb_node"),
+        scale=asset_glb_scale(asset),
     )
     if result is None:
         stats["sockets_failed"] = stats.get("sockets_failed", 0) + 1
@@ -445,6 +450,7 @@ def apply_prop_contact(
         mates,
         cache,
         node_name=(asset.get("files") or {}).get("glb_node"),
+        scale=asset_glb_scale(asset),
     )
     contact = (result or {}).get("mount")
     if not contact:

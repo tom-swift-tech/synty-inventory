@@ -20,6 +20,7 @@ import numpy as np
 
 from ..naming import should_skip
 from ..schema import dimensions_from_bounds, make_bounds, pivot_from_aabb
+from .glb_scale import asset_glb_scale, scale_cache_tag
 
 GLB_MAGIC = 0x46546C67  # b'glTF'
 CHUNK_JSON = 0x4E4F534A  # b'JSON'
@@ -118,14 +119,17 @@ def node_cache_tag(node_sel: NodeSel) -> str | None:
     return "+".join(node_sel)
 
 
-def measure_glb(path: Path, node_name: NodeSel = None) -> tuple[list[float], list[float]] | None:
+def measure_glb(
+    path: Path, node_name: NodeSel = None, scale: float = 1.0
+) -> tuple[list[float], list[float]] | None:
     """World-space (min, max) over every mesh primitive's POSITION accessor
     in the default scene, or None if the GLB has no measurable geometry.
 
     ``node_name`` restricts measurement to the subtree(s) rooted at nodes of
     that name (or any of a list of names) — bundle GLBs (``Characters.glb``)
     hold many assets as named nodes, and this is how per-stem bounds come
-    out of them."""
+    out of them. ``scale`` is the asset's ``files.glb_scale`` correction
+    (sources.glb_scale), applied uniformly about the GLB origin."""
     doc = read_glb_json(path)
     if not doc:
         return None
@@ -137,7 +141,12 @@ def measure_glb(path: Path, node_name: NodeSel = None) -> tuple[list[float], lis
         from .glb_geometry import cached_skin_bind_matrices
 
         skin_mats = cached_skin_bind_matrices(path) or None
-    return _measure_doc(doc, node_name, skin_mats)
+    result = _measure_doc(doc, node_name, skin_mats)
+    if result is None or scale == 1.0:
+        return result
+    # A positive uniform scale about the origin keeps min <= max.
+    mn, mx = result
+    return [v * scale for v in mn], [v * scale for v in mx]
 
 
 def bundle_node_names(path: Path) -> list[str]:
@@ -233,20 +242,22 @@ def save_cache(cache_path: Path, cache: dict[str, Any]) -> None:
 
 
 def measure_cached(
-    threejs_v2_dir: Path, glb_rel: str, cache: dict[str, Any], node_name: NodeSel = None
+    threejs_v2_dir: Path, glb_rel: str, cache: dict[str, Any], node_name: NodeSel = None, scale: float = 1.0
 ) -> tuple[list[float], list[float]] | None:
     """Measure ``<threejs_v2_dir>/<glb_rel>`` (optionally one named node
     subtree), using/populating ``cache`` (keyed by relative path + node +
-    mtime + size so edited/re-exported GLBs re-measure)."""
+    mtime + size so edited/re-exported GLBs re-measure, plus the scale
+    correction so a table change re-measures too)."""
     abs_path = threejs_v2_dir / glb_rel
     key = _cache_key(abs_path)
     if key is None:
         return None
     cache_id = f"{glb_rel}#{node_cache_tag(node_name)}" if node_name else glb_rel
+    cache_id += scale_cache_tag(scale)
     entry = cache.get(cache_id)
     if entry and entry.get("key") == key:
         return entry["min"], entry["max"]
-    result = measure_glb(abs_path, node_name)
+    result = measure_glb(abs_path, node_name, scale)
     if result is None:
         return None
     mn, mx = result
@@ -312,7 +323,7 @@ def apply_measured_bounds(
     if not glb_rel or threejs_v2_dir is None:
         stats["missing_glb"] = stats.get("missing_glb", 0) + 1
         return
-    result = measure_cached(threejs_v2_dir, glb_rel, cache, node_name)
+    result = measure_cached(threejs_v2_dir, glb_rel, cache, node_name, asset_glb_scale(asset))
     if result is None:
         stats["measure_failed"] = stats.get("measure_failed", 0) + 1
         return

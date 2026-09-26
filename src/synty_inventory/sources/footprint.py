@@ -56,6 +56,7 @@ from ..naming import SKIP_STEM_RE
 from ..schema import FOOTPRINT_CLASSES
 from .glb_geometry import load_triangles
 from .glb_measure import NodeSel, _cache_key, node_cache_tag
+from .glb_scale import asset_glb_scale, scale_cache_tag
 
 FOOTPRINT_VERSION = 3  # bump to invalidate cached analyses when the algorithm changes
 CACHE_NAME = "_footprint_cache.json"
@@ -756,10 +757,12 @@ def analyze_footprint_detail(
     grade_band_m: float = DEFAULT_GRADE_BAND_M,
     min_component_m2: float = DEFAULT_MIN_COMPONENT_M2,
     tile_m: float | None = None,
+    scale: float = 1.0,
 ) -> tuple[dict | None, str]:
     """``(footprint block, reason)``. The block is None on any failure and the
-    reason names it — callers report the reason and leave the field null."""
-    got = load_triangles(path, node_name, exclude=is_collision_node)
+    reason names it — callers report the reason and leave the field null.
+    ``scale`` is the ``files.glb_scale`` correction (sources.glb_scale)."""
+    got = load_triangles(path, node_name, exclude=is_collision_node, scale=scale)
     _DECODES["count"] += 1
     if got is None:
         return None, REASON_UNDECODABLE
@@ -1013,6 +1016,7 @@ def analyze_cached(
     snap: float = DEFAULT_SNAP,
     tile_m: float | None = None,
     force: bool = False,
+    scale: float = 1.0,
 ) -> tuple[dict | None, str, bool]:
     """``(block, reason, was_cached)``.
 
@@ -1027,6 +1031,7 @@ def analyze_cached(
     if key is None:
         return None, REASON_MISSING_GLB, False
     cache_id = f"{glb_rel}#{node_cache_tag(node_name)}" if node_name else glb_rel
+    cache_id += scale_cache_tag(scale)
     entry = cache.get(cache_id)
     if (
         not force
@@ -1035,7 +1040,7 @@ def analyze_cached(
         and entry.get("version") == FOOTPRINT_VERSION
     ):
         return entry.get("footprint"), entry.get("reason", REASON_OK), True
-    block, reason = analyze_footprint_detail(abs_path, node_name, snap=snap, tile_m=tile_m)
+    block, reason = analyze_footprint_detail(abs_path, node_name, snap=snap, tile_m=tile_m, scale=scale)
     cache[cache_id] = {
         "key": key,
         "version": FOOTPRINT_VERSION,
@@ -1087,6 +1092,7 @@ def apply_footprint(
         snap=snap,
         tile_m=tile_m,
         force=force,
+        scale=asset_glb_scale(asset),
     )
     if block is None:
         asset["footprint"] = None

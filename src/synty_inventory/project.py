@@ -50,7 +50,7 @@ def slim_row(
 ) -> dict:
     """Project one catalog record to a slim result row.
 
-    Optional facts (sockets, kit, kit_role, glb_node) appear only when
+    Optional facts (sockets, kit, kit_role, glb_node, glb_scale) appear only when
     present — absence means "not that kind of asset", and omitting keeps
     rows tight. ``fields`` copies named top-level record fields verbatim
     (``files`` honours ``engine`` via the full per-engine dict).
@@ -94,6 +94,10 @@ def slim_row(
     node = (asset.get("files") or {}).get("glb_node")
     if node:
         row["glb_node"] = node
+    # A consumer loading files.glb must apply this or place a 100x-wrong mesh.
+    glb_scale = (asset.get("files") or {}).get("glb_scale")
+    if glb_scale:
+        row["glb_scale"] = glb_scale
     if score is not None:
         row["score"] = round(score, 2)
     for f in fields or []:

@@ -1,0 +1,14 @@
+{
+  "_comment": "Uniform scale corrections for threejs-v2 GLBs that were converted at the wrong unit. Keyed by pack_id, then by a glob over the GLB file stem (files.glb basename without .glb); first match wins. The factor multiplies every geometry measurement taken from that GLB (bounds, footprint, prop contact, part sockets) and is recorded on the asset as files.glb_scale, so a consumer loading the same GLB knows to scale it. The table is keyed by GLB rather than asset id because the defect is in the file: every catalog record that renders it inherits the correction. Ground truth is the Unity import (prefab scale x FBX file scale), cross-checked against the synty-convert (Blender) GLB of the same FBX. Keys starting with _ are ignored. Add an entry only with that evidence; tests/test_glb_scale.py pins the table.",
+  "POLYGON_SciFi_Space": {
+    "_comment": "These FBX use a unit the threejs-v2 converter dropped, so their GLBs are exactly 100x too small: SM_Env_Asteroid_01 measures 2.49 m, but Unity (prefab m_LocalScale 1, useFileScale 1; the Unidot collision shape spans ~250 units) and the synty-convert GLB both give 249 m. The 32 GLBs below are every one whose size ratio against the synty-convert output is 100 (audit of 631 comparable assets, 2026-09-26). SM_Ship_Station_06 and SM_Ship_Galactic_Carrier_Armor_01 are already right and must stay unmatched. SM_Chr_Attach_Mask_Medic_01 is the same error the other way (23 m catalog, 0.23 m in synty-convert).",
+    "SM_Env_Asteroid_0[1-7]": 100,
+    "SM_Env_Planet_[01][0-9]": 100,
+    "SM_Ship_Station_0[1-5]": 100,
+    "SM_Ship_Galactic_Carrier_01": 100,
+    "SM_Ship_Massive_Transport_01": 100,
+    "SM_Ship_Colossal_01": 100,
+    "SM_Veh_WarpGate_*_01": 100,
+    "SM_Chr_Attach_Mask_Medic_01": 0.01
+  }
+}
