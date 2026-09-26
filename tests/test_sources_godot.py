@@ -79,6 +79,10 @@ def test_apply_godot_overlay_noop_when_no_match():
     assert asset["files"]["godot_scene"] is None
 
 
+def test_interface_scifi_soldier_hud_is_registered():
+    assert SLUG_PACK_OVERRIDES["interface-scifi-soldier-hud"] == "INTERFACE_SciFi_Soldier_HUD"
+
+
 def test_scene_index_unmapped_slug_does_not_overlay_scifi_city(tmp_path: Path):
     pack_root = tmp_path / "polygon-scifi-city-02"
     _touch(pack_root / "Assets/Synty/PolygonSciFiCity/Prefabs/SM_Bld_Shop_01.tscn")

@@ -225,6 +225,9 @@ synty-inventory vision --calibrate
 synty-inventory vision --pack POLYGON_City --ids SM_Bld_Apartment_01 --dry-run
 synty-inventory review --pack POLYGON_SciFi_Space --limit 20
 synty-inventory scene-mine --pack POLYGON_SciFi_City
+synty-inventory pack-profile --all --no-vlm
+synty-inventory packs suggest --brief dustline_brief.yaml --engine godot --max 12
+synty-inventory packs contact-sheet --packs POLYGON_SciFi_Worlds,POLYGON_SciFi_City -o sheet.png
 ```
 
 `search`/`suggest` filters: `--type`, `--role`, `--module-role`,
@@ -268,6 +271,44 @@ disk. `scan --rebuild` keeps only human fields.
 Unreal trees are discovered when present; that path is implemented, not
 proven against live packs. Overlays apply only when the folder name equals
 `pack_id` (or an explicit override table).
+
+### Pack-level profile, suggestion & contact sheet
+
+Three commands add a pack-level layer on top of the per-asset catalogs, for
+picking a set of packs for a game before any per-asset work starts
+(`studio_pipeline_spec.md` §3.3):
+
+- **`pack-profile --pack <id> | --all [--vlm [MODEL]] [--no-vlm] [--human-override FILE]`**
+  writes `<catalogs>/pack_profiles/<pack_id>.json` (schema `pack-profile/1`):
+  `pack_class`, `setting`, `era`, `palette`, `role_counts`, `kit_families`,
+  `grammar_available`, `godot_ready`, `characters_rig`, and a per-field
+  `provenance`. Everything except `setting`/`era`/`palette` is rule-derived
+  straight from the catalog (no VLM needed). `setting`/`era` come from the
+  curated `src/synty_inventory/data/pack_settings.yaml` table (one entry per
+  cataloged pack_id — `pack-profile` refuses to guess a missing one) and only
+  change under `--vlm` (optional local Ollama refinement from extracted
+  preview images; degrades to the rules table if Ollama is unreachable, never
+  retried 126x). `palette` is measured from `<catalogs>/previews/<pack_id>/`
+  PNGs when present, else `null`. `--human-override` (YAML: `pack_id ->
+  {setting, era, pack_class, characters_rig, godot_ready, palette}`) always
+  wins last.
+- **`packs suggest --brief <brief.yaml> [--engine godot] [--max 12]`** ranks
+  every profiled pack against a `game-brief/1` YAML (§4.1) and returns
+  `{packs: [{pack_id, score, roles_covered, godot_ready, grammar_available,
+  reasons}], coverage_gaps: []}`. Deterministic, no VLM: setting affinity +
+  era proximity + pack_class weight + `godot_ready`/`grammar_available`
+  bonuses + a capped size term, documented inline in
+  `src/synty_inventory/packs/suggest.py`. `must_packs` forces a pack to the
+  top; `ban_packs` removes it entirely.
+- **`packs contact-sheet --packs <id,...> [--per-pack 48] -o <png>`** renders
+  one grid PNG with a labelled row-block per pack (the G1 gate artifact).
+  Reuses `review.py`'s existing headless render path (`synty_glb.qa render`,
+  same `_review_stills` cache) for a front view of a deterministic,
+  role-diverse sample of each pack's placeable assets; falls back to an
+  extracted preview PNG, then to a labelled placeholder cell, so every
+  requested pack gets its row even when nothing renders (e.g. UI/interface
+  packs, which have no GLB at all). Needs Pillow (`pip install pillow`) —
+  not yet in `pyproject.toml` `[project.dependencies]`.
 
 ### Godot / Unreal file paths
 
@@ -374,8 +415,10 @@ six factory variants, >= 95 % of `SM_Mech_*` attachments carry `part.slot`
 `Spine_01`, cockpit → `CockpitDoor`), every package recipe resolving
 `complete`,
 `suggest` pointing assembly prompts at the right recipe, and — when
-`godot_root` is configured — `godot_paths`: the three mapped packs
-(`POLYGON_City`, `POLYGON_Starter`, `POLYGON_Particle_FX`) resolve, every
+`godot_root` is configured — `godot_paths`: three of the (now 18)
+`SLUG_PACK_OVERRIDES`-registered packs (`POLYGON_City`, `POLYGON_Starter`,
+`POLYGON_Particle_FX` — `gauntlet`'s own fixed check set, not the full
+registration count) resolve, every
 non-null `files.godot_scene` exists on disk, and geometry-bearing
 (`kind` prefab/mesh) resolution coverage is >= 90 % (observed 95.3 % on the
 reference machine: `POLYGON_City` 333/337, `POLYGON_Starter` 52/55,

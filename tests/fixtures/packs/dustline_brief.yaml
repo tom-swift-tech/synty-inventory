@@ -1,0 +1,33 @@
+# Dustline pilot game-brief (studio_pipeline_spec.md §1.1, §4.1 game-brief/1).
+# Used as the AC2 regression fixture for `packs suggest`: it encodes the
+# hand-made §1.2 pack pick as a target the suggester should reproduce, not
+# an optimality claim (spec §6 AC2 note). must_packs/ban_packs are left
+# empty on purpose -- AC2 checks the scorer's own judgment, not a forced list.
+schema: game-brief/1
+slug: dustline
+title: Dustline
+pitch: >
+  A third-person sci-fi frontier salvage game. You are a contractor dropped
+  at a remote moon's spaceport. You take a contract, cross open eroded
+  terrain to a sited POI, complete the objective, and return to the
+  spaceport to get paid.
+setting: scifi_frontier
+era: far_future
+mood: [dusty, isolated, industrial]
+perspective: third_person
+engine: godot
+world:
+  size_m: 2048
+  biome: rocky_remote
+poi_types:
+  - {type: spaceport, count: 1, role: hub}
+  - {type: outpost, count: 3, role: objective}
+  - {type: research_station, count: 1, role: objective}
+  - {type: crash_site, count: 1, role: landmark}
+hero_pois:
+  - {id: crash_site, type: crash_site, interior: true}
+core_loop: [accept_contract, traverse, complete, return, upgrade]
+enemy_archetypes: [raider_humanoid, security_robot]
+session_minutes: [15, 25]
+must_packs: []
+ban_packs: []

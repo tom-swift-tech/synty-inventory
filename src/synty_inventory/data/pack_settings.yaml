@@ -1,0 +1,154 @@
+# Curated pack_id -> {setting, era} table for `synty-inventory pack-profile`
+# (studio_pipeline_spec.md §4.3). Rule-derived pack_class/godot_ready/etc. are
+# computed from the catalog directly; setting/era are not reliably inferable
+# from asset-level fields alone, so they are hand-curated here, one entry per
+# cataloged pack_id (`synty-inventory list-packs`). A pack missing from this
+# table is a bug -- pack-profile refuses to guess and reports it, rather than
+# silently emitting a wrong controlled-vocab value (see profile.py).
+#
+# Controlled vocab (spec §4.3):
+#   setting: modern_city, scifi_city, scifi_frontier, space, fantasy,
+#            post_apoc, military, western, horror, nature, generic
+#   era: open low->high scale, not a closed enum in the spec. This table
+#        uses: prehistoric, ancient, colonial, medieval, industrial, modern,
+#        near_future, far_future. "modern" is the default era for packs
+#        without a specific historical/futuristic setting (holiday, generic
+#        utility, nature) -- era carries little signal for those and a human
+#        override is expected to refine one if it ever matters.
+#
+# A pack's setting is its single strongest thematic signal, not an exhaustive
+# tag list (that is what `role_counts`/`kit_families` are for). Ties are
+# broken toward the more specific vocab entry (e.g. POLYGON_SciFi_Horror is
+# `horror`, not `scifi_frontier` -- its differentiator is the derelict-horror
+# treatment, not the sci-fi backdrop every SciFi_* pack shares).
+
+ANIMATION_Base_Locomotion: {setting: generic, era: modern}
+ANIMATION_Bow_Combat: {setting: fantasy, era: medieval}
+ANIMATION_Emotes_And_Taunts: {setting: generic, era: modern}
+ANIMATION_Goblin_Locomotion: {setting: fantasy, era: medieval}
+ANIMATION_Idles: {setting: generic, era: modern}
+ANIMATION_Sword_Combat: {setting: fantasy, era: medieval}
+
+INTERFACE_Apocalypse_HUD: {setting: post_apoc, era: near_future}
+INTERFACE_Dark_Fantasy_HUD: {setting: fantasy, era: medieval}
+INTERFACE_Dark_Fantasy_Menus: {setting: fantasy, era: medieval}
+INTERFACE_Fantasy_Menus: {setting: fantasy, era: medieval}
+INTERFACE_Fantasy_Screens: {setting: fantasy, era: medieval}
+INTERFACE_Fantasy_Warrior_HUD: {setting: fantasy, era: medieval}
+INTERFACE_Military_Combat_HUD: {setting: military, era: modern}
+INTERFACE_Modern_Menus: {setting: modern_city, era: modern}
+INTERFACE_SciFi_Menus: {setting: scifi_city, era: far_future}
+INTERFACE_SciFi_Soldier_HUD: {setting: scifi_frontier, era: far_future}
+
+POLYGON_AdultFacePlates: {setting: generic, era: modern}
+POLYGON_Adventure: {setting: fantasy, era: medieval}
+POLYGON_AncientEmpire: {setting: fantasy, era: ancient}
+POLYGON_Ancient_Egypt: {setting: fantasy, era: ancient}
+POLYGON_Apocalypse: {setting: post_apoc, era: near_future}
+POLYGON_Apocalypse_Wasteland: {setting: post_apoc, era: near_future}
+POLYGON_BattleRoyale: {setting: military, era: modern}
+POLYGON_BossZombies: {setting: horror, era: modern}
+POLYGON_Bow_Crossbow: {setting: fantasy, era: medieval}
+POLYGON_BubblegumKillStick: {setting: generic, era: modern}
+POLYGON_Casino: {setting: modern_city, era: modern}
+POLYGON_City: {setting: modern_city, era: modern}
+POLYGON_City_Characters: {setting: modern_city, era: modern}
+POLYGON_City_Zombies: {setting: post_apoc, era: modern}
+POLYGON_Coffee_Shop: {setting: modern_city, era: modern}
+POLYGON_Construction: {setting: modern_city, era: modern}
+POLYGON_CyberCity: {setting: scifi_city, era: near_future}
+POLYGON_Dark_Fantasy: {setting: fantasy, era: medieval}
+POLYGON_Dark_Fortress: {setting: fantasy, era: medieval}
+POLYGON_Dogs: {setting: generic, era: modern}
+POLYGON_Dungeon: {setting: fantasy, era: medieval}
+POLYGON_Dungeon_Realms: {setting: fantasy, era: medieval}
+POLYGON_Dwarven_Dungeon_Map: {setting: fantasy, era: medieval}
+POLYGON_Easter: {setting: generic, era: modern}
+POLYGON_ElvenRealm: {setting: fantasy, era: medieval}
+POLYGON_Explorer_Kit: {setting: nature, era: modern}
+POLYGON_Fantasy_Characters: {setting: fantasy, era: medieval}
+POLYGON_Fantasy_Dungeon_Map: {setting: fantasy, era: medieval}
+POLYGON_Fantasy_Kingdom: {setting: fantasy, era: medieval}
+POLYGON_Fantasy_Rivals: {setting: fantasy, era: medieval}
+POLYGON_Fantasy_Village: {setting: fantasy, era: medieval}
+POLYGON_Farm: {setting: nature, era: modern}
+POLYGON_Frog_Shrine: {setting: fantasy, era: medieval}
+POLYGON_Gang_Warfare: {setting: modern_city, era: modern}
+POLYGON_Generic: {setting: generic, era: modern}
+POLYGON_GingerBread: {setting: generic, era: modern}
+POLYGON_Goblin_War_Camp: {setting: fantasy, era: medieval}
+POLYGON_HearseKit: {setting: modern_city, era: modern}
+POLYGON_Heist: {setting: modern_city, era: modern}
+POLYGON_Holiday_2025: {setting: generic, era: modern}
+POLYGON_Holiday_Gnomes: {setting: fantasy, era: medieval}
+POLYGON_Horror_Asylum: {setting: horror, era: modern}
+POLYGON_Horror_Carnival: {setting: horror, era: modern}
+POLYGON_Horror_Mansion: {setting: horror, era: modern}
+POLYGON_Icons: {setting: generic, era: modern}
+POLYGON_Kaiju: {setting: horror, era: modern}
+POLYGON_Kids: {setting: generic, era: modern}
+POLYGON_Knights: {setting: fantasy, era: medieval}
+POLYGON_Legendary_Chest: {setting: fantasy, era: medieval}
+POLYGON_Maps_Pirate_Isles: {setting: fantasy, era: colonial}
+POLYGON_Mech: {setting: scifi_frontier, era: far_future}
+POLYGON_Military: {setting: military, era: modern}
+POLYGON_Military_Warehouse_Map: {setting: military, era: modern}
+POLYGON_Modular_Fantasy_Hero: {setting: fantasy, era: medieval}
+POLYGON_Nature: {setting: nature, era: modern}
+POLYGON_NatureBiomes_AlpineMountain: {setting: nature, era: modern}
+POLYGON_NatureBiomes_AridDesert: {setting: nature, era: modern}
+POLYGON_NatureBiomes_EnchantedForest: {setting: fantasy, era: medieval}
+POLYGON_NatureBiomes_MeadowForest: {setting: nature, era: modern}
+POLYGON_NatureBiomes_SwampMarshland: {setting: nature, era: modern}
+POLYGON_NatureBiomes_TropicalJungle: {setting: nature, era: modern}
+POLYGON_Nightclubs: {setting: modern_city, era: modern}
+POLYGON_Office: {setting: modern_city, era: modern}
+POLYGON_Palm_City: {setting: modern_city, era: modern}
+POLYGON_Particle_FX: {setting: generic, era: modern}
+POLYGON_Pirate: {setting: fantasy, era: colonial}
+POLYGON_Pirate_Realm: {setting: fantasy, era: colonial}
+POLYGON_Plushies: {setting: generic, era: modern}
+POLYGON_Police_Station: {setting: modern_city, era: modern}
+POLYGON_Pride_Flags: {setting: generic, era: modern}
+POLYGON_Pride_Weapons: {setting: generic, era: modern}
+POLYGON_Prison_Map: {setting: modern_city, era: modern}
+POLYGON_Pro_Racer: {setting: modern_city, era: modern}
+POLYGON_Prototype: {setting: generic, era: modern}
+POLYGON_Pumpkins: {setting: generic, era: modern}
+POLYGON_QuadBike: {setting: generic, era: modern}
+POLYGON_Samurai: {setting: fantasy, era: medieval}
+POLYGON_Samurai_Empire: {setting: fantasy, era: medieval}
+POLYGON_Santa: {setting: generic, era: modern}
+POLYGON_SciFi_City: {setting: scifi_city, era: far_future}
+POLYGON_SciFi_Horror: {setting: horror, era: far_future}
+POLYGON_SciFi_Outpost_Map: {setting: scifi_frontier, era: far_future}
+POLYGON_SciFi_Space: {setting: space, era: far_future}
+POLYGON_SciFi_Worlds: {setting: scifi_frontier, era: far_future}
+POLYGON_Shopping_Plaza_Map: {setting: modern_city, era: modern}
+POLYGON_Shops: {setting: modern_city, era: modern}
+POLYGON_Snow_Kit: {setting: nature, era: modern}
+POLYGON_Spy_Kit: {setting: modern_city, era: modern}
+POLYGON_Starter: {setting: generic, era: modern}
+POLYGON_Street_Racer: {setting: modern_city, era: modern}
+POLYGON_StuntPlane: {setting: generic, era: modern}
+POLYGON_Town: {setting: modern_city, era: modern}
+POLYGON_Valentines: {setting: generic, era: modern}
+POLYGON_Viking_Realm: {setting: fantasy, era: medieval}
+POLYGON_Vikings: {setting: fantasy, era: medieval}
+POLYGON_War: {setting: military, era: modern}
+POLYGON_War_Map: {setting: military, era: modern}
+POLYGON_WaterGuns: {setting: generic, era: modern}
+POLYGON_Western: {setting: western, era: industrial}
+POLYGON_Western_Frontier: {setting: western, era: industrial}
+POLYGON_Wheelchair: {setting: generic, era: modern}
+POLYGON_Woodland_Apocalypse_Map: {setting: post_apoc, era: near_future}
+POLYGON_Xmas: {setting: generic, era: modern}
+
+SIDEKICK_SciFi_Civilians: {setting: scifi_frontier, era: far_future}
+SIDEKICK_SciFi_Robots: {setting: scifi_frontier, era: far_future}
+SIDEKICK_SciFi_Soldiers: {setting: scifi_frontier, era: far_future}
+SIDEKICK_Starter: {setting: generic, era: modern}
+
+SIMPLE_Farm: {setting: nature, era: modern}
+SIMPLE_Farm_Animals: {setting: nature, era: modern}
+SIMPLE_Sky: {setting: generic, era: modern}

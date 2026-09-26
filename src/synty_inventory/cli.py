@@ -8,6 +8,8 @@ import json
 import sys
 from pathlib import Path
 
+import yaml
+
 from . import query, recipes
 from .catalog import (
     catalog_path,
@@ -21,6 +23,7 @@ from .gauntlet import run_gauntlet
 from .merge import merge_catalog
 from .paths import (
     ConfigError,
+    is_pack_catalog_file,
     load_config,
     missing_required,
     posix,
@@ -820,6 +823,132 @@ def cmd_vision(args, cfg) -> int:
     return 0 if result.get("ok") else 2
 
 
+def cmd_pack_profile(args, cfg) -> int:
+    """``pack-profile --pack <id> | --all`` (spec §3.3): write
+    ``<catalogs>/pack_profiles/<pack_id>.json`` (schema ``pack-profile/1``)."""
+    from .packs.profile import build_pack_profile, make_vlm_refine, ollama_reachable
+
+    catalogs_dir = _catalogs(args, cfg)
+    if not catalogs_dir.is_dir():
+        return _fail(f"catalogs directory not found: {catalogs_dir}", 2)
+    if bool(args.pack) == bool(args.all):
+        return _fail("specify exactly one of --pack <id> or --all", 2)
+
+    if args.pack:
+        pack_ids = [args.pack]
+    else:
+        pack_ids = sorted(p.stem for p in catalogs_dir.glob("*.json") if is_pack_catalog_file(p))
+
+    human_overrides: dict = {}
+    if args.human_override:
+        override_path = Path(args.human_override)
+        if not override_path.is_file():
+            return _fail(f"--human-override file not found: {override_path}", 2)
+        raw = yaml.safe_load(override_path.read_text(encoding="utf-8")) or {}
+        if not isinstance(raw, dict):
+            return _fail(f"--human-override must be a mapping of pack_id -> overrides: {override_path}", 2)
+        human_overrides = raw
+
+    godot_root = _engine_root(cfg, "godot_root")
+
+    vlm_refine = None
+    if args.vlm and not args.no_vlm:
+        settings = resolve_settings(args.config)
+        url = settings["vlm_local_url"]
+        if ollama_reachable(url):
+            vlm_refine = make_vlm_refine(catalogs_dir=catalogs_dir, model=args.vlm, url=url)
+        else:
+            print(
+                f"warning: --vlm={args.vlm} requested but Ollama at {url} is unreachable — "
+                "pack-profile falls back to rules for setting/era (F13)",
+                file=sys.stderr,
+            )
+
+    out_dir = catalogs_dir / "pack_profiles"
+    written = []
+    errors = []
+    for pack_id in pack_ids:
+        doc = load_catalog(catalog_path(catalogs_dir, pack_id))
+        if doc is None:
+            errors.append({"pack_id": pack_id, "error": "catalog not found"})
+            continue
+        profile = build_pack_profile(
+            doc,
+            catalogs_dir=catalogs_dir,
+            godot_root=godot_root,
+            human_override=human_overrides.get(pack_id),
+            vlm_refine=vlm_refine,
+        )
+        out_dir.mkdir(parents=True, exist_ok=True)
+        dest = out_dir / f"{pack_id}.json"
+        dest.write_text(json.dumps(profile, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        written.append({"pack_id": pack_id, "pack_class": profile["pack_class"], "out": posix(dest)})
+
+    emit_json({"ok": not errors, "written": len(written), "errors": errors, "profiles": written})
+    return 0 if not errors else 2
+
+
+def cmd_packs_suggest(args, cfg) -> int:
+    """``packs suggest --brief <brief.yaml>`` (spec §3.3): rank cataloged
+    packs against a ``game-brief/1`` using ``pack_profiles/*.json`` only."""
+    from .packs.suggest import suggest_packs
+
+    catalogs_dir = _catalogs(args, cfg)
+    profiles_dir = catalogs_dir / "pack_profiles"
+    if not profiles_dir.is_dir():
+        return _fail(f"no pack_profiles under {catalogs_dir} — run `pack-profile --all` first", 2)
+    profiles = []
+    for path in sorted(profiles_dir.glob("*.json")):
+        try:
+            profiles.append(json.loads(path.read_text(encoding="utf-8")))
+        except (OSError, json.JSONDecodeError):
+            continue
+    if not profiles:
+        return _fail(f"no readable pack profiles under {profiles_dir}", 2)
+
+    brief_path = Path(args.brief)
+    if not brief_path.is_file():
+        return _fail(f"brief not found: {brief_path}", 2)
+    brief = yaml.safe_load(brief_path.read_text(encoding="utf-8")) or {}
+    if not isinstance(brief, dict):
+        return _fail(f"brief must be a game-brief/1 mapping: {brief_path}", 2)
+
+    result = suggest_packs(brief, profiles, engine=args.engine, max_results=args.max)
+    if getattr(args, "report", None):
+        report_path = Path(args.report)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    emit_json(result)
+    return 0
+
+
+def cmd_packs_contact_sheet(args, cfg) -> int:
+    """``packs contact-sheet --packs <id,...> -o <png>`` (spec §3.3 / G1)."""
+    from .packs.contact_sheet import build_contact_sheet
+
+    catalogs_dir = _catalogs(args, cfg)
+    pack_ids = _csv(args.packs) or []
+    if not pack_ids:
+        return _fail("--packs is required: a comma list of pack ids", 2)
+    threejs_v2 = _threejs_v2(cfg)
+    synty_glb_root = _optional_root(cfg, "synty_glb_root")
+
+    def load_doc(pack_id: str):
+        return load_catalog(catalog_path(catalogs_dir, pack_id))
+
+    report = build_contact_sheet(
+        pack_ids,
+        load_doc=load_doc,
+        catalogs_dir=catalogs_dir,
+        threejs_v2=threejs_v2,
+        synty_glb_root=synty_glb_root,
+        out_path=Path(args.sheet_out),
+        per_pack=args.per_pack,
+    )
+    emit_json(report)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="synty-inventory",
@@ -984,6 +1113,47 @@ def build_parser() -> argparse.ArgumentParser:
 
     g = sub.add_parser("gauntlet", help="Run acceptance gates against live catalogs")
     g.set_defaults(func=cmd_gauntlet)
+
+    pp = sub.add_parser(
+        "pack-profile", help="Write <catalogs>/pack_profiles/<pack_id>.json (schema pack-profile/1)"
+    )
+    pp_target = pp.add_mutually_exclusive_group(required=True)
+    pp_target.add_argument("--pack", default=None, help="one pack_id")
+    pp_target.add_argument("--all", action="store_true", help="every pack catalog on disk")
+    pp.add_argument(
+        "--vlm",
+        nargs="?",
+        const="gemma4:26b",
+        default=None,
+        metavar="MODEL",
+        help="optional local Ollama model tag to refine setting/era from extracted previews "
+        "(default gemma4:26b when passed with no value); degrades to rules if unreachable (F13)",
+    )
+    pp.add_argument("--no-vlm", action="store_true", help="never attempt a VLM call, even if --vlm is set")
+    pp.add_argument(
+        "--human-override",
+        default=None,
+        help="YAML: pack_id -> {setting, era, pack_class, characters_rig, godot_ready, palette}, wins over everything",
+    )
+    pp.set_defaults(func=cmd_pack_profile)
+
+    pk = sub.add_parser("packs", help="Pack-level suggestion and G1 contact sheet")
+    pk_sub = pk.add_subparsers(dest="packs_cmd", required=True)
+
+    pks = pk_sub.add_parser("suggest", help="Rank cataloged packs against a game-brief/1 YAML")
+    pks.add_argument("--brief", required=True, help="path to a game-brief/1 YAML file")
+    pks.add_argument("--engine", default="godot")
+    pks.add_argument("--max", type=int, default=12)
+    pks.add_argument("--report", default=None, help="write the JSON result to this path as well as stdout")
+    pks.set_defaults(func=cmd_packs_suggest)
+
+    pkc = pk_sub.add_parser("contact-sheet", help="Render a grid PNG, one labelled row-block per pack (G1)")
+    pkc.add_argument("--packs", required=True, help="comma list of pack ids")
+    pkc.add_argument("--per-pack", dest="per_pack", type=int, default=48)
+    pkc.add_argument(
+        "-o", "--out", dest="sheet_out", required=True, help="output PNG path (distinct from the global --out)"
+    )
+    pkc.set_defaults(func=cmd_packs_contact_sheet)
 
     sg = sub.add_parser(
         "scene-mine", help="Mine a Synty pack's demo scenes into <out>/<PACK_ID>.scene_grammar.json"

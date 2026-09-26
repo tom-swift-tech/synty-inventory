@@ -51,6 +51,10 @@ SLUG_PACK_OVERRIDES: dict[str, str] = {
     "polygon-sci-fi-space-01": "POLYGON_SciFi_Space",
     "polygon-war-01": "POLYGON_War",
     "simple-sky": "SIMPLE_Sky",
+    # Converted on disk under godot_root (the interface-scifi-soldier-hud
+    # export folder) but left unregistered until Dustline's S3 needed it
+    # (studio_pipeline_spec.md §1.2 UI row / §3.4).
+    "interface-scifi-soldier-hud": "INTERFACE_SciFi_Soldier_HUD",
     # polygon-stunt-plane / polygon-water-guns: no catalog pack_id exists yet;
     # add here once those packs are cataloged
 }
