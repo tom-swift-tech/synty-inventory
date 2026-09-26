@@ -19,6 +19,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
+# Pillow is imported lazily, only by `packs contact-sheet` and pack-profile palette
+# measurement, so it stays optional rather than a core dependency.
+render = ["Pillow>=10"]
 
 [project.scripts]
 synty-inventory = "synty_inventory.cli:main"
