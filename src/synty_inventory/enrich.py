@@ -299,17 +299,20 @@ def enrich_catalog(
     the configured path explicitly, same as ``threejs_v2``.
     """
     pack_id = catalog["pack_id"]
-    signs = load_viewer_signs(viewer_data, pack_id)
-    props = load_viewer_props(viewer_data, pack_id)
-    usage = load_type_sign_usage(viewer_data, pack_id)
-    pieces = load_viewer_pieces(viewer_data, pack_id)
-    tj_catalog = catalog_by_id(threejs_v2, pack_id)
-    glb_exact, glb_ci = glb_index(threejs_v2, pack_id)
-    bundles = bundle_index(threejs_v2, pack_id, bundle_glbs(threejs_v2, pack_id))
+    # A shared-kit catalog (discover.SHARED_KIT_PACKS) has no viewer data or
+    # converted trees of its own; they all live under the host pack.
+    host = (catalog.get("source") or {}).get("host_pack") or pack_id
+    signs = load_viewer_signs(viewer_data, host)
+    props = load_viewer_props(viewer_data, host)
+    usage = load_type_sign_usage(viewer_data, host)
+    pieces = load_viewer_pieces(viewer_data, host)
+    tj_catalog = catalog_by_id(threejs_v2, host)
+    glb_exact, glb_ci = glb_index(threejs_v2, host)
+    bundles = bundle_index(threejs_v2, host, bundle_glbs(threejs_v2, host))
     extracted = (catalog.get("source") or {}).get("extracted")
     prefab_glb = PrefabGlbResolver(Path(extracted) if extracted else None, threejs_v2, glb_exact, glb_ci)
-    godot_exact, godot_ci = scene_index(godot_root, pack_id)
-    unreal_exact, unreal_ci = unreal_asset_index(unreal_root, pack_id)
+    godot_exact, godot_ci = scene_index(godot_root, host)
+    unreal_exact, unreal_ci = unreal_asset_index(unreal_root, host)
     gen_entries = load_gen_entries(threejs_v2, pack_id)  # empty unless GEN_* pack
 
     cache_path = (catalogs_dir / "_measure_cache.json") if catalogs_dir else None

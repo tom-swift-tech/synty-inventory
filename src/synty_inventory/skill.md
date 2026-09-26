@@ -137,6 +137,9 @@ write `placement.contact` or ship/mech sockets.
   (`SM_Env_Tree_01__Town`), or one pack silently replaces the other.
 - A piece with `Generic_*` materials (PolygonGeneric) is not a themed-kit piece
   even when that pack's catalog lists it: check the prefab path and materials.
+- PolygonGeneric has its own catalog, `POLYGON_Generic` (`search --pack POLYGON_Generic`): the
+  complete shared kit (500 rows) with `files.glb` / `godot_scene` in POLYGON_War's trees. Older
+  packs also list ~380 of the same ids — same meshes, prefer the POLYGON_Generic row.
 - City-scale assembly (measured City kit facts, Demo street grammar, park tiles):
   see the `city-builder` skill in `tools/godot_skills/`.
 

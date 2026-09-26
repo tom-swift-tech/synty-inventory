@@ -256,6 +256,8 @@ returns the eligible pieces per step **with bounds and files**, and
 Optional scan flags:
 
 - `--include-shared` — also catalog `PolygonGeneric` inside each pack
+  (rarely needed: the kit has its own `POLYGON_Generic` catalog, scanned from
+  POLYGON_War's copy — see `discover.SHARED_KIT_PACKS`)
 - `--from-package` — index the `.unitypackage` even when an extracted tree exists
 - `--extract-previews` — write Synty `preview.png` files under
   `catalogs/previews/` (do **not** commit or share)

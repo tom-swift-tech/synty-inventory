@@ -315,12 +315,16 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root:
         resolved_packs = expected_packs & set(mapped)
         missing_packs = sorted(expected_packs - resolved_packs)
 
+        def _godot_pack(doc: dict) -> str | None:
+            # A shared-kit catalog's scenes live in its host pack's Godot tree.
+            return (doc.get("source") or {}).get("host_pack") or doc.get("pack_id")
+
         dangling = []
         matched = 0
         checked = 0
         for doc in docs:
             pid = doc.get("pack_id")
-            if pid not in mapped:
+            if _godot_pack(doc) not in mapped:
                 continue
             for a in (doc.get("assets") or []):
                 rel = (a.get("files") or {}).get("godot_scene")
@@ -342,7 +346,7 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root:
         godot_placeable = [
             a
             for doc in docs
-            if doc.get("pack_id") in mapped
+            if _godot_pack(doc) in mapped
             for a in (doc.get("assets") or [])
             if _godot_eligible(a)
         ]

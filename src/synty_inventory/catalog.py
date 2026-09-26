@@ -169,6 +169,12 @@ def build_catalog(
         source["gen"] = posix(gen_dir)
     elif engine == "Unreal" and ref.unreal_path:
         raw = scan_unreal(ref.unreal_path)
+    elif ref.extras.get("shared_kit") and ref.extracted_path:
+        # Standalone shared-kit catalog (discover.SHARED_KIT_PACKS): only the
+        # kit's own assets from the host pack's copy, never the host's.
+        raw = scan_extracted(ref.extracted_path, include_shared=True, only_kit=ref.extras["shared_kit"])
+        source["shared_kit"] = ref.extras["shared_kit"]
+        source["host_pack"] = ref.extras["host_pack"]
     elif ref.extracted_path and not from_package:
         raw = scan_extracted(ref.extracted_path, include_shared=include_shared)
     elif ref.package_path:
@@ -181,7 +187,9 @@ def build_catalog(
         raw = []
 
     # Converted GLBs that have no Unity prefab/FBX still belong in the catalog.
-    if engine != "GLB" and threejs_v2 is not None:
+    # Not for a shared-kit catalog: the host's GLB tree would inject every
+    # host asset (the 2026-09-25 Dogs +459 rows came from this path).
+    if engine != "GLB" and threejs_v2 is not None and not ref.extras.get("shared_kit"):
         from .sources.threejs_v2 import glb_raw_assets
 
         have = {r.id for r in raw}

@@ -173,9 +173,16 @@ def _collect_files(assets_root: Path) -> list[RawFile]:
     return files
 
 
-def scan_extracted(pack_root: Path, include_shared: bool = False) -> list[RawAsset]:
+def scan_extracted(
+    pack_root: Path, include_shared: bool = False, only_kit: str | None = None
+) -> list[RawAsset]:
+    """``only_kit`` keeps one kit's files (case-insensitive) *before* the
+    pack-specific-twin preference, so a standalone shared-kit catalog keeps
+    e.g. PolygonGeneric's FX_Fire_01 even when the host pack has its own."""
     assets_root = find_assets_root(pack_root)
     files = _collect_files(assets_root)
+    if only_kit:
+        files = [f for f in files if (f.kit or "").lower() == only_kit.lower()]
     guid_index = index_guids(assets_root)
 
     by_stem: dict[str, RawAsset] = {}
