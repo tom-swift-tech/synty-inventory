@@ -35,9 +35,16 @@ _PIVOT_BAND = 0.10  # |origin_frac - 0.5| below this: the origin is "near the mi
 _END_FRAC = 0.10  # outer share of the length compared by the cross-section fallback
 _TIP_MM = 0.002  # tip / butt: vertices within 2 mm of the extreme forward coordinate
 _BIN_M = 0.01  # handle detection bin height
-_HANDLE_MIN_BINS = 6  # a handle run is >= 6 cm
 _HANDLE_BUTT_FRAC = 0.60  # handle is searched in the butt-side 60 % of the length
-_HANDLE_E_RATIO = 1.3  # e <= 1.3 * p10(e)
+_HANDLE_E_RATIO = 1.3  # thin bin: e <= 1.3 * w_ref
+_HANDLE_W_PCT = 20  # w_ref = p20(e) over the window ...
+_HANDLE_W_FLOOR_M = 0.003  # ... floored at 3 mm, so a window of hair-thin bins cannot collapse the threshold to zero
+# a run counts at >= max(2 cm, min(6 cm, 0.2 * length)): a 28 cm razor is not asked for a 6 cm handle
+_HANDLE_MIN_FLOOR_M, _HANDLE_MIN_CAP_M, _HANDLE_MIN_FRAC = 0.02, 0.06, 0.2
+_GRIP_SPAN_M = 0.30  # the grip is the first 30 cm of the handle run from its butt end (a 2 m staff is not held mid-shaft)
+_SURFACE_STEP_M = 0.005  # e(bin) sees the surface: points along every triangle edge at most this far apart
+_SURFACE_MAX_SEGMENTS = 2000  # sanity cap per edge (an edge over 10 m is not a weapon mesh); keeps a garbage mesh bounded
+_SURFACE_CHUNK = 1 << 21  # sample points held at once
 _SUPPORT_AT = 0.62
 _SUPPORT_SLICE_M = 0.01
 _MUZZLE_TOLS_M = (0.001, 0.002, 0.005, 0.010)  # sit_weapons FACE_TOLS_M
@@ -371,25 +378,94 @@ def _shield_front_sign(v: np.ndarray, tris: np.ndarray, normal: int) -> tuple[in
     return 0, None
 
 
-def _find_handle(v: np.ndarray, fa: int, fc: np.ndarray, fmin: float, flen: float):
-    """Handle run (spec 3.5.5) -> (centre forward coordinate, lateral means by axis, radius) or None."""
-    nb = max(1, int(math.ceil(flen / _BIN_M - 1e-6)))
-    bidx = np.minimum(np.floor((fc - fmin) / _BIN_M + 1e-6).astype(np.int64), nb - 1)
-    rn = min(nb, max(1, int(math.ceil(_HANDLE_BUTT_FRAC * flen / _BIN_M - 1e-6))))
+class _BinStats:
+    """Per-bin count, lateral sum and lateral min / max of the surface points, over the first ``rn`` bins."""
+
+    def __init__(self, rn: int):
+        self.rn = rn
+        self.count = np.zeros(rn)
+        self.total = np.zeros((rn, 2))
+        self.lo = np.full((rn, 2), np.inf)
+        self.hi = np.full((rn, 2), -np.inf)
+
+    def add(self, bins: np.ndarray, lat: np.ndarray) -> None:
+        keep = bins < self.rn
+        if not keep.all():
+            bins, lat = bins[keep], lat[keep]
+        if not len(bins):
+            return
+        self.count += np.bincount(bins, minlength=self.rn)
+        for j in (0, 1):
+            self.total[:, j] += np.bincount(bins, weights=lat[:, j], minlength=self.rn)
+        np.minimum.at(self.lo, bins, lat)
+        np.maximum.at(self.hi, bins, lat)
+
+
+def _bin_of(f: np.ndarray, fmin: float, nb: int) -> np.ndarray:
+    return np.clip(np.floor((f - fmin) / _BIN_M + 1e-6).astype(np.int64), 0, nb - 1)
+
+
+def _surface_stats(v: np.ndarray, tris: np.ndarray, fa: int, fc: np.ndarray, fmin: float, nb: int, rn: int) -> _BinStats:
+    """Bin the SURFACE of the mesh (spec 3.5.5, W2d): the vertices plus points along every triangle edge at no more than
+    ``_SURFACE_STEP_M`` spacing. A low-poly haft has bins holding one vertex or none; its long edges still cross them.
+    Edges are deduplicated (a shared edge is one edge) and only those longer than the step need samples, so a dense
+    mesh costs one length test per edge. Chunked, so memory stays bounded; everything is vectorised."""
     lat = [i for i in range(3) if i != fa]
-    order = np.argsort(bidx, kind="stable")
-    sorted_bins = bidx[order]
-    e = np.zeros(rn)
-    prev = 0.0
-    for b in range(rn):  # empty bins inherit the previous bin's extent
-        lo, hi = np.searchsorted(sorted_bins, b, "left"), np.searchsorted(sorted_bins, b, "right")
-        if hi > lo:
-            pts = v[order[lo:hi]][:, lat]
-            prev = float((pts.max(axis=0) - pts.min(axis=0)).max())
-        e[b] = prev
-    thr = _HANDLE_E_RATIO * float(np.percentile(e, 10)) + 1e-9
-    ok = e <= thr
-    best = None  # (run length, start) with the butt-most run winning ties
+    stats = _BinStats(rn)
+    stats.add(_bin_of(fc, fmin, nb), v[:, lat])
+    if not len(tris):
+        return stats
+    edges = np.concatenate([tris[:, [0, 1]], tris[:, [1, 2]], tris[:, [2, 0]]])
+    edges.sort(axis=1)
+    length = np.linalg.norm(v[edges[:, 1]] - v[edges[:, 0]], axis=1)
+    far = (length > _SURFACE_STEP_M) & ((np.minimum(fc[edges[:, 0]], fc[edges[:, 1]]) - fmin) / _BIN_M < rn)
+    edges, length = edges[far], length[far]
+    if not len(edges):
+        return stats
+    _, first = np.unique(edges[:, 0] * np.int64(len(v)) + edges[:, 1], return_index=True)
+    edges, length = edges[first], length[first]
+    seg = np.minimum(np.ceil(length / _SURFACE_STEP_M - 1e-9).astype(np.int64), _SURFACE_MAX_SEGMENTS)
+    inner = seg - 1  # interior points per edge (>= 1: the edge is longer than the step)
+    ends = np.cumsum(inner)
+    start = 0
+    while start < len(edges):
+        base = int(ends[start - 1]) if start else 0
+        stop = max(int(np.searchsorted(ends, base + _SURFACE_CHUNK, side="right")), start + 1)
+        k = inner[start:stop]
+        which = np.repeat(np.arange(start, stop), k)
+        step = np.arange(int(k.sum())) - np.repeat(np.cumsum(k) - k, k) + 1  # 1 .. seg - 1 within each edge
+        t = (step / seg[which])[:, None]
+        p0, p1 = v[edges[which, 0]], v[edges[which, 1]]
+        pts = p0 + t * (p1 - p0)
+        f0, f1 = fc[edges[which, 0]], fc[edges[which, 1]]
+        stats.add(_bin_of(f0 + t[:, 0] * (f1 - f0), fmin, nb), pts[:, lat])
+        start = stop
+    return stats
+
+
+def _find_handle(v: np.ndarray, tris: np.ndarray, fa: int, fc: np.ndarray, fmin: float, flen: float):
+    """Handle (spec 3.5.5, W2d) -> (centre forward coordinate, lateral means by axis, radius) or None.
+
+    The width profile ``e(bin)`` is the larger lateral extent of the surface points in each 1 cm bin; an empty bin
+    inherits the previous. ``w_ref`` = p20 of ``e`` over the butt-side 60 % window, floored at 3 mm; a bin is thin at
+    ``e <= 1.3 * w_ref``. The handle is the thin run NEAREST THE BUTT that is long enough (pommels and guards are wider,
+    so the first thin run from the butt is the hilt or haft, whatever longer thin blade follows); the grip is the first
+    30 cm of that run from its butt end.
+    """
+    lat = [i for i in range(3) if i != fa]
+    nb = max(1, int(math.ceil(flen / _BIN_M - 1e-6)))
+    rn = min(nb, max(1, int(math.ceil(_HANDLE_BUTT_FRAC * flen / _BIN_M - 1e-6))))
+    st = _surface_stats(v, tris, fa, fc, fmin, nb, rn)
+    seen = st.count > 0
+    raw = np.where(seen, (st.hi - st.lo).max(axis=1), 0.0)
+    # empty bins inherit the previous bin's extent (0 before the first occupied bin)
+    last = np.maximum.accumulate(np.where(seen, np.arange(rn), -1))
+    e = np.where(last >= 0, raw[np.maximum(last, 0)], 0.0)
+    w_ref = max(float(np.percentile(e, _HANDLE_W_PCT)), _HANDLE_W_FLOOR_M)
+    ok = e <= _HANDLE_E_RATIO * w_ref + 1e-9
+    # ceil, like the bin counts above: a 28 cm knife (0.2 * 0.28 = 5.6 cm) needs 6 whole bins
+    min_m = max(_HANDLE_MIN_FLOOR_M, min(_HANDLE_MIN_CAP_M, _HANDLE_MIN_FRAC * flen))
+    min_bins = int(math.ceil(min_m / _BIN_M - 1e-6))
     b = 0
     while b < rn:
         if not ok[b]:
@@ -398,14 +474,13 @@ def _find_handle(v: np.ndarray, fa: int, fc: np.ndarray, fmin: float, flen: floa
         s = b
         while b < rn and ok[b]:
             b += 1
-        if b - s >= _HANDLE_MIN_BINS and float(e[s:b].mean()) > 0 and (best is None or b - s > best[0]):
-            best = (b - s, s)
-    if best is None:
-        return None
-    n, s = best
-    sel = (bidx >= s) & (bidx < s + n)
-    lateral = {i: float(v[sel, i].mean()) for i in lat} if sel.any() else {}
-    return fmin + (s + n * 0.5) * _BIN_M, lateral, float(e[s:s + n].mean()) / 2.0
+        # first counting run from the butt wins; an all-zero run (nothing measurable) never counts
+        if b - s >= min_bins and float(e[s:b].mean()) > 0:
+            n = min(b - s, int(round(_GRIP_SPAN_M / _BIN_M)))
+            seen_n = float(st.count[s:s + n].sum())
+            lateral = {i: float(st.total[s:s + n, j].sum() / seen_n) for j, i in enumerate(lat)} if seen_n else {}
+            return fmin + (s + n * 0.5) * _BIN_M, lateral, float(e[s:s + n].mean()) / 2.0
+    return None
 
 
 def _fail(reasons: list[str], warning: str | None = None) -> dict:
@@ -558,7 +633,7 @@ def measure_weapon_detail(
     elif is_shield:
         grip, grip_source = at(fmin, {}), "centre"
     elif kind == "melee" or archetype == "throwing_blade":
-        run = _find_handle(verts, fa, fc, fmin, flen)
+        run = _find_handle(verts, tris, fa, fc, fmin, flen)
         if run is not None:
             grip, grip_r, grip_source = at(run[0], run[1]), _r(run[2]), "handle"
         elif not outside:
