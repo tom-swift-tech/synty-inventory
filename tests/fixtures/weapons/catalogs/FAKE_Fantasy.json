@@ -1,0 +1,3384 @@
+{
+  "asset_count": 60,
+  "assets": [
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/A_Idle_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/A_Idle_01.fbx",
+        "unity_prefab": "Prefabs/A_Idle_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": null,
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "A_Idle_01",
+      "kind": "animation",
+      "name": "A Idle 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/A_Idle_01.fbx",
+        "prefab": "Prefabs/A_Idle_01.prefab"
+      },
+      "placeable": false,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "animation_clip",
+      "tags": [],
+      "thumbnail": null,
+      "type": "animation"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": null,
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": null,
+        "unity_prefab": "Prefabs/Preset_Sword_03.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "Preset_Sword_03",
+      "kind": "mesh",
+      "name": "Preset Sword 03",
+      "paths": {
+        "materials": [],
+        "mesh": null,
+        "prefab": "Prefabs/Preset_Sword_03.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/shared/Gen_Wep_Crowbar_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Gen_Wep_Crowbar_01.fbx",
+        "unity_prefab": "Prefabs/SM_Gen_Wep_Crowbar_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Gen_Wep_Crowbar_01",
+      "kind": "mesh",
+      "name": "SM Gen Wep Crowbar 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Gen_Wep_Crowbar_01.fbx",
+        "prefab": "Prefabs/SM_Gen_Wep_Crowbar_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Item_Dagger_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Item_Dagger_01.fbx",
+        "unity_prefab": "Prefabs/SM_Item_Dagger_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": null,
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Item_Dagger_01",
+      "kind": "mesh",
+      "name": "SM Item Dagger 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Item_Dagger_01.fbx",
+        "prefab": "Prefabs/SM_Item_Dagger_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "interior_prop",
+      "tags": [],
+      "thumbnail": null,
+      "type": "prop"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Prop_Axe_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Prop_Axe_01.fbx",
+        "unity_prefab": "Prefabs/SM_Prop_Axe_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": null,
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Prop_Axe_01",
+      "kind": "mesh",
+      "name": "SM Prop Axe 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Prop_Axe_01.fbx",
+        "prefab": "Prefabs/SM_Prop_Axe_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "interior_prop",
+      "tags": [],
+      "thumbnail": null,
+      "type": "prop"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Prop_Bow_Ribbon_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Prop_Bow_Ribbon_01.fbx",
+        "unity_prefab": "Prefabs/SM_Prop_Bow_Ribbon_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": null,
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Prop_Bow_Ribbon_01",
+      "kind": "mesh",
+      "name": "SM Prop Bow Ribbon 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Prop_Bow_Ribbon_01.fbx",
+        "prefab": "Prefabs/SM_Prop_Bow_Ribbon_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "interior_prop",
+      "tags": [],
+      "thumbnail": null,
+      "type": "prop"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Prop_Rope_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Prop_Rope_01.fbx",
+        "unity_prefab": "Prefabs/SM_Prop_Rope_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": null,
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Prop_Rope_01",
+      "kind": "mesh",
+      "name": "SM Prop Rope 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Prop_Rope_01.fbx",
+        "prefab": "Prefabs/SM_Prop_Rope_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "interior_prop",
+      "tags": [],
+      "thumbnail": null,
+      "type": "prop"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Prop_Spear_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Prop_Spear_01.fbx",
+        "unity_prefab": "Prefabs/SM_Prop_Spear_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": null,
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Prop_Spear_01",
+      "kind": "mesh",
+      "name": "SM Prop Spear 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Prop_Spear_01.fbx",
+        "prefab": "Prefabs/SM_Prop_Spear_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "interior_prop",
+      "tags": [],
+      "thumbnail": null,
+      "type": "prop"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Prop_Torch_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Prop_Torch_01.fbx",
+        "unity_prefab": "Prefabs/SM_Prop_Torch_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": null,
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Prop_Torch_01",
+      "kind": "mesh",
+      "name": "SM Prop Torch 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Prop_Torch_01.fbx",
+        "prefab": "Prefabs/SM_Prop_Torch_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "interior_prop",
+      "tags": [],
+      "thumbnail": null,
+      "type": "prop"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Arrow_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Arrow_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Arrow_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Arrow_01",
+      "kind": "mesh",
+      "name": "SM Wep Arrow 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Arrow_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Arrow_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Arrow_Fire_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Arrow_Fire_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Arrow_Fire_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Arrow_Fire_02",
+      "kind": "mesh",
+      "name": "SM Wep Arrow Fire 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Arrow_Fire_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Arrow_Fire_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Axe_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Axe_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Axe_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Axe_01",
+      "kind": "mesh",
+      "name": "SM Wep Axe 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Axe_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Axe_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Ballista_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Ballista_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Ballista_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Ballista_02",
+      "kind": "mesh",
+      "name": "SM Wep Ballista 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Ballista_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Ballista_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Battleaxe_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Battleaxe_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Battleaxe_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Battleaxe_02",
+      "kind": "mesh",
+      "name": "SM Wep Battleaxe 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Battleaxe_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Battleaxe_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Bow_03.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Bow_03.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Bow_03.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Bow_03",
+      "kind": "mesh",
+      "name": "SM Wep Bow 03",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Bow_03.fbx",
+        "prefab": "Prefabs/SM_Wep_Bow_03.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Buckler_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Buckler_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Buckler_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Buckler_01",
+      "kind": "mesh",
+      "name": "SM Wep Buckler 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Buckler_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Buckler_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Catapult_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Catapult_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Catapult_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Catapult_01",
+      "kind": "mesh",
+      "name": "SM Wep Catapult 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Catapult_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Catapult_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Claw_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Claw_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Claw_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Claw_02",
+      "kind": "mesh",
+      "name": "SM Wep Claw 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Claw_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Claw_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Claymore_06.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Claymore_06.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Claymore_06.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Claymore_06",
+      "kind": "mesh",
+      "name": "SM Wep Claymore 06",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Claymore_06.fbx",
+        "prefab": "Prefabs/SM_Wep_Claymore_06.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Club_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Club_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Club_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Club_01",
+      "kind": "mesh",
+      "name": "SM Wep Club 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Club_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Club_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Crossbow_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Crossbow_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Crossbow_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Crossbow_01",
+      "kind": "mesh",
+      "name": "SM Wep Crossbow 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Crossbow_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Crossbow_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Crossbow_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Crossbow_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Crossbow_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Crossbow_02",
+      "kind": "mesh",
+      "name": "SM Wep Crossbow 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Crossbow_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Crossbow_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Crossbow_Bolt_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Crossbow_Bolt_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Crossbow_Bolt_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Crossbow_Bolt_01",
+      "kind": "mesh",
+      "name": "SM Wep Crossbow Bolt 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Crossbow_Bolt_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Crossbow_Bolt_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Dagger_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Dagger_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Dagger_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Dagger_02",
+      "kind": "mesh",
+      "name": "SM Wep Dagger 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Dagger_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Dagger_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Flail_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Flail_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Flail_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Flail_02",
+      "kind": "mesh",
+      "name": "SM Wep Flail 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Flail_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Flail_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Greatsword_05.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Greatsword_05.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Greatsword_05.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": true
+      },
+      "id": "SM_Wep_Greatsword_05",
+      "kind": "mesh",
+      "name": "SM Wep Greatsword 05",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Greatsword_05.fbx",
+        "prefab": "Prefabs/SM_Wep_Greatsword_05.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Grenade_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Grenade_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Grenade_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Grenade_01",
+      "kind": "mesh",
+      "name": "SM Wep Grenade 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Grenade_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Grenade_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Halberd_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Halberd_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Halberd_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Halberd_01",
+      "kind": "mesh",
+      "name": "SM Wep Halberd 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Halberd_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Halberd_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Hammer_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Hammer_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Hammer_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Hammer_01",
+      "kind": "mesh",
+      "name": "SM Wep Hammer 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Hammer_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Hammer_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Katana_03.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Katana_03.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Katana_03.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Katana_03",
+      "kind": "mesh",
+      "name": "SM Wep Katana 03",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Katana_03.fbx",
+        "prefab": "Prefabs/SM_Wep_Katana_03.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Knife_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Knife_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Knife_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Knife_01",
+      "kind": "mesh",
+      "name": "SM Wep Knife 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Knife_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Knife_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Knuckles_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Knuckles_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Knuckles_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Knuckles_01",
+      "kind": "mesh",
+      "name": "SM Wep Knuckles 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Knuckles_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Knuckles_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Mace_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Mace_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Mace_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Mace_01",
+      "kind": "mesh",
+      "name": "SM Wep Mace 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Mace_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Mace_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Pistol_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Pistol_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Pistol_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Pistol_01",
+      "kind": "mesh",
+      "name": "SM Wep Pistol 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Pistol_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Pistol_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Quiver_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Quiver_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Quiver_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Quiver_01",
+      "kind": "mesh",
+      "name": "SM Wep Quiver 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Quiver_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Quiver_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Rapier_04.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Rapier_04.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Rapier_04.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Rapier_04",
+      "kind": "mesh",
+      "name": "SM Wep Rapier 04",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Rapier_04.fbx",
+        "prefab": "Prefabs/SM_Wep_Rapier_04.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Scabbard_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Scabbard_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Scabbard_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Scabbard_02",
+      "kind": "mesh",
+      "name": "SM Wep Scabbard 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Scabbard_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Scabbard_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Scythe_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Scythe_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Scythe_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Scythe_02",
+      "kind": "mesh",
+      "name": "SM Wep Scythe 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Scythe_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Scythe_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Sheath_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Sheath_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Sheath_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Sheath_01",
+      "kind": "mesh",
+      "name": "SM Wep Sheath 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Sheath_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Sheath_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Shield_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Shield_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Shield_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Shield_01",
+      "kind": "mesh",
+      "name": "SM Wep Shield 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Shield_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Shield_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Shield_Set_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Shield_Set_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Shield_Set_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Shield_Set_01",
+      "kind": "mesh",
+      "name": "SM Wep Shield Set 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Shield_Set_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Shield_Set_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Shield_Set_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Shield_Set_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Shield_Set_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Shield_Set_02",
+      "kind": "mesh",
+      "name": "SM Wep Shield Set 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Shield_Set_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Shield_Set_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Shield_Set_02_Clean.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Shield_Set_02_Clean.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Shield_Set_02_Clean.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Shield_Set_02_Clean",
+      "kind": "mesh",
+      "name": "SM Wep Shield Set 02 Clean",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Shield_Set_02_Clean.fbx",
+        "prefab": "Prefabs/SM_Wep_Shield_Set_02_Clean.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Shuriken_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Shuriken_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Shuriken_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Shuriken_01",
+      "kind": "mesh",
+      "name": "SM Wep Shuriken 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Shuriken_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Shuriken_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Spear_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Spear_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Spear_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Spear_01",
+      "kind": "mesh",
+      "name": "SM Wep Spear 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Spear_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Spear_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Staff_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Staff_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Staff_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Staff_01",
+      "kind": "mesh",
+      "name": "SM Wep Staff 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Staff_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Staff_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Sword_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Sword_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Sword_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Sword_01",
+      "kind": "mesh",
+      "name": "SM Wep Sword 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Sword_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Sword_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Sword_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Sword_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Sword_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Sword_02",
+      "kind": "mesh",
+      "name": "SM Wep Sword 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Sword_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Sword_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Sword_Hilt_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Sword_Hilt_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Sword_Hilt_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Sword_Hilt_01",
+      "kind": "mesh",
+      "name": "SM Wep Sword Hilt 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Sword_Hilt_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Sword_Hilt_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Throwing_Knife_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Throwing_Knife_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Throwing_Knife_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Throwing_Knife_02",
+      "kind": "mesh",
+      "name": "SM Wep Throwing Knife 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Throwing_Knife_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Throwing_Knife_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Tomahawk_03.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Tomahawk_03.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Tomahawk_03.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Tomahawk_03",
+      "kind": "mesh",
+      "name": "SM Wep Tomahawk 03",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Tomahawk_03.fbx",
+        "prefab": "Prefabs/SM_Wep_Tomahawk_03.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Torch_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Torch_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Torch_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Torch_02",
+      "kind": "mesh",
+      "name": "SM Wep Torch 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Torch_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Torch_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Trident_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Trident_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Trident_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Trident_02",
+      "kind": "mesh",
+      "name": "SM Wep Trident 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Trident_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Trident_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Wand_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Wand_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Wand_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Wand_01",
+      "kind": "mesh",
+      "name": "SM Wep Wand 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Wand_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Wand_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Wand_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Wand_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Wand_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Wand_02",
+      "kind": "mesh",
+      "name": "SM Wep Wand 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Wand_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Wand_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Warhammer_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Warhammer_02.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Warhammer_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": true
+      },
+      "id": "SM_Wep_Warhammer_02",
+      "kind": "mesh",
+      "name": "SM Wep Warhammer 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Warhammer_02.fbx",
+        "prefab": "Prefabs/SM_Wep_Warhammer_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/SM_Wep_Whip_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/SM_Wep_Whip_01.fbx",
+        "unity_prefab": "Prefabs/SM_Wep_Whip_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "SM_Wep_Whip_01",
+      "kind": "mesh",
+      "name": "SM Wep Whip 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/SM_Wep_Whip_01.fbx",
+        "prefab": "Prefabs/SM_Wep_Whip_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/Wep_Longbow_02.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/Wep_Longbow_02.fbx",
+        "unity_prefab": "Prefabs/Wep_Longbow_02.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "Wep_Longbow_02",
+      "kind": "mesh",
+      "name": "Wep Longbow 02",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/Wep_Longbow_02.fbx",
+        "prefab": "Prefabs/Wep_Longbow_02.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": null,
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": null,
+        "unity_prefab": "Prefabs/Wep_Preset_Axe_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "Wep_Preset_Axe_01",
+      "kind": "mesh",
+      "name": "Wep Preset Axe 01",
+      "paths": {
+        "materials": [],
+        "mesh": null,
+        "prefab": "Prefabs/Wep_Preset_Axe_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    },
+    {
+      "ai_notes": "",
+      "bounds": null,
+      "category": [],
+      "description": "",
+      "dimensions": {
+        "approx": null,
+        "source": "none",
+        "units": "meters"
+      },
+      "files": {
+        "glb": "glb/FAKE_Fantasy/Wep_RecurveBow_01.glb",
+        "glb_node": null,
+        "godot_scene": null,
+        "unity_materials": [],
+        "unity_mesh": "Meshes/Wep_RecurveBow_01.fbx",
+        "unity_prefab": "Prefabs/Wep_RecurveBow_01.prefab",
+        "unreal_uasset": null
+      },
+      "gear": {
+        "attach": null,
+        "coverage": null,
+        "fits": null,
+        "kind": "weapon",
+        "paintFamily": null,
+        "role": null,
+        "slot": null,
+        "twoHanded": null
+      },
+      "id": "Wep_RecurveBow_01",
+      "kind": "mesh",
+      "name": "Wep RecurveBow 01",
+      "paths": {
+        "materials": [],
+        "mesh": "Meshes/Wep_RecurveBow_01.fbx",
+        "prefab": "Prefabs/Wep_RecurveBow_01.prefab"
+      },
+      "placeable": true,
+      "placement": {
+        "attachment": "base_to_ground",
+        "constraints": [],
+        "contact": null,
+        "height": "grade",
+        "mount": "ground",
+        "orientation": "upright",
+        "preferred_contexts": [],
+        "preferred_floors": [
+          1
+        ]
+      },
+      "semantic_detail": "",
+      "semantic_role": "weapon",
+      "tags": [],
+      "thumbnail": null,
+      "type": "weapon"
+    }
+  ],
+  "conventions": {
+    "rotate_deg": 90,
+    "scale": 1,
+    "street_axis": "+z",
+    "up_axis": "+y"
+  },
+  "engine": "Unity",
+  "grid": {
+    "module": 2.5,
+    "snap": 0.25,
+    "story": 3.0,
+    "tile": 5.0
+  },
+  "origin": "fixture",
+  "pack_id": "FAKE_Fantasy",
+  "scanned_at": "2026-01-01T00:00:00+00:00",
+  "style": "synthetic",
+  "units": "meters",
+  "version": 2
+}
