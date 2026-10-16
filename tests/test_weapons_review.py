@@ -8,6 +8,7 @@ committed fixture packs: 7 records have confidence below 0.6, 6 sit exactly on 0
 
 from __future__ import annotations
 
+import html as _html
 import importlib.util
 import json
 import re
@@ -31,6 +32,7 @@ LOW_IDS = {
     "FAKE_SciFi/SM_Prop_Device_03", "FAKE_SciFi/SM_Wep_Blaster_01", "FAKE_SciFi/SM_Wep_Mystery_01",
     "FAKE_SciFi/SM_Wep_Plasma_Gun_02",
 }
+UNKNOWN_PISTOL = "FAKE_SciFi/SM_Wep_Pistol_01"
 TOKEN_AXE = "FAKE_Review/SM_Prop_Axe_Token_01"  # confidence exactly 0.60: not low
 
 
@@ -111,7 +113,9 @@ def world(tmp_path_factory):
     tmp = tmp_path_factory.mktemp("review")
     cat = H.make_catalogs(tmp)
     directory, excluded = H.build_and_write(cat, overrides=wfx.overrides_doc(
-        ids={"FAKE_Modern/SM_Wep_Pistol_01": {"confirm": True}, H.SWORD_02: {"set": {"genre": "scifi"}}}))
+        ids={"FAKE_Modern/SM_Wep_Pistol_01": {"confirm": True}, H.SWORD_02: {"set": {"genre": "scifi"}},
+             # two whole weapons the reviewer left at archetype unknown, at confidence 1.0: the Unknown section's content
+             H.SWORD_REVIEW: {"set": {"archetype": "unknown"}}, UNKNOWN_PISTOL: {"set": {"archetype": "unknown"}}}))
     wdir = cat / "weapons"
     with_icons = [H.SWORD_01, H.SWORD_02, "FAKE_Modern/SM_Wep_Pistol_01", H.SHIELD_SET[0], H.KNIFE_SET[0]]
     H.attach_icons(directory, wdir, with_icons)
@@ -155,11 +159,13 @@ def test_ac20_one_tile_per_record_and_per_excluded_row(world):
 
 def test_ac20_sections_come_in_the_spec_order(world):
     archetypes = sorted({w["archetype"] for w in world.directory["weapons"]
-                         if w["review"]["confidence"] >= 0.6 and w["archetype"] != "unknown"})
-    assert world.page.sections == ["sec-low", "sec-unknown", *[f"sec-archetype-{a}" for a in archetypes], "sec-excluded"]
+                         if w["review"]["confidence"] >= 0.6 and w["archetype"] != "unknown"
+                         and w["role"] not in ("part", "ammo", "carrier")})
+    assert world.page.sections == ["sec-low", "sec-unknown", *[f"sec-archetype-{a}" for a in archetypes],
+                                   "sec-role-part", "sec-role-ammo", "sec-role-carrier", "sec-excluded"]
     assert len(archetypes) >= 30
-    assert [m for m in re.findall(r"<h2>([^<]+?) <span", world.text)][:2] == ["Low confidence", "Unknown"]
-    assert re.findall(r"<h2>([^<]+?) <span", world.text)[-1] == "Excluded"
+    titles = re.findall(r"<h2>([^<]+?) <span", world.text)
+    assert titles[:2] == ["Low confidence", "Unknown"] and titles[-4:] == ["Parts", "Ammo", "Carriers", "Excluded"]
 
 
 def test_ac20_the_low_confidence_section_holds_exactly_the_records_below_0_6(world):
@@ -173,12 +179,52 @@ def test_ac20_the_low_confidence_section_holds_exactly_the_records_below_0_6(wor
     assert len(at_edge) == 7 and not any(w["id"] in low for w in at_edge)
 
 
-def test_ac20_unknown_holds_the_unknown_archetypes_that_are_not_low(world):
+def test_ac20_unknown_holds_only_whole_or_emplaced_weapons_of_archetype_unknown(world):
     unknown = set(tile_ids(world.page, "sec-unknown"))
-    want = {w["id"] for w in world.directory["weapons"]
-            if w["archetype"] == "unknown" and w["review"]["confidence"] >= 0.6}
-    assert unknown == want and len(unknown) == 25
+    assert unknown == {H.SWORD_REVIEW, UNKNOWN_PISTOL}  # literals: the two overridden records
+    role = {w["id"]: w["role"] for w in world.directory["weapons"]}
+    assert {role[i] for i in unknown} <= {"whole", "emplaced"}
     assert unknown.isdisjoint(LOW_IDS)
+
+
+def test_a_part_ammo_or_carrier_of_archetype_unknown_lands_in_its_role_section_not_in_unknown(world):
+    by_id = {w["id"]: w for w in world.directory["weapons"]}
+    sections = {"part": "sec-role-part", "ammo": "sec-role-ammo", "carrier": "sec-role-carrier"}
+    counts = {"part": 14, "ammo": 7, "carrier": 4}  # literals about the fixture packs (all at confidence >= 0.6)
+    for role, sec in sections.items():
+        ids = tile_ids(world.page, sec)
+        assert len(ids) == counts[role], role
+        assert all(by_id[i]["role"] == role and by_id[i]["review"]["confidence"] >= 0.6 for i in ids)
+        assert {by_id[i]["archetype"] for i in ids} == {"unknown"}  # they would all have been flooding Unknown
+    assert "FAKE_Fantasy/SM_Wep_Arrow_01" in tile_ids(world.page, "sec-role-ammo")
+    assert "FAKE_Fantasy/SM_Wep_Quiver_01" in tile_ids(world.page, "sec-role-carrier")
+    assert "FAKE_Fantasy/SM_Wep_Sword_Hilt_01" in tile_ids(world.page, "sec-role-part")
+    assert not any(by_id[i]["role"] in sections for i in tile_ids(world.page, "sec-unknown"))
+    # a part below 0.6 stays in Low confidence: one tile per record, the first section that applies
+    low_roles = {by_id[i]["role"] for i in tile_ids(world.page, "sec-low")}
+    assert "whole" in low_roles
+
+
+def test_the_jump_nav_counts_every_section_including_the_role_sections(world):
+    nav = re.search(r'<nav class="jump">(.*?)</nav>', world.text, re.S).group(1)
+    links = re.findall(r'<a href="#([^"]+)"[^>]*>([^<]+) \((\d+)\)</a>', nav)
+    assert [l[0] for l in links] == world.page.sections
+    counts = {sid: int(n) for sid, _, n in links}
+    for sid in world.page.sections:
+        assert counts[sid] == len(tile_ids(world.page, sid)), sid
+    assert (counts["sec-low"], counts["sec-unknown"], counts["sec-role-part"], counts["sec-role-ammo"],
+            counts["sec-role-carrier"], counts["sec-excluded"]) == (7, 2, 14, 7, 4, 22)
+    assert ("Parts", "14") in [(t, n) for _, t, n in links]
+
+
+def test_every_record_tile_shows_its_role_as_a_chip(world):
+    roles = {w["id"]: w["role"] for w in world.directory["weapons"]}
+    tiles = re.findall(r'<article class="tile" [^>]*data-id="([^"]*)"[^>]*>(.*?)</article>', world.text, re.S)
+    assert len(tiles) == len(roles)
+    for rid, body in tiles:
+        chip = re.search(r'<span class="tag role">([^<]+)</span>', body)
+        assert chip and chip.group(1) == roles[_html.unescape(rid)], rid
+    assert {r for r in roles.values()} == {"whole", "part", "ammo", "carrier", "emplaced"}
 
 
 def test_ac20_each_archetype_section_holds_only_its_archetype(world):
@@ -340,9 +386,9 @@ def test_only_unreviewed_drops_reviewed_and_overridden_records(world, tmp_path):
     page = Page(write_review_page(world.directory, tmp_path / "r", only_unreviewed=True, excluded=world.excluded,
                                   base_dir=world.wdir).read_text(encoding="utf-8"))
     ids = set(tile_ids(page))
-    assert "FAKE_Modern/SM_Wep_Pistol_01" not in ids and H.SWORD_02 not in ids  # reviewed / overridden
+    assert {"FAKE_Modern/SM_Wep_Pistol_01", H.SWORD_02, H.SWORD_REVIEW, UNKNOWN_PISTOL}.isdisjoint(ids)  # reviewed / overridden
     assert H.SWORD_01 in ids
-    assert len(ids) == len(world.directory["weapons"]) - 2 + 22  # excluded rows are not filtered
+    assert len(ids) == len(world.directory["weapons"]) - 4 + 22  # excluded rows are not filtered
 
 
 def test_max_confidence_and_pack_filters(world, tmp_path):
