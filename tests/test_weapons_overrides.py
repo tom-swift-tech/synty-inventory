@@ -275,12 +275,15 @@ def test_strict_turns_stale_overrides_into_exit_3(tmp_path, monkeypatch, capsys)
 
 # --- file validation ---------------------------------------------------------------------------------------
 
-def test_committed_override_file_is_valid_and_empty():
-    path = ovr.default_overrides_path()
+def test_committed_override_file_is_valid_sorted_and_lf():
+    # read by path: the autouse fixture in conftest points ``default_overrides_path`` at an empty file for every test
+    path = Path(__file__).resolve().parents[1] / "src" / "synty_inventory" / "data" / "weapon_overrides.json"
     raw = path.read_bytes().replace(b"\r\n", b"\n")  # an autocrlf checkout holds CRLF
     assert raw.endswith(b"\n")
-    doc = ovr.load_overrides()
-    assert doc == {"schema": "weapon-overrides/1", "ids": {}, "globs": {}}
+    doc = json.loads(raw)
+    assert ovr.validate_overrides(doc) == []
+    assert doc["schema"] == "weapon-overrides/1"
+    assert raw.decode("utf-8") == json.dumps(doc, indent=2, sort_keys=True) + "\n"  # machine-merged format (spec 3.9)
 
 
 @pytest.mark.parametrize(

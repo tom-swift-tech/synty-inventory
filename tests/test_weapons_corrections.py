@@ -344,6 +344,10 @@ def test_apply_corrections_is_pure_and_returns_warnings():
     assert again == new
 
 
+_REAL_OVERRIDES = Path(__file__).resolve().parents[1] / "src" / "synty_inventory" / "data" / "weapon_overrides.json"
+_REAL_OVERRIDES_AT_IMPORT = _REAL_OVERRIDES.read_bytes()
+
+
 def test_the_committed_overrides_file_is_not_touched_by_these_tests():
-    real = Path(__file__).resolve().parents[1] / "src" / "synty_inventory" / "data" / "weapon_overrides.json"
-    assert json.loads(real.read_text(encoding="utf-8")) == wfx.overrides_doc()
+    # compared with its bytes when this module was imported (the module's other tests have run by now)
+    assert _REAL_OVERRIDES.read_bytes() == _REAL_OVERRIDES_AT_IMPORT

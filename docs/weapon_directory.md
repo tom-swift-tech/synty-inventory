@@ -705,7 +705,7 @@ classification upstream.
 > **PATCH (W2e, 2026-10-16): two id-only entry fields.** (1) `forward`: a signed axis (`"+z"`) that replaces the
 > measured forward SIGN of that one record, for the few weapons whose pivot or sections decide wrongly and that no
 > shape rule can fix (the live set: 3 rocket launchers and 3 siege engines, each judged by eye). Its axis must equal
-> the measured forward axis (the long axis); a different axis is rejected with a warning in `report.warnings`
+> the measured forward axis (the long axis; for a bow the depth axis, `forward` being the arrow direction); a different axis is rejected with a warning in `report.warnings`
 > and not applied. The record gets `geometry.axes.forward_source = "override"` (new value), loses the
 > `forward_by_fallback` flag and the `axes_unexpected` reason that this measurement would have added, and its
 > `butt`, `tip`, `muzzle` and `item_basis` follow the overridden sign. The geometry cache fingerprint includes the

@@ -17,6 +17,21 @@ from pathlib import Path
 
 import pytest
 
+@pytest.fixture(autouse=True)
+def _empty_weapon_overrides(tmp_path_factory, monkeypatch):
+    """The committed ``weapon_overrides.json`` holds real ids of the live library (forward fixes, caps, excludes).
+    Fixture catalogs are synthetic, so every test that does not name its own overrides file starts from an empty one.
+    A test that patches ``default_overrides_path`` itself (later patch wins) or reads the committed file by path is
+    unaffected."""
+    try:
+        from synty_inventory.weapons import overrides as ovr
+    except ImportError:  # a checkout without the weapons package
+        return
+    path = tmp_path_factory.mktemp("empty_overrides") / "weapon_overrides.json"
+    path.write_text('{"globs": {}, "ids": {}, "schema": "weapon-overrides/1"}' + chr(10), encoding="utf-8")
+    monkeypatch.setattr(ovr, "default_overrides_path", lambda: path)
+
+
 PYTEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".pytest_tmp"
 PRUNE_AFTER_S = 24 * 3600
 

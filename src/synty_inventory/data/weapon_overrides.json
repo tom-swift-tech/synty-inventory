@@ -1,5 +1,83 @@
 {
- "globs": {},
- "ids": {},
- "schema": "weapon-overrides/1"
+  "globs": {},
+  "ids": {
+    "POLYGON_Apocalypse/SM_Wep_RocketLauncher_01": {
+      "confidence_cap": 0.55,
+      "note": "direction ambiguous (pivot says -z, convention says +z); for Tom to confirm in review"
+    },
+    "POLYGON_Apocalypse/SM_Wep_Veh_Rocket_Launcher_01": {
+      "confidence_cap": 0.55,
+      "note": "direction ambiguous (pivot says -z, convention says +z); for Tom to confirm in review"
+    },
+    "POLYGON_Apocalypse_Wasteland/SM_Wep_RPG_01": {
+      "forward": "+z",
+      "note": "forward: warhead/muzzle end is +z; visual check 2026-10-16: the pivot/section sign points at the stock; no shape rule separates it"
+    },
+    "POLYGON_Dark_Fortress/SM_Prop_Ballista_01": {
+      "confidence_cap": 0.55,
+      "note": "siege engine facing ambiguous in the icon; for Tom to confirm in review"
+    },
+    "POLYGON_Dark_Fortress/SM_Prop_Ballista_Harpoon_01": {
+      "forward": "+z",
+      "note": "forward: the spear head is +z; visual check 2026-10-16"
+    },
+    "POLYGON_Fantasy_Kingdom/SM_Wep_Ballista_Mobile_01": {
+      "forward": "+z",
+      "note": "forward: bolt head end is +z (winch at the rear); visual check 2026-10-16"
+    },
+    "POLYGON_Fantasy_Kingdom/SM_Wep_Ballista_Mounted_01": {
+      "forward": "+z",
+      "note": "forward: bolt head end is +z (winch at the rear); visual check 2026-10-16"
+    },
+    "POLYGON_Goblin_War_Camp/SM_Veh_Ballista_01": {
+      "confidence_cap": 0.55,
+      "note": "siege engine facing ambiguous in the icon; for Tom to confirm in review"
+    },
+    "POLYGON_War/SM_Bld_Bunker_Gun_01": {
+      "exclude": true,
+      "note": "building piece (concrete bunker), not a carried or aimable weapon"
+    },
+    "POLYGON_War/SM_Bld_Bunker_Gun_Damaged_01": {
+      "exclude": true,
+      "note": "building piece (concrete bunker), not a carried or aimable weapon"
+    },
+    "POLYGON_War/SM_Bld_Bunker_Gun_Grass_Mounds_01": {
+      "exclude": true,
+      "note": "building piece (concrete bunker), not a carried or aimable weapon"
+    },
+    "POLYGON_War/SM_Wep_American_HeavyMachineGun_Tripod_01": {
+      "note": "a tripod mount: no direction of its own",
+      "set": {
+        "component": "misc",
+        "role": "part"
+      }
+    },
+    "POLYGON_War/SM_Wep_American_RocketLauncher_01": {
+      "confidence_cap": 0.55,
+      "note": "direction ambiguous (pivot says -z, convention says +z); for Tom to confirm in review"
+    },
+    "POLYGON_War/SM_Wep_German_RocketLauncher_01": {
+      "forward": "+z",
+      "note": "forward: warhead/muzzle end is +z; visual check 2026-10-16: the pivot/section sign points at the stock; no shape rule separates it"
+    },
+    "POLYGON_War/SM_Wep_German_RocketLauncher_Missile_01": {
+      "forward": "+z",
+      "note": "forward: warhead/muzzle end is +z; visual check 2026-10-16: the pivot/section sign points at the stock; no shape rule separates it"
+    },
+    "POLYGON_War_Map/SM_Wep_British_HeavyMachineGun_Tripod_01": {
+      "note": "a tripod mount: no direction of its own",
+      "set": {
+        "component": "misc",
+        "role": "part"
+      }
+    },
+    "POLYGON_War_Map/SM_Wep_German_HeavyMachineGun_Tripod_01": {
+      "note": "a tripod mount: no direction of its own",
+      "set": {
+        "component": "misc",
+        "role": "part"
+      }
+    }
+  },
+  "schema": "weapon-overrides/1"
 }
