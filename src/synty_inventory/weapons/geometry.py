@@ -46,6 +46,16 @@ _MUZZLE_MIN_POINTS = 3
 _MUZZLE_HEIGHT_FRAC = 0.75
 _OUTSIDE_EPS = 1e-4  # the origin counts as inside the AABB within the rounding unit
 _HEADED = ("axe", "mace", "hammer", "club")  # the larger end is the working end; every other archetype is pointed
+# shield front face (spec 3.5.2 item 4): which side of the face normal is the outer face
+_WELD_M = 1e-4  # vertices closer than this share a component (the GLB splits vertices at UV / normal seams)
+_STRAP_MAX_AREA = 0.10  # a strap / handle is a small piece: at most 10 % of the surface area
+_STRAP_ASPECT = 3.0  # ... elongated across the face (long lateral extent >= 3x the short one)
+_STRAP_STANDOFF = 1.5  # ... and stands off the plate (extent along the normal >= 1.5x its short lateral extent)
+_STRAP_OFFSET = 0.12  # ... with its centre >= 12 % of the thickness off the plate's mid-plane
+_STRAP_MIN_AREA = 0.02  # the biggest strap piece must reach 2 % of the surface to count
+_STRAP_MARGIN = 1.1  # ... and beat the biggest piece on the other side by 10 %
+_DISH_RIM_R, _DISH_CENTRE_R = 0.75, 0.40  # normalised elliptical radius of the rim / centre zones
+_DISH_MIN = 0.03  # |centre - rim| along the normal, as a share of the thickness, that counts as a dish
 
 
 # -- small helpers ---------------------------------------------------------------------------------------
@@ -139,8 +149,9 @@ def _collision(name: str) -> bool:
     return bool(SKIP_STEM_RE.search(name or ""))
 
 
-def _decode(path: Path, glb_node: NodeSel, scale: float) -> tuple[np.ndarray, int] | None:
-    """(vertices [N,3], triangle count) or None. A tiny memo lets the pass-2 re-measure skip a second decode."""
+def _decode(path: Path, glb_node: NodeSel, scale: float) -> tuple[np.ndarray, int, np.ndarray] | None:
+    """(vertices [N,3], triangle count, triangle indices [M,3]) or None. A tiny memo lets the pass-2 re-measure skip a
+    second decode."""
     try:
         st = path.stat()
     except OSError:
@@ -155,7 +166,7 @@ def _decode(path: Path, glb_node: NodeSel, scale: float) -> tuple[np.ndarray, in
         if len(verts) and len(tris) and np.isfinite(verts).all():
             verts = np.asarray(verts, dtype=np.float64)
             verts.flags.writeable = False
-            out = (verts, int(len(tris)))
+            out = (verts, int(len(tris)), np.asarray(tris, dtype=np.int64))
     if len(_DECODE_MEMO) >= _DECODE_MEMO_MAX:
         _DECODE_MEMO.pop(next(iter(_DECODE_MEMO)))
     _DECODE_MEMO[key] = out
@@ -215,6 +226,91 @@ def _section_sign(v: np.ndarray, axis: int, lo: float, size: float, headed: bool
         return 1
     tip_is_hi = (a_hi > a_lo) if headed else (a_hi < a_lo)
     return 1 if tip_is_hi else -1
+
+
+def _weld_components(v: np.ndarray, tris: np.ndarray) -> np.ndarray:
+    """Connected-component id per triangle. Vertices are welded by position first (``_WELD_M``): the GLB duplicates
+    vertices along UV and normal seams, so index adjacency alone would shred every plate into pieces. Ids are the
+    smallest welded-vertex index in the component, so they are stable for a given mesh."""
+    key = np.round(v / _WELD_M).astype(np.int64)
+    _, inv = np.unique(key, axis=0, return_inverse=True)
+    t = inv.ravel()[tris]
+    parent = list(range(int(t.max()) + 1))
+
+    def find(a: int) -> int:
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    for a, b, c in t.tolist():
+        for x, y in ((a, b), (b, c)):
+            rx, ry = find(x), find(y)
+            if rx != ry:
+                parent[max(rx, ry)] = min(rx, ry)
+    return np.array([find(a) for a in t[:, 0].tolist()], dtype=np.int64)
+
+
+def _shield_front_sign(v: np.ndarray, tris: np.ndarray, normal: int) -> tuple[int, str | None]:
+    """Which side of the face normal is the shield's outer face: ``(+1 | -1, signal)`` or ``(0, None)`` (spec 3.5.2
+    item 4). Chosen against a visual check of real shields from many packs, because the origin alone is right for
+    only about two thirds of them. Two signals, in priority order:
+
+    1. ``strap``: the arm straps / handles are small, elongated pieces that stand off the BACK of the plate (the
+       boss, studs and cross-bars on the front are flat or round, so they fail the elongation / stand-off tests).
+       The side holding the biggest such piece is the back.
+    2. ``dish``: a shield is convex toward the front. The largest component's centre sits further along the front
+       normal than its rim (the component excludes the straps, which would drag the centre the wrong way).
+    """
+    mn, mx = v.min(axis=0), v.max(axis=0)
+    size = mx - mn
+    thick = float(size[normal])
+    lat = [i for i in range(3) if i != normal]
+    p = v[tris]
+    area = 0.5 * np.linalg.norm(np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0]), axis=1)
+    total = float(area.sum())
+    if thick <= 1e-9 or total <= 1e-12:
+        return 0, None
+    comp = _weld_components(v, tris)
+    ids = np.unique(comp)  # sorted: the largest component is the lowest id among equals
+    shares = np.array([area[comp == c].sum() / total for c in ids])
+    main = int(ids[int(np.argmax(shares))])
+    boxes = {}
+    for c in ids:
+        pts = p[comp == c].reshape(-1, 3)
+        boxes[int(c)] = (pts.min(axis=0), pts.max(axis=0))
+    main_mid = 0.5 * (boxes[main][0][normal] + boxes[main][1][normal])
+    side_max = {1: 0.0, -1: 0.0}  # the largest strap candidate on each side of the main plate
+    for c, share in zip(ids, shares):
+        c = int(c)
+        if c == main or share > _STRAP_MAX_AREA:
+            continue
+        lo, hi = boxes[c]
+        ext = hi - lo
+        short, long_ = sorted(float(e) for e in ext[lat])
+        if short <= 1e-6 or long_ < _STRAP_ASPECT * short or float(ext[normal]) < _STRAP_STANDOFF * short:
+            continue
+        off = (0.5 * (lo[normal] + hi[normal]) - main_mid) / thick
+        if abs(off) >= _STRAP_OFFSET:
+            side = 1 if off > 0 else -1
+            side_max[side] = max(side_max[side], float(share))
+    # the bigger single piece wins, not the bigger total: a ring of small spikes on the front (several pieces) must
+    # not outvote the one real handle behind
+    back = 1 if side_max[1] > side_max[-1] else -1
+    if side_max[back] >= _STRAP_MIN_AREA and side_max[back] >= _STRAP_MARGIN * side_max[-back]:
+        return -back, "strap"
+    # dish: area-weighted mean coordinate along the normal, centre zone minus rim zone of the main component
+    sel = comp == main
+    pts, w = p[sel].reshape(-1, 3), np.repeat(area[sel], 3)
+    centre = 0.5 * (mn + mx)
+    r = np.sqrt((((pts[:, lat] - centre[lat]) / np.maximum(size[lat] / 2.0, 1e-9)) ** 2).sum(axis=1))
+    rim, mid = r > _DISH_RIM_R, r < _DISH_CENTRE_R
+    if rim.any() and mid.any():
+        t = pts[:, normal]
+        dish = (float((t[mid] * w[mid]).sum() / w[mid].sum()) - float((t[rim] * w[rim]).sum() / w[rim].sum())) / thick
+        if abs(dish) >= _DISH_MIN:
+            return (1 if dish > 0 else -1), "dish"
+    return 0, None
 
 
 def _find_handle(v: np.ndarray, fa: int, fc: np.ndarray, fmin: float, flen: float):
@@ -278,7 +374,7 @@ def measure_weapon_detail(
             warning = f"{glb.name}: glb_node {glb_node!r} not found"
         return _fail([], warning)
     _, node_offset, transformed = _node_info(glb, glb_node, scale)
-    verts, n_tris = decoded
+    verts, n_tris, tris = decoded
     mn, mx = verts.min(axis=0), verts.max(axis=0)
     size = mx - mn
     if float(size.max()) <= 1e-9:
@@ -298,8 +394,16 @@ def measure_weapon_detail(
         longer = max(rest, key=lambda i: size[i])
         up_axis = 1 if (1 in rest and size[1] >= (1.0 - _TIE) * size[longer]) else longer
         long_axis = up_axis
-        fn = _frac(0.0, mn[normal], size[normal])
-        fa, fs, f_src = normal, (1 if fn < 0.5 else -1), "shield_rule"
+        # front face: measured straps / dish first; the origin ("sits near the arm face") only when neither decides
+        fs, signal = _shield_front_sign(verts, tris, normal)
+        if signal:
+            f_src = "shield_front"
+        else:
+            fn = _frac(0.0, mn[normal], size[normal])
+            # an origin in the middle band of the thickness says nothing (float noise would decide it): the tie goes
+            # to '+', as the other axis ties do
+            fs, f_src = (1 if (fn < 0.5 or abs(fn - 0.5) < _PIVOT_BAND - 1e-9) else -1), "shield_rule"
+        fa = normal
         ua, us, u_src = up_axis, 1, "shield_rule"
     else:
         default = 1 if kind in ("melee", "thrown") else 2
@@ -473,10 +577,13 @@ def save_cache(path: Path, cache: dict) -> None:
 def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict) -> str:
     # the measurement depends on the classification context, not only on the file (spec 3.5 says file + versions;
     # deviation reported): a rules or override change that flips archetype/kind/hold must not serve stale geometry
-    return digest({
+    fp = {
         "a": archetype, "k": kind, "r": role, "h": hold_class, "g": genre,
         "ax": rules.get("axes_expected"), "gp": rules.get("grip_proportion"),
-    })
+    }
+    if kind == "shield" or archetype == "shield":
+        fp["sf"] = 1  # shield front-face rule revision: entries measured with the origin-only rule are stale
+    return digest(fp)
 
 
 def measure_cached(

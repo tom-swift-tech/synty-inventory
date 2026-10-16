@@ -227,6 +227,40 @@ def shield():
     return merge(loft(2, [(0.0, 0.3, 0.4), (0.04, 0.3, 0.4)]), loft(2, [(0.04, 0.05, 0.05), (0.08, 0.05, 0.05)]))
 
 
+def _reorient(mesh, axes=(0, 1, 2), flip_z=False):
+    """Permute the axes (``axes[i]`` = the source axis that becomes axis i) and optionally mirror z, so one canonical
+    front-toward-+z shield yields the other orientations. The handedness change does not matter: the measurement
+    reads positions only."""
+    v = mesh[0][:, list(axes)].copy()
+    if flip_z:
+        v[:, 2] *= -1.0
+    return v, mesh[1]
+
+
+def shield_strapped():
+    """Canonical front-toward-+z shield with arm straps behind it: a flat plain plate x +-0.3, y +-0.4, z 0..0.04
+    (the front is z = 0.04) and two straps (x +-0.1 +- 0.015, y +-0.1) standing from the back face to z = -0.08.
+    The straps are separate pieces with their own vertices: elongated 6.7:1 across the face, 2.7x deeper than wide,
+    4.5 % of the surface each, centred 0.5 of the thickness behind the plate's mid-plane."""
+    plate = box((-0.3, -0.4, 0.0), (0.3, 0.4, 0.04))
+    straps = [box((cx - 0.015, -0.1, -0.08), (cx + 0.015, 0.1, 0.0)) for cx in (-0.1, 0.1)]
+    return merge(plate, *straps)
+
+
+def shield_dished():
+    """Canonical front-toward-+z shield that is only a convex dish: a pyramid on a 0.6 x 0.8 base at z = 0 with its
+    apex at z = 0.1 (centre of the dish 0.1 in front of the rim), no straps."""
+    return loft(2, [(0.0, 0.3, 0.4), (0.1, 0.0, 0.0)])
+
+
+def shield_strap_over_dish():
+    """Front-toward-+z by the straps, -z by the dish: the pyramid's apex points at -z (z = -0.1), and the straps
+    stand behind it too (z -0.14..-0.04). The straps are the stronger signal, so the front is +z."""
+    dish = loft(2, [(0.0, 0.3, 0.4), (-0.1, 0.0, 0.0)])
+    straps = [box((cx - 0.015, -0.1, -0.14), (cx + 0.015, 0.1, -0.04)) for cx in (-0.1, 0.1)]
+    return merge(dish, *straps)
+
+
 def zigzag():
     """Y-long club-like mesh whose width alternates 0.02 / 0.10 every centimetre: no 6 cm run stays near the p10
     extent, so handle detection finds nothing. y -0.15..0.35, origin 30 % from the butt."""
@@ -303,6 +337,14 @@ def generate_all(dest: Path) -> dict[str, Path]:
     put("spear", spear())
     put("bow", bow())
     put("shield", shield())
+    # shield fronts (spec 3.5.2 item 4): the origin sits on the FRONT side of the body (and so a pivot rule that
+    # points away from the origin would pick the back), one fixture per orientation of the face normal
+    put("shield_strap_pz", shifted(shield_strapped(), (0.0, 0.0, -0.04)))  # z -0.12..0 ; front +z
+    put("shield_strap_nz", shifted(_reorient(shield_strapped(), flip_z=True), (0.0, 0.0, 0.04)))  # z 0..0.12 ; front -z
+    put("shield_strap_px", shifted(_reorient(shield_strapped(), axes=(2, 1, 0)), (-0.04, 0.0, 0.0)))  # x -0.12..0 ; +x
+    put("shield_dish_pz", shifted(shield_dished(), (0.0, 0.0, -0.1)))  # z -0.1..0 ; front +z
+    put("shield_dish_nz", shifted(_reorient(shield_dished(), flip_z=True), (0.0, 0.0, 0.1)))  # z 0..0.1 ; front -z
+    put("shield_strap_over_dish", shield_strap_over_dish())  # z -0.14..0 ; front +z
     put("zlong_melee", sword(axis=2))
     put("zigzag", zigzag())
     put("origin_outside", shifted(gun(), (0.0, 0.5, 0.9)))
