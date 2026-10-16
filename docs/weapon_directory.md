@@ -113,7 +113,7 @@ violation in an input or output file.
 ```python
 # weapons/__init__.py
 WEAPON_VERSION = 1             # classification + hints; bump invalidates directory.json
-WEAPON_GEOMETRY_VERSION = 2    # geometry algorithm; bump invalidates _geometry_cache.json entries
+WEAPON_GEOMETRY_VERSION = 3    # geometry algorithm; bump invalidates _geometry_cache.json entries
 
 def build_directory(catalogs_dir: Path, *, packs: list[str] | None = None, rules: dict | None = None,
                     overrides: dict | None = None, measure: bool = True,
@@ -392,6 +392,24 @@ For a +Z-forward, +Y-up gun this is identical to sit_weapons' rule. AC12 holds t
   `grip` = the run's centre on the long axis, lateral coordinates = mean of the run's vertices; `grip_r_m` = mean(e)/2
   over the run; `grip_source: "handle"`. No run -> `grip` = origin projected onto the long axis,
   `grip_source: "pivot"`, `grip_r_m` = null.
+
+  > **PATCH (W2d, 2026-10-16): melee grip from the width profile.** Measured on the live set, 480 of ~775 melee records
+  > fell to the `pivot` fallback (222 of them with a handle shorter than 6 bins by this rule), because the width
+  > profile `e` was built from vertices only: a low-poly haft has bins holding one vertex or none, so `e` is 0 there,
+  > `p10(e)` is 0, the threshold collapses to 0 and no run qualifies. The rule is now:
+  > 1. `e(bin)` is taken over the surface, not the vertices: the points of a bin are the vertices plus points sampled
+  >    along every triangle edge at no more than 5 mm spacing. Bins with no points still inherit the previous bin.
+  > 2. Window: the butt-side 60 % of length, as before. Reference width `w_ref` = `p20(e)` over the window, floored
+  >    at 3 mm. A bin is thin when `e <= 1.3 * w_ref`.
+  > 3. A run of thin bins counts when it is at least `max(2 cm, min(6 cm, 0.2 * length))` long (so a 28 cm razor is
+  >    not required to carry a 6 cm handle).
+  > 4. The handle is the counting run NEAREST THE BUTT (not the longest): pommels and guards are wider, so the first
+  >    thin run from the butt is the hilt or haft the hand holds. The **grip span** is that run limited to its first
+  >    30 cm from the butt end of the run; `grip` is the centre of the grip span on the long axis, lateral
+  >    coordinates = mean of the surface points of the span, `grip_r_m` = mean(e)/2 over the span,
+  >    `grip_source = "handle"`.
+  > 5. No counting run -> the pivot fallback, unchanged. Geometry version 3.
+  > Accuracy gate (AC40): a labelled synthetic set, and a hand-checked live sample (percentile errors reported).
 - Ranged one_hand / long_gun: `grip` = the origin (`grip_source: "pivot"`): the survey shows the pivot at the
   pistol grip for guns (laterally centred, 17-35 % from the rear). `grip_r_m` = null. This is **assumption A-grip**
   (§8 NB-6), validated in build slice W2 against the hand-tuned `pos` values of the Synty Military guns that
@@ -946,6 +964,13 @@ Determinism, additivity, live gates
 - AC37. `export --engine threejs` keeps `files.glb_scale` when the record has it, and `validate --snapshot` accepts it
   under the glb engine filter and rejects it under `--engine godot`/`unity` snapshots. Test on a fixture record with a
   non-1.0 `glb_scale`.
+- AC40. Melee grip. On a labelled synthetic set of at least 12 meshes (sword with pommel, guard and blade; axe; hammer;
+  club/bat tapered to a thin butt; crowbar with hooked ends; short knife; a long spear/staff; a haft whose bins hold
+  one vertex or none; each also with the origin moved to the middle of its length) the grip lies inside the labelled
+  handle span for every mesh and `grip_source == "handle"`. On the live library, for a hand-checked sample of at least
+  10 mid-origin melee (crowbar, fire axe, machete, bat among them) the grip lies inside the hand-labelled span for at
+  least 9 of 10 and the distance outside it is reported at p50 / p90 / max; the live share of melee with
+  `grip_source == "handle"` is reported before and after (480 of 775 were `pivot`).
 - AC38. A fixture override `{"forward": "+z"}` on a record whose measured forward is `-z` yields `forward == "+z"`,
   `forward_source == "override"`, a muzzle at the `+z` end (ranged) and an `item_basis` equal to that of the same mesh
   measured with `+z` natively; the same override with the axis `+x` on a z-long mesh is not applied and appears in
