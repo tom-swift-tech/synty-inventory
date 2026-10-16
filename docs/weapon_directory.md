@@ -514,7 +514,8 @@ and 64 px PNGs to `DIR/<pack>/...` and rewrites `visuals.icon`/`thumb` to be rel
 `support`) through `item_basis` into the sit_weapons/sit_melee item frame (forward +Z, up +Y), sets
 `geometry.frame = "item"` and `generated_from.filter.frame = "item"`, and keeps `item_basis` so the consumer can rotate
 the *mesh* to match (the mesh itself is never modified or exported). The bake is a rotation (signed axis permutation)
-about the GLB scene origin; it adds no translation. Games are the export's only consumer, and `sit_armory` rejects a
+about the GLB scene origin; it adds no translation. `geometry.node_offset` is the one geometry field the bake does
+not touch (see §4.1). Games are the export's only consumer, and `sit_armory` rejects a
 snapshot whose frame is not `item` (its ARM_E05). `--frame asset` is opt-in: it leaves geometry in the asset-local
 space of the directory (`geometry.frame = "asset"`) with `axes` + `item_basis` for a consumer that rotates itself.
 `directory.json` always stores the asset frame; the frame is chosen only at export.
@@ -598,7 +599,8 @@ expressed in the **GLB scene space** that `sources.glb_geometry.load_triangles` 
 `bounds`), after `files.glb_scale`. They are not re-based to the node's own origin, so a node placed away from the
 scene origin has its pivot away from the weapon (`pivot_frac` and `origin_outside_bounds` report that honestly). For a
 single-name selection, `geometry.node_offset` holds the node's world translation so a consumer that instantiates the
-node on its own can subtract it; it is null for `glb_node` null or a list. A selected node with rotation or scale in
+node on its own can subtract it. `node_offset` is ALWAYS the node's GLB scene-space translation, unrotated and not
+item-baked, in both export frames: it describes the file, and a consumer rotates it itself (`item_basis * node_offset`); it is null for `glb_node` null or a list. A selected node with rotation or scale in
 its world transform is not item-baked: it gets reason `node_transform` and is left for review (assumption NB-15). The
 export's `--frame item` rotation applies to these points as to any other record; `item_basis` is computed from the
 scene-space axes. `shared_glb_node` is set on every record with a non-null `glb_node`.
@@ -854,7 +856,8 @@ Determinism, additivity, live gates
   AABB of node `Bow_B` alone, unchanged by the presence of the other node; a record with `glb_node: ["Bow_B",
   "Quiver_B"]` has the union AABB; a record with `glb_node: null` on a single-mesh GLB has the whole-file AABB;
   `node_offset` equals the node's world translation for the single-name record and is null for the list and null
-  cases; a node with a rotated world transform gets reason `node_transform`.
+  cases; a node with a rotated world transform gets reason `node_transform`; an item-frame export of the single-name record
+  leaves `node_offset` byte-equal to the asset-frame export (it is not rotated by `item_basis`).
 - AC35. Given fixture records of role `part`, `ammo`, `carrier` and archetype `unknown`, then `hints.quality_tier` is
   null for all four (and `hints.size_class` is still set where geometry exists); every `whole`/`emplaced` fixture with
   a known archetype, including one with `geometry: null`, has an integer `quality_tier` in 1-5.
@@ -977,3 +980,4 @@ GATE RESULT: PASS. Planning for W1-W5 may proceed.
 | C-14 | `files.glb_node` not defined | defined as null / node name / list of names in a shared GLB; geometry covers the selected node(s) in GLB scene space; `geometry.node_offset` for single-node records (§4.1) | shared bow GLBs and mech nodes |
 | C-15 | `hints.quality_tier` always an integer | int 1-5 or null; null iff role in part/ammo/carrier or archetype `unknown`; meaning "no suggestion" (§3.6) | records with no tier base |
 | C-16 | radii clamped | `grip_r_m` and `support_r_m` are unclamped measured facts; consumers cap them (§3.5.6) | measured facts stay raw |
+| C-17 | `node_offset` frame unspecified | `geometry.node_offset` is always the node's GLB scene-space translation, unrotated and not item-baked, in both export frames; consumers apply `item_basis * node_offset` themselves (§4.1, §3.10, AC34) | it describes the file, not the weapon |
