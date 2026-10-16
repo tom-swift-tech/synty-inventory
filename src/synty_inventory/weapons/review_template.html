@@ -44,6 +44,7 @@ section.sec h2 .n { color:var(--dim); font-weight:normal; font-size:13px; }
 .line { display:flex; flex-wrap:wrap; gap:4px; margin-top:3px; font-size:12px; }
 .tag { background:var(--card2); border-radius:4px; padding:1px 6px; }
 .tag.arch { color:var(--acc); }
+.tag.role { color:#c9a7ff; }
 .tag.conf-low { color:var(--bad); }
 .tag.conf-mid { color:var(--warn); }
 .tag.conf-ok { color:var(--ok); }
@@ -70,7 +71,8 @@ details.family .grid { margin-top:6px; }
   color:var(--fg); min-width:0; width:100%; }
 #panel .row { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; align-items:center; }
 #panel .fam { margin-top:8px; font-size:13px; display:flex; flex-direction:row; gap:6px; align-items:flex-start; color:var(--fg); }
-#panel .fam input { margin-top:3px; }
+#panel .fam input { margin:3px 0 0; width:auto; flex:none; }
+#panel .fam > span { flex:1; min-width:0; overflow-wrap:anywhere; }
 #panel textarea { width:100%; margin-top:8px; min-height:44px; padding:7px; border-radius:6px; background:var(--card);
   color:var(--fg); border:1px solid var(--line); }
 #panel .state { margin-top:6px; font-size:12px; color:var(--warn); }

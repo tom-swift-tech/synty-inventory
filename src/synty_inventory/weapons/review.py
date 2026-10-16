@@ -6,7 +6,10 @@ panel; it holds its state in a guarded ``localStorage``, makes no request of any
 reviewer downloads or copies a ``weapon-corrections/1`` file and runs ``weapons apply-corrections`` on it).
 
 Section placement (a record is on exactly one tile, so the placement is a precedence, not a filter):
-confidence < 0.6 -> **Low confidence**; else archetype ``unknown`` -> **Unknown**; else its archetype's section.
+confidence < 0.6 -> **Low confidence**; else role ``part`` / ``ammo`` / ``carrier`` -> **Parts** / **Ammo** /
+**Carriers** (an arrow or a holster is not an unclassified weapon, whatever its archetype); else archetype
+``unknown`` (whole or emplaced weapons only) -> **Unknown**; else its archetype's section. The section order is Low
+confidence, Unknown, the archetype sections (alphabetical), Parts, Ammo, Carriers, Excluded.
 Rejected candidates from ``excluded.json`` form the last section so a false rejection can be restored.
 """
 
@@ -36,6 +39,7 @@ from .classify import family_of
 from .cli import _catalogs, _csv, _emit, _guarded
 from .corrections import apply_corrections  # noqa: F401  (spec 3.3 lists it in this module's surface)
 
+ROLE_SECTIONS = (("part", "Parts"), ("ammo", "Ammo"), ("carrier", "Carriers"))  # role -> section title
 LOW_CONFIDENCE = 0.6  # review.confidence below this lands in the Low confidence section (spec 3.9)
 FAMILY_COLLAPSE_OVER = 12  # a family with more members than this in one section collapses to one tile
 TEMPLATE = Path(__file__).with_name("review_template.html")
@@ -125,7 +129,8 @@ def _record_tile(rec: dict, idx: int, globs: dict, base_dir: Path, out_dir: Path
     return (
         f'<article class="tile" role="button" tabindex="0" {attr_text}>{thumb}<div class="meta">'
         f'<div class="id">{_e(rec["id"])}</div><div class="line">'
-        f'<span class="tag arch">{_e(rec["archetype"])}</span><span class="tag">{_e(rec["genre"])}</span>'
+        f'<span class="tag role">{_e(rec["role"])}</span><span class="tag arch">{_e(rec["archetype"])}</span>'
+        f'<span class="tag">{_e(rec["genre"])}</span>'
         f'<span class="tag {_conf_class(rv["confidence"])}">{rv["confidence"]:.2f}</span>'
         f'<span class="tag status-{_e(rv["status"])}">{_e(rv["status"])}</span></div>'
         f'<div class="flags">{_e(flags) if flags else "&nbsp;"}</div></div></article>'
@@ -203,10 +208,14 @@ def write_review_page(
         and (max_confidence is None or w["review"]["confidence"] <= max_confidence)
     ]
     records.sort(key=lambda w: (w["genre"], w["family"], w["id"]))
+    role_titles = dict(ROLE_SECTIONS)
     buckets: dict[str, list[dict]] = {"low": [], "unknown": []}
+    by_role: dict[str, list[dict]] = {role: [] for role in role_titles}
     for w in records:
         if w["review"]["confidence"] < LOW_CONFIDENCE:
             buckets["low"].append(w)
+        elif w["role"] in by_role:
+            by_role[w["role"]].append(w)
         elif w["archetype"] == "unknown":
             buckets["unknown"].append(w)
         else:
@@ -222,13 +231,18 @@ def write_review_page(
     sections = [
         ("sec-low", "Low confidence", "confidence below 0.6", record_section(
             "sec-low", "Low confidence", "confidence below 0.6", buckets["low"]), len(buckets["low"])),
-        ("sec-unknown", "Unknown", "archetype unknown", record_section(
-            "sec-unknown", "Unknown", "archetype unknown", buckets["unknown"]), len(buckets["unknown"])),
+        ("sec-unknown", "Unknown", "whole weapons, archetype unknown", record_section(
+            "sec-unknown", "Unknown", "whole weapons, archetype unknown", buckets["unknown"]), len(buckets["unknown"])),
     ]
     for arch in sorted(a for a in buckets if a not in ("low", "unknown")):
         sid = f"sec-archetype-{arch}"
         sections.append((sid, arch, "archetype", record_section(sid, arch, "archetype", buckets[arch]),
                          len(buckets[arch])))
+
+    for role, title in ROLE_SECTIONS:
+        sid = f"sec-role-{role}"
+        sections.append((sid, title, f"role {role}", record_section(sid, title, f"role {role}", by_role[role]),
+                         len(by_role[role])))
 
     rows = [r for r in (excluded or {}).get("excluded", []) if not packs or r["id"].split("/", 1)[0] in packs]
     keyed = sorted(((r["reason"], family_of(r["id"].split("/", 1)[1], rules), r["id"], r) for r in rows),
