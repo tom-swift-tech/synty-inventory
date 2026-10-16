@@ -219,7 +219,13 @@ def cmd_validate(args, cfg) -> int:
     from .schema import validate_directory
 
     if args.snapshot:
-        return _error("not built in this checkout", EXIT_BAD_INPUT, verb="validate --snapshot")
+        from .export import validate_snapshot
+
+        if not Path(args.snapshot).is_file():
+            raise WeaponsError(f"snapshot file not found: {args.snapshot}", EXIT_BAD_INPUT)
+        errors = validate_snapshot(args.snapshot)
+        _emit({"ok": not errors, "snapshot": "invalid" if errors else "ok", "errors": errors})
+        return EXIT_SCHEMA if errors else EXIT_OK
     problems: dict[str, list] = {}
     rules = load_rules()  # SchemaError -> exit 6
     shadowed = shadowed_rules(rules)
