@@ -32,7 +32,8 @@ from . import (
     WEIGHT_CLASSES,
 )
 
-_ID_PATTERN = r"^[^/\s]+/[^/\s]+$"
+# <pack>/<asset_id>: the pack part has no whitespace; real Synty asset ids can contain spaces ("FX_Bullet_Trail 1")
+_ID_PATTERN = r"^[^/\s]+/[^/]+$"
 _HEX16 = r"^[0-9a-f]{16}$"
 
 
