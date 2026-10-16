@@ -272,7 +272,10 @@ def test_collision_hull_nodes_do_not_count(glbs, rules):
 def test_glb_scale_multiplies_every_point(glbs, rules):
     one = meas(glbs, rules, "sword", "sword", "melee")["geometry"]
     two = meas(glbs, rules, "sword", "sword", "melee", scale=2.0)["geometry"]
-    assert two["length_m"] == 2.0 and close(two["tip"], [0.0, 1.7, 0.0]) and close(two["grip"], [0.0, -0.02, 0.0])
+    # scale 2: handle rings -0.24..0.16 (bins 6-46 from the butt at -0.30; bin 6 is shared with the pommel's top ring, so
+    # the thin run starts at bin 7), the guard's bottom ring 0.18 is bin 48 and the empty bin 47 inherits: the run is bins
+    # 7-47 (41 bins), capped to its first 30 (7-36): grip = -0.30 + (7 + 15) cm = -0.08 (W2d; -0.02 before the cap)
+    assert two["length_m"] == 2.0 and close(two["tip"], [0.0, 1.7, 0.0]) and close(two["grip"], [0.0, -0.08, 0.0])
     assert one["pivot_frac"] == two["pivot_frac"] == 0.15
     assert two["grip_r_m"] == 0.03
 
@@ -325,13 +328,25 @@ def test_ac13_axe_handle_is_in_the_butt_side_shaft(glbs, rules):
     geo = meas(glbs, rules, "axe", "axe", "melee")["geometry"]
     assert geo["grip_source"] == "handle"
     assert -0.45 <= geo["grip"][1] <= 0.09  # butt-side 60 % of 0.9 m
+    # the shaft is one run of 54 bins from the butt; the grip is the first 30 cm of it (W2d): -0.45 + 0.15
+    assert abs(geo["grip"][1] - (-0.30)) <= 0.001
     assert abs(geo["grip_r_m"] - 0.015) <= 0.005
 
 
 def test_ac13_a_mesh_with_no_qualifying_run_grips_at_the_pivot(glbs, rules):
-    geo = meas(glbs, rules, "zigzag", "club", "melee")["geometry"]
+    # banded: 60 % thin bins in the window, but only in runs of 3 (< 6 cm); origin at the butt
+    geo = meas(glbs, rules, "banded", "club", "melee")["geometry"]
     assert geo["grip_source"] == "pivot" and geo["grip_r_m"] is None
     assert close(geo["grip"], [0.0, 0.0, 0.0])
+
+
+def test_w2d_zigzag_is_one_thin_run_because_the_edges_fill_the_bins(glbs, rules):
+    """The rings alternate 0.02 / 0.10 wide, but the edges between them cross every bin: the surface profile is 0.092 /
+    0.100, within 30 % of its p20, so the whole window is one run (the vertex-only profile said 'no handle')."""
+    geo = meas(glbs, rules, "zigzag", "club", "melee")["geometry"]
+    assert geo["grip_source"] == "handle" and abs(geo["grip_r_m"] - 0.048) <= 0.001
+    # window 30 bins from the butt at -0.15, run capped to its first 30: centre -0.15 + 0.15
+    assert abs(geo["grip"][1] - 0.0) <= 0.001
 
 
 def test_guns_grip_at_the_origin_and_shields_and_bows_at_the_centre(glbs, rules):
@@ -389,6 +404,118 @@ def test_ac15_a_zero_extent_mesh_is_degenerate(glbs, rules):
     assert d["geometry"] is None and set(d["reasons"]) == {"degenerate", "no_geometry"}
 
 
+# --- AC40: melee grip from the surface width profile (W2d) -----------------------------------------------------
+
+# The labelled set is make_glbs.W2D_SET (ten meshes, each labelled with literals: the handle span, the radius and the
+# hand-worked grip), measured with the origin at the butt, at 20 % of the length and at the middle of the length. At the
+# middle the pivot rule is silent, so the forward sign comes from the end-section rule: every set member has a tip clearly
+# smaller than its butt (pointed archetypes) or a head clearly larger (axe / hammer / club), and must still resolve to +y.
+
+
+@pytest.fixture(scope="module")
+def w2d(tmp_path_factory):
+    root = tmp_path_factory.mktemp("w2d")
+    out = {}
+    for name, (build, _arch, length, *_rest) in M.W2D_SET.items():
+        for origin, (frac, _src) in M.W2D_ORIGINS.items():
+            mesh = M.shifted(build(), (0.0, -frac * length, 0.0))
+            out[(name, origin)] = M.write_glb(root / f"{name}_{origin}.glb", [{"name": name, "mesh": mesh}])
+    return out
+
+
+def w2d_measure(w2d, rules, name, origin):
+    arch = M.W2D_SET[name][1]
+    return measure_weapon_detail(w2d[(name, origin)], None, 1.0, arch, "melee", "whole", rules, genre="fantasy")["geometry"]
+
+
+def test_ac40_the_set_has_at_least_twelve_labelled_meshes_and_covers_the_named_shapes():
+    assert len(M.W2D_SET) * len(M.W2D_ORIGINS) >= 12
+    assert {"sword", "axe", "hammer", "bat", "crowbar", "knife", "spear", "sparse_haft"} <= set(M.W2D_SET)
+    assert set(M.W2D_ORIGINS) == {"butt", "fifth", "mid"}
+
+
+@pytest.mark.parametrize("name", sorted(M.W2D_SET))
+@pytest.mark.parametrize("origin", sorted(M.W2D_ORIGINS))
+def test_ac40_the_grip_lies_in_the_labelled_handle_with_the_labelled_radius(w2d, rules, name, origin):
+    _build, _arch, length, (lo, hi), radius, grip_y = M.W2D_SET[name]
+    frac, forward_source = M.W2D_ORIGINS[origin]
+    geo = w2d_measure(w2d, rules, name, origin)
+    assert geo["axes"]["forward"] == "+y" and geo["axes"]["forward_source"] == forward_source
+    assert geo["grip_source"] == "handle"
+    y = geo["grip"][1] + frac * length  # back to the butt-at-zero frame the labels use
+    assert lo <= y <= hi
+    assert abs(y - grip_y) <= 0.0005  # the hand-worked centre of the first 30 cm of the run
+    assert abs(geo["grip_r_m"] - radius) <= 0.005
+    assert abs(geo["grip"][0]) <= 0.005 and abs(geo["grip"][2]) <= 0.005  # lateral: the mean of a symmetric surface
+
+
+def test_ac40_the_sparse_haft_really_has_at_most_one_vertex_per_bin():
+    """The premise of the fixture: the vertex-only profile of this haft is empty (0 in every bin), which is what broke
+    the old rule on the live low-poly hafts. Every 1 cm bin of the window holds at most one vertex."""
+    v, _ = M.sparse_haft()
+    window = v[v[:, 1] < 0.6]
+    bins = np.floor((window[:, 1] - v[:, 1].min()) / 0.01 + 1e-6).astype(int)
+    assert np.bincount(bins).max() == 1 and len(window) >= 20
+
+
+def test_ac40_the_handle_nearest_the_butt_beats_the_longest_run(w2d, rules):
+    """A short hilt, a wide guard and a LONGER thin tang, all e 0.03: the hand holds the hilt (bins 0-11), not the
+    22-bin tang run (bins 14-35 of the window), which would put the grip at 0.25."""
+    geo = w2d_measure(w2d, rules, "tang", "butt")
+    assert geo["grip_source"] == "handle"
+    assert abs(geo["grip"][1] - 0.06) <= 0.0005
+    assert abs(geo["grip"][1] - 0.25) > 0.15
+
+
+def test_ac40_the_grip_is_the_first_30_cm_of_a_long_run(w2d, rules):
+    """The 2 m spear's shaft is one 115-bin run from y 0.05; the grip is the centre of its first 30 cm, 15 cm along it
+    (y 0.20), not the centre of the run (0.625)."""
+    geo = w2d_measure(w2d, rules, "spear", "butt")
+    assert abs(geo["grip"][1] - 0.20) <= 0.0005
+    assert abs((geo["grip"][1] - 0.05) - 0.15) <= 0.0005
+    assert abs(geo["grip"][1] - 0.625) > 0.4
+
+
+def test_ac40_a_hair_thin_window_cannot_collapse_the_threshold(w2d, rules):
+    """The whip: a 1 mm filament fills over 20 % of the window, so p20 = 0.001; the 3 mm floor on w_ref keeps the 3.5 mm
+    grip wire (the run nearest the butt) thin, and it wins, not the filament run (grip 0.245)."""
+    geo = w2d_measure(w2d, rules, "wire", "butt")
+    assert geo["grip_source"] == "handle" and abs(geo["grip"][1] - 0.05) <= 0.0005
+    assert abs(geo["grip_r_m"] - 0.00175) <= 0.0005
+
+
+@pytest.mark.parametrize("length,handle_bins,counts", [
+    (0.28, 12, True),  # the knife of the set
+    (0.28, 6, True),  # 6 cm >= max(2, min(6, 0.2 * 28 = 5.6)) rounded up to 6 bins
+    (0.28, 5, False),  # 5 cm < 5.6 cm
+    (0.18, 5, True),  # minimum max(2, min(6, 3.6)) = 3.6 cm -> 4 bins (the old fixed 6 cm would reject it)
+    (0.18, 4, True),
+    (0.18, 3, False),  # 3 cm < 3.6 cm
+])
+def test_ac40_the_minimum_run_scales_with_a_short_blade(tmp_path, rules, length, handle_bins, counts):
+    path = M.write_glb(tmp_path / "blade.glb", [{"name": "b", "mesh": M.short_blade(length, handle_bins)}])
+    geo = measure_weapon_detail(path, None, 1.0, "knife", "melee", "whole", rules, genre="fantasy")["geometry"]
+    if counts:
+        assert geo["grip_source"] == "handle"
+        assert abs(geo["grip"][1] - handle_bins * 0.005) <= 0.0005  # centre of bins 0 .. handle_bins - 1
+        assert abs(geo["grip_r_m"] - 0.01) <= 0.005
+    else:
+        assert geo["grip_source"] == "pivot" and geo["grip_r_m"] is None  # origin at the butt: y 0
+        assert close(geo["grip"], [0.0, 0.0, 0.0])
+
+
+def test_ac40_measurements_are_byte_identical_and_chunking_does_not_change_them(w2d, rules, monkeypatch):
+    for name in sorted(M.W2D_SET):
+        a = json.dumps(w2d_measure(w2d, rules, name, "mid"), sort_keys=True)
+        b = json.dumps(w2d_measure(w2d, rules, name, "mid"), sort_keys=True)
+        assert a == b
+    # a tiny sample chunk walks the chunked path edge by edge: same bytes as the single chunk
+    whole = {n: json.dumps(w2d_measure(w2d, rules, n, "butt"), sort_keys=True) for n in sorted(M.W2D_SET)}
+    monkeypatch.setattr(G, "_SURFACE_CHUNK", 7)
+    for name, want in whole.items():
+        assert json.dumps(w2d_measure(w2d, rules, name, "butt"), sort_keys=True) == want
+
+
 # --- AC16: origin outside the AABB ---------------------------------------------------------------------------------
 
 def test_ac16_origin_outside_bounds_is_flagged_and_never_grips_at_the_pivot(glbs, rules):
@@ -404,7 +531,7 @@ def test_ac16_origin_outside_bounds_is_flagged_and_never_grips_at_the_pivot(glbs
 
 
 def test_ac16_a_melee_with_the_origin_outside_falls_to_the_handle_or_null(glbs, rules, tmp_path):
-    path = M.write_glb(tmp_path / "far_zigzag.glb", [{"name": "z", "mesh": M.shifted(M.zigzag(), (0.5, 0, 0))}])
+    path = M.write_glb(tmp_path / "far_banded.glb", [{"name": "z", "mesh": M.shifted(M.banded(), (0.5, 0, 0))}])
     d = measure_weapon_detail(path, None, 1.0, "club", "melee", "whole", rules, genre="fantasy")
     assert "origin_outside_bounds" in d["flags"]
     assert d["geometry"]["grip"] is None and d["geometry"]["grip_source"] is None
@@ -503,24 +630,24 @@ def test_cache_entry_is_keyed_on_file_version_and_classification_context(glbs, r
     assert was is False and again["geometry"]["length_m"] == 0.29
 
 
-def test_a_version_1_cache_entry_is_not_served_under_geometry_version_2(glbs, rules, monkeypatch):
-    """The v2 algorithm (bow belly rule, ranged section-sign convention, shield front) changes stored results, so an
-    entry written by v1 must be re-measured. The v1 entry is poisoned: serving it would be visible in the length."""
+def test_a_version_2_cache_entry_is_not_served_under_geometry_version_3(glbs, rules, monkeypatch):
+    """The v3 algorithm (melee grip from the surface width profile, W2d) changes stored grips, so an entry written by v2
+    must be re-measured. The v2 entry is poisoned: serving it would be visible in the length."""
     import synty_inventory.weapons as pkg
 
-    assert pkg.WEAPON_GEOMETRY_VERSION == 2  # a literal: the bump itself is under test
+    assert pkg.WEAPON_GEOMETRY_VERSION == 3  # a literal: the bump itself is under test
     root = glbs["sword"].parent
     args = (root, "sword.glb", None, 1.0, "sword", "melee", "whole", rules)
     cache: dict = {}
-    monkeypatch.setattr(pkg, "WEAPON_GEOMETRY_VERSION", 1)
+    monkeypatch.setattr(pkg, "WEAPON_GEOMETRY_VERSION", 2)
     old, was = measure_cached(*args, cache, genre="fantasy")
-    assert was is False and cache["sword.glb"]["version"] == 1
+    assert was is False and cache["sword.glb"]["version"] == 2
     cache["sword.glb"]["by_inputs"][next(iter(cache["sword.glb"]["by_inputs"]))]["geometry"]["length_m"] = 999.0
-    assert measure_cached(*args, cache, genre="fantasy")[1] is True  # still served under v1 ...
-    monkeypatch.undo()  # ... and the real constant (2) must not take it
+    assert measure_cached(*args, cache, genre="fantasy")[1] is True  # still served under v2 ...
+    monkeypatch.undo()  # ... and the real constant (3) must not take it
     fresh, was = measure_cached(*args, cache, genre="fantasy")
     assert was is False and fresh["geometry"]["length_m"] == 1.0
-    assert cache["sword.glb"]["version"] == 2
+    assert cache["sword.glb"]["version"] == 3
 
 
 def test_a_missing_file_is_not_cached_and_a_failure_is(glbs, rules, tmp_path):

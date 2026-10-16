@@ -83,10 +83,12 @@ def write_glb(path: Path, roots: list[dict]) -> Path:
 # -- shapes ----------------------------------------------------------------------------------------------
 
 
-def loft(axis: int, stations: list[tuple], step: float | None = None) -> tuple[np.ndarray, np.ndarray]:
+def loft(axis: int, stations: list[tuple], step: float | None = None, stagger: float = 0.0) -> tuple[np.ndarray, np.ndarray]:
     """A rectangular loft along ``axis``. A station is ``(pos, half_a, half_b[, centre_a, centre_b])`` over the two
     lateral axes in x,y,z order; ``half_a == half_b == 0`` makes an apex (one vertex). ``step`` inserts linearly
-    interpolated stations so a vertex exists at least every ``step`` metres (the handle detector bins at 1 cm)."""
+    interpolated stations so a vertex exists at least every ``step`` metres (the handle detector bins at 1 cm).
+    ``stagger`` slides corner ``k`` of every ring ``k * stagger`` along the axis, so a ring's four vertices fall in four
+    different bins (a vertex-sparse haft: see ``sparse_haft``)."""
     st = [tuple(s) + (0.0,) * (5 - len(s)) for s in stations]
     if step:
         dense = [st[0]]
@@ -102,9 +104,9 @@ def loft(axis: int, stations: list[tuple], step: float | None = None) -> tuple[n
     for pos, ha, hb, ca, cb in st:
         ids = []
         corners = [(-1, -1), (1, -1), (1, 1), (-1, 1)] if (ha or hb) else [(0, 0)]
-        for sa, sb in corners:
+        for k, (sa, sb) in enumerate(corners):
             p = [0.0, 0.0, 0.0]
-            p[axis], p[lat[0]], p[lat[1]] = pos, ca + sa * ha, cb + sb * hb
+            p[axis], p[lat[0]], p[lat[1]] = pos + k * stagger, ca + sa * ha, cb + sb * hb
             ids.append(len(verts))
             verts.append(p)
         rings.append(ids)
@@ -340,9 +342,154 @@ def shield_front_bar():
 
 
 def zigzag():
-    """Y-long club-like mesh whose width alternates 0.02 / 0.10 every centimetre: no 6 cm run stays near the p10
-    extent, so handle detection finds nothing. y -0.15..0.35, origin 30 % from the butt."""
+    """Y-long club-like mesh whose width alternates 0.02 / 0.10 every centimetre, y -0.15..0.35, origin 30 % from the
+    butt. Its VERTICES alternate, but the edges between the rings cross every bin, so the surface width profile sits at
+    0.092 / 0.100 and the whole window is one thin run: a handle under the W2d rule (it was 'no handle' under the
+    vertex-only rule). The mesh with no handle is ``banded``."""
     return loft(1, [(-0.15 + 0.01 * i, 0.01 if i % 2 == 0 else 0.05, 0.01) for i in range(51)])
+
+
+def bar(y0, y1, ha, hb, ca=0.0, cb=0.0):
+    """A y-long box section y0..y1 with half widths ``ha`` (x) and ``hb`` (z)."""
+    return loft(1, [(y0, ha, hb, ca, cb), (y1, ha, hb, ca, cb)])
+
+
+def banded():
+    """Y-long mesh with NO handle: ten periods of a 2.5 cm thin band (e 0.02) and a 1.5 cm fat band (e 0.10), butt at
+    y = 0, length 0.4995, origin at the butt. Each band is its own box, and its rings sit in the middle of the bins they
+    occupy (the 0.0505 period drifts 0.5 mm per band so no ring lies on a bin boundary): thin bands cover 3 bins, fat
+    bands 2, so 60 % of the window is thin (p20 = 0.02) but no thin run reaches the 6 cm minimum."""
+    parts = []
+    for k in range(10):
+        y = 0.0505 * k
+        parts.append(bar(y, y + 0.025, 0.01, 0.01))
+        parts.append(bar(y + 0.03, y + 0.045, 0.05, 0.01))
+    return merge(*parts)
+
+
+# -- the W2d melee grip set (AC40) -------------------------------------------------------------------------
+#
+# Ten Y-long melee meshes, butt at y = 0 and forward +y, each with a hand-labelled handle. Every transition ring sits in
+# the MIDDLE of a 1 cm bin (x.5 cm from the butt), the first section starts at the butt ring (y = 0), and no two
+# sections share a bin, so each bin is wholly one section and the handle run is read off the section table below
+# (bins are 1 cm from the butt: bin b = y in [b, b+1) cm). The labels are literals worked out by hand; ``W2D_SET`` below
+# is the table the tests read. Windows are the butt-side 60 % of the length; w_ref is p20 of the bin widths in it.
+#
+# Each mesh is used three ways (see ``W2D_ORIGINS``): the origin at the butt and at 20 % of the length (the pivot rule
+# gives forward +y), and at the middle of the length, where the pivot rule is silent and the forward sign comes from the
+# END-SECTION rule (smaller end = tip for a pointed archetype, larger end = head for axe / hammer / club / mace). So every
+# mesh carries a tip that is clearly smaller than its butt (pointed archetypes) or a head clearly larger than its butt
+# (headed ones), and the sign resolves to +y.
+
+
+def w2d_sword():
+    """L 1.0. Pommel bins 0-3 (e 0.05), HILT bins 4-20 (y 0.045..0.205, e 0.03), guard 21-23 (e 0.20), blade 24-98 (e 0.05,
+    to an apex at 1.0). Window 60 bins; 17 hilt bins >= 12 so p20 = 0.03 and the pommel and blade (0.05 > 0.039) are not
+    thin. Run bins 4-20 (17 bins, under the 30 cm cap): grip = (4 + 17 / 2) cm = 0.125, r 0.015."""
+    return merge(bar(0.0, 0.035, 0.025, 0.025), bar(0.045, 0.205, 0.015, 0.015), bar(0.215, 0.235, 0.1, 0.015),
+                 loft(1, [(0.245, 0.025, 0.004), (0.985, 0.025, 0.004), (1.0, 0.0, 0.0)]))
+
+
+def w2d_axe():
+    """L 0.9. HAFT bins 0-70 (e 0.03, y 0..0.705), head bins 71-90 (0.24 x 0.06). Window 54 bins, all haft: one run of 54,
+    capped to its first 30 bins: grip = 15 cm = 0.15, r 0.015. Headed: the head (+y) is the larger end."""
+    return merge(bar(0.0, 0.705, 0.015, 0.015), bar(0.715, 0.9, 0.12, 0.03))
+
+
+def w2d_hammer():
+    """L 0.4. HAFT bins 0-30 (e 0.03, y 0..0.305), head bins 31-40 (0.10 x 0.06). Window 24 bins, all haft: one run of 24
+    (under the cap): grip = 12 cm = 0.12, r 0.015."""
+    return merge(bar(0.0, 0.305, 0.015, 0.015), bar(0.315, 0.4, 0.05, 0.03))
+
+
+def w2d_bat():
+    """L 0.85. One taper, half width 0.012 at the butt to 0.035 at the head (e 0.024 .. 0.07); the bin width is that of its
+    top sample (corner edges sampled every 4.97 mm). Window 51 bins, w_ref = p20 = 0.0299, threshold 0.0389: bins 0-26 are
+    thin (bin 26 tops out at y 0.27: e 0.0388), bin 27 is not. Run bins 0-26 (27 bins): grip = 13.5 cm = 0.135, r
+    = mean(e) / 2 = 0.0158. Labelled handle: the butt 27 cm, y 0..0.27."""
+    return loft(1, [(0.0, 0.012, 0.012), (0.85, 0.035, 0.035)])
+
+
+def w2d_crowbar():
+    """L 0.8. Hook end at the butt bins 0-7 (0.06 x 0.03), SHAFT bins 8-71 (e 0.02, y 0.085..0.715), chisel bins 72-80
+    (0.04 x 0.008). Window 48 bins: 40 shaft bins, p20 = 0.02, hook (0.06) not thin. Run bins 8-47 (40), capped to bins
+    8-37: grip = (8 + 15) cm = 0.23, r 0.01. Archetype crowbar is pointed: the chisel (smaller section than the hook) is the
+    tip, so mid-origin resolves to +y."""
+    return merge(bar(0.0, 0.075, 0.03, 0.015), bar(0.085, 0.715, 0.01, 0.01), bar(0.725, 0.8, 0.02, 0.004))
+
+
+def short_blade(length, handle_bins):
+    """A y-long knife / dagger of the given ``length`` whose HANDLE fills bins 0..handle_bins-1 (e 0.02, y 0..(handle_bins -
+    0.5) cm), followed by a 2-bin guard (e 0.06) and a blade (e 0.04) to an apex at ``length``. The minimum run is
+    max(2, min(6, 0.2 * length)) cm rounded up to whole bins: 6 bins for a 28 cm knife (5.6 cm), 4 for an 18 cm dagger
+    (3.6 cm)."""
+    top = (handle_bins - 0.5) * 0.01
+    return merge(bar(0.0, top, 0.01, 0.01), bar(top + 0.01, top + 0.02, 0.03, 0.008),
+                 loft(1, [(top + 0.03, 0.02, 0.003), (length - 0.015, 0.02, 0.003), (length, 0.0, 0.0)]))
+
+
+def w2d_knife():
+    """L 0.28, ``short_blade(0.28, 12)``: HANDLE bins 0-11 (y 0..0.115, e 0.02), guard 12-13 (e 0.06), blade 14-26 (e 0.04).
+    Window 17 bins; 12 handle bins, p20 = 0.02, threshold 0.026. The run (12 bins) beats the minimum 5.6 cm -> 6 bins.
+    Grip = 6 cm = 0.06, r 0.01."""
+    return short_blade(0.28, 12)
+
+
+def w2d_spear():
+    """L 2.0. Ferrule bins 0-4 (e 0.05), SHAFT bins 5-190 (y 0.055..1.905, e 0.03), leaf head 191-199 (e 0.05, apex at 2.0).
+    Window 120 bins: shaft bins 5-119 are one run of 115, capped to its first 30 bins 5-34: grip = (5 + 15) cm = 0.20 (the
+    uncapped centre would be 0.625), r 0.015."""
+    return merge(bar(0.0, 0.045, 0.025, 0.025), bar(0.055, 1.905, 0.015, 0.015),
+                 loft(1, [(1.915, 0.025, 0.006), (1.97, 0.025, 0.006), (2.0, 0.0, 0.0)]))
+
+
+def sparse_haft():
+    """L 1.0 club. A 3 cm square haft made only of rings of 4 vertices every 12 cm, each ring's corners staggered 2.3 cm
+    along the axis (corner k at y = 0.12 i + 0.023 k, i = 0..7, last vertex 0.909), so every occupied bin holds ONE vertex
+    and the rest are empty: the vertex-only profile is 0 everywhere (the live failure), while the long edges still run
+    through every bin. Surface profile: bin 0 and 1 are partial (<0.03), bins 2.. are 0.03. Window 60 bins, p20 = 0.03,
+    one run of 60 capped to bins 0-29: grip = 15 cm = 0.15, r = mean(e) / 2 = 0.0146. Head: a 10 cm cube y 0.93..1.0."""
+    shaft = loft(1, [(0.12 * i, 0.015, 0.015) for i in range(8)], stagger=0.023)
+    return merge(shaft, bar(0.93, 1.0, 0.05, 0.05))
+
+
+def w2d_tang():
+    """L 0.6. HILT bins 0-11 (y 0..0.115, e 0.03), guard 12-13 (e 0.12), TANG bins 14-58 (0.03 x 0.01, to an apex at 0.6).
+    Window 36 bins: hilt 0-11 and tang 14-35 are both thin (e 0.03), the tang run (22 bins in the window) is LONGER than the
+    hilt (12). The handle is the one nearest the butt: bins 0-11, grip = 6 cm = 0.06, r 0.015 (the longest run would put the
+    grip at (14 + 11) cm = 0.25)."""
+    return merge(bar(0.0, 0.115, 0.015, 0.015), bar(0.125, 0.135, 0.06, 0.015),
+                 loft(1, [(0.145, 0.015, 0.005), (0.585, 0.015, 0.005), (0.6, 0.0, 0.0)]))
+
+
+def w2d_wire():
+    """L 0.6, a whip-like mesh that pins the 3 mm floor of w_ref: a 3.5 mm GRIP WIRE bins 0-9 (y 0..0.095), a 2 cm bead
+    bins 10-12, a 1 mm filament bins 13-60 (to y 0.6). Window 36 bins; 23 filament bins make p20 = 0.001, so only the
+    floor (w_ref = 0.003, threshold 0.0039) lets the 3.5 mm wire count as thin. With the floor: the nearest run is the wire,
+    bins 0-9, grip = 5 cm = 0.05, r 0.00175. With no floor the threshold is 0.0013 and the filament run (bins 13-35,
+    grip 0.245) wins. This is the only honest way to reach the floor: it needs >= 20 % of the window thinner than 2.3 mm
+    ahead of a handle thicker than that, which no hand-held shaft is, but a whip's lash is."""
+    return merge(bar(0.0, 0.095, 0.00175, 0.00175), bar(0.105, 0.125, 0.01, 0.01), bar(0.135, 0.6, 0.0005, 0.0005))
+
+
+# Origins used for every set member: fraction of the length from the butt, and the forward source it must give.
+W2D_ORIGINS = {"butt": (0.0, "pivot"), "fifth": (0.2, "pivot"), "mid": (0.5, "section")}
+
+# name -> (builder, archetype, length, handle span (lo, hi) in y from the butt, handle radius, grip y from the butt).
+# The span is the labelled hand-holdable part (the whole haft / hilt / shaft); the grip y is the hand-worked centre of the
+# first 30 cm of the handle run (docstrings above).
+W2D_SET = {
+    "sword": (w2d_sword, "sword", 1.0, (0.045, 0.205), 0.015, 0.125),
+    "axe": (w2d_axe, "axe", 0.9, (0.0, 0.705), 0.015, 0.15),
+    "hammer": (w2d_hammer, "hammer", 0.4, (0.0, 0.305), 0.015, 0.12),
+    "bat": (w2d_bat, "club", 0.85, (0.0, 0.27), 0.0158, 0.135),
+    "crowbar": (w2d_crowbar, "crowbar", 0.8, (0.085, 0.715), 0.01, 0.23),
+    "knife": (w2d_knife, "knife", 0.28, (0.0, 0.115), 0.01, 0.06),
+    "spear": (w2d_spear, "spear", 2.0, (0.055, 1.905), 0.015, 0.2),
+    "sparse_haft": (sparse_haft, "club", 1.0, (0.0, 0.909), 0.015, 0.15),
+    "tang": (w2d_tang, "sword", 0.6, (0.0, 0.115), 0.015, 0.06),
+    "wire": (w2d_wire, "whip", 0.6, (0.0, 0.095), 0.00175, 0.05),
+}
 
 
 def shifted(mesh, offset):
@@ -439,6 +586,7 @@ def generate_all(dest: Path) -> dict[str, Path]:
     put("shield_front_bar", shield_front_bar())  # z 0..0.108 ; no handle: the origin decides, front +z
     put("zlong_melee", sword(axis=2))
     put("zigzag", zigzag())
+    put("banded", banded())
     put("origin_outside", shifted(gun(), (0.0, 0.5, 0.9)))
     put("degenerate", (np.zeros((3, 3)), np.array([[0, 1, 2]])))
     out["shared"] = write_glb(dest / "shared.glb", shared_roots())
