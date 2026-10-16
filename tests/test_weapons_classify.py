@@ -96,14 +96,17 @@ def test_classification_matches_every_label(built):
         assert sorted(rec["flags"]) == sorted(set(want["flags"]) | {"unmeasured"}), rec["id"]
 
 
-def test_w1_records_are_unmeasured_stubs(built):
+def test_records_without_a_threejs_root_are_unmeasured_stubs_with_archetype_hints(built):
+    # the `built` fixture passes no threejs_v2 root, so nothing can be measured; hints are still derived (W2)
     directory, _ = built
     for rec in directory["weapons"]:
         assert rec["geometry"] is None
         assert "unmeasured" in rec["flags"]
         assert "no_geometry" in rec["review"]["reasons"]
-        assert rec["hints"] == {"size_class": None, "size_basis": None, "inventory_cells": None,
-                                "weight_class": None, "quality_tier": None, "ammo_family": None}
+        hints = rec["hints"]
+        assert hints["size_class"] is None and hints["size_basis"] is None and hints["inventory_cells"] is None
+        no_tier = rec["role"] in ("part", "ammo", "carrier") or rec["archetype"] == "unknown"
+        assert (hints["quality_tier"] is None) == no_tier, rec["id"]
 
 
 # --- AC4 ---------------------------------------------------------------------------------------------------

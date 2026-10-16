@@ -1,8 +1,9 @@
 """Role / kind / archetype / hold_class / genre / family / flags / confidence (spec 3.4.2-3.4.5).
 
-Pass 1 only (name + catalog signals). Pass 2 (measurement fallback, ``long_m`` rules, plausibility penalty) lands
-with geometry in W2; the hooks it needs (``long_m`` in the match context, ``min_length_m`` hold exceptions) are
-parsed here and simply never fire while no length is known.
+Pass 1 uses the name and catalog signals only. Pass 2 runs when ``classify`` is called again with ``measured=``
+(the geometry summary of ``geometry.pass2_inputs``): ``long_m`` rules may fill a still-unknown archetype at
+confidence <= 0.4, the ``min_length_m`` hold exceptions can fire, and the plausibility / forward-axis penalties
+join the confidence. Without ``measured`` nothing length-dependent fires.
 """
 
 from __future__ import annotations
@@ -130,14 +131,19 @@ def asset_flags(asset: dict, pack_id: str, rules: dict, candidate_source: str) -
     return sorted(flags)
 
 
-def derive_hold(role: str, kind: str | None, archetype: str, flags, gear_two_handed, rules: dict) -> str:
-    """hold_class from the archetype table + documented exceptions (spec 3.4.2)."""
+def derive_hold(
+    role: str, kind: str | None, archetype: str, flags, gear_two_handed, rules: dict, long_m: float | None = None
+) -> str:
+    """hold_class from the archetype table + documented exceptions (spec 3.4.2).
+
+    ``long_m`` is the measured length (pass 2); an exception with ``min_length_m`` needs it and is skipped without.
+    """
     if role != "whole" or "mech_scale" in flags or archetype == "unknown":
         return "none"
     hold = rules["hold_by_archetype"][archetype]
     for ex in rules.get("hold_exceptions") or ():
-        if "min_length_m" in ex:
-            continue  # needs a measured length: pass 2 (W2)
+        if "min_length_m" in ex and (long_m is None or long_m < ex["min_length_m"]):
+            continue
         if "archetypes" in ex and archetype not in ex["archetypes"]:
             continue
         if "kind" in ex and kind != ex["kind"]:
@@ -167,12 +173,14 @@ def classify(
     pack_setting: dict | None,
     *,
     candidate_source: str = "catalog",
+    measured: dict | None = None,
 ) -> dict:
     """Classify one candidate asset.
 
     Returns role, kind, archetype, hold_class, component, carrier, ammo, genre, genre_source, family, flags,
     confidence, matched_rule, status (auto|reviewed|overridden), provenance and reasons.
     ``candidate_source`` is an addition to the spec signature: the name_token confidence cap needs it.
+    ``measured`` (pass 2) is ``{'length_m', 'forward_by_fallback', 'axes_unexpected'}`` from the geometry pass.
     """
     asset_id = asset["id"]
     full_id = f"{pack_id}/{asset_id}"
@@ -186,8 +194,17 @@ def classify(
         "long_m": None,
         "asset_kind": asset.get("kind"),
     }
+    long_m = measured["length_m"] if measured else None
     matches = [r for r in rules["rules"] if match_conditions(r["match"], ctx)]
     first = matches[0] if matches else None
+    # pass 2: a still-unknown archetype may be filled by the first `long_m` rule that now matches (spec 3.4.2)
+    filled = False
+    if long_m is not None and (first is None or (first["set"]["role"] == "whole" and first["set"].get("archetype") in (None, "unknown"))):
+        ctx2 = {**ctx, "long_m": long_m}
+        fill = next((r for r in rules["rules"] if "long_m" in r["match"] and match_conditions(r["match"], ctx2)
+                     and r["set"]["role"] == "whole" and r["set"].get("archetype") not in (None, "unknown")), None)
+        if fill is not None:
+            first, matches, filled = fill, [fill], True
 
     if first is not None:
         s = first["set"]
@@ -205,6 +222,8 @@ def classify(
 
     flags = asset_flags(asset, pack_id, rules, candidate_source)
     prov = {"archetype": "rules", "kind": "rules", "hold_class": "rules"}
+    if filled:
+        prov["archetype"] = prov["kind"] = "measured"
 
     # genre: pack_settings, else the archetype table (spec 3.4.3)
     setting = (pack_setting or {}).get("setting")
@@ -247,7 +266,8 @@ def classify(
         if role == "part" and isinstance(set_.get("component"), dict):
             component = {"slot": set_["component"]["slot"], "fits": set_["component"].get("fits")}
 
-    hold = set_["hold_class"] if hold_overridden else derive_hold(role, kind, archetype, flags, ctx["gear_two_handed"], rules)
+    hold = (set_["hold_class"] if hold_overridden
+            else derive_hold(role, kind, archetype, flags, ctx["gear_two_handed"], rules, long_m))
     if hold_overridden:
         prov["hold_class"] = "override"
 
@@ -261,8 +281,18 @@ def classify(
             la = later["set"].get("archetype")
             if la not in (None, "unknown") and la != first["set"]["archetype"]:
                 conf -= 0.10
+    if measured and role in ("whole", "emplaced"):
+        lo_hi = (rules.get("plausible_length_m") or {}).get(archetype)
+        if lo_hi and not (lo_hi[0] <= long_m <= lo_hi[1]):
+            conf -= 0.25  # measured length outside the archetype's plausible range
+        if measured.get("forward_by_fallback"):
+            conf -= 0.15  # forward sign from the cross-section fallback or the bow rule
+        if measured.get("axes_unexpected"):
+            conf -= 0.15  # forward axis differs from the pack-genre convention
     if candidate_source == "name_token":
         conf = min(conf - 0.20, 0.60)
+    if filled:
+        conf = min(conf, 0.40)  # a guess from length alone never rates above 0.4
     conf = min(max(conf, 0.05), 0.99)
 
     status = "auto"
