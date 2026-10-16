@@ -113,7 +113,7 @@ violation in an input or output file.
 ```python
 # weapons/__init__.py
 WEAPON_VERSION = 1             # classification + hints; bump invalidates directory.json
-WEAPON_GEOMETRY_VERSION = 1    # geometry algorithm; bump invalidates _geometry_cache.json entries
+WEAPON_GEOMETRY_VERSION = 2    # geometry algorithm; bump invalidates _geometry_cache.json entries
 
 def build_directory(catalogs_dir: Path, *, packs: list[str] | None = None, rules: dict | None = None,
                     overrides: dict | None = None, measure: bool = True,
@@ -249,7 +249,7 @@ directory never invents a pose class an addon lacks: the value is a *name* the o
 `base = matched_rule.confidence` (0.5-0.95);
 `+0.05` if `gear.twoHanded` agrees with the hold class;
 `-0.25` if measured `length_m` is outside the archetype's plausible range (`rules.plausible_length_m[archetype]`);
-`-0.15` if the forward-axis sign came from the cross-section fallback or the bow rule (§3.5.2);
+`-0.15` if the forward-axis sign came from the cross-section fallback, the firearm convention tiebreak or the bow-rule origin fallback (§3.5.2; a measured belly carries no penalty);
 `-0.20` if the candidate source is `name_token`, then capped at 0.6;
 `-0.10` per extra shadowed rule that also matched with a different archetype (ambiguity);
 clamp to [0.05, 0.99]. An override sets 1.0.
@@ -313,9 +313,30 @@ own axes; `export` bakes the rotation into the item frame by default (`--frame i
      pointed archetypes (sword, knife, spear, polearm, staff) take the end with the *smaller* cross-section as the
      tip; headed archetypes (axe, mace, hammer, club) the *larger*. `forward_source = "section"`, flag
      `forward_by_fallback`, confidence penalty.
+
+     > **PATCH (W2c, 2026-10-16): firearm convention tiebreak.** The end cross-sections cannot tell a muzzle from a
+     > stock: on the live whole-role ranged weapons that fell through to this step, every `-z` result that could be
+     > judged by eye was wrong. No shape feature separated the groups (each candidate flipped 8-28 % of the correct
+     > ones). For `kind == ranged` and `role == "whole"` only, when the long axis equals the axis named by
+     > `rules.axes_expected[genre][kind]`, the sign of that convention decides instead of the end sections. This is
+     > NOT a measured shape rule; it stays flagged `forward_by_fallback`, a pivot-decided sign is never overridden
+     > (a mismatch there is still the `axes_unexpected` reason), and emplaced weapons (`role != whole`) keep the end
+     > sections, unverified. Live effect: 17 whole firearms flipped to `+z`. Known residue: 10 whole ranged records
+     > stay `-z` because their pivot decided (3 clearly wrong rocket launchers, 3 ambiguous ones, 2 bunker guns and
+     > 2 tripods whose direction is meaningless); they are handled by overrides or exclusion, not by this rule.
   3. `bow`: `axes.up` = the long axis; `forward` = the larger of the remaining two axes, sign away from the origin,
      `forward_source = "bow_rule"`, always flagged `forward_by_fallback` (a bow's arrow direction is not recoverable
      from the mesh alone). `crossbow` follows the firearm rule.
+
+     > **PATCH (W2c, 2026-10-16): bow belly rule.** "Away from the origin" gave the wrong sign for most real bows (31
+     > flipped on the live set). A strung bow's belly (riser / grip) bulges toward the target, and its limb tips and
+     > string sit toward the archer, so the arrow flies from the string toward the riser. The sign is now measured:
+     > `belly` = (mean position of the vertices in the middle 20 % along `up`) - (mean position of the vertices in the
+     > two outer 10 % tip windows), along the forward axis, as a share of the forward extent; `forward` points to the
+     > positive side of `belly`. Only when `|belly| < 0.15` (`_BOW_BELLY_MIN`; a flat stave, or a mesh that is not a
+     > bow) does the old origin sign apply, and only that fallback keeps the `forward_by_fallback` flag and its -0.15
+     > confidence penalty. `forward_source = "bow_rule"` either way. Live gate: bows from five packs render with the
+     > arrow toward the riser.
   4. `shield`: `forward` = the face normal (thinnest axis), sign away from the origin (the origin sits near the arm
      face); `up` = the longest remaining axis.
 
@@ -328,6 +349,12 @@ own axes; `export` bakes the rotation into the item frame by default (`--frame i
      > (b) set `forward_source = "shield_front"` (new value); (c) keeps `shield_rule`. Result: 104/106 right on the
      > measured set; library-wide `-z` shields 43 -> 2 of 297. Known regression: the two Kids shields (dish signal
      > fires `-z`) and the residual cases go to review via the `axes_unexpected` reason.
+     >
+     > **PATCH (W2c): Kids shields by rule.** The strap signal now has two tiers. A piece in the outer 10 % of the
+     > bounding thickness (centre >= 40 % off the mid-plane) with a stand-off of at least 1.05 counts as a handle even
+     > when it is a flat bar barely deeper than wide (Kids stand-off 1.10, offset 0.47); the first tier (stand-off
+     > >= 1.5, offset >= 12 %) is unchanged, and the decorative spike arms (offset <= 0.25, stand-off 1.16) and flat
+     > bands (stand-off <= 1.0) stay out. Both Kids shields now resolve to `+z` via `shield_front` with no override.
 - `axes.up` (signed): ranged `+y` unless the long axis is `y` (then `+z`); melee = the widest remaining axis (the
   blade/guard width), sign `+`, `up_source = "width_axis"`; shield as above.
 - `item_basis`: the signed permutation `[[...],[...],[...]]` taking asset-local vectors to the sit_weapons/sit_melee
