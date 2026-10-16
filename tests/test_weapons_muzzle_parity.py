@@ -78,3 +78,64 @@ def test_ac12_the_port_follows_a_signed_forward_axis():
     point, source = muzzle_point(rotated, "-x", "+y")
     assert source == "face"
     assert abs(point[0] - (-0.5)) <= TOL and abs(point[1] - 0.05) <= TOL and abs(point[2] - 0.0) <= TOL
+
+
+# --- the tolerance windows: the shared golden never decides at 0.002 ---------------------------------------------------
+#
+# Why the previous mutation (drop 0.002 from the window tuple) failed no test: in muzzle_golden.json the point count of
+# every case jumps over the 0.002 window. plain, inflated_bounds and edge3_face already hold 3-4 points at 0.001;
+# edge2_widened has 2 points at 0.001 AND 0.002 and 6 at 0.005; cone_apex has 1 point in every window. So the 0.002
+# step is never the first window with >= 3 points, and removing it moves no result. w2c/muzzle_windows.json is a
+# hand-worked golden (spec 3.5.4, not the Godot probe) with one case decided by each window; the expected values are
+# literals below.
+
+WINDOWS = Path(__file__).parent / "fixtures" / "weapons" / "w2c" / "muzzle_windows.json"
+WINDOW_EXPECTED = {
+    # the decisive window's lateral mean (x, y) and the max forward coordinate
+    "window_0001_three_points": [0.003333, 0.066667, 0.5],
+    "window_0002_exactly_three": [0.003333, 0.066667, 0.5],
+    "window_0005_three_points": [0.003333, 0.066667, 0.5],
+    "window_0010_three_points": [0.003333, 0.066667, 0.5],
+}
+# what the next window would give: the decoy vertices pull the mean far from the right answer
+WINDOW_WRONG_IF_SKIPPED = {
+    "window_0001_three_points": [0.015, 0.05, 0.5],  # the 0.002 window: 4 points
+    "window_0002_exactly_three": [0.016, 0.04, 0.5],  # the 0.005 window: 5 points
+    "window_0005_three_points": [0.016, 0.04, 0.5],  # the 0.010 window: 5 points
+}
+
+
+def _window_cases() -> dict[str, dict]:
+    assert WINDOWS.is_file(), f"muzzle window golden not present: {WINDOWS}"
+    doc = json.loads(WINDOWS.read_text(encoding="utf-8"))
+    return {c["name"]: c for c in doc["cases"]}
+
+
+def test_each_tolerance_window_decides_one_case_with_the_hand_worked_mean():
+    cases = _window_cases()
+    assert set(cases) == set(WINDOW_EXPECTED)
+    for name, want in WINDOW_EXPECTED.items():
+        point, source = muzzle_point(cases[name]["vertices"], "+z", "+y")
+        assert source == "face", name
+        for axis in range(3):
+            assert abs(point[axis] - want[axis]) <= TOL, (name, axis, point, want)
+
+
+def test_the_window_cases_are_set_apart_by_more_than_the_tolerance():
+    """Guards the fixture: skipping the deciding window would give a point further than 20 tolerances away, so a
+    mutation of the window tuple cannot hide inside the tolerance."""
+    cases = _window_cases()
+    for name, wrong in WINDOW_WRONG_IF_SKIPPED.items():
+        want = WINDOW_EXPECTED[name]
+        assert max(abs(wrong[a] - want[a]) for a in range(3)) >= 20 * TOL, name
+    # the 0.010 case has no wrong 'next window': skipping it leaves < 3 points everywhere -> the bounds fallback
+    verts = cases["window_0010_three_points"]["vertices"]
+    assert sum(1 for v in verts if v[2] >= 0.5 - 0.005) == 2
+
+
+def test_the_muzzle_is_the_max_forward_coordinate_not_a_window_mean():
+    # the forward coordinate of a face point is the bounds maximum, even when the deciding window starts below it
+    cases = _window_cases()
+    for name in WINDOW_EXPECTED:
+        point, _ = muzzle_point(cases[name]["vertices"], "+z", "+y")
+        assert abs(point[2] - 0.5) <= 1e-9, name

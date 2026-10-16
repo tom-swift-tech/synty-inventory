@@ -57,6 +57,7 @@ FRONTS = {
     "shield_dish_pz": ("+z", [[1, 0, 0], [0, 1, 0], [0, 0, 1]], "shield_front"),
     "shield_dish_nz": ("-z", [[-1, 0, 0], [0, 1, 0], [0, 0, -1]], "shield_front"),
     "shield_strap_over_dish": ("+z", [[1, 0, 0], [0, 1, 0], [0, 0, 1]], "shield_front"),
+    "shield_bowl_handle": ("+z", [[1, 0, 0], [0, 1, 0], [0, 0, 1]], "shield_front"),
 }
 
 
@@ -82,6 +83,33 @@ def test_the_fixture_origin_is_on_the_front_so_the_old_pivot_rule_would_be_wrong
     lo, hi = bounds["min"][axis], bounds["max"][axis]
     origin_toward_front = (0.0 - lo) / (hi - lo) if sign > 0 else (hi - 0.0) / (hi - lo)
     assert origin_toward_front >= 0.99
+
+
+def test_a_flat_bar_handle_behind_a_lid_style_bowl_beats_the_dish(glbs, rules):
+    """The Kids-shield case: the plate bulges toward the back (the dish alone would say -z) and the only handle is a flat
+    bar barely deeper than wide, in the outer 10 % of the thickness. The handle decides: the front is +z."""
+    axes = shield(glbs["shield_bowl_handle"], rules)["geometry"]["axes"]
+    assert (axes["forward"], axes["forward_source"]) == ("+z", "shield_front")
+    # without the handle the same bowl is decided by the dish, which points the wrong way for a lid: -z
+    v, t = M.loft(2, [(0.0, 0.3, 0.4), (-0.1, 0.0, 0.0)])
+    assert G._shield_front_sign(v, t, 2) == (-1, "dish")
+
+
+def test_a_bar_on_the_front_face_is_not_a_handle(glbs, rules):
+    """An elongated, slightly standing-off bar that is embedded in a thick plate (centre 0.31 of the thickness off the
+    mid-plane, depth 1.2x its width) is a front decoration: neither the 1.5 stand-off nor the outer-handle test
+    passes, so the origin decides."""
+    axes = shield(glbs["shield_front_bar"], rules)["geometry"]["axes"]
+    assert (axes["forward"], axes["forward_source"]) == ("+z", "shield_rule")
+
+
+def test_the_flat_band_just_under_the_outer_stand_off_stays_out(rules, tmp_path):
+    """A bar in the outer 10 % of the thickness but only 1.0x as deep as wide (under 1.05) is not a handle."""
+    dish = M.loft(2, [(0.0, 0.3, 0.4), (-0.1, 0.0, 0.0)])
+    bar = M.box((-0.1, -0.02, -0.14), (0.1, 0.02, -0.1))  # depth 0.04 = 1.0x its 0.04 width
+    path = M.write_glb(tmp_path / "band.glb", [{"name": "b", "mesh": M.merge(dish, bar)}])
+    axes = shield(path, rules)["geometry"]["axes"]
+    assert (axes["forward"], axes["forward_source"]) == ("-z", "shield_front")  # the dish decides, as before
 
 
 def test_the_origin_does_not_move_a_decided_front(glbs, rules, tmp_path):
@@ -158,7 +186,7 @@ SNAPSHOT = {
     "knife": ("knife", "melee", None, "fantasy", "3753d5d0be08aeee"),
     "axe": ("axe", "melee", None, "fantasy", "0f6198fd9cf0c0f2"),
     "spear": ("spear", "melee", None, "fantasy", "e559abe79e1c646a"),
-    "bow": ("bow", "ranged", None, "fantasy", "ab24c784a4a8d7c0"),
+    "bow": ("bow", "ranged", None, "fantasy", "a951d8b4a32365a8"),
     "zlong_melee": ("sword", "melee", None, "fantasy", "675787f7d019805a"),
     "zigzag": ("club", "melee", None, "fantasy", "485b46971169cb6e"),
     "origin_outside": ("rifle", "ranged", "long_gun", "modern", "7609781a37aa579a"),
