@@ -1,6 +1,7 @@
 # Spec: weapon directory (synty-inventory `weapons` verb group)
 
-**Written:** 2026-10-16. **Status:** DRAFT for Tom's approval (spec stage only; no code exists).
+**Written:** 2026-10-16. **Status:** APPROVED by Tom 2026-10-16 (all stated defaults; B-1 = public icon renders off, so `export --profile public`
+refuses; NB-1 to NB-15 as written). Approved at commit f6bd3bf. No code exists yet; build plan in §11.
 **Branch:** `spec/weapon-directory`, based on `main` at `40f7d3c`.
 **Consumers:** the `sit_armory` overlay addon (sit-capabilities, specced separately), games that vendor it, an
 in-game shop/trading layer, and a possible external storefront later.
@@ -981,3 +982,138 @@ GATE RESULT: PASS. Planning for W1-W5 may proceed.
 | C-15 | `hints.quality_tier` always an integer | int 1-5 or null; null iff role in part/ammo/carrier or archetype `unknown`; meaning "no suggestion" (§3.6) | records with no tier base |
 | C-16 | radii clamped | `grip_r_m` and `support_r_m` are unclamped measured facts; consumers cap them (§3.5.6) | measured facts stay raw |
 | C-17 | `node_offset` frame unspecified | `geometry.node_offset` is always the node's GLB scene-space translation, unrotated and not item-baked, in both export frames; consumers apply `item_basis * node_offset` themselves (§4.1, §3.10, AC34) | it describes the file, not the weapon |
+
+## 11. Build plan (slices W1-W5)
+
+Approved with the spec (Tom, 2026-10-16). Nothing is built yet. This section replaces the non-binding slice sketch in §8.
+It moves `hints.py` from W3 to W2 (hints need the measured length and triangle count, so they belong with geometry) and
+leaves W3 as icons only.
+
+### 11.1 Rules for every slice
+
+- **Lane:** Claude Sonnet builder subagent (`builder` agent type, brief from `builder-brief-template.md`) in its own
+  git worktree of this repo, cut from a lead-resolved base SHA and given a positive file scope (`.agent-scope.json`).
+  No Opus builders. Grok and Codex are out of credit and not used. The builder gates and scope-gates its own result;
+  the lead verifies the result against the slice's ACs before the next slice starts.
+- **Gate command** (run from the slice's worktree; gate on the process exit code, never on piped output):
+  `python -m pytest -q tests -k weapons` must exit 0 with a summary line that has no `failed` or `error`
+  (`N passed`); then the full `python -m pytest -q` must also exit 0 (existing tests stay green; live-marked tests
+  skip in CI). Commits are gated on those two exit codes, not chained after them.
+- **Data rules:** every test uses synthetic fixtures under `tests/fixtures/weapons/` (INV-1, AGENTS rule: no Synty
+  data in the repo). "Live" below means a local-only step run on this machine against the real catalogs; its output
+  stays outside the repo and is reported, never committed.
+- **Shared files are owned by one slice:** `src/synty_inventory/cli.py` and `pyproject.toml` are edited only by W1
+  (W1 wires every verb to a lazy handler, so later slices add modules, not registrations). `weapons/__init__.py`
+  (enums, versions) is W1's and is append-only afterwards only through the `WEAPON_*` constants named in §3.3.
+- **Visual checkpoint:** a slice marked "look" is not done until the lead has viewed the named captures and accepted
+  them (a builder's description does not count).
+
+### 11.2 Slice table
+
+| slice | depends | parallel-with | ACs | lane | live data | size |
+|---|---|---|---|---|---|---|
+| W1 rules, candidates, classify, overrides, directory | none | none (foundation) | AC1-AC10, AC27, AC28, AC33 (build half) | Sonnet builder | no (live smoke after merge) | L: ~1,800 lines + fixtures |
+| W2 geometry, hints | W1 | W3, W4 | AC11, AC13-AC16, AC34, AC35; AC12 (blocked, §11.4) | Sonnet builder | no (live probe after merge) | L: ~1,500 lines |
+| W3 icon harness and icons | W2 | W4 | AC17, AC18 | Sonnet builder, lead reviews captures | renderer needs synty-glb on this machine; fixtures are synthetic GLBs | M: ~700 lines JS/HTML/py |
+| W4 review page, corrections, export | W2 | W3 | AC20-AC26, AC33 (rest) | Sonnet builder, lead reviews captures | no | M: ~1,100 lines |
+| W5 variants, gauntlet gate, perf, docs | W3 and W4 | none | AC19, AC29-AC32 | Sonnet builder | yes (AC29-AC32 run live) | M: ~700 lines |
+
+W3 and W4 run in parallel after W2 merges; they touch disjoint files (below). W2 itself could start its fixture
+generator before W1 merges, but the order is kept strict (W2 needs W1's record skeleton and enums).
+
+### 11.3 Slices in detail
+
+**W1: rules, candidates, classify, overrides, directory skeleton**
+- Scope: §3.1 layout up to `directory.json`; §3.2 CLI wiring for ALL verbs (verbs whose module does not exist yet
+  exit 2 with "not built in this checkout"); §3.4 candidate selection, tokenizer, ordered rules, role/kind/archetype/
+  hold_class/genre/family/flags/confidence; override table load and precedence (§3.9 precedence, §4.5, `renamed_from`
+  build half); `directory.json` and `excluded.json` writers; schema validation (`weapons validate`); `build`,
+  `show`, `list`. Records written by W1 have `geometry: null` with flag `unmeasured` pending W2 and `hints` all null.
+  W1's validator runs in a `pre_geometry` mode that tolerates those nulls; W2 fills them and removes the mode, so
+  from W2 on the strict §4.1 nullability rules (including AC35) apply.
+- Creates: `src/synty_inventory/weapons/{__init__,cli,candidates,classify,directory,schema,overrides}.py`,
+  `src/synty_inventory/data/weapon_rules.yaml`, `src/synty_inventory/data/weapon_overrides.json` (empty
+  `weapon-overrides/1`), `tests/test_weapons_{candidates,classify,overrides,directory,determinism}.py`,
+  `tests/fixtures/weapons/` (FakePack catalogs `FAKE_Modern`, `FAKE_Fantasy`, `FAKE_SciFi`, `FAKE_Generic`,
+  `expected.json`, the §4.8 trap set; GLBs are not needed yet).
+- Edits: `src/synty_inventory/cli.py` (one import, one registration call), `pyproject.toml` (package-data globs for
+  `data/*.yaml` and `weapons/icon_harness/*` so W3 need not edit it again).
+- Gate: the §11.1 command; pass line = both exit codes 0. Plus the AC27/AC28 byte-equality tests inside the suite.
+- Live step (after merge, lead or operator, not committed): `synty-inventory weapons build` against the real
+  catalogs; report counts by role/kind/genre/archetype, share below 0.6 confidence, share `unknown`. The first
+  numbers feed tuning of `weapon_rules.yaml` (a data edit, same slice scope, no new interface).
+- Look: none.
+
+**W2: geometry and hints** (depends on W1)
+- Scope: §3.5 (axes, length, tip/butt, muzzle port of M1-M6, grip, support, failure to measure, `glb_node` scoping and
+  `node_offset`), the geometry cache, §3.6 hints, and the pass-2 measurement fallback in classification (`long_m`,
+  plausibility penalty).
+- Creates: `src/synty_inventory/weapons/{geometry,hints}.py`, `tests/test_weapons_{geometry,hints,glb_node}.py`,
+  `tests/fixtures/weapons/make_glbs.py` (procedural GLB generator: gun, inflated-bounds gun, 2- and 3-vertex edge
+  guns, sword with known handle, spear, axe, bow, shield, Z-long melee, origin-outside mesh, shared two-node GLB with
+  one rotated node) and its generated output directory (generated at test time, not committed if large).
+- Edits (the only shared edits, kept to the call sites): `weapons/directory.py` (call `measure_weapon` and
+  `derive_hints` where W1 left the `unmeasured`/null stubs), `weapons/classify.py` (pass 2 only).
+- Gate: §11.1 command. AC12 is a separate test file `tests/test_weapons_muzzle_parity.py` that skips with reason
+  "muzzle golden not present" until the golden exists (§11.4); a skip is allowed for W2 to close, the AC stays open.
+- Live step (after merge): `synty-inventory weapons build` with geometry on the real catalogs; report geometry
+  coverage, `origin_outside_bounds` count, forward-source mix, and the two verification probes the spec names: A-grip
+  against the Synty Military guns' hand-tuned `pos` (NB-6) and GLB vs `godot_scene` tip direction (NB-7), plus the 7
+  `glb_node` records' node transforms (NB-15). Findings are reported to the lead; a failed assumption is a spec
+  amendment, not a silent code change.
+- Look: none for the code. The lead may ask for a numeric table, not captures.
+
+**W3: icon harness and icons** (depends on W2; parallel with W4)
+- Scope: §3.8 option B: the orthographic transparent-background harness, framing and fit, 256 and 64 px output,
+  caching, exit 5 / no placeholder on failure, software ANGLE default.
+- Creates: `src/synty_inventory/weapons/icons.py`, `src/synty_inventory/weapons/icon_harness/{icon.html,icon.js}`,
+  `tests/test_weapons_icons.py` (marked to skip, with a reason, when Playwright/Chromium or the synty-glb root is
+  absent; AC18 runs everywhere).
+- Edits: none outside those files.
+- Gate: §11.1 command; AC17 must PASS (not skip) on this machine at the lead's verification step, run once by the
+  lead or operator with the renderer present.
+- Look: yes. Checkpoint of exactly 2 captures, produced by the builder from the synthetic fixture GLBs and also from
+  one real pack weapon of each of rifle, pistol, sword, axe, bow, shield rendered locally (real renders are not
+  committed): (1) a contact sheet of the six fixture weapons at 256 px on a checker background proving transparency
+  and forward-points-right; (2) the same six at 64 px. The lead reviews both. The slice does not count as done
+  until the lead accepts them.
+
+**W4: review page, corrections, export** (depends on W2; parallel with W3)
+- Scope: §3.9 (page generator, corrections schema, `apply-corrections`, merge into the override table), §3.10
+  (snapshot export, `--frame item` default and `asset` opt-in, `--engine`, `--roles`, `--icons-dir`, public-profile
+  refusal, output-path refusal), `renamed_from` correction handling.
+- Creates: `src/synty_inventory/weapons/{review,export,corrections}.py`,
+  `src/synty_inventory/weapons/review_template.html`, `tests/test_weapons_{review,corrections,export}.py`.
+- Edits: none outside those files. The review page shows an icon when `visuals.thumb` exists and a text-only tile
+  otherwise, so W4 does not depend on W3.
+- Gate: §11.1 command.
+- Look: yes. Checkpoint of exactly 2 captures of the generated page from the fixture directory (headless browser
+  screenshots, desktop width and a 390 px phone width) showing the Low-confidence, a per-archetype and the Excluded
+  sections, a collapsed family tile and the correction panel open. The lead reviews both.
+
+**W5: variants, gauntlet gate, performance, docs** (depends on W3 and W4)
+- Scope: §3.7 variant discovery and `icons --variants`, the `weapons_directory` gauntlet gate (AC30), the live
+  report (AC31), the performance budget measurement (AC32), skill and README updates.
+- Creates: `src/synty_inventory/weapons/variants.py`, `tests/test_weapons_{variants,gauntlet}.py`, fixture
+  `atlas_alt` pack under `tests/fixtures/weapons/`.
+- Edits: `src/synty_inventory/gauntlet.py` (add one gate), `src/synty_inventory/weapons/icons.py` (variants branch
+  only), `skill/SKILL.md` and `src/synty_inventory/skill.md` (kept in sync), `README.md` (verb list).
+- Gate: §11.1 command, then live: `synty-inventory gauntlet` passes with the new gate, and AC29 (existing gates and
+  `diff_catalog` unchanged) is shown by a before/after run on the live catalogs.
+- Live step: the AC30-AC32 numbers are measured here; the first Tom review round (a W4 output) provides the gold
+  corrections AC30 regresses against. Variant icons are produced for a sample of 30 records only in this slice; the
+  full ~6,000-render batch is a separate operator job after Tom accepts the sample.
+- Look: yes. Checkpoint of 1 capture: one weapon's default and alternate colourway icons side by side. The lead
+  reviews it.
+
+### 11.4 Cross-repo dependency (AC12 only)
+
+AC12 compares the Python muzzle port with `SitGunHold.muzzle_local` (sit_weapons 0.2.1) on the fixture GLBs. The
+golden values come from a Godot probe that runs in sit-capabilities through `tools/run_godot.ps1` with the console
+binary named in that repo's AGENTS.md; the **sit_armory side owns that probe**. Contract between the two repos:
+- Input: the fixture GLBs from W2's `make_glbs.py` (plain, inflated-bounds, 2-vertex edge, 3-vertex edge guns).
+- Output: `tests/fixtures/weapons/muzzle_golden.json` in synty-inventory, `{"<fixture name>": {"muzzle": [x, y, z],
+  "source": "face"|"bounds_fallback"}}`, committed as plain literals (no pack data), tolerance 0.0005 m per axis.
+- Consumed by W2 (`tests/test_weapons_muzzle_parity.py`). Its absence blocks **only AC12**: W2 closes with that test
+  skipped, every other W2 AC gating normally, and the lead marks AC12 open on the board until the golden lands. No
+  other slice depends on it, and nothing in W1-W5 writes to sit-capabilities.
