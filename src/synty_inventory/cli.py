@@ -38,6 +38,7 @@ from .unitypackage import extract_previews
 from .vision import DEFAULT_VIEWS as VISION_DEFAULT_VIEWS
 from .vision import default_stills_root, vision_pack
 from .vlm import HOSTED_DEFAULT_MODEL, enrich_asset_vlm, vlm_available
+from .weapons.cli import register as register_weapons
 
 
 def configure_stdio() -> None:
@@ -1243,6 +1244,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="seconds to wait per hosted VLM call (default: 180)",
     )
     vis.set_defaults(func=cmd_vision)
+    register_weapons(sub)
     return p
 
 
