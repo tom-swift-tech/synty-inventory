@@ -702,6 +702,17 @@ entry that carries only `renamed_from` changes no classification and does not ch
 hints and visuals are never overridable: they are measured/derived, and a wrong one means a wrong rule or a wrong
 classification upstream.
 
+> **PATCH (W2e, 2026-10-16): two id-only entry fields.** (1) `forward`: a signed axis (`"+z"`) that replaces the
+> measured forward SIGN of that one record, for the few weapons whose pivot or sections decide wrongly and that no
+> shape rule can fix (the live set: 3 rocket launchers and 3 siege engines, each judged by eye). Its axis must equal
+> the measured forward axis (the long axis); a different axis is rejected with a warning in `report.warnings`
+> and not applied. The record gets `geometry.axes.forward_source = "override"` (new value), loses the
+> `forward_by_fallback` flag and the `axes_unexpected` reason that this measurement would have added, and its
+> `butt`, `tip`, `muzzle` and `item_basis` follow the overridden sign. The geometry cache fingerprint includes the
+> value. (2) `confidence_cap`: a number in `[0.05, 0.59]` that caps `review.confidence` (so the record lands in the
+> Low confidence section with reason `low_confidence`); for weapons whose direction is genuinely ambiguous and Tom
+> should look. Neither field sets `review.status`; neither forces confidence to 1.0.
+
 ### 4.6 Enumerations (single source: `weapons/__init__.py`, mirrored in `weapon_rules.yaml` validation)
 
 `ROLES`, `KINDS`, `ARCHETYPES` (§3.4.2), `HOLD_CLASSES`, `GENRES`, `STATUSES = (auto, reviewed, overridden)`,
@@ -935,6 +946,14 @@ Determinism, additivity, live gates
 - AC37. `export --engine threejs` keeps `files.glb_scale` when the record has it, and `validate --snapshot` accepts it
   under the glb engine filter and rejects it under `--engine godot`/`unity` snapshots. Test on a fixture record with a
   non-1.0 `glb_scale`.
+- AC38. A fixture override `{"forward": "+z"}` on a record whose measured forward is `-z` yields `forward == "+z"`,
+  `forward_source == "override"`, a muzzle at the `+z` end (ranged) and an `item_basis` equal to that of the same mesh
+  measured with `+z` natively; the same override with the axis `+x` on a z-long mesh is not applied and appears in
+  `report.warnings`; changing only the override value changes the cache entry used (a cached `-z` result is never
+  served for a `+z` override); removing the override restores the measured sign.
+- AC39. A fixture override `{"confidence_cap": 0.55}` on a record that would score 0.83 gives `confidence == 0.55`,
+  reason `low_confidence` and the review page's Low confidence section; a value of 0.6 or above, or a glob entry
+  carrying `forward` or `confidence_cap`, is a schema error (exit 6).
 
 ## 7. Failure modes
 
