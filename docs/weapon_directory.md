@@ -430,6 +430,14 @@ one the catalog points to. **v1 renders only the default colourway** for `icon`;
 in slice W5, not W3. A record with unknown colourway (no `unity_materials`, ~16 % of confirmed records) has
 `variants: []` and reason `colourway_unknown`.
 
+> PATCH (W5, 2026-10-16): a record whose Alts atlas has a single colourway letter gets `variants: []` (one colourway is
+> no choice). A `variants[]` entry may carry `icon_input_sha` (16 hex): digest of the default icon's `icon_input_sha`,
+> the sibling texture file's sha256 and the `variant_id`. It decides re-rendering exactly as the default hash does; the
+> colourway thumbnail path is derived from the icon path (`<id>@<L>.png` -> `<id>@<L>@64.png`) and is not stored.
+> `icons --variants` needs the configured `extracted_root`; a variant whose material or texture cannot be resolved (a
+> `.tga` the harness cannot load, a missing tree) is a per-variant failure with its reason, its stale files are
+> deleted (INV-8), and `icon` goes back to null.
+
 ### 3.8 Icon pipeline
 
 Render options, evaluated:
@@ -456,8 +464,9 @@ Framing (so a 1.4 m rifle is not a sliver and a 0.2 m pistol is not tiny):
 - Lighting: the synty-glb harness' three-point rig and ACES tone mapping (so colours match the existing stills); no
   grid, gizmo or HUD; background fully transparent.
 - Output: 256 px square PNG (`<id>.png`) plus a 64 px thumbnail (`<id>@64.png`, same render downsampled), sRGB.
-- Cache: `<catalogs>/weapons/icons/...`; a record's icon is skipped when its `visuals.icon_sha256` input hash
-  (`glb file sha + node + glb_scale + harness version`) is unchanged, unless `--rebuild`.
+- Cache: `<catalogs>/weapons/icons/...`; a record's icon is skipped when its `visuals.icon_input_sha` input hash
+  (`glb file sha + node + glb_scale + item_basis + harness version`; PATCH W6-0: `item_basis` is hashed because the
+  icon depends on orientation) is unchanged, unless `--rebuild`.
 - Determinism: the *metadata* (paths, input hash) is deterministic; PNG bytes depend on the GPU/ANGLE backend and
   are not byte-compared across machines. The renderer is launched with a software ANGLE/SwiftShader backend by
   default so repeated runs on one machine are byte-identical (AC17); `--gpu` opts out.
@@ -863,6 +872,11 @@ Determinism, additivity, live gates
   every override in the committed file still matches >= 1 asset (stale overrides listed, fail only with `--strict`);
   and **gold regression**: every id in `weapon_overrides.json` classifies to its overridden values after a clean
   rebuild.
+  > PATCH (W5): the gold comparison covers the five scalar fields an override can set (role, kind, genre, archetype,
+  > hold_class) plus `exclude`. `component`, `carrier` and `ammo` overrides are not compared yet. The gate's checks
+  > (directory current, structure, coverage, ids, enums, geometry share, muzzle, overrides, gold) each run
+  > independently, so one failing check does not hide the rest; `--strict` (a CLI flag on `gauntlet`) turns stale
+  > overrides into a failure.
 - AC31. Live first-run report (informational, not a pass/fail gate): counts by role/kind/genre/archetype, the share of
   records with confidence < 0.6, the share `unknown`, the share `needs_review`; printed by `build --report`. The
   first Tom review round turns the corrections it produces into the gold set for AC30.
