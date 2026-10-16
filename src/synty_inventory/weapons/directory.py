@@ -1,8 +1,11 @@
 """``build_directory``: the weapon directory from the per-pack catalogs (spec 3.1, 3.3, 4.2, 4.3).
 
 Pure given its inputs: no clock, no network, no randomness (INV-4). Catalogs are only read (INV-5); the single
-write path is ``write_directory``, which touches nothing but ``<catalogs>/weapons/``. W1 writes records with
-``geometry: null`` (flag ``unmeasured``, reason ``no_geometry``) and all-null ``hints``; W2 replaces those stubs.
+write path is ``write_directory``, which touches nothing but ``<catalogs>/weapons/``. A record is measured when
+``measure`` is on, ``threejs_v2_dir`` is given and its ``files.glb`` decodes; otherwise it keeps the unmeasured stub
+(``geometry: null``, flag ``unmeasured``, reason ``no_geometry``). Hints are derived for every record regardless.
+The geometry cache is a plain dict the caller owns and persists (``geometry.load_cache`` / ``save_cache``), so
+this module stays free of file writes outside ``write_directory``.
 """
 
 from __future__ import annotations
@@ -18,6 +21,8 @@ from ..schema import migrate_catalog
 from . import InputError, SchemaError, digest, to_text, write_text_lf
 from .candidates import evaluate_candidate
 from .classify import classify
+from .geometry import measure_cached, pass2_inputs
+from .hints import build_group_stats, derive_hints
 from .overrides import effective_override, load_overrides
 from .rules import load_rules
 from .schema import validate_directory
@@ -98,6 +103,50 @@ def _record(asset: dict, pack_id: str, cls: dict, source: str, renamed_from: lis
     }
 
 
+def _context(cls: dict) -> tuple:
+    """The classification fields a measurement depends on (spec 3.5: archetype, kind, role, hold)."""
+    return cls["archetype"], cls["kind"], cls["role"], cls["hold_class"]
+
+
+def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, threejs_v2_dir, cache, stats):
+    """Measure one record's GLB, then re-classify with the measured length (pass 2).
+
+    Pass 2 can change archetype/hold (a length rule filling an unknown archetype, the long-blade exception); the
+    measurement depends on both, so a changed context is measured once more (the decode is memoised, so this
+    costs no second read). Returns ``(final classification, last measurement detail)``.
+    """
+    files = asset.get("files") or {}
+    node = files.get("glb_node") or None
+    scale = float(files.get("glb_scale") or 1.0)
+    detail = None
+    for _ in range(3):
+        detail, cached = measure_cached(
+            threejs_v2_dir, files["glb"], node, scale, cls["archetype"], cls["kind"], cls["role"], rules, cache,
+            hold_class=cls["hold_class"], genre=cls["genre"],
+        )
+        stats["cached" if cached else "decoded"] += 1
+        measured = pass2_inputs(detail)
+        if measured is None:
+            break
+        refined = classify(asset, pack_id, rules, overrides, setting, candidate_source=source, measured=measured)
+        stable = _context(refined) == _context(cls)
+        cls = refined
+        if stable:
+            break
+    return cls, detail
+
+
+def _apply_measurement(rec: dict, detail: dict) -> None:
+    """Merge a measurement into the unmeasured stub record: geometry, flags, reasons, provenance."""
+    if detail["geometry"] is None:
+        rec["review"]["reasons"] = sorted(set(rec["review"]["reasons"]) | set(detail["reasons"]))
+        return
+    rec["geometry"] = detail["geometry"]
+    rec["flags"] = sorted((set(rec["flags"]) - {"unmeasured"}) | set(detail["flags"]))
+    rec["review"]["reasons"] = sorted((set(rec["review"]["reasons"]) - {"no_geometry"}) | set(detail["reasons"]))
+    rec["provenance"]["geometry"] = "measured"
+
+
 def _mark_duplicates(records: list[dict]) -> None:
     """duplicate_of = id of the first record (by id) sharing the same GLB file and node selection."""
     for rec in records:  # reset, so carried-over records from a partial build are recomputed on the union
@@ -170,16 +219,19 @@ def build_directory_report(
     packs: list[str] | None = None,
     rules: dict | None = None,
     overrides: dict | None = None,
-    measure: bool = True,  # noqa: ARG001 (W2 measures geometry; W1 leaves every record unmeasured)
-    threejs_v2_dir: Path | None = None,  # noqa: ARG001 (W2)
+    measure: bool = True,
+    threejs_v2_dir: Path | None = None,
     pack_settings: dict | None = None,
     base: tuple[dict, dict] | None = None,
+    geometry_cache: dict | None = None,
 ) -> tuple[dict, dict, dict]:
     """``(directory doc, excluded doc, report)``.
 
     ``pack_settings`` (pack_id -> {setting, era}) defaults to the curated table; ``base`` is the previous
     ``(directory, excluded)`` pair that a ``packs=`` partial build merges into (other packs stay untouched).
-    The report carries stale overrides, warnings and live-run statistics; it is never part of the directory.
+    ``threejs_v2_dir`` is the root ``files.glb`` is relative to; ``geometry_cache`` (default: a throwaway dict) is
+    read and filled in place. The report carries stale overrides, warnings and live-run statistics; it is never
+    part of the directory.
     """
     rules = rules if rules is not None else load_rules()
     overrides = overrides if overrides is not None else load_overrides()
@@ -203,6 +255,10 @@ def build_directory_report(
     pack_rows: list[dict] = []
     all_ids: set[str] = set()
     warnings: list[str] = []
+    cache = geometry_cache if geometry_cache is not None else {}
+    geo_stats = {"decoded": 0, "cached": 0}
+    can_measure = measure and threejs_v2_dir is not None
+    skipped_for_root = False
 
     if partial:
         if base is None:
@@ -256,7 +312,20 @@ def build_directory_report(
                 n_excluded += 1
                 continue
             cls = classify(asset, pack_id, rules, overrides, settings.get(pack_id), candidate_source=source)
-            records.append(_record(asset, pack_id, cls, source, (eff or {}).get("renamed_from") or []))
+            detail = None
+            if can_measure and (asset.get("files") or {}).get("glb"):
+                cls, detail = _measure_record(
+                    asset, pack_id, cls, source, rules, overrides, settings.get(pack_id), threejs_v2_dir, cache,
+                    geo_stats,
+                )
+            elif measure and (asset.get("files") or {}).get("glb"):
+                skipped_for_root = True
+            rec = _record(asset, pack_id, cls, source, (eff or {}).get("renamed_from") or [])
+            if detail is not None:
+                _apply_measurement(rec, detail)
+                if detail.get("warning"):
+                    warnings.append(f"{full_id}: {detail['warning']}")
+            records.append(rec)
             n_records += 1
         pack_rows.append({
             "pack": pack_id,
@@ -272,6 +341,15 @@ def build_directory_report(
     records.sort(key=lambda r: r["id"])
     excluded.sort(key=lambda e: e["id"])
     pack_rows.sort(key=lambda p: p["pack"])
+
+    # hints last: the quality-tier triangle term needs the (archetype, genre) statistics over ALL records,
+    # including ones carried over from the base of a partial build (their geometry is already measured)
+    group_stats = build_group_stats(records, rules)
+    for rec in records:
+        rec["hints"] = derive_hints(rec, group_stats, rules)
+        rec["provenance"]["hints"] = "rules"
+    if skipped_for_root:
+        warnings.append("geometry skipped: threejs_v2 root is not configured, records stay unmeasured")
 
     directory = {
         "schema": "weapon-directory/1",
@@ -297,6 +375,7 @@ def build_directory_report(
         "unknown_share": round(sum(1 for r in mine if r["archetype"] == "unknown" and r["role"] in ("whole", "emplaced")) / n, 4),
         "geometry_coverage": (round(sum(1 for r in with_glb if r["geometry"] is not None) / len(with_glb), 4)
                               if with_glb else 1.0),
+        "geometry_stats": dict(geo_stats),
         "stale_overrides": _stale_overrides(overrides, all_ids, set(selected), partial=partial),
         "warnings": sorted(warnings),
     }
@@ -328,7 +407,7 @@ def write_directory(catalogs_dir: Path, directory: dict, excluded: dict) -> tupl
 
     A schema violation raises ``SchemaError`` before anything is written (spec section 7).
     """
-    errors = validate_directory(directory, excluded, pre_geometry=True)
+    errors = validate_directory(directory, excluded)
     if errors:
         raise SchemaError("the built directory violates weapon-directory/1:\n  " + "\n  ".join(errors[:25]),
                           details={"errors": errors})

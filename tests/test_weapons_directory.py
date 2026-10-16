@@ -97,7 +97,7 @@ def test_ac10_every_enum_field_is_closed(built):
 
 def test_ac10_the_built_documents_validate_clean(built):
     directory, excluded = built
-    assert validate_directory(directory, excluded, pre_geometry=True) == []
+    assert validate_directory(directory, excluded) == []
     for rec in directory["weapons"]:
         assert validate_record(rec) == []
     assert directory["schema"] == "weapon-directory/1"

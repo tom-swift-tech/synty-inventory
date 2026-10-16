@@ -1,9 +1,9 @@
 """JSON Schemas for ``weapon/1``, ``weapon-directory/1`` and ``weapon-excluded/1`` plus the cross-field checks that
 JSON Schema cannot express (spec 4.1-4.3, INV-2/3/7/9/13).
 
-``pre_geometry`` mode (W1 only) tolerates ``geometry: null`` together with null ``hints``. W2 fills both and
-deletes the mode, after which the strict nullability rules of spec 4.1 and 3.6 apply unconditionally; they are
-already implemented here behind ``pre_geometry=False`` so W2 only has to flip the default.
+The nullability rules of spec 4.1 and 3.6 are strict (W1's ``pre_geometry`` tolerance mode is gone): hints are
+derived for every record, ``geometry`` is null exactly when the record is flagged ``unmeasured``, and
+``quality_tier`` is null exactly for part/ammo/carrier roles and unknown archetypes (AC35).
 """
 
 from __future__ import annotations
@@ -247,7 +247,7 @@ def _schema_errors(schema: dict, doc, prefix: str = "") -> list[str]:
     return out
 
 
-def check_record(rec: dict, where: str, *, pre_geometry: bool) -> list[str]:
+def check_record(rec: dict, where: str) -> list[str]:
     """Cross-field rules of spec 4.1 for one record that already passed the structural schema."""
     errs: list[str] = []
     role, kind, arch = rec["role"], rec["kind"], rec["archetype"]
@@ -272,22 +272,27 @@ def check_record(rec: dict, where: str, *, pre_geometry: bool) -> list[str]:
         errs.append(f"{where}.renamed_from: contains the record's own id")
     if rec["duplicate_of"] == rec["id"]:
         errs.append(f"{where}.duplicate_of: cannot point at itself")
-    if not pre_geometry:
-        hints = rec["hints"]
-        if (hints["size_class"] is None) != (geom is None) or (hints["inventory_cells"] is None) != (geom is None):
-            errs.append(f"{where}.hints: size_class/inventory_cells null exactly when geometry is null")
-        no_tier = role in NON_WEAPON_ROLES or arch == "unknown"
-        if (hints["quality_tier"] is None) != no_tier:
-            errs.append(f"{where}.hints.quality_tier: null exactly when role is part/ammo/carrier or archetype unknown")
-        if geom is not None:
-            if (geom["muzzle"] is None) != (kind != "ranged" or arch == "bow"):
-                errs.append(f"{where}.geometry.muzzle: present exactly for ranged, non-bow records")
-            if (geom["support"] is None) != (rec["hold_class"] != "long_gun"):
-                errs.append(f"{where}.geometry.support: present exactly for hold_class long_gun")
+    hints = rec["hints"]
+    if (hints["size_class"] is None) != (geom is None) or (hints["inventory_cells"] is None) != (geom is None):
+        errs.append(f"{where}.hints: size_class/inventory_cells null exactly when geometry is null")
+    if (hints["size_basis"] is None) != (geom is None):
+        errs.append(f"{where}.hints.size_basis: null exactly when geometry is null")
+    no_tier = role in NON_WEAPON_ROLES or arch == "unknown"
+    if (hints["quality_tier"] is None) != no_tier:
+        errs.append(f"{where}.hints.quality_tier: null exactly when role is part/ammo/carrier or archetype unknown")
+    if geom is not None:
+        if (geom["muzzle"] is None) != (kind != "ranged" or arch == "bow"):
+            errs.append(f"{where}.geometry.muzzle: present exactly for ranged, non-bow records")
+        if (geom["muzzle"] is None) != (geom["muzzle_source"] is None):
+            errs.append(f"{where}.geometry.muzzle_source: present exactly when muzzle is")
+        if (geom["support"] is None) != (rec["hold_class"] != "long_gun"):
+            errs.append(f"{where}.geometry.support: present exactly for hold_class long_gun")
+        if (geom["tip"] is None) != (kind == "ranged"):
+            errs.append(f"{where}.geometry.tip: null exactly for ranged records")
     return errs
 
 
-def validate_directory(doc, excluded_doc=None, *, pre_geometry: bool = True) -> list[str]:
+def validate_directory(doc, excluded_doc=None) -> list[str]:
     """All violations of ``weapon-directory/1`` (structural + INV-2/3/13), as readable messages.
 
     ``excluded_doc`` (optional) lets the per-pack ``records + excluded == candidates`` identity be checked.
@@ -302,7 +307,7 @@ def validate_directory(doc, excluded_doc=None, *, pre_geometry: bool = True) -> 
         if w["id"] in seen:
             errors.append(f"weapons[{i}].id: duplicate id {w['id']}")
         seen.add(w["id"])
-        errors += check_record(w, f"weapons[{i}]", pre_geometry=pre_geometry)
+        errors += check_record(w, f"weapons[{i}]")
     if ids != sorted(ids):
         errors.append("weapons: must be sorted by id")
     # INV-13: renamed ids are never live ids and are claimed by at most one record
@@ -336,9 +341,9 @@ def validate_directory(doc, excluded_doc=None, *, pre_geometry: bool = True) -> 
     return errors
 
 
-def validate_record(rec, *, pre_geometry: bool = True) -> list[str]:
+def validate_record(rec) -> list[str]:
     """Structural + cross-field errors for one ``weapon/1`` record."""
     errors = _schema_errors(WEAPON_SCHEMA, rec)
     if not errors:
-        errors = check_record(rec, "record", pre_geometry=pre_geometry)
+        errors = check_record(rec, "record")
     return errors

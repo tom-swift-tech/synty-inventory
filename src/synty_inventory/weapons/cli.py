@@ -95,6 +95,8 @@ def cmd_build(args, cfg) -> int:
         weapons_dir,
         write_directory,
     )
+    from ..cli import _threejs_v2
+    from .geometry import CACHE_NAME, load_cache, save_cache
     from .overrides import load_overrides
     from .rules import load_rules
 
@@ -106,12 +108,23 @@ def cmd_build(args, cfg) -> int:
     wdir = weapons_dir(catalogs_dir)
     if packs and (wdir / DIRECTORY_NAME).is_file() and (wdir / EXCLUDED_NAME).is_file():
         base = (read_json(wdir / DIRECTORY_NAME), read_json(wdir / EXCLUDED_NAME))
+    threejs_v2 = _threejs_v2(cfg)
+    cache_path = wdir / CACHE_NAME
+    cache = {} if args.rebuild else load_cache(cache_path)
     directory, excluded, report = build_directory_report(
         catalogs_dir, packs=packs, rules=rules, overrides=overrides, measure=not args.no_geometry, base=base,
+        threejs_v2_dir=threejs_v2, geometry_cache=cache,
     )
     dpath, epath = write_directory(catalogs_dir, directory, excluded)
     report["directory"] = dpath.name
-    report["geometry"] = "not built in this slice" if not args.no_geometry else "skipped (--no-geometry)"
+    if args.no_geometry:
+        report["geometry"] = "skipped (--no-geometry)"
+    elif threejs_v2 is None:
+        report["geometry"] = "skipped (threejs_v2 not configured)"
+    else:
+        report["geometry"] = "measured"
+        if cache and report["geometry_stats"]["decoded"]:
+            save_cache(cache_path, cache)  # only when something was decoded: a cache-hit run rewrites nothing
     if args.report:
         rpath = Path(args.report)
         rpath.parent.mkdir(parents=True, exist_ok=True)
@@ -224,7 +237,7 @@ def cmd_validate(args, cfg) -> int:
     if dpath.is_file():
         epath = dpath.with_name(EXCLUDED_NAME)
         excluded = read_json(epath) if epath.is_file() else None
-        errors = validate_directory(read_json(dpath), excluded, pre_geometry=True)
+        errors = validate_directory(read_json(dpath), excluded)
         result["directory"] = "ok" if not errors else "invalid"
         if errors:
             problems["directory_errors"] = errors
@@ -244,7 +257,7 @@ def register(sub) -> None:
 
     b = wsub.add_parser("build", help="Build <catalogs>/weapons/directory.json and excluded.json")
     pack_opt(b)
-    b.add_argument("--rebuild", action="store_true", help="ignore caches (geometry cache lands in a later slice)")
+    b.add_argument("--rebuild", action="store_true", help="ignore the geometry cache")
     b.add_argument("--no-geometry", dest="no_geometry", action="store_true", help="skip geometry measurement")
     b.add_argument("--report", default=None, help="write the build report JSON here as well as stdout")
     b.add_argument("--min-coverage", dest="min_coverage", type=float, default=None,
