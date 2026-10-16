@@ -364,7 +364,7 @@ def test_ac26_godot_keeps_only_godot_scene(world, capsys):
     assert doc["generated_from"]["filter"]["engines"] == ["godot"]
 
 
-def test_ac26_threejs_keeps_only_glb_and_glb_node(world, capsys):
+def test_ac26_threejs_keeps_only_glb_and_glb_node_when_the_record_has_no_scale(world, capsys):
     _, _, out = export(world, capsys, "--packs", "FAKE_Fantasy,FAKE_Shared", "--engine", "threejs")
     doc = load(out)
     assert _files_keys(doc) == {frozenset({"glb", "glb_node"})}

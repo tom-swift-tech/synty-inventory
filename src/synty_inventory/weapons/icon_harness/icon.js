@@ -87,6 +87,46 @@ function disposeCurrent() {
   current = null;
 }
 
+// A colourway icon (spec 3.7): an atlas-alt weapon is the same mesh with a sibling atlas texture, so the albedo map of
+// every drawn material is replaced by the image at `url`. The new texture takes everything but the pixels from the
+// map it replaces (wrap, channel, UV transform, filtering), is flagged like a glTF texture (flipY false) and is
+// read as sRGB. A mesh without a base-colour map has nothing to replace: that is an error, not a silent default icon.
+async function substituteAlbedo(meshes, url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`);
+  const bitmap = await createImageBitmap(await res.blob(), { colorSpaceConversion: "none", premultiplyAlpha: "none" });
+  const fresh = new Map(); // old map -> replacement, so materials sharing a map keep sharing one texture
+  let replaced = 0;
+  for (const mesh of meshes) {
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const mat of mats) {
+      const old = mat && mat.map;
+      if (!old) continue;
+      if (!fresh.has(old)) {
+        const tex = new THREE.Texture(bitmap);
+        tex.flipY = false;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = old.wrapS;
+        tex.wrapT = old.wrapT;
+        tex.magFilter = old.magFilter;
+        tex.minFilter = old.minFilter;
+        tex.channel = old.channel;
+        tex.offset.copy(old.offset);
+        tex.repeat.copy(old.repeat);
+        tex.center.copy(old.center);
+        tex.rotation = old.rotation;
+        tex.generateMipmaps = old.generateMipmaps;
+        tex.needsUpdate = true;
+        fresh.set(old, tex);
+      }
+      mat.map = fresh.get(old);
+      mat.needsUpdate = true;
+      replaced += 1;
+    }
+  }
+  if (!replaced) throw new Error("the model has no base-colour texture to replace");
+}
+
 window.iconPrepare = async function iconPrepare(p) {
   disposeCurrent();
   if (MeshoptDecoder && MeshoptDecoder.ready) await MeshoptDecoder.ready;
@@ -101,6 +141,7 @@ window.iconPrepare = async function iconPrepare(p) {
   gltf.scene.traverse((o) => {
     if (o.isMesh && !keptSet.has(o)) o.visible = false;
   });
+  if (p.texture) await substituteAlbedo(kept, p.texture);
 
   // item_basis rows are the item-frame x, y, z axes expressed in asset space: item = B * asset. glb_scale is the
   // asset's size correction, applied about the GLB origin like load_triangles does.

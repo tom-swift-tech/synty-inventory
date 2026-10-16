@@ -407,8 +407,9 @@ def _assert_nothing_written(world, before_tree, before_bytes, code, out):
     assert all(w["visuals"]["icon"] is None for w in read_json(world["dpath"])["weapons"])
 
 
+@pytest.mark.parametrize("flags", [(), ("--variants",)], ids=["default", "variants"])
 @pytest.mark.parametrize("how", ["no_root", "root_missing_on_disk", "no_playwright", "launch_fails"])
-def test_ac18_unavailable_renderer_exits_5_and_writes_nothing(ac18_world, tmp_path, monkeypatch, how):
+def test_ac18_unavailable_renderer_exits_5_and_writes_nothing(ac18_world, tmp_path, monkeypatch, how, flags):
     cat = tmp_path / "catalogs"  # a private copy per case: one case's leftovers must not hide another's write
     shutil.copytree(ac18_world["cat"], cat)
     w = {**ac18_world, "cat": cat, "dpath": cat / "weapons" / DIRECTORY_NAME}
@@ -427,7 +428,7 @@ def test_ac18_unavailable_renderer_exits_5_and_writes_nothing(ac18_world, tmp_pa
 
         monkeypatch.setattr(icons, "_launch_browser", boom)
     before_tree, before_bytes = snapshot(w["cat"]), w["dpath"].read_bytes()
-    code, out = run_cli(cfg)
+    code, out = run_cli(cfg, *flags)
     _assert_nothing_written(w, before_tree, before_bytes, code, out)
     assert out["renderer"] == "unavailable"
 
@@ -566,9 +567,10 @@ def test_ac17_a_second_run_with_unchanged_inputs_writes_zero_files(ac17):
     assert ac17["tree3"] == ac17["tree2"]  # every path, byte and mtime identical: nothing created, nothing rewritten
 
 
-def test_ac17_the_default_flags_carry_no_variants_and_report_it(ac17):
-    code, out = run_cli(ac17["cfg"], "--variants")
-    assert code == 0 and out["rendered"] == [] and "not built yet" in out["variants"]
+def test_ac17_variants_on_records_without_colourways_renders_nothing_extra(ac17):
+    code, out = run_cli(ac17["cfg"], "--variants")  # the six fixtures have no Alts materials: no variants to draw
+    assert code == 0 and out["rendered"] == [] and out["variants"] == {"rendered": [], "skipped": [], "failed": []}
+    assert "not built yet" not in json.dumps(out)
     assert snapshot(ac17["cat"]) == ac17["tree3"]
 
 
@@ -635,3 +637,255 @@ def test_poisoned_and_stale_icons_are_rendered_again_and_filters_pick_records(tm
     assert code == 2 and "unknown id" in out["error"]
     code, out = run_cli(cfg, "--pack", "NOPE")
     assert code == 2 and "unknown pack" in out["error"]
+
+
+# --- W5: icons --variants (spec 3.7; AC19 icon links) -----------------------------------------------------------------
+# The atlas_alt fixture: three sibling textures (A red, B green, C blue), one atlas whose B texture is a .tga, a lone
+# letter, and a pack with a dedicated material. The GLBs carry a red base-colour texture, so a variant's colour proves
+# that the texture was really swapped. Colours are checked by dominant channel, never by an exact pixel.
+
+_spec = importlib.util.spec_from_file_location("atlas_alt_helpers", _FIX / "atlas_alt" / "helpers.py")
+AA = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(AA)
+
+SWORD_A = "FAKE_AtlasAlt/SM_Wep_Sword_Atlas_01"
+AXE_A = "FAKE_AtlasAlt/SM_Wep_Axe_Atlas_01"
+MACE_A = "FAKE_AtlasAlt/SM_Wep_Mace_Atlas_01"
+RED, GREEN, BLUE = 0, 1, 2
+
+
+def make_atlas_world(tmp: Path, *, extracted: Path | None = None) -> dict:
+    """Atlas catalogs + a threejs_v2 root with a textured GLB per asset + a built, written directory with variants."""
+    cat = AA.make_catalogs(tmp)
+    root = tmp / "threejs"
+    for doc_path in sorted(cat.glob("*.json")):
+        for asset in json.loads(doc_path.read_text(encoding="utf-8"))["assets"]:
+            AA.write_textured_glb(root / asset["files"]["glb"], AA.COLOURS["A"])
+    tree = extracted or AA.EXTRACTED
+    directory, excluded, _ = build_directory_report(
+        cat, overrides=empty_overrides(), pack_settings=AA.PACK_SETTINGS, threejs_v2_dir=root, geometry_cache={},
+        extracted_root=tree)
+    write_directory(cat, directory, excluded)
+    return {"cat": cat, "root": root, "dir": directory, "excl": excluded, "extracted": tree,
+            "dpath": cat / "weapons" / DIRECTORY_NAME}
+
+
+def atlas_config(tmp: Path, w: dict, glb_root: Path) -> Path:
+    cfg = write_config(tmp, w["cat"], threejs=w["root"], glb_root=glb_root)
+    text = cfg.read_text(encoding="utf-8").replace(f'{tmp.as_posix()}/extracted', w["extracted"].as_posix())
+    cfg.write_text(text, encoding="utf-8")
+    return cfg
+
+
+def variant_png(w: dict, rid: str, letter: str, suffix: str = "") -> Path:
+    pack, aid = rid.split("/", 1)
+    return w["cat"] / "weapons" / "icons" / pack / f"{aid}@{letter}{suffix}.png"
+
+
+def dominant(png: Path) -> int:
+    """Index (0 R, 1 G, 2 B) of the channel with the largest mean over the opaque pixels."""
+    img = read_png(png.read_bytes())
+    opaque = img[img[..., 3] > 200][:, :3].astype(float)
+    assert len(opaque) > 50, "no opaque body in the picture"
+    return int(opaque.mean(axis=0).argmax())
+
+
+def plan(w: dict, rid: str, *, extracted: Path | None = None, rebuild: bool = False, size: int = 256):
+    """The browser-free half of icons --variants for one record: (todo, links, skipped, failed)."""
+    rec = wfx.records_by_id(read_json(w["dpath"]))[rid]
+    glb = w["root"] / rec["files"]["glb"]
+    todo, links, skipped, failed = [], {}, [], []
+    icons._plan_variants(rec, glb, "d" * 16, w["cat"] / "weapons" / "icons", extracted or w["extracted"], size,
+                         rebuild, {}, {}, todo, links, skipped, failed)
+    return todo, links, skipped, failed
+
+
+def test_variant_input_sha_covers_the_default_inputs_the_texture_bytes_and_the_letter():
+    base = icons.variant_input_sha("a" * 16, "t" * 64, "B")
+    assert len(base) == 16 and all(c in "0123456789abcdef" for c in base)
+    assert icons.variant_input_sha("a" * 16, "t" * 64, "B") == base
+    assert len({base, icons.variant_input_sha("b" * 16, "t" * 64, "B"),
+                icons.variant_input_sha("a" * 16, "u" * 64, "B"),
+                icons.variant_input_sha("a" * 16, "t" * 64, "C")}) == 4
+
+
+def test_apply_variant_links_links_resets_and_leaves_the_rest(tmp_path):
+    w = make_atlas_world(tmp_path)
+    d = copy.deepcopy(w["dir"])
+    by = wfx.records_by_id(d)
+    before = copy.deepcopy(d)
+    links = {SWORD_A: {"B": {"icon": "icons/x/B.png", "thumb": "icons/x/B@64.png", "sha256": "0123456789abcdef"}}}
+    assert icons.apply_variant_links(d, links, {}) is True
+    b = next(v for v in by[SWORD_A]["visuals"]["variants"] if v["variant_id"] == "B")
+    assert (b["icon"], b["icon_input_sha"]) == ("icons/x/B.png", "0123456789abcdef")
+    a = next(v for v in by[SWORD_A]["visuals"]["variants"] if v["variant_id"] == "A")
+    assert a == next(v for v in wfx.records_by_id(before)[SWORD_A]["visuals"]["variants"] if v["variant_id"] == "A")
+    assert icons.apply_variant_links(d, links, {}) is False  # applying twice changes nothing
+    assert validate_directory(d, w["excl"]) == []
+    assert icons.apply_variant_links(d, {}, {SWORD_A: {"B"}}) is True  # a failure after success goes back to null
+    assert d == before
+
+
+def test_a_fresh_plan_lists_every_colourway_and_reports_a_tga_as_a_failure_with_its_reason(tmp_path):
+    w = make_atlas_world(tmp_path)
+    todo, links, skipped, failed = plan(w, SWORD_A)
+    assert [t[2]["variant_id"] for t in todo] == ["A", "B", "C"] and links == {} and skipped == [] and failed == []
+    assert [Path(t[3]).name for t in todo] == ["FakeAtlas_01_A.png", "FakeAtlas_01_B.png", "FakeAtlas_01_C_Diffuse.png"]
+    assert len({t[4] for t in todo}) == 3  # one hash per colourway
+    assert [(t[5], t[6]) for t in todo][1] == (f"icons/FAKE_AtlasAlt/SM_Wep_Sword_Atlas_01@B.png",
+                                                 f"icons/FAKE_AtlasAlt/SM_Wep_Sword_Atlas_01@B@64.png")
+    todo, _links, _skipped, failed = plan(w, MACE_A)
+    assert [t[2]["variant_id"] for t in todo] == ["A"]
+    assert len(failed) == 1 and (failed[0]["id"], failed[0]["variant"]) == (MACE_A, "B")
+    assert "unsupported texture format .tga" in failed[0]["error"]
+
+
+def test_a_missing_pack_tree_fails_each_variant_and_removes_the_stale_pictures(tmp_path):
+    w = make_atlas_world(tmp_path)
+    for suffix in ("", "@64"):
+        stale = variant_png(w, SWORD_A, "B", suffix)
+        stale.parent.mkdir(parents=True, exist_ok=True)
+        stale.write_bytes(b"old picture")
+    todo, _links, _skipped, failed = plan(w, SWORD_A, extracted=tmp_path / "nowhere")
+    assert todo == [] and [f["variant"] for f in failed] == ["A", "B", "C"]
+    assert all("no extracted tree" in f["error"] for f in failed)
+    assert not variant_png(w, SWORD_A, "B").exists() and not variant_png(w, SWORD_A, "B", "@64").exists()
+
+
+def _store_valid(w: dict, rid: str, letter: str, sha: str, size: int = 256):
+    """Pretend ``letter`` was rendered with input hash ``sha``: both PNGs on disk and the link in directory.json."""
+    for suffix, n in (("", size), ("@64", 64)):
+        path = variant_png(w, rid, letter, suffix)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(icons.encode_png(np.zeros((n, n, 4), np.uint8)))
+    d = read_json(w["dpath"])
+    for rec in d["weapons"]:
+        for var in rec["visuals"]["variants"] if rec["id"] == rid else []:
+            if var["variant_id"] == letter:
+                var["icon"] = f"icons/{rid.split('/', 1)[0]}/{rid.split('/', 1)[1]}@{letter}.png"
+                var["icon_input_sha"] = sha
+    w["dpath"].write_bytes(wfx_text(d))
+
+
+def test_a_stored_valid_variant_is_skipped_until_the_texture_bytes_or_the_flags_change(tmp_path):
+    ext = tmp_path / "ext"
+    shutil.copytree(AA.EXTRACTED, ext)
+    w = make_atlas_world(tmp_path, extracted=ext)
+    todo, *_ = plan(w, SWORD_A)
+    sha_b = next(t[4] for t in todo if t[2]["variant_id"] == "B")
+    _store_valid(w, SWORD_A, "B", sha_b)
+    todo, links, skipped, failed = plan(w, SWORD_A)
+    assert [t[2]["variant_id"] for t in todo] == ["A", "C"] and skipped == [f"{SWORD_A}@B"] and failed == []
+    assert links == {SWORD_A: {"B": {"icon": "icons/FAKE_AtlasAlt/SM_Wep_Sword_Atlas_01@B.png",
+                                     "thumb": "icons/FAKE_AtlasAlt/SM_Wep_Sword_Atlas_01@B@64.png", "sha256": sha_b}}}
+    assert "B" in [t[2]["variant_id"] for t in plan(w, SWORD_A, rebuild=True)[0]]  # --rebuild renders it again
+    assert "B" in [t[2]["variant_id"] for t in plan(w, SWORD_A, size=128)[0]]  # a --size change too
+    tex = ext / "FAKE_AtlasAlt/Assets/Synty/FakeAtlas/Textures/Alts/FakeAtlas_01_B.png"
+    tex.write_bytes(tex.read_bytes() + b"\0")  # the sibling texture is repainted
+    assert "B" in [t[2]["variant_id"] for t in plan(w, SWORD_A)[0]]
+
+
+def test_render_icons_variants_without_an_extracted_root_is_bad_input(tmp_path):
+    pytest.importorskip("playwright.sync_api")
+    w = make_atlas_world(tmp_path)
+    fake = fake_glb_root(tmp_path)
+    with pytest.raises(icons.InputError, match="extracted_root"):
+        icons.render_icons([], w["cat"] / "weapons" / "icons", variants=True, threejs_v2_dir=w["root"],
+                           synty_glb_root=fake)
+
+
+def test_ac18_variants_flag_alone_does_not_hide_the_unavailable_renderer(tmp_path):
+    w = make_atlas_world(tmp_path)
+    cfg = write_config(tmp_path, w["cat"], threejs=w["root"], glb_root=tmp_path / "nowhere")
+    before = snapshot(w["cat"])
+    code, out = run_cli(cfg, "--variants")
+    assert code == 5 and out["renderer"] == "unavailable" and snapshot(w["cat"]) == before
+
+
+@pytest.fixture(scope="module")
+def atlas_run(tmp_path_factory):
+    glb_root = renderer_root()
+    tmp = tmp_path_factory.mktemp("atlas")
+    ext = tmp / "ext"
+    shutil.copytree(AA.EXTRACTED, ext)
+    w = make_atlas_world(tmp, extracted=ext)
+    cfg = atlas_config(tmp, w, glb_root)
+    run1 = run_cli(cfg, "--variants")
+    after1 = w["dpath"].read_bytes()
+    tree1 = snapshot(w["cat"])
+    run2 = run_cli(cfg, "--variants")
+    tree2 = snapshot(w["cat"])
+    return {**w, "cfg": cfg, "tmp": tmp, "run1": run1, "run2": run2, "after1": after1, "tree1": tree1, "tree2": tree2}
+
+
+def test_variants_first_run_renders_every_loadable_colourway_and_lists_the_tga(atlas_run):
+    code, out = atlas_run["run1"]
+    assert code == 0 and out["ok"] is True, out
+    assert out["variants"]["rendered"] == sorted(
+        [f"{AXE_A}@{x}" for x in "ABC"] + [f"{SWORD_A}@{x}" for x in "ABC"] + [f"{MACE_A}@A"]
+        + [f"FAKE_AtlasAlt/SM_Wep_Knife_Atlas_01@{x}" for x in "ABC"]), out
+    assert [(f["id"], f["variant"]) for f in out["variants"]["failed"]] == [(MACE_A, "B")]
+    assert "unsupported texture format .tga" in out["variants"]["failed"][0]["error"]
+    assert out["variants"]["skipped"] == []
+
+
+def test_each_colourway_picture_shows_its_own_texture(atlas_run):
+    for letter, channel in (("A", RED), ("B", GREEN), ("C", BLUE)):
+        assert dominant(variant_png(atlas_run, SWORD_A, letter)) == channel, letter
+    big = {x: variant_png(atlas_run, SWORD_A, x).read_bytes() for x in "ABC"}
+    assert len(set(big.values())) == 3  # three different pictures
+    for letter in "ABC":
+        img = read_png(variant_png(atlas_run, SWORD_A, letter).read_bytes())
+        thumb = read_png(variant_png(atlas_run, SWORD_A, letter, "@64").read_bytes())
+        assert img.shape == (256, 256, 4) and thumb.shape == (64, 64, 4)
+        assert [int(img[0, 0, 3]), int(img[-1, -1, 3])] == [0, 0]  # transparent background, like the default icon
+
+
+def test_a_variant_is_the_same_framing_as_the_default_only_recoloured(atlas_run):
+    default = read_png((atlas_run["cat"] / "weapons" / "icons" / "FAKE_AtlasAlt"
+                        / "SM_Wep_Sword_Atlas_01.png").read_bytes())
+    for letter in "BC":
+        other = read_png(variant_png(atlas_run, SWORD_A, letter).read_bytes())
+        assert (default[..., 3] > 0).tolist() == (other[..., 3] > 0).tolist(), letter  # same silhouette
+    assert dominant(atlas_run["cat"] / "weapons" / "icons" / "FAKE_AtlasAlt" / "SM_Wep_Sword_Atlas_01.png") == RED
+
+
+def test_the_links_are_written_into_the_directory_and_stay_valid(atlas_run):
+    d = read_json(atlas_run["dpath"])
+    assert validate_directory(d, atlas_run["excl"]) == []
+    sword = wfx.records_by_id(d)[SWORD_A]["visuals"]["variants"]
+    assert [v["icon"] for v in sword] == [f"icons/FAKE_AtlasAlt/SM_Wep_Sword_Atlas_01@{x}.png" for x in "ABC"]
+    assert all(len(v["icon_input_sha"]) == 16 for v in sword) and len({v["icon_input_sha"] for v in sword}) == 3
+    mace = wfx.records_by_id(d)[MACE_A]["visuals"]["variants"]
+    assert mace[0]["icon"] and mace[1]["icon"] is None and "icon_input_sha" not in mace[1]  # the .tga one stays null
+    assert not variant_png(atlas_run, MACE_A, "B").exists()
+
+
+def test_a_second_variants_run_changes_nothing(atlas_run):
+    code, out = atlas_run["run2"]
+    assert code == 0 and out["rendered"] == [] and out["directory_written"] is False
+    assert out["variants"]["rendered"] == [] and len(out["variants"]["skipped"]) == 10  # 3 + 3 + 3 + 1
+    assert [(f["id"], f["variant"]) for f in out["variants"]["failed"]] == [(MACE_A, "B")]
+    assert atlas_run["tree2"] == atlas_run["tree1"]  # every path, byte and mtime identical
+
+
+def test_a_rebuild_keeps_the_variant_links_while_the_pictures_exist(atlas_run):
+    before = atlas_run["dpath"].read_bytes()
+    d, e, _ = build_directory_report(atlas_run["cat"], overrides=empty_overrides(), pack_settings=AA.PACK_SETTINGS,
+                                     threejs_v2_dir=atlas_run["root"], geometry_cache={},
+                                     extracted_root=atlas_run["extracted"])
+    write_directory(atlas_run["cat"], d, e)
+    assert atlas_run["dpath"].read_bytes() == before
+
+
+def test_a_repainted_texture_renders_only_that_colourway_again(atlas_run):
+    tex = atlas_run["extracted"] / "FAKE_AtlasAlt/Assets/Synty/FakeAtlas/Textures/Alts/FakeAtlas_01_C_Diffuse.png"
+    original = tex.read_bytes()
+    try:
+        tex.write_bytes(AA._png((200, 200, 40)))  # C becomes yellow: red + green
+        code, out = run_cli(atlas_run["cfg"], "--variants")
+        assert code == 0 and out["variants"]["rendered"] == sorted(
+            [f"{SWORD_A}@C", "FAKE_AtlasAlt/SM_Wep_Knife_Atlas_01@C", f"{AXE_A}@C"]), out
+        assert dominant(variant_png(atlas_run, SWORD_A, "C")) != BLUE
+    finally:
+        tex.write_bytes(original)

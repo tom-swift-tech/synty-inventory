@@ -10,6 +10,10 @@ which makes repeated runs on one machine byte-identical (AC17).
 
 No placeholder is ever written (INV-8): when the renderer is unavailable nothing at all is written and the verb
 exits 5; a failed asset keeps ``visuals.icon: null`` and is listed under ``failed``.
+
+``--variants`` (spec 3.7) adds one icon per colourway of an atlas-alt record: the same render with the albedo atlas
+swapped for the sibling material's texture (``variants.resolve_variant_texture``). Outputs sit beside the default
+icon as ``<id>@<L>.png`` / ``<id>@<L>@64.png`` and are cached on a hash that includes the texture file's bytes.
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ from urllib.parse import unquote, urlparse
 import numpy as np
 
 from . import EXIT_OK, EXIT_RENDERER, InputError, WeaponsError, digest, to_text, write_text_lf
+from .variants import TextureNotFound, resolve_variant_texture, variant_link_paths
 
 ICON_HARNESS_VERSION = 1  # bump when the harness, framing or encoding changes what a render looks like
 ICONS_DIRNAME = "icons"
@@ -229,6 +234,39 @@ def apply_links(directory: dict, results: dict[str, dict], failed: set[str]) -> 
     return changed
 
 
+def variant_input_sha(default_sha: str, texture_sha256: str, variant_id: str) -> str:
+    """16 hex for one colourway icon: everything the default icon hashes (``default_sha``) plus the bytes of the
+    texture that replaces the atlas, so a repainted sibling texture renders again and an untouched one does not."""
+    return digest({"base": default_sha, "texture": texture_sha256, "variant": variant_id})
+
+
+def apply_variant_links(directory: dict, links: dict[str, dict[str, dict]], failed: dict[str, set[str]]) -> bool:
+    """Write colourway icon links into ``visuals.variants[]`` (in place); False when nothing changed.
+
+    ``links`` is ``id -> variant_id -> {icon, thumb, sha256}`` for rendered or still valid icons, ``failed`` is
+    ``id -> {variant_id}``: those go back to ``icon: null`` and lose their ``icon_input_sha`` (INV-8). A variant
+    with a link carries ``icon`` and ``icon_input_sha``; one without carries the five spec keys only.
+    """
+    changed = False
+    for rec in directory["weapons"]:
+        mine, bad = links.get(rec["id"], {}), failed.get(rec["id"], set())
+        for var in rec["visuals"]["variants"]:
+            letter = var["variant_id"]
+            if letter in mine:
+                want = {"icon": mine[letter]["icon"], "icon_input_sha": mine[letter]["sha256"]}
+            elif letter in bad:
+                want = {"icon": None}
+            else:
+                continue
+            for key, value in want.items():
+                if var.get(key) != value:
+                    var[key] = value
+                    changed = True
+            if letter in bad and var.pop("icon_input_sha", None) is not None:
+                changed = True
+    return changed
+
+
 # --- renderer ------------------------------------------------------------------------------------------------------
 
 
@@ -256,7 +294,8 @@ def _launch_browser(playwright, gpu: bool):
 
 
 _MIME = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".wasm": "application/wasm",
-         ".glb": "model/gltf-binary", ".json": "application/json; charset=utf-8"}
+         ".glb": "model/gltf-binary", ".json": "application/json; charset=utf-8", ".png": "image/png",
+         ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -274,6 +313,8 @@ class _Handler(BaseHTTPRequestHandler):
             target = self._inside(self.server.three_dir, route[len("/three/"):])
         elif route.startswith("/glb/"):
             target = self.server.glbs.get(route[len("/glb/"):])
+        elif route.startswith("/tex/"):
+            target = self.server.textures.get(route[len("/tex/"):])
         if target is None or not Path(target).is_file():
             self.send_error(404, route)
             return
@@ -302,6 +343,7 @@ class _Server(ThreadingHTTPServer):
         super().__init__(("127.0.0.1", 0), _Handler)  # loopback only, ephemeral port: no network
         self.harness_dir, self.three_dir = harness_dir, three_dir
         self.glbs: dict[str, Path] = {}
+        self.textures: dict[str, Path] = {}
 
 
 class Renderer:
@@ -317,6 +359,7 @@ class Renderer:
         self._page = None
         self._log: list[str] = []
         self._glb_keys: dict[str, str] = {}
+        self._tex_keys: dict[str, str] = {}
 
     def __enter__(self) -> "Renderer":
         try:
@@ -371,13 +414,26 @@ class Renderer:
             self._server.glbs[key] = path
         return f"/glb/{key}"
 
-    def render(self, glb: Path, nodes, scale: float, item_basis, shield: bool, size: int) -> np.ndarray:
-        """Premultiplied RGBA (``size`` x ``size`` x 4 uint8, top row first) of one GLB. Raises ``RenderError``."""
+    def _tex_url(self, path: Path) -> str:
+        key = self._tex_keys.get(str(path))
+        if key is None:
+            key = f"{len(self._tex_keys)}{path.suffix.lower()}"
+            self._tex_keys[str(path)] = key
+            self._server.textures[key] = path
+        return f"/tex/{key}"
+
+    def render(self, glb: Path, nodes, scale: float, item_basis, shield: bool, size: int,
+               texture: Path | None = None) -> np.ndarray:
+        """Premultiplied RGBA (``size`` x ``size`` x 4 uint8, top row first) of one GLB. Raises ``RenderError``.
+
+        ``texture`` (a variant's atlas image) replaces the base-colour map of every drawn material that has one.
+        """
         try:
             bounds = self._page.evaluate("p => window.iconPrepare(p)", {
                 "glb": self._glb_url(glb), "nodes": nodes, "scale": float(scale),
                 "itemBasis": [[int(c) for c in row] for row in item_basis],
                 "camDir": list(camera_direction(shield)),
+                "texture": self._tex_url(texture) if texture is not None else None,
             })
             frustum = fit_frustum(bounds["min"], bounds["max"])
             out = self._page.evaluate("p => window.iconRender(p)", {"frustum": frustum, "size": size})
@@ -419,17 +475,22 @@ def _write_atomic(path: Path, data: bytes) -> None:
 
 def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variants: bool = False,
                  threejs_v2_dir: Path, synty_glb_root: Path, rebuild: bool = False, gpu: bool = False,
-                 report: dict | None = None) -> dict[str, dict]:
+                 report: dict | None = None, extracted_root: Path | None = None) -> dict[str, dict]:
     """``id -> {icon, thumb, sha256}`` for every record that has an icon after the call (rendered or still valid).
 
     ``icon``/``thumb`` are relative to ``out_dir``'s parent (the directory.json folder); ``sha256`` is the input hash
     (``visuals.icon_input_sha``). Raises ``RendererUnavailable`` before anything is written. ``report`` (optional)
     receives ``rendered``, ``skipped`` and ``failed`` (``[{id, error}]``) so a caller can list them.
-    ``variants`` is accepted for the slice W5 interface and ignored: only the default colourway is rendered.
-    Records without ``geometry`` or ``files.glb`` get no icon and are not mentioned.
+    With ``variants`` the colourway icons of every record's ``visuals.variants`` are rendered as well. They need
+    ``extracted_root`` (the folder with one extracted tree per pack) to find each sibling texture; without it the
+    call raises ``InputError``. Their outcome goes into ``report["variants"]`` = ``{rendered: ["<id>@<L>"],
+    skipped: [...], failed: [{id, variant, error}], links: {id: {L: {icon, thumb, sha256}}}}``; the return value
+    stays the default icons only. Records without ``geometry`` or ``files.glb`` get no icon and are not mentioned.
     """
     _check_size(size)
     root = check_renderer(synty_glb_root)
+    if variants and extracted_root is None:
+        raise InputError("--variants needs extracted_root (the folder with one extracted tree per pack)")
     base_dir = out_dir.parent
     results: dict[str, dict] = {}
     rendered: list[str] = []
@@ -437,6 +498,13 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
     failed: list[dict] = []
     todo: list[tuple[dict, Path, str, str, str]] = []
     sha_cache: dict[Path, str] = {}
+    vtodo: list[tuple[dict, Path, dict, Path, str, str, str]] = []  # rec, glb, variant, texture, sha, icon, thumb
+    vlinks: dict[str, dict[str, dict]] = {}
+    vrendered: list[str] = []
+    vskipped: list[str] = []
+    vfailed: list[dict] = []
+    listing_cache: dict = {}
+    tex_sha: dict[Path, str] = {}
 
     for rec in sorted(records, key=lambda r: r["id"]):
         geo, rel = rec.get("geometry"), (rec.get("files") or {}).get("glb")
@@ -457,8 +525,11 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
         else:
             skipped.append(rec["id"])
             results[rec["id"]] = {"icon": icon_rel, "thumb": thumb_rel, "sha256": sha}
+        if variants:
+            _plan_variants(rec, glb, sha, out_dir, Path(extracted_root), size, rebuild, listing_cache, tex_sha,
+                           vtodo, vlinks, vskipped, vfailed)
 
-    if todo:
+    if todo or vtodo:
         with Renderer(root, gpu=gpu) as renderer:  # raises RendererUnavailable before any file is touched
             for rec, glb, sha, icon_rel, thumb_rel in todo:
                 files = rec["files"]
@@ -478,10 +549,67 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
                 _write_atomic(base_dir / thumb_rel, small)
                 rendered.append(rec["id"])
                 results[rec["id"]] = {"icon": icon_rel, "thumb": thumb_rel, "sha256": sha}
+            for rec, glb, var, texture, vsha, icon_rel, thumb_rel in vtodo:
+                files = rec["files"]
+                shield = rec.get("kind") == "shield" or rec.get("archetype") == "shield"
+                letter = var["variant_id"]
+                try:
+                    px = renderer.render(glb, _selection(files.get("glb_node")), float(files.get("glb_scale") or 1.0),
+                                         rec["geometry"]["item_basis"], shield, size, texture=texture)
+                    big = encode_png(unpremultiply(px))
+                    small = encode_png(unpremultiply(downsample(px, THUMB_SIZE)))
+                except RenderError as exc:
+                    vfailed.append({"id": rec["id"], "variant": letter, "error": str(exc)})
+                    for rel in (icon_rel, thumb_rel):  # no stale picture is left as if current (INV-8)
+                        (base_dir / rel).unlink(missing_ok=True)
+                    continue
+                _write_atomic(base_dir / icon_rel, big)
+                _write_atomic(base_dir / thumb_rel, small)
+                vrendered.append(f"{rec['id']}@{letter}")
+                vlinks.setdefault(rec["id"], {})[letter] = {"icon": icon_rel, "thumb": thumb_rel, "sha256": vsha}
 
     if report is not None:
         report.update(rendered=sorted(rendered), skipped=sorted(skipped), failed=failed)
+        if variants:
+            report["variants"] = {"rendered": sorted(vrendered), "skipped": sorted(vskipped),
+                                  "failed": sorted(vfailed, key=lambda f: (f["id"], f["variant"])), "links": vlinks}
     return results
+
+
+def _plan_variants(rec, glb, default_sha, out_dir, extracted_root, size, rebuild, listing_cache, tex_sha,
+                   vtodo, vlinks, vskipped, vfailed) -> None:
+    """Sort each colourway of ``rec`` into render / still valid / failed (renders nothing, writes nothing new).
+
+    A variant whose material or texture cannot be resolved (missing file, a ``.tga`` the harness cannot load, a
+    pack tree that is not there) is a per-variant failure with the reason, not a batch failure; its stale files
+    are removed so no old picture stays as if it were current.
+    """
+    base_dir = out_dir.parent
+    tree = extracted_root / rec["pack"]
+    for var in (rec.get("visuals") or {}).get("variants") or []:
+        letter = var["variant_id"]
+        icon_rel, thumb_rel = variant_link_paths(out_dir.name, rec["pack"], rec["asset_id"], letter)
+        try:
+            if not tree.is_dir():
+                raise TextureNotFound(f"no extracted tree for pack {rec['pack']}")
+            texture = resolve_variant_texture(tree, var["source"], listing_cache)
+            if texture not in tex_sha:
+                tex_sha[texture] = file_sha256(texture)
+        except (TextureNotFound, OSError) as exc:
+            vfailed.append({"id": rec["id"], "variant": letter, "error": str(exc)})
+            for rel in (icon_rel, thumb_rel):
+                (base_dir / rel).unlink(missing_ok=True)
+            continue
+        vsha = variant_input_sha(default_sha, tex_sha[texture], letter)
+        # a variant stores no thumb path: it is derived from the icon path, so a stored link is "current" only
+        # when it is exactly the derived icon path
+        stored = {"icon": var.get("icon"), "icon_input_sha": var.get("icon_input_sha"),
+                  "thumb": thumb_rel if var.get("icon") == icon_rel else None}
+        if needs_render(stored, vsha, icon_rel, thumb_rel, base_dir, size, rebuild):
+            vtodo.append((rec, glb, var, texture, vsha, icon_rel, thumb_rel))
+        else:
+            vskipped.append(f"{rec['id']}@{letter}")
+            vlinks.setdefault(rec["id"], {})[letter] = {"icon": icon_rel, "thumb": thumb_rel, "sha256": vsha}
 
 
 # --- CLI -----------------------------------------------------------------------------------------------------------
@@ -501,6 +629,10 @@ def _run(args, cfg) -> int:
     size = getattr(args, "size", 256)
     _check_size(size)
     root = check_renderer(cfg.get("synty_glb_root"))  # exit 5 before anything is read or written
+    want_variants = bool(getattr(args, "variants", False))
+    extracted = cfg.get("extracted_root")
+    if want_variants and not extracted:
+        raise InputError("--variants needs extracted_root in the config (the folder with one extracted tree per pack)")
     wdir = weapons_dir(_catalogs(args, cfg))
     dpath = wdir / DIRECTORY_NAME
     if not dpath.is_file():
@@ -524,12 +656,19 @@ def _run(args, cfg) -> int:
 
     report: dict = {}
     results = render_icons(
-        wanted, wdir / ICONS_DIRNAME, size=size, variants=bool(getattr(args, "variants", False)),
+        wanted, wdir / ICONS_DIRNAME, size=size, variants=want_variants,
         threejs_v2_dir=threejs, synty_glb_root=root, rebuild=bool(getattr(args, "rebuild", False)),
         gpu=bool(getattr(args, "gpu", False)), report=report,
+        extracted_root=Path(extracted) if want_variants else None,
     )
     failed_ids = {f["id"] for f in report["failed"]}
     changed = apply_links(directory, results, failed_ids)
+    vreport = report.get("variants")
+    if vreport is not None:
+        vfailed: dict[str, set[str]] = {}
+        for f in vreport["failed"]:
+            vfailed.setdefault(f["id"], set()).add(f["variant"])
+        changed = apply_variant_links(directory, vreport["links"], vfailed) or changed
     written = False
     if changed:
         excluded_path = wdir / EXCLUDED_NAME
@@ -547,8 +686,9 @@ def _run(args, cfg) -> int:
         "failed": report["failed"], "no_geometry": sum(1 for w in chosen if w not in wanted),
         "directory": dpath.name, "directory_written": written,
     }
-    if getattr(args, "variants", False):
-        summary["variants"] = "not built yet: only the default colourway was rendered"
+    if vreport is not None:
+        summary["variants"] = {"rendered": vreport["rendered"], "skipped": vreport["skipped"],
+                               "failed": vreport["failed"]}
     _emit(summary)
     return EXIT_OK
 

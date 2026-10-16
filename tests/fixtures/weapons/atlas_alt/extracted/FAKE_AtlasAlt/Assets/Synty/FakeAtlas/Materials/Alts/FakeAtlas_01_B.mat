@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_Name: FakeAtlas_01_B
+  m_Shader: {fileID: -6465566751694194690, guid: 00000000000000000000000000000001, type: 3}
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _Normal_Map:
+        m_Texture: {fileID: 2800000, guid: ffffffffffffffffffffffffffffffff, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Albedo_Map:
+        m_Texture: {fileID: 2800000, guid: a1100000000000000000000000000000, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Emission_Map:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}

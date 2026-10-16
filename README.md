@@ -221,6 +221,9 @@ synty-inventory kit Apartment                      # modules grouped by role
 synty-inventory kit "*"                            # every family
 synty-inventory validate
 synty-inventory gauntlet
+synty-inventory weapons build                       # weapon directory sidecar under <catalogs>/weapons/
+synty-inventory weapons list --kind ranged --genre modern
+synty-inventory weapons icons --variants            # default + colourway icons (needs the icon renderer)
 synty-inventory vision --calibrate
 synty-inventory vision --pack POLYGON_City --ids SM_Bld_Apartment_01 --dry-run
 synty-inventory review --pack POLYGON_SciFi_Space --limit 20
@@ -455,6 +458,51 @@ ratio falls below 0.95. Nothing is written on any failure.
 Exit codes: `0` written, `2` bad input (missing catalog/scenes dir), `3`
 Overview-scene or resolve-rate refusal, `6` malformed scene YAML or schema
 violation.
+
+### Weapon directory (weapons)
+
+`weapons` builds a game-neutral directory of every weapon-class asset: one record per weapon with its role, kind,
+archetype and genre, measured geometry (length, forward axis, grip, muzzle), suggested tiers and icon links. It is a
+sidecar: `weapons build` writes only `<catalogs>/weapons/directory.json` and `excluded.json`, never a pack catalog,
+`index.json` or `search.db`. The full contract is [`docs/weapon_directory.md`](docs/weapon_directory.md).
+
+```bash
+synty-inventory weapons build [--pack CSV] [--rebuild] [--no-geometry] [--min-coverage F] [--strict]
+synty-inventory weapons list [--pack CSV] [--kind K] [--role R] [--archetype A] [--genre G] [--max-confidence F]
+synty-inventory weapons show PACK/SM_Wep_Sword_01
+synty-inventory weapons icons [--pack CSV] [--ids CSV] [--size 256] [--rebuild] [--variants]
+synty-inventory weapons review                      # static HTML page for correcting classifications
+synty-inventory weapons apply-corrections FILE      # fold review corrections into the committed overrides
+synty-inventory weapons export --game G --packs CSV --out snapshot.json [--engine threejs]
+synty-inventory weapons validate [--directory PATH] [--snapshot PATH]
+```
+
+**Colourway icons.** A record whose catalog material sits under `Materials/Alts/<Atlas>_NN_<L>.mat` lists one
+`visuals.variants[]` entry per sibling letter found in the extracted tree (`extracted_root/<pack>`); a lone letter,
+a dedicated material or a mesh-level colourway lists none. `weapons icons --variants` renders the default icons as
+usual and then one extra picture per colourway, `icons/<pack>/<asset_id>@<L>.png` and `...@<L>@64.png`, by drawing
+the same mesh with the sibling atlas texture in place of the base-colour map. The texture comes from the material's
+albedo slot (`_Albedo_Map`, `_BaseMap`, `_MainTex`, `_BaseColorMap`): its guid is matched to the `.meta` of a file in
+the mirrored `Textures` folder, and the file name is the fallback. Only `.png` and `.jpg` load; a sibling whose
+texture is anything else (a `.tga`, a missing file) is listed under `variants.failed` with the reason and keeps
+`icon: null`. A colourway icon is skipped when its stored hash (default icon inputs plus the texture bytes) and both
+PNGs are still good, so a repainted texture re-renders only that colourway. As for the default icons, exit 5 means
+the renderer is unavailable and nothing is written.
+
+**Export and `glb_scale`.** `files.glb_scale` is the size correction that was applied when the geometry was
+measured; the GLB on disk is not scaled. `export --engine threejs` therefore keeps `glb_scale` next to `glb` and
+`glb_node` (godot and unity snapshots never carry it), and `validate --snapshot` accepts it only under the glb engine
+filter (`threejs` or `all`) and only as a number greater than 0.
+
+**Review page.** A family tile and the "Apply to family" checkbox use the same scope: the label reads
+`Apply to family (N ids)` where N is the number of ids the written `PACK/Family_*` glob matches (including rejected
+rows in `excluded.json`), and a tile that holds fewer than that shows `×k of N`.
+
+**Gauntlet.** `gauntlet` gains one additive gate, `weapons_directory`, skipped when no directory exists and never
+writing: per-pack coverage (`records + excluded == candidates`, recomputed from the catalogs), unique ids, valid
+enums, geometry on at least 97 % of the records with a GLB, a muzzle on every ranged non-bow weapon, and the gold
+regression (every id in the committed overrides keeps its overridden values after a clean in-memory rebuild).
+Stale overrides are listed in the gate detail and fail it only in strict mode.
 
 ## Mesh analysis
 

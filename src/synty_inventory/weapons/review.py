@@ -41,7 +41,7 @@ from .corrections import apply_corrections  # noqa: F401  (spec 3.3 lists it in 
 
 ROLE_SECTIONS = (("part", "Parts"), ("ammo", "Ammo"), ("carrier", "Carriers"))  # role -> section title
 LOW_CONFIDENCE = 0.6  # review.confidence below this lands in the Low confidence section (spec 3.9)
-FAMILY_COLLAPSE_OVER = 12  # a family with more members than this in one section collapses to one tile
+FAMILY_COLLAPSE_OVER = 12  # a (pack, family) with more members than this in one section collapses to one tile
 TEMPLATE = Path(__file__).with_name("review_template.html")
 
 
@@ -92,6 +92,11 @@ def _family_globs(directory: dict, excluded: dict | None) -> dict[tuple[str, str
     return out
 
 
+def _fam_label(n: int) -> str:
+    """The text of the "Apply to family" checkbox: N is what the written glob really matches (AC36)."""
+    return f"Apply to family ({n} {'id' if n == 1 else 'ids'})"
+
+
 def _thumb_src(rec: dict, base_dir: Path, out_dir: Path) -> str | None:
     """Relative URL of the 64 px thumbnail when it exists on disk, else None (a text-only tile)."""
     thumb = (rec.get("visuals") or {}).get("thumb")
@@ -123,7 +128,7 @@ def _record_tile(rec: dict, idx: int, globs: dict, base_dir: Path, out_dir: Path
         "data-role": rec["role"], "data-kind": rec["kind"] or "", "data-archetype": rec["archetype"],
         "data-hold_class": rec["hold_class"], "data-genre": rec["genre"], "data-status": rv["status"],
         "data-conf": f"{rv['confidence']:.2f}", "data-reasons": ", ".join(rv["reasons"]), "data-glob": glob,
-        "data-globn": str(globn),
+        "data-globn": str(globn), "data-famlabel": _fam_label(globn),
     }
     attr_text = " ".join(f'{k}="{_e(v)}"' for k, v in attrs.items())
     return (
@@ -153,8 +158,13 @@ def _excluded_tile(row: dict, idx: int) -> str:
     )
 
 
-def _grid(items: list[tuple[tuple[str, str], str, str]]) -> str:
-    """``items`` = [(group key, group label, tile html)] already sorted; collapse runs over the limit."""
+def _grid(items: list[tuple[tuple, str, str, tuple[str, int]]]) -> str:
+    """``items`` = [(group key, group label, tile html, (family glob, ids it matches))] already sorted.
+
+    A run of equal keys over the limit collapses to one tile. Its count is the records the tile holds (``k``); when
+    the family glob matches more ids than that (members in another section, excluded rows) the tile reads
+    "k of N", so the number on the tile and the "Apply to family (N ids)" scope never disagree (AC36).
+    """
     out: list[str] = []
     i = 0
     while i < len(items):
@@ -163,13 +173,17 @@ def _grid(items: list[tuple[tuple[str, str], str, str]]) -> str:
             j += 1
         run = items[i:j]
         if len(run) > FAMILY_COLLAPSE_OVER:
+            glob, n = run[0][3]
+            of = f'<span class="of">of {n}</span>' if n > len(run) else ""
             out.append(
-                f'<details class="family" data-family="{_e(run[0][0][1])}"><summary class="family-tile">'
-                f'<span class="id">{_e(run[0][1])}</span><span class="count">&times;{len(run)}</span>'
+                f'<details class="family" data-family="{_e(run[0][0][1])}" '
+                f'data-count="{len(run)}" data-glob="{_e(glob)}" data-globn="{n}">'
+                f'<summary class="family-tile"><span class="id">{_e(run[0][1])}</span>'
+                f'<span class="count">&times;{len(run)}</span>{of}'
                 f'<span class="sub">tap to expand</span></summary><div class="grid">'
-                + "".join(t for _, _, t in run) + "</div></details>")
+                + "".join(t for _, _, t, _ in run) + "</div></details>")
         else:
-            out.extend(t for _, _, t in run)
+            out.extend(t for _, _, t, _ in run)
         i = j
     return '<div class="grid">' + "".join(out) + "</div>"
 
@@ -224,8 +238,11 @@ def write_review_page(
     counter = iter(range(1, 10**9))
 
     def record_section(sec_id: str, title: str, note: str, recs: list[dict]) -> str:
-        items = [((w["genre"], w["family"]), f'{w["family"]} ({w["genre"]})',
-                  _record_tile(w, next(counter), globs, base_dir, out_dir)) for w in recs]
+        # one tile per (pack, family): the family glob is per pack, so a collapse across packs would hide which ids
+        # "Apply to family" touches. Sorting by (genre, family, id) keeps each pack's members adjacent (id = pack/...).
+        items = [((w["pack"], w["family"], w["genre"]), f'{w["pack"]}/{w["family"]} ({w["genre"]})',
+                  _record_tile(w, next(counter), globs, base_dir, out_dir), globs.get((w["pack"], w["family"]), ("", 0)))
+                 for w in recs]
         return _section(sec_id, title, note, len(recs), _grid(items))
 
     sections = [
@@ -247,7 +264,8 @@ def write_review_page(
     rows = [r for r in (excluded or {}).get("excluded", []) if not packs or r["id"].split("/", 1)[0] in packs]
     keyed = sorted(((r["reason"], family_of(r["id"].split("/", 1)[1], rules), r["id"], r) for r in rows),
                    key=lambda k: k[:3])
-    items = [((reason, fam), f"{fam} ({reason})", _excluded_tile(r, next(counter))) for reason, fam, _, r in keyed]
+    items = [((reason, fam), f"{fam} ({reason})", _excluded_tile(r, next(counter)), ("", 0))
+             for reason, fam, _, r in keyed]
     sections.append(("sec-excluded", "Excluded", "rejected candidates, restore false rejections",
                      _section("sec-excluded", "Excluded", "rejected candidates, restore false rejections",
                               len(rows), _grid(items)), len(rows)))
