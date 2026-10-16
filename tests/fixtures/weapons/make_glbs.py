@@ -343,9 +343,10 @@ def shield_front_bar():
 
 def zigzag():
     """Y-long club-like mesh whose width alternates 0.02 / 0.10 every centimetre, y -0.15..0.35, origin 30 % from the
-    butt. Its VERTICES alternate, but the edges between the rings cross every bin, so the surface width profile sits at
-    0.092 / 0.100 and the whole window is one thin run: a handle under the W2d rule (it was 'no handle' under the
-    vertex-only rule). The mesh with no handle is ``banded``."""
+    butt (y 0). Its VERTICES alternate, so the base (vertex-profile) rule finds no 6 cm run near the p10 extent. The
+    edges between the rings cross every bin, so the SURFACE width profile sits at 0.092 / 0.100: the whole 30-bin window
+    is one thin run and the origin (bin 15) lies inside it, so the grip stays at the origin (W2d step 3). The mesh with
+    no handle at all is ``banded``."""
     return loft(1, [(-0.15 + 0.01 * i, 0.01 if i % 2 == 0 else 0.05, 0.01) for i in range(51)])
 
 
@@ -369,60 +370,64 @@ def banded():
 
 # -- the W2d melee grip set (AC40) -------------------------------------------------------------------------
 #
-# Ten Y-long melee meshes, butt at y = 0 and forward +y, each with a hand-labelled handle. Every transition ring sits in
-# the MIDDLE of a 1 cm bin (x.5 cm from the butt), the first section starts at the butt ring (y = 0), and no two
-# sections share a bin, so each bin is wholly one section and the handle run is read off the section table below
-# (bins are 1 cm from the butt: bin b = y in [b, b+1) cm). The labels are literals worked out by hand; ``W2D_SET`` below
-# is the table the tests read. Windows are the butt-side 60 % of the length; w_ref is p20 of the bin widths in it.
+# Y-long melee meshes, butt at y = 0 and forward +y, each with hand-worked labels. Every transition ring sits in the
+# MIDDLE of a 1 cm bin (x.5 cm from the butt) and no two sections share a bin, so each bin is wholly one section (bins
+# are 1 cm from the butt: bin b = y in [b, b+1) cm). The window is the butt-side 60 % of the length: ceil(0.6 L / 1 cm)
+# bins. Every length below is chosen so that count is NOT a whole number (L = x.005 m): a length that is a whole number of
+# bins in the window (1.0 m -> 60.0) lets float32 vertex noise add a bin, which moves a run centre by half a centimetre.
+#
+# Most of the set is built from ``bar`` sections: each ring holds four vertices at one y, so the VERTEX width profile is
+# a clean step function, and the unchanged BASE rule (longest run, p10) decides: the grip is the run centre whatever the
+# origin. Only the vertex-sparse meshes (``sparse_shaft``, a ring's corners staggered over four bins) defeat the base rule
+# and reach the pivot-anchored surface step.
 #
 # Each mesh is used three ways (see ``W2D_ORIGINS``): the origin at the butt and at 20 % of the length (the pivot rule
 # gives forward +y), and at the middle of the length, where the pivot rule is silent and the forward sign comes from the
 # END-SECTION rule (smaller end = tip for a pointed archetype, larger end = head for axe / hammer / club / mace). So every
-# mesh carries a tip that is clearly smaller than its butt (pointed archetypes) or a head clearly larger than its butt
-# (headed ones), and the sign resolves to +y.
+# mesh carries a tip that is clearly smaller than its butt (pointed archetypes) or a head clearly larger (headed ones),
+# and the sign resolves to +y.
 
 
 def w2d_sword():
-    """L 1.0. Pommel bins 0-3 (e 0.05), HILT bins 4-20 (y 0.045..0.205, e 0.03), guard 21-23 (e 0.20), blade 24-98 (e 0.05,
-    to an apex at 1.0). Window 60 bins; 17 hilt bins >= 12 so p20 = 0.03 and the pommel and blade (0.05 > 0.039) are not
-    thin. Run bins 4-20 (17 bins, under the 30 cm cap): grip = (4 + 17 / 2) cm = 0.125, r 0.015."""
+    """L 1.0. Pommel bins 0-3 (e 0.05), HILT bins 4-20 (y 0.045..0.205, e 0.03), guard 21-23 (e 0.20), blade 24-99 (e 0.05,
+    to an apex at 1.0). Window 60 bins; 17 hilt bins >= 6 so p10 = 0.03 and the pommel and blade (0.05 > 0.039) are not
+    thin. BASE rule: run bins 4-20 (17 bins): grip = (4 + 17 / 2) cm = 0.125, r 0.015."""
     return merge(bar(0.0, 0.035, 0.025, 0.025), bar(0.045, 0.205, 0.015, 0.015), bar(0.215, 0.235, 0.1, 0.015),
                  loft(1, [(0.245, 0.025, 0.004), (0.985, 0.025, 0.004), (1.0, 0.0, 0.0)]))
 
 
 def w2d_axe():
-    """L 0.9. HAFT bins 0-70 (e 0.03, y 0..0.705), head bins 71-90 (0.24 x 0.06). Window 54 bins, all haft: one run of 54,
-    capped to its first 30 bins: grip = 15 cm = 0.15, r 0.015. Headed: the head (+y) is the larger end."""
-    return merge(bar(0.0, 0.705, 0.015, 0.015), bar(0.715, 0.9, 0.12, 0.03))
+    """L 0.905. HAFT bins 0-70 (e 0.03, y 0..0.705), head bins 71-90 (0.24 x 0.06). Window ceil(54.3) = 55 bins, all haft:
+    BASE rule: one run of 55, grip = 27.5 cm = 0.275, r 0.015. Headed: the head (+y) is the larger end."""
+    return merge(bar(0.0, 0.705, 0.015, 0.015), bar(0.715, 0.905, 0.12, 0.03))
 
 
 def w2d_hammer():
-    """L 0.4. HAFT bins 0-30 (e 0.03, y 0..0.305), head bins 31-40 (0.10 x 0.06). Window 24 bins, all haft: one run of 24
-    (under the cap): grip = 12 cm = 0.12, r 0.015."""
-    return merge(bar(0.0, 0.305, 0.015, 0.015), bar(0.315, 0.4, 0.05, 0.03))
+    """L 0.405. HAFT bins 0-30 (e 0.03, y 0..0.305), head bins 31-40 (0.10 x 0.06). Window ceil(24.3) = 25 bins, all haft:
+    BASE rule: one run of 25, grip = 12.5 cm = 0.125, r 0.015."""
+    return merge(bar(0.0, 0.305, 0.015, 0.015), bar(0.315, 0.405, 0.05, 0.03))
 
 
 def w2d_bat():
-    """L 0.85. One taper, half width 0.012 at the butt to 0.035 at the head (e 0.024 .. 0.07); the bin width is that of its
-    top sample (corner edges sampled every 4.97 mm). Window 51 bins, w_ref = p20 = 0.0299, threshold 0.0389: bins 0-26 are
-    thin (bin 26 tops out at y 0.27: e 0.0388), bin 27 is not. Run bins 0-26 (27 bins): grip = 13.5 cm = 0.135, r
-    = mean(e) / 2 = 0.0158. Labelled handle: the butt 27 cm, y 0..0.27."""
-    return loft(1, [(0.0, 0.012, 0.012), (0.85, 0.035, 0.035)])
+    """L 0.855. One taper, half width 0.012 at the butt to 0.035 at the head: only its two end rings are vertices, so the
+    vertex profile is 0.024 from bin 0 (empty bins inherit) to the head ring in bin 85. Window ceil(51.3) = 52 bins, all
+    0.024: BASE rule: one run of 52, grip = 26 cm = 0.26, r = 0.024 / 2 = 0.012."""
+    return loft(1, [(0.0, 0.012, 0.012), (0.855, 0.035, 0.035)])
 
 
 def w2d_crowbar():
-    """L 0.8. Hook end at the butt bins 0-7 (0.06 x 0.03), SHAFT bins 8-71 (e 0.02, y 0.085..0.715), chisel bins 72-80
-    (0.04 x 0.008). Window 48 bins: 40 shaft bins, p20 = 0.02, hook (0.06) not thin. Run bins 8-47 (40), capped to bins
-    8-37: grip = (8 + 15) cm = 0.23, r 0.01. Archetype crowbar is pointed: the chisel (smaller section than the hook) is the
-    tip, so mid-origin resolves to +y."""
-    return merge(bar(0.0, 0.075, 0.03, 0.015), bar(0.085, 0.715, 0.01, 0.01), bar(0.725, 0.8, 0.02, 0.004))
+    """L 0.805. Hook end at the butt bins 0-7 (0.06 x 0.03), SHAFT bins 8-71 (e 0.02, y 0.085..0.715), chisel bins 72-80
+    (0.04 x 0.008). Window ceil(48.3) = 49 bins: 41 shaft bins (8-48), p10 = 0.02, hook (0.06) not thin. BASE rule: run
+    bins 8-48 (41): grip = (8 + 20.5) cm = 0.285, r 0.01. Archetype crowbar is pointed: the chisel (smaller section than
+    the hook) is the tip, so mid-origin resolves to +y."""
+    return merge(bar(0.0, 0.075, 0.03, 0.015), bar(0.085, 0.715, 0.01, 0.01), bar(0.725, 0.805, 0.02, 0.004))
 
 
 def short_blade(length, handle_bins):
     """A y-long knife / dagger of the given ``length`` whose HANDLE fills bins 0..handle_bins-1 (e 0.02, y 0..(handle_bins -
-    0.5) cm), followed by a 2-bin guard (e 0.06) and a blade (e 0.04) to an apex at ``length``. The minimum run is
-    max(2, min(6, 0.2 * length)) cm rounded up to whole bins: 6 bins for a 28 cm knife (5.6 cm), 4 for an 18 cm dagger
-    (3.6 cm)."""
+    0.5) cm), followed by a 2-bin guard (e 0.06) and a blade (e 0.04) to an apex at ``length``. The BASE rule needs 6
+    bins; the surface step needs max(2, min(6, 0.2 * length)) cm rounded up to whole bins: 6 bins for a 28 cm knife
+    (5.6 cm), 4 for an 18 cm dagger (3.6 cm)."""
     top = (handle_bins - 0.5) * 0.01
     return merge(bar(0.0, top, 0.01, 0.01), bar(top + 0.01, top + 0.02, 0.03, 0.008),
                  loft(1, [(top + 0.03, 0.02, 0.003), (length - 0.015, 0.02, 0.003), (length, 0.0, 0.0)]))
@@ -430,65 +435,97 @@ def short_blade(length, handle_bins):
 
 def w2d_knife():
     """L 0.28, ``short_blade(0.28, 12)``: HANDLE bins 0-11 (y 0..0.115, e 0.02), guard 12-13 (e 0.06), blade 14-26 (e 0.04).
-    Window 17 bins; 12 handle bins, p20 = 0.02, threshold 0.026. The run (12 bins) beats the minimum 5.6 cm -> 6 bins.
-    Grip = 6 cm = 0.06, r 0.01."""
+    Window 17 bins; 12 handle bins, p10 = 0.02, threshold 0.026. BASE rule: the run (12 bins) beats 6; grip = 6 cm = 0.06,
+    r 0.01."""
     return short_blade(0.28, 12)
 
 
 def w2d_spear():
-    """L 2.0. Ferrule bins 0-4 (e 0.05), SHAFT bins 5-190 (y 0.055..1.905, e 0.03), leaf head 191-199 (e 0.05, apex at 2.0).
-    Window 120 bins: shaft bins 5-119 are one run of 115, capped to its first 30 bins 5-34: grip = (5 + 15) cm = 0.20 (the
-    uncapped centre would be 0.625), r 0.015."""
+    """L 2.005. Ferrule bins 0-4 (e 0.05), SHAFT bins 5-190 (y 0.055..1.905, e 0.03), leaf head 191-200 (e 0.05, apex at
+    2.005). Window ceil(120.3) = 121 bins: shaft bins 5-120 are one run of 116. BASE rule: grip = (5 + 58) cm = 0.63 (the
+    centre of the run: the base rule is unchanged, W2d does not move a base handle), r 0.015."""
     return merge(bar(0.0, 0.045, 0.025, 0.025), bar(0.055, 1.905, 0.015, 0.015),
-                 loft(1, [(1.915, 0.025, 0.006), (1.97, 0.025, 0.006), (2.0, 0.0, 0.0)]))
+                 loft(1, [(1.915, 0.025, 0.006), (1.97, 0.025, 0.006), (2.005, 0.0, 0.0)]))
+
+
+def sparse_shaft(rings, half=0.015):
+    """A ``half``-square shaft of ``rings`` rings 12 cm apart (y 0, 0.12, ...), each ring's four corners staggered 2.3 cm
+    along the axis (corner k at 0.12 i + 0.023 k): every occupied 1 cm bin holds ONE vertex and the rest are empty, so
+    the vertex-only profile is 0 everywhere (the live failure of low-poly hafts), while the long edges still run through
+    every bin. Surface profile: the first bins are partial (< 0.03), the rest 0.03; the last vertex is at
+    0.12 (rings - 1) + 0.069."""
+    return loft(1, [(0.12 * i, half, half) for i in range(rings)], stagger=0.023)
 
 
 def sparse_haft():
-    """L 1.0 club. A 3 cm square haft made only of rings of 4 vertices every 12 cm, each ring's corners staggered 2.3 cm
-    along the axis (corner k at y = 0.12 i + 0.023 k, i = 0..7, last vertex 0.909), so every occupied bin holds ONE vertex
-    and the rest are empty: the vertex-only profile is 0 everywhere (the live failure), while the long edges still run
-    through every bin. Surface profile: bin 0 and 1 are partial (<0.03), bins 2.. are 0.03. Window 60 bins, p20 = 0.03,
-    one run of 60 capped to bins 0-29: grip = 15 cm = 0.15, r = mean(e) / 2 = 0.0146. Head: a 10 cm cube y 0.93..1.0."""
-    shaft = loft(1, [(0.12 * i, 0.015, 0.015) for i in range(8)], stagger=0.023)
-    return merge(shaft, bar(0.93, 1.0, 0.05, 0.05))
+    """L 1.005 club. ``sparse_shaft(8)`` (last vertex 0.909), then a 7.5 cm cube head y 0.93..1.005. Surface profile:
+    bin 0 and 1 partial (< 0.03), bins 2.. are 0.03, the head (bins 93..100) is outside the 61-bin window. Window
+    ceil(60.3) = 61 bins, p20 = 0.03: one run of 61 (every shaft bin is thin, including the partial ones). The BASE rule
+    finds nothing (an all-zero profile), so the pivot decides: the grip stays at the origin, r = mean(e') / 2 = 0.0148."""
+    return merge(sparse_shaft(8), bar(0.93, 1.005, 0.05, 0.05))
+
+
+def sparse_pole():
+    """L 2.005 club: a 2 m vertex-sparse pole, ``sparse_shaft(16)`` (last vertex 1.869) with a 10 cm head y 1.905..2.005.
+    Window ceil(120.3) = 121 bins, all shaft: one thin run [0, 121). The pole is as long as a staff; with the origin
+    mid-shaft the grip stays AT the origin (the rejected nearest-the-butt rule gripped it 15 cm from the butt)."""
+    return merge(sparse_shaft(16), bar(1.905, 2.005, 0.05, 0.05))
+
+
+def sparse_paddle(rings, paddle_from):
+    """L 1.005 club: ``sparse_shaft(rings)`` and then a wide paddle (e 0.20) from ``paddle_from`` (the middle of a bin) to
+    1.005. The shaft is thin throughout, partial end bins included, and the gaps inherit its last width, so the thin run
+    is [0, bin of the paddle's first ring) and ends exactly where the paddle starts. The paddle bins are not thin
+    (0.20 > 1.3 * 0.03). Window ceil(60.3) = 61 bins. The vertex profile is 0 up to the paddle, so the BASE rule finds
+    nothing."""
+    return merge(sparse_shaft(rings), bar(paddle_from, 1.005, 0.1, 0.1))
+
+
+def sparse_machete():
+    """L 0.705 machete. HILT + knuckle guard: a dense bar y 0..0.145 (bins 0-14), 0.08 wide (x +-0.04) and 0.024 thick.
+    BLADE: a vertex-sparse, wide flat shaft (x +-0.025, z +-0.004, staggered as ``sparse_shaft``) from y 0.155 in four
+    rings 12 cm apart (last vertex 0.584), then a dense tip bar 0.595..0.705. Window ceil(42.3) = 43 bins. By the surface
+    profile the hilt is WIDER than the blade: bins 0-14 are 0.08, the blade bins 15..42 are partial (bins 15-16) or 0.05,
+    so p20 = 0.05, the threshold is 0.065, and the one counting run is the blade [15, 43). The vertex profile is 0 over the
+    blade (28 of 43 bins), so the BASE rule finds nothing."""
+    blade = loft(1, [(0.155 + 0.12 * i, 0.025, 0.004) for i in range(4)], stagger=0.023)
+    return merge(bar(0.0, 0.145, 0.04, 0.012), blade, bar(0.595, 0.705, 0.025, 0.004))
 
 
 def w2d_tang():
-    """L 0.6. HILT bins 0-11 (y 0..0.115, e 0.03), guard 12-13 (e 0.12), TANG bins 14-58 (0.03 x 0.01, to an apex at 0.6).
-    Window 36 bins: hilt 0-11 and tang 14-35 are both thin (e 0.03), the tang run (22 bins in the window) is LONGER than the
-    hilt (12). The handle is the one nearest the butt: bins 0-11, grip = 6 cm = 0.06, r 0.015 (the longest run would put the
-    grip at (14 + 11) cm = 0.25)."""
+    """L 0.605. HILT bins 0-11 (y 0..0.115, e 0.03), guard 12-13 (e 0.12), TANG bins 14-60 (0.03 x 0.01, to an apex at
+    0.605). Window ceil(36.3) = 37 bins: hilt 0-11 and tang 14-36 are both thin (e 0.03); the tang run (23 bins) is LONGER
+    than the hilt (12). BASE rule (unchanged): the longest run wins, grip = (14 + 11.5) cm = 0.255, r 0.015. (The hand holds
+    the hilt; the base rule has always picked the longer run, and a live record that already had 'handle' keeps it.)"""
     return merge(bar(0.0, 0.115, 0.015, 0.015), bar(0.125, 0.135, 0.06, 0.015),
-                 loft(1, [(0.145, 0.015, 0.005), (0.585, 0.015, 0.005), (0.6, 0.0, 0.0)]))
+                 loft(1, [(0.145, 0.015, 0.005), (0.585, 0.015, 0.005), (0.605, 0.0, 0.0)]))
 
 
 def w2d_wire():
-    """L 0.6, a whip-like mesh that pins the 3 mm floor of w_ref: a 3.5 mm GRIP WIRE bins 0-9 (y 0..0.095), a 2 cm bead
-    bins 10-12, a 1 mm filament bins 13-60 (to y 0.6). Window 36 bins; 23 filament bins make p20 = 0.001, so only the
-    floor (w_ref = 0.003, threshold 0.0039) lets the 3.5 mm wire count as thin. With the floor: the nearest run is the wire,
-    bins 0-9, grip = 5 cm = 0.05, r 0.00175. With no floor the threshold is 0.0013 and the filament run (bins 13-35,
-    grip 0.245) wins. This is the only honest way to reach the floor: it needs >= 20 % of the window thinner than 2.3 mm
-    ahead of a handle thicker than that, which no hand-held shaft is, but a whip's lash is."""
-    return merge(bar(0.0, 0.095, 0.00175, 0.00175), bar(0.105, 0.125, 0.01, 0.01), bar(0.135, 0.6, 0.0005, 0.0005))
+    """L 0.605, a whip-like mesh: a 3.5 mm GRIP WIRE bins 0-9 (y 0..0.095), a 2 cm bead bins 10-12, a 1 mm filament bins
+    13-60 (to y 0.605). Window 37 bins; 24 filament bins (13-36) give p10 = 0.001, threshold 0.0013. BASE rule: the wire
+    (0.0035) is not thin, the filament run is (24 bins): grip = (13 + 12) cm = 0.25, r 0.0005. With the base rule out of
+    the way (``test_ac40_the_3_mm_floor...``) the same mesh pins the 3 mm floor of the surface step's w_ref."""
+    return merge(bar(0.0, 0.095, 0.00175, 0.00175), bar(0.105, 0.125, 0.01, 0.01), bar(0.135, 0.605, 0.0005, 0.0005))
 
 
 # Origins used for every set member: fraction of the length from the butt, and the forward source it must give.
 W2D_ORIGINS = {"butt": (0.0, "pivot"), "fifth": (0.2, "pivot"), "mid": (0.5, "section")}
 
-# name -> (builder, archetype, length, handle span (lo, hi) in y from the butt, handle radius, grip y from the butt).
-# The span is the labelled hand-holdable part (the whole haft / hilt / shaft); the grip y is the hand-worked centre of the
-# first 30 cm of the handle run (docstrings above).
+# name -> (builder, archetype, length, labelled handle span (lo, hi) in y from the butt, handle radius, grip y from the
+# butt). ``grip y`` is the hand-worked centre of the base rule's run (docstrings above) or, for the vertex-sparse haft,
+# the string "origin" (the pivot-anchored step keeps the grip where the designer put it).
 W2D_SET = {
     "sword": (w2d_sword, "sword", 1.0, (0.045, 0.205), 0.015, 0.125),
-    "axe": (w2d_axe, "axe", 0.9, (0.0, 0.705), 0.015, 0.15),
-    "hammer": (w2d_hammer, "hammer", 0.4, (0.0, 0.305), 0.015, 0.12),
-    "bat": (w2d_bat, "club", 0.85, (0.0, 0.27), 0.0158, 0.135),
-    "crowbar": (w2d_crowbar, "crowbar", 0.8, (0.085, 0.715), 0.01, 0.23),
+    "axe": (w2d_axe, "axe", 0.905, (0.0, 0.705), 0.015, 0.275),
+    "hammer": (w2d_hammer, "hammer", 0.405, (0.0, 0.305), 0.015, 0.125),
+    "bat": (w2d_bat, "club", 0.855, (0.0, 0.30), 0.012, 0.26),
+    "crowbar": (w2d_crowbar, "crowbar", 0.805, (0.085, 0.715), 0.01, 0.285),
     "knife": (w2d_knife, "knife", 0.28, (0.0, 0.115), 0.01, 0.06),
-    "spear": (w2d_spear, "spear", 2.0, (0.055, 1.905), 0.015, 0.2),
-    "sparse_haft": (sparse_haft, "club", 1.0, (0.0, 0.909), 0.015, 0.15),
-    "tang": (w2d_tang, "sword", 0.6, (0.0, 0.115), 0.015, 0.06),
-    "wire": (w2d_wire, "whip", 0.6, (0.0, 0.095), 0.00175, 0.05),
+    "spear": (w2d_spear, "spear", 2.005, (0.055, 1.905), 0.015, 0.63),
+    "sparse_haft": (sparse_haft, "club", 1.005, (0.0, 0.909), 0.015, "origin"),
+    "tang": (w2d_tang, "sword", 0.605, (0.145, 0.585), 0.015, 0.255),
+    "wire": (w2d_wire, "whip", 0.605, (0.135, 0.605), 0.0005, 0.25),
 }
 
 

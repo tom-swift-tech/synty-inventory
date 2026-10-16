@@ -35,13 +35,15 @@ _PIVOT_BAND = 0.10  # |origin_frac - 0.5| below this: the origin is "near the mi
 _END_FRAC = 0.10  # outer share of the length compared by the cross-section fallback
 _TIP_MM = 0.002  # tip / butt: vertices within 2 mm of the extreme forward coordinate
 _BIN_M = 0.01  # handle detection bin height
+_HANDLE_MIN_BINS = 6  # a handle run is >= 6 cm
 _HANDLE_BUTT_FRAC = 0.60  # handle is searched in the butt-side 60 % of the length
-_HANDLE_E_RATIO = 1.3  # thin bin: e <= 1.3 * w_ref
-_HANDLE_W_PCT = 20  # w_ref = p20(e) over the window ...
+_HANDLE_E_RATIO = 1.3  # e <= 1.3 * p10(e)  (surface step: e' <= 1.3 * w_ref)
+_HANDLE_W_PCT = 20  # surface step: w_ref = p20(e') over the window ...
 _HANDLE_W_FLOOR_M = 0.003  # ... floored at 3 mm, so a window of hair-thin bins cannot collapse the threshold to zero
-# a run counts at >= max(2 cm, min(6 cm, 0.2 * length)): a 28 cm razor is not asked for a 6 cm handle
+# surface step: a run counts at >= max(2 cm, min(6 cm, 0.2 * length)): a 28 cm razor is not asked for a 6 cm handle
 _HANDLE_MIN_FLOOR_M, _HANDLE_MIN_CAP_M, _HANDLE_MIN_FRAC = 0.02, 0.06, 0.2
-_GRIP_SPAN_M = 0.30  # the grip is the first 30 cm of the handle run from its butt end (a 2 m staff is not held mid-shaft)
+_SNAP_FROM_BUTT_FRAC = 0.30  # an origin nearer the butt than this is a designer's grip and is never moved
+_SNAP_REACH_FRAC = 0.10  # a mid-origin snaps onto a counting run at most this share of the length away
 _SURFACE_STEP_M = 0.005  # e(bin) sees the surface: points along every triangle edge at most this far apart
 _SURFACE_MAX_SEGMENTS = 2000  # sanity cap per edge (an edge over 10 m is not a weapon mesh); keeps a garbage mesh bounded
 _SURFACE_CHUNK = 1 << 21  # sample points held at once
@@ -443,14 +445,53 @@ def _surface_stats(v: np.ndarray, tris: np.ndarray, fa: int, fc: np.ndarray, fmi
     return stats
 
 
-def _find_handle(v: np.ndarray, tris: np.ndarray, fa: int, fc: np.ndarray, fmin: float, flen: float):
-    """Handle (spec 3.5.5, W2d) -> (centre forward coordinate, lateral means by axis, radius) or None.
+def _find_handle(v: np.ndarray, fa: int, fc: np.ndarray, fmin: float, flen: float):
+    """Handle run (spec 3.5.5) -> (centre forward coordinate, lateral means by axis, radius) or None."""
+    nb = max(1, int(math.ceil(flen / _BIN_M - 1e-6)))
+    bidx = np.minimum(np.floor((fc - fmin) / _BIN_M + 1e-6).astype(np.int64), nb - 1)
+    rn = min(nb, max(1, int(math.ceil(_HANDLE_BUTT_FRAC * flen / _BIN_M - 1e-6))))
+    lat = [i for i in range(3) if i != fa]
+    order = np.argsort(bidx, kind="stable")
+    sorted_bins = bidx[order]
+    e = np.zeros(rn)
+    prev = 0.0
+    for b in range(rn):  # empty bins inherit the previous bin's extent
+        lo, hi = np.searchsorted(sorted_bins, b, "left"), np.searchsorted(sorted_bins, b, "right")
+        if hi > lo:
+            pts = v[order[lo:hi]][:, lat]
+            prev = float((pts.max(axis=0) - pts.min(axis=0)).max())
+        e[b] = prev
+    thr = _HANDLE_E_RATIO * float(np.percentile(e, 10)) + 1e-9
+    ok = e <= thr
+    best = None  # (run length, start) with the butt-most run winning ties
+    b = 0
+    while b < rn:
+        if not ok[b]:
+            b += 1
+            continue
+        s = b
+        while b < rn and ok[b]:
+            b += 1
+        if b - s >= _HANDLE_MIN_BINS and float(e[s:b].mean()) > 0 and (best is None or b - s > best[0]):
+            best = (b - s, s)
+    if best is None:
+        return None
+    n, s = best
+    sel = (bidx >= s) & (bidx < s + n)
+    lateral = {i: float(v[sel, i].mean()) for i in lat} if sel.any() else {}
+    return fmin + (s + n * 0.5) * _BIN_M, lateral, float(e[s:s + n].mean()) / 2.0
 
-    The width profile ``e(bin)`` is the larger lateral extent of the surface points in each 1 cm bin; an empty bin
-    inherits the previous. ``w_ref`` = p20 of ``e`` over the butt-side 60 % window, floored at 3 mm; a bin is thin at
-    ``e <= 1.3 * w_ref``. The handle is the thin run NEAREST THE BUTT that is long enough (pommels and guards are wider,
-    so the first thin run from the butt is the hilt or haft, whatever longer thin blade follows); the grip is the first
-    30 cm of that run from its butt end.
+
+def _pivot_handle(v: np.ndarray, tris: np.ndarray, fa: int, fc: np.ndarray, fmin: float, flen: float, origin_f: float):
+    """Pivot-anchored handle from the surface profile (spec 3.5.5, W2d steps 2-4) -> (grip forward coordinate, lateral
+    means by axis, radius) or None. The base rule above runs first; this runs when it finds nothing.
+
+    ``e'(bin)`` is the larger lateral extent of the SURFACE points in a 1 cm bin (an empty bin inherits the previous).
+    ``w_ref`` = p20 of ``e'`` over the butt-side 60 % window, floored at 3 mm; a bin is thin at ``e' <= 1.3 * w_ref``; a
+    counting run is >= ``min_run`` of thin bins. The designer's pivot already lies on the handle, so the pivot decides:
+    inside a counting run the grip stays AT the pivot (the run confirms it and measures the radius); a pivot in the far
+    70 % within 10 % of the length of a run snaps onto that run's near end, ``min_run / 2`` inside it; a pivot in the
+    butt-side 30 % (a machete's hilt is wider than its blade by this profile) is never moved.
     """
     lat = [i for i in range(3) if i != fa]
     nb = max(1, int(math.ceil(flen / _BIN_M - 1e-6)))
@@ -466,6 +507,7 @@ def _find_handle(v: np.ndarray, tris: np.ndarray, fa: int, fc: np.ndarray, fmin:
     # ceil, like the bin counts above: a 28 cm knife (0.2 * 0.28 = 5.6 cm) needs 6 whole bins
     min_m = max(_HANDLE_MIN_FLOOR_M, min(_HANDLE_MIN_CAP_M, _HANDLE_MIN_FRAC * flen))
     min_bins = int(math.ceil(min_m / _BIN_M - 1e-6))
+    runs = []  # counting runs as (first bin, one past the last bin); an all-zero run (nothing measurable) never counts
     b = 0
     while b < rn:
         if not ok[b]:
@@ -474,13 +516,32 @@ def _find_handle(v: np.ndarray, tris: np.ndarray, fa: int, fc: np.ndarray, fmin:
         s = b
         while b < rn and ok[b]:
             b += 1
-        # first counting run from the butt wins; an all-zero run (nothing measurable) never counts
         if b - s >= min_bins and float(e[s:b].mean()) > 0:
-            n = min(b - s, int(round(_GRIP_SPAN_M / _BIN_M)))
-            seen_n = float(st.count[s:s + n].sum())
-            lateral = {i: float(st.total[s:s + n, j].sum() / seen_n) for j, i in enumerate(lat)} if seen_n else {}
-            return fmin + (s + n * 0.5) * _BIN_M, lateral, float(e[s:s + n].mean()) / 2.0
-    return None
+            runs.append((s, b))
+
+    def hit(f: float, s: int, b: int):
+        n = float(st.count[s:b].sum())
+        lateral = {i: float(st.total[s:b, j].sum() / n) for j, i in enumerate(lat)} if n else {}
+        return f, lateral, float(e[s:b].mean()) / 2.0
+
+    ob = int(math.floor((origin_f - fmin) / _BIN_M + 1e-6))  # the pivot's bin on the long axis
+    for s, b in runs:
+        if s <= ob < b:
+            return hit(origin_f, s, b)
+    if origin_f - fmin < _SNAP_FROM_BUTT_FRAC * flen - 1e-9:
+        return None
+    best = None  # (distance, start, end); the butt-most run wins a tie
+    for s, b in runs:
+        lo, hi = fmin + s * _BIN_M, fmin + b * _BIN_M
+        d = max(lo - origin_f, origin_f - hi, 0.0)
+        if d <= _SNAP_REACH_FRAC * flen + 1e-9 and (best is None or d < best[0] - 1e-12):
+            best = (d, s, b)
+    if best is None:
+        return None
+    _, s, b = best
+    half = min_bins * _BIN_M / 2.0  # a run is >= min_run long, so lo + half <= hi - half
+    lo, hi = fmin + s * _BIN_M, fmin + b * _BIN_M
+    return hit(min(max(origin_f, lo + half), hi - half), s, b)
 
 
 def _fail(reasons: list[str], warning: str | None = None) -> dict:
@@ -633,7 +694,11 @@ def measure_weapon_detail(
     elif is_shield:
         grip, grip_source = at(fmin, {}), "centre"
     elif kind == "melee" or archetype == "throwing_blade":
-        run = _find_handle(verts, tris, fa, fc, fmin, flen)
+        run = _find_handle(verts, fa, fc, fmin, flen)
+        if run is None and not outside:
+            # the base rule found no handle: let the pivot decide, checked against the surface profile (W2d). An origin
+            # outside the AABB is no pivot (spec 3.5.5), so it is never used as the anchor.
+            run = _pivot_handle(verts, tris, fa, fc, fmin, flen, float(fs * origin[fa]))
         if run is not None:
             grip, grip_r, grip_source = at(run[0], run[1]), _r(run[2]), "handle"
         elif not outside:
