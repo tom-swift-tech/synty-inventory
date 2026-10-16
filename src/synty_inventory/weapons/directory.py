@@ -402,11 +402,40 @@ def load_directory(catalogs_dir: Path, path: Path | None = None) -> dict:
     return read_json(path)
 
 
+def carry_icon_links(catalogs_dir: Path, directory: dict) -> None:
+    """Keep the ``visuals`` icon links ``weapons icons`` wrote into the existing directory.json (in place).
+
+    ``build`` derives ``visuals`` as all-null, which would wipe the links on every rebuild. A record whose previous
+    ``icon`` and ``thumb`` files still exist next to directory.json takes its ``icon``, ``thumb`` and
+    ``icon_input_sha`` back; the previous directory and the icon files are inputs, so two builds on the same inputs
+    stay byte-identical (INV-4). The next ``icons`` run re-checks the input sha and re-renders a stale picture.
+    """
+    wdir = weapons_dir(catalogs_dir)
+    prev_path = wdir / DIRECTORY_NAME
+    if not prev_path.is_file():
+        return
+    try:
+        prev = json.loads(prev_path.read_text(encoding="utf-8"))
+        old = {w["id"]: w["visuals"] for w in prev["weapons"]}
+    except (OSError, ValueError, KeyError, TypeError):
+        return  # an unreadable previous file carries nothing; the new one is written regardless
+    for rec in directory["weapons"]:
+        vis = old.get(rec["id"])
+        if (not isinstance(vis, dict) or rec["visuals"]["icon"] is not None
+                or not all(isinstance(vis.get(k), str) and vis[k] for k in ("icon", "thumb", "icon_input_sha"))):
+            continue
+        if (wdir / vis["icon"]).is_file() and (wdir / vis["thumb"]).is_file():
+            for key in ("icon", "thumb", "icon_input_sha"):
+                rec["visuals"][key] = vis[key]
+
+
 def write_directory(catalogs_dir: Path, directory: dict, excluded: dict) -> tuple[Path, Path]:
     """Validate then write ``weapons/directory.json`` and ``weapons/excluded.json`` (LF, sorted keys).
 
-    A schema violation raises ``SchemaError`` before anything is written (spec section 7).
+    A schema violation raises ``SchemaError`` before anything is written (spec section 7). Icon links already in
+    the existing directory.json survive (``carry_icon_links``).
     """
+    carry_icon_links(catalogs_dir, directory)
     errors = validate_directory(directory, excluded)
     if errors:
         raise SchemaError("the built directory violates weapon-directory/1:\n  " + "\n  ".join(errors[:25]),
