@@ -513,19 +513,22 @@ def w2d_wire():
 W2D_ORIGINS = {"butt": (0.0, "pivot"), "fifth": (0.2, "pivot"), "mid": (0.5, "section")}
 
 # name -> (builder, archetype, length, labelled handle span (lo, hi) in y from the butt, handle radius, grip y from the
-# butt). ``grip y`` is the hand-worked centre of the base rule's run (docstrings above) or, for the vertex-sparse haft,
-# the string "origin" (the pivot-anchored step keeps the grip where the designer put it).
+# butt). The span is the part a hand holds (the hilt, haft or shaft). ``grip y`` is the hand-worked centre of the base
+# rule's run (docstrings above) or, for the vertex-sparse haft, the string "origin" (the pivot-anchored step keeps the
+# grip where the designer put it). ``radius`` is the radius of the run the grip lies in. KNOWN LIMIT of the unchanged base
+# rule: for ``tang`` and ``wire`` the longest thin run is NOT the hand-held part (the tang is longer than the hilt, the
+# filament longer than the grip wire), so the base grip lies outside the labelled span; the tests pin that.
 W2D_SET = {
     "sword": (w2d_sword, "sword", 1.0, (0.045, 0.205), 0.015, 0.125),
     "axe": (w2d_axe, "axe", 0.905, (0.0, 0.705), 0.015, 0.275),
     "hammer": (w2d_hammer, "hammer", 0.405, (0.0, 0.305), 0.015, 0.125),
-    "bat": (w2d_bat, "club", 0.855, (0.0, 0.30), 0.012, 0.26),
+    "bat": (w2d_bat, "club", 0.855, (0.0, 0.27), 0.012, 0.26),
     "crowbar": (w2d_crowbar, "crowbar", 0.805, (0.085, 0.715), 0.01, 0.285),
     "knife": (w2d_knife, "knife", 0.28, (0.0, 0.115), 0.01, 0.06),
     "spear": (w2d_spear, "spear", 2.005, (0.055, 1.905), 0.015, 0.63),
     "sparse_haft": (sparse_haft, "club", 1.005, (0.0, 0.909), 0.015, "origin"),
-    "tang": (w2d_tang, "sword", 0.605, (0.145, 0.585), 0.015, 0.255),
-    "wire": (w2d_wire, "whip", 0.605, (0.135, 0.605), 0.0005, 0.25),
+    "tang": (w2d_tang, "sword", 0.605, (0.0, 0.115), 0.015, 0.255),
+    "wire": (w2d_wire, "whip", 0.605, (0.0, 0.095), 0.0005, 0.25),
 }
 
 

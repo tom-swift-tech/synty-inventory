@@ -416,6 +416,9 @@ def test_ac15_a_zero_extent_mesh_is_degenerate(glbs, rules):
 # haft: at most one vertex per bin) defeats the base rule and takes step 3.
 
 
+BASE_LONGEST_RUN_LIMIT = ("tang", "wire")  # AC40's named shapes do not include them; see make_glbs.W2D_SET
+
+
 @pytest.fixture(scope="module")
 def w2d(tmp_path_factory):
     root = tmp_path_factory.mktemp("w2d")
@@ -456,7 +459,12 @@ def test_ac40_the_grip_lies_in_the_labelled_handle_with_the_labelled_radius(w2d,
     assert geo["axes"]["forward"] == "+y" and geo["axes"]["forward_source"] == forward_source
     assert geo["grip_source"] == "handle"
     y = geo["grip"][1] + frac * length  # back to the butt-at-zero frame the labels use
-    assert lo <= y <= hi
+    if name in BASE_LONGEST_RUN_LIMIT:
+        # the unchanged base rule keeps the LONGEST thin run: the tang (not the hilt), the filament (not the grip wire). The
+        # grip is outside the hand-held span; pinned, so that a change to the base rule shows up here
+        assert not (lo <= y <= hi)
+    else:
+        assert lo <= y <= hi
     # step 1 (base rule): the hand-worked run centre, whatever the origin; step 3 ("origin"): the pivot itself
     assert abs(y - (frac * length if grip_y == "origin" else grip_y)) <= 0.0005
     assert abs(geo["grip_r_m"] - radius) <= 0.005
