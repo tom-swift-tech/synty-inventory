@@ -846,7 +846,9 @@ Review, corrections, export
 - AC25. `export --profile public` without `weapons_public_icons_approved: true` exits 3 and writes nothing; with it,
   the output has no `files` key and no key outside the public list in §3.10.
 - AC26. `export --engine godot` keeps only the `files.godot_scene` key (every other `files.*` key removed, including
-  `glb` and `glb_node`); `--engine threejs` keeps only `files.glb` and `files.glb_node`; `--engine all` keeps all.
+  `glb` and `glb_node`); `--engine threejs` keeps only `files.glb`, `files.glb_node` and `files.glb_scale`; `--engine all` keeps all.
+  > PATCH (W5, 2026-10-16): `glb_scale` added to the threejs set. Dropping it left a threejs consumer unable to size the mesh
+  > (the exported bounds are post-scale, the GLB is not). See AC37.
 
 Determinism, additivity, live gates
 - AC27. Two `build` runs on the fixture produce byte-identical `directory.json` (INV-4); a run after touching only
@@ -881,6 +883,17 @@ Determinism, additivity, live gates
 - AC35. Given fixture records of role `part`, `ammo`, `carrier` and archetype `unknown`, then `hints.quality_tier` is
   null for all four (and `hints.size_class` is still set where geometry exists); every `whole`/`emplaced` fixture with
   a known archetype, including one with `geometry: null`, has an integer `quality_tier` in 1-5.
+
+- AC36. The review page's family tile and its "Apply to family" scope agree. A family tile collapses the members of ONE
+  (pack, family) within a section (never across packs), its count is the number of records it holds in that section, and
+  when the family's apply glob matches more ids than that (members in other sections, or excluded rows) the tile reads
+  "k of N". The checkbox label reads "Apply to family (N ids)" with N = the number of ids the glob really matches in
+  the directory plus excluded rows, and a family correction written from the page matches exactly those N ids. Test:
+  a fixture family split over two sections and a second pack with the same family name; for every family tile the
+  displayed N equals the length of the id set `corrections` resolves the written glob to.
+- AC37. `export --engine threejs` keeps `files.glb_scale` when the record has it, and `validate --snapshot` accepts it
+  under the glb engine filter and rejects it under `--engine godot`/`unity` snapshots. Test on a fixture record with a
+  non-1.0 `glb_scale`.
 
 ## 7. Failure modes
 
