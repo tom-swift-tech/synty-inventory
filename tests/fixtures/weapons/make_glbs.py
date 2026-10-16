@@ -142,7 +142,7 @@ def _collision() -> dict:
     return {"name": "SM_Fixture_Collision", "mesh": box((-1, -1, -1), (1, 1, 1))}
 
 
-def gun(forend=(0.04, 0.10), *, magazine_and_scope=False, cone_front=False):
+def gun(forend=(0.04, 0.10), *, magazine_and_scope=False, cone_front=False, stepped_muzzle=False):
     """Z-long rifle, z -0.25..0.65 (length 0.9), origin 27.8 % from the rear, +Z barrel.
 
     Stations: stock/receiver x +-0.02, y 0..0.10; a forend ring at z = 0.308 of ``forend`` (width, height) centred on
@@ -150,12 +150,21 @@ def gun(forend=(0.04, 0.10), *, magazine_and_scope=False, cone_front=False):
     its smaller lateral extent is ``min(forend)``; a barrel x +-0.01, y 0.045..0.065 ending in a 4-vertex muzzle face
     at z = 0.65 (or, with ``cone_front``, a single apex). ``magazine_and_scope`` hangs a magazine to y = -0.30 and
     stands a scope up to y = 0.20, inflating the bounds so the bounds-centre muzzle rule is 0.105 m off.
+    ``stepped_muzzle`` ends the barrel in three stations that fall in different muzzle tolerance windows: a single apex
+    at z = 0.65 (1 point in the 0.001 window), a ring at 0.6485 (4 more, the 0.002 window holds 5) and a ring at 0.646
+    centred 0.02 higher (4 more, the 0.005 window holds 9). Lateral means: 0.002 -> y 0.055, 0.005 -> y 0.063889.
     """
     fw, fh = forend
     body = loft(2, [(-0.25, 0.02, 0.05, 0, 0.05), (0.29, 0.02, 0.05, 0, 0.05), (0.308, fw / 2, fh / 2, 0, 0.05),
                     (0.327, 0.02, 0.05, 0, 0.05), (0.35, 0.02, 0.05, 0, 0.05)])
-    barrel = loft(2, [(0.35, 0.01, 0.01, 0, 0.055), (0.65, 0, 0, 0, 0.055)] if cone_front
-                  else [(0.35, 0.01, 0.01, 0, 0.055), (0.65, 0.01, 0.01, 0, 0.055)])
+    if stepped_muzzle:
+        stations = [(0.35, 0.01, 0.01, 0, 0.055), (0.646, 0.01, 0.01, 0, 0.075), (0.6485, 0.01, 0.01, 0, 0.055),
+                    (0.65, 0, 0, 0, 0.055)]
+    elif cone_front:
+        stations = [(0.35, 0.01, 0.01, 0, 0.055), (0.65, 0, 0, 0, 0.055)]
+    else:
+        stations = [(0.35, 0.01, 0.01, 0, 0.055), (0.65, 0.01, 0.01, 0, 0.055)]
+    barrel = loft(2, stations)
     parts = [body, barrel]
     if magazine_and_scope:
         parts.append(loft(1, [(-0.30, 0.01, 0.04, 0, 0.04), (0.0, 0.01, 0.04, 0, 0.04)]))
@@ -167,6 +176,46 @@ def pistol():
     """Z-long one-hand gun, z -0.05..0.15 (length 0.2), origin 25 % from the rear; grip hangs to y = -0.10."""
     return merge(loft(2, [(-0.05, 0.015, 0.02, 0, 0.02), (0.15, 0.015, 0.02, 0, 0.02)]),
                  loft(1, [(-0.10, 0.012, 0.02, 0, 0.0), (0.0, 0.012, 0.02, 0, 0.0)]))
+
+
+def rifle_mid_origin():
+    """Z-long rifle, z -0.45..0.45 (length 0.9), origin dead centre (so the pivot rule has no say), a fat stock at -z.
+
+    End cross-sections over the outer 10 % (0.09 m): the -z window holds the stock ring (x +-0.03, y +-0.10 =
+    0.012 m2), the +z window the barrel ring (x +-0.01, y +-0.01 = 0.0004 m2). The smaller end is the muzzle: +z.
+    """
+    return merge(loft(2, [(-0.45, 0.03, 0.10, 0, 0.0), (-0.30, 0.03, 0.10, 0, 0.0), (-0.20, 0.02, 0.05, 0, 0.05)]),
+                 loft(2, [(-0.20, 0.02, 0.05, 0, 0.05), (0.0, 0.02, 0.05, 0, 0.05), (0.0, 0.01, 0.01, 0, 0.055),
+                          (0.45, 0.01, 0.01, 0, 0.055)]))
+
+
+def smg_fat_handguard():
+    """Z-long submachine gun, z -0.45..0.45, origin dead centre, with a slim wire stock at -z and a fat handguard at +z
+    (a magazine hangs to y = -0.20 under the middle): the smaller end cross-section is the STOCK, so the end-section
+    rule alone points to -z although the barrel end is +z.
+
+    Outer 10 % windows: -z holds the stock ring (x +-0.01, y +-0.01 = 0.0004 m2), +z the handguard ring (x +-0.04,
+    y +-0.04 = 0.0064 m2).
+    """
+    return merge(loft(2, [(-0.45, 0.01, 0.01, 0, 0.05), (-0.20, 0.01, 0.01, 0, 0.05)]),
+                 loft(2, [(-0.20, 0.02, 0.05, 0, 0.05), (0.10, 0.02, 0.05, 0, 0.05)]),
+                 loft(2, [(0.10, 0.04, 0.04, 0, 0.05), (0.45, 0.04, 0.04, 0, 0.05)]),
+                 loft(1, [(-0.20, 0.01, 0.015, 0, 0.0), (0.0, 0.01, 0.015, 0, 0.0)]))
+
+
+def pistol_mid_origin():
+    """Z-long one-hand gun, z -0.10..0.10, origin dead centre, with a bulky weapon light at the +z end: the +z
+    window (0.02 m) holds a ring x +-0.025, y +-0.025 (0.0025 m2) against the slide's x +-0.015, y +-0.02 (0.0012 m2)
+    at -z, so the end-section rule points to -z although the muzzle is the +z end."""
+    return merge(loft(2, [(-0.10, 0.015, 0.02, 0, 0.02), (0.07, 0.015, 0.02, 0, 0.02)]),
+                 loft(2, [(0.07, 0.025, 0.025, 0, 0.02), (0.10, 0.025, 0.025, 0, 0.02)]),
+                 loft(1, [(-0.10, 0.012, 0.02, 0, 0.0), (0.0, 0.012, 0.02, 0, -0.04)]))
+
+
+def shoulder_launcher():
+    """Z-long tube x +-0.05, y +-0.05, z -0.63..0.37 (length 1.0): the origin sits 63 % from the -z end, which is the
+    pivot rule's 'forward is away from the origin' = -z."""
+    return loft(2, [(-0.63, 0.05, 0.05), (0.37, 0.05, 0.05)])
 
 
 def sword(axis=1):
@@ -205,8 +254,10 @@ def spear():
                  loft(1, [(0.85, 0.015, 0.015), (1.0, 0, 0)], step=0.01))
 
 
-def bow(depth_axis=2, centre=(0.0, 0.0, 0.0)):
-    """Y-long bow, y -0.8..0.8, limbs bulging 0.15 along ``depth_axis`` (curve depth 0.16 vs 0.02 thickness)."""
+def bow(depth_axis=2, centre=(0.0, 0.0, 0.0), belly=1.0):
+    """Y-long bow, y -0.8..0.8, curve depth 0.16 vs 0.02 thickness along ``depth_axis``: the riser at +0.15 and the
+    limb tips at 0, so the belly bulges toward ``+depth_axis`` and the tips and string toward the archer (spec 3.5.2
+    item 3: forward = the belly side, here +``depth_axis``). ``belly=-1`` mirrors it (belly toward -``depth_axis``)."""
     lat = [i for i in range(3) if i != 1]
     d = lat.index(depth_axis)
 
@@ -218,8 +269,18 @@ def bow(depth_axis=2, centre=(0.0, 0.0, 0.0)):
             out.append((y, 0.01, 0.01, c[0], c[1]))
         return out
 
-    m = merge(loft(1, stations([-0.8, -0.4, -0.1, 0.1, 0.4, 0.8], [0.15, 0.06, 0.0, 0.0, 0.06, 0.15])))
+    m = merge(loft(1, stations([-0.8, -0.4, -0.1, 0.1, 0.4, 0.8],
+                               [0.0, 0.09 * belly, 0.15 * belly, 0.15 * belly, 0.09 * belly, 0.0])))
     return m[0] + np.array(centre), m[1]
+
+
+def bow_with_belly(belly_z):
+    """Y-long stave y -0.8..0.8 whose middle (stations at +-0.1) stands ``belly_z`` along +z of its tip stations
+    (+-0.7, +-0.8), 0.02 thick. The bow rule's belly = ``belly_z / (|belly_z| + 0.02)`` of the 0.02 + |belly_z| depth, so
+    0.003 -> 0.13 (under the 0.15 threshold) and 0.0045 -> 0.184 (over it); negative values mirror."""
+    st = [(-0.8, 0.01, 0.01, 0.0, 0.0), (-0.7, 0.01, 0.01, 0.0, 0.0), (-0.1, 0.01, 0.01, 0.0, belly_z),
+          (0.1, 0.01, 0.01, 0.0, belly_z), (0.7, 0.01, 0.01, 0.0, 0.0), (0.8, 0.01, 0.01, 0.0, 0.0)]
+    return loft(1, st)
 
 
 def shield():
@@ -259,6 +320,23 @@ def shield_strap_over_dish():
     dish = loft(2, [(0.0, 0.3, 0.4), (-0.1, 0.0, 0.0)])
     straps = [box((cx - 0.015, -0.1, -0.14), (cx + 0.015, 0.1, -0.04)) for cx in (-0.1, 0.1)]
     return merge(dish, *straps)
+
+
+def shield_bowl_handle():
+    """Front-toward-+z by the handle, -z by the dish (a lid-style bowl, like the Kids shields): a pyramid on a 0.6 x 0.8
+    base at z = 0 with its apex at z = -0.1 (the plate's centre lies on the BACK side of its rim) and one flat bar
+    handle x +-0.1, y +-0.02, z -0.144..-0.1 behind it. The bar is a separate piece: aspect 5.0, depth 0.044 = 1.10x its
+    0.04 width (under the 1.5 a strap normally needs), centre 0.5 of the 0.144 thickness behind the plate's mid-plane,
+    about 3.7 % of the surface."""
+    return merge(loft(2, [(0.0, 0.3, 0.4), (-0.1, 0.0, 0.0)]), box((-0.1, -0.02, -0.144), (0.1, 0.02, -0.1)))
+
+
+def shield_front_bar():
+    """A thick flat plate x +-0.3, y +-0.4, z 0..0.1 with an elongated bar standing on its FRONT (+z) face, embedded
+    0.04 into it: x +-0.1, y +-0.02, z 0.06..0.108 (aspect 5.0, depth 1.2x its 0.04 width, centre 0.31 of the 0.108
+    thickness off the mid-plane). Nothing here is a handle: the bar is too shallow for 1.5 and too near the plate for
+    the outer-handle test, so the origin (on the z = 0 arm face) decides: front +z."""
+    return merge(box((-0.3, -0.4, 0.0), (0.3, 0.4, 0.1)), box((-0.1, -0.02, 0.06), (0.1, 0.02, 0.108)))
 
 
 def zigzag():
@@ -307,8 +385,8 @@ def _quiver():
 def shared_roots() -> list[dict]:
     """One GLB, three nodes: Bow_A at the origin; Bow_B (an empty parent at (2.0, 0.3, 0.5) with two limb children);
     Quiver_B at (2.5, 0, 0.5) rotated 90 degrees about Z."""
-    limb_up = loft(1, [(0.0, 0.01, 0.01, 0.0, 0.0), (0.4, 0.01, 0.01, 0.06, 0.0), (0.8, 0.01, 0.01, 0.15, 0.0)])
-    limb_dn = loft(1, [(-0.8, 0.01, 0.01, 0.15, 0.0), (-0.4, 0.01, 0.01, 0.06, 0.0), (0.0, 0.01, 0.01, 0.0, 0.0)])
+    limb_up = loft(1, [(0.0, 0.01, 0.01, 0.15, 0.0), (0.4, 0.01, 0.01, 0.09, 0.0), (0.8, 0.01, 0.01, 0.0, 0.0)])
+    limb_dn = loft(1, [(-0.8, 0.01, 0.01, 0.0, 0.0), (-0.4, 0.01, 0.01, 0.09, 0.0), (0.0, 0.01, 0.01, 0.15, 0.0)])
     return [
         {"name": "Bow_A", "mesh": bow(depth_axis=0)},
         {"name": "Bow_B", "translation": SHARED_BOW_B_OFFSET,
@@ -330,12 +408,21 @@ def generate_all(dest: Path) -> dict[str, Path]:
     put("gun_wide", gun(forend=(0.14, 0.16)), collision=True)
     put("gun_inflated", gun(magazine_and_scope=True), collision=True)
     put("gun_cone", gun(cone_front=True), collision=True)
+    put("gun_stepped_muzzle", gun(stepped_muzzle=True), collision=True)
     put("pistol", pistol())
+    # ranged guns whose origin is mid-length (the pivot rule is silent), one per shape the end sections get wrong
+    put("rifle_mid_origin", rifle_mid_origin())  # z -0.45..0.45 ; fat stock at -z ; section says +z
+    put("smg_fat_handguard", smg_fat_handguard())  # z -0.45..0.45 ; slim stock at -z ; section says -z
+    put("pistol_mid_origin", pistol_mid_origin())  # z -0.10..0.10 ; bulky light at +z ; section says -z
+    put("shoulder_launcher", shoulder_launcher())  # z -0.63..0.37 ; origin 63 % from -z ; pivot says -z
     put("sword", sword())
     put("knife", knife())
     put("axe", axe())
     put("spear", spear())
     put("bow", bow())
+    # the origin sits past the belly, so the old "away from the origin" sign was wrong (the belly rule disagrees with it)
+    put("bow_origin_past_belly_pz", shifted(bow(), (0.0, 0.0, -0.2)))  # z -0.21..-0.04 ; belly +z, old rule said -z
+    put("bow_origin_past_belly_nz", shifted(bow(belly=-1.0), (0.0, 0.0, 0.2)))  # z 0.04..0.21 ; belly -z, old rule said +z
     put("shield", shield())
     # shield fronts (spec 3.5.2 item 4): the origin sits on the FRONT side of the body (and so a pivot rule that
     # points away from the origin would pick the back), one fixture per orientation of the face normal
@@ -345,6 +432,8 @@ def generate_all(dest: Path) -> dict[str, Path]:
     put("shield_dish_pz", shifted(shield_dished(), (0.0, 0.0, -0.1)))  # z -0.1..0 ; front +z
     put("shield_dish_nz", shifted(_reorient(shield_dished(), flip_z=True), (0.0, 0.0, 0.1)))  # z 0..0.1 ; front -z
     put("shield_strap_over_dish", shield_strap_over_dish())  # z -0.14..0 ; front +z
+    put("shield_bowl_handle", shield_bowl_handle())  # z -0.144..0 ; front +z (handle), the dish says -z
+    put("shield_front_bar", shield_front_bar())  # z 0..0.108 ; no handle: the origin decides, front +z
     put("zlong_melee", sword(axis=2))
     put("zigzag", zigzag())
     put("origin_outside", shifted(gun(), (0.0, 0.5, 0.9)))

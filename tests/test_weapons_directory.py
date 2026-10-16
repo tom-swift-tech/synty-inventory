@@ -202,7 +202,7 @@ def test_duplicate_mesh_points_at_the_first_record_sharing_the_glb(built):
 def test_directory_header_and_pack_rows(built):
     directory, _ = built
     assert directory["weapon_version"] == 1
-    assert directory["geometry_version"] == 1
+    assert directory["geometry_version"] == 2
     assert len(directory["rules_digest"]) == 16 and len(directory["overrides_digest"]) == 16
     assert [p["pack"] for p in directory["packs"]] == sorted(p["pack"] for p in directory["packs"])
     assert {p["pack"] for p in directory["packs"]} == {

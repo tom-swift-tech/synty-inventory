@@ -52,10 +52,20 @@ _STRAP_MAX_AREA = 0.10  # a strap / handle is a small piece: at most 10 % of the
 _STRAP_ASPECT = 3.0  # ... elongated across the face (long lateral extent >= 3x the short one)
 _STRAP_STANDOFF = 1.5  # ... and stands off the plate (extent along the normal >= 1.5x its short lateral extent)
 _STRAP_OFFSET = 0.12  # ... with its centre >= 12 % of the thickness off the plate's mid-plane
+# a piece in the outer 10 % of the bounding thickness (centre >= 40 % off the mid-plane) is a handle even when it is a
+# flat bar barely deeper than wide (the Kids shields: standoff 1.10, offset 0.47); the real front decorations that
+# pass the elongation test (spike arms, offsets <= 0.25, standoff 1.16) and the flat bands (standoff <= 1.0) stay out
+_STRAP_OUTER_OFFSET = 0.40
+_STRAP_OUTER_STANDOFF = 1.05
 _STRAP_MIN_AREA = 0.02  # the biggest strap piece must reach 2 % of the surface to count
 _STRAP_MARGIN = 1.1  # ... and beat the biggest piece on the other side by 10 %
 _DISH_RIM_R, _DISH_CENTRE_R = 0.75, 0.40  # normalised elliptical radius of the rim / centre zones
 _DISH_MIN = 0.03  # |centre - rim| along the normal, as a share of the thickness, that counts as a dish
+# bow forward (spec 3.5.2 item 3): a strung bow's belly (riser / grip) bulges toward the target, the limb tips and the
+# string sit toward the archer
+_BOW_TIP_FRAC = 0.10  # each outer 10 % of the length along `up` is a tip window
+_BOW_MID_FRAC = 0.20  # the middle 20 % is the riser window
+_BOW_BELLY_MIN = 0.15  # |riser - tips| as a share of the forward extent that decides the sign; below it the origin does
 
 
 # -- small helpers ---------------------------------------------------------------------------------------
@@ -228,6 +238,52 @@ def _section_sign(v: np.ndarray, axis: int, lo: float, size: float, headed: bool
     return 1 if tip_is_hi else -1
 
 
+def _ranged_convention_sign(rules: dict, genre: str | None, kind: str | None, fa: int, section_fs: int) -> int:
+    """Forward sign of a firearm-like weapon whose origin says nothing (spec 3.5.2 step 2, ranged): the pack
+    convention ``rules.axes_expected[genre][kind]`` when it names the long axis, else the end-section sign.
+
+    The end cross-sections cannot tell a muzzle from a stock: on the live whole-role ranged weapons that fell through
+    to the section rule, every -z result that could be judged by eye (stock, trigger and magazine toward -z, barrel,
+    warhead or muzzle brake toward +z) was wrong, and the +z ones were all right. No shape feature separated the two
+    groups cleanly (each flipped 8-28 % of the correct ones while fixing at most all but one of the wrong ones):
+    surface area or AABB of the 10-30 % end windows, mean height of the end windows, the position of the
+    area-weighted centroid, and where the lowest bins (grip, magazine, trigger guard) sit along the length.
+    Every firearm that is measured by its origin or visibly judged is barrel-toward-+z (spec 3.5.1), so the convention
+    decides the weak case. It stays a fallback: the flag ``forward_by_fallback`` is kept and an origin that decides
+    (pivot) is never overridden -- a mismatch there is the ``axes_unexpected`` reason, as before. Only ``role ==
+    "whole"`` uses it: emplaced weapons (cannons, ballistas, catapults) were judged by eye to face either way, so for
+    them the end sections stay as they were, unverified.
+    """
+    expected = ((rules.get("axes_expected") or {}).get(genre) or {}).get(kind) if genre and kind else None
+    if expected:
+        axis, sign = _parse_axis(expected)
+        if axis == fa:
+            return sign
+    return section_fs
+
+
+def _bow_belly(v: np.ndarray, up: int, fwd: int) -> float:
+    """How far the bow's riser sits along ``+fwd`` relative to its limb tips, as a share of the forward extent
+    (spec 3.5.2 item 3): mean ``fwd`` coordinate of the vertices in the middle 20 % of the length along ``up`` minus the
+    mean of the two outer-10 % window means (each end weighs the same, whatever its vertex count). Positive: the belly
+    is on the ``+fwd`` side, so forward is ``+fwd``. 0.0 when a window is empty or the mesh is flat along ``fwd``.
+
+    Measured on the 41 real whole bows: every real bow (long axis up, string toward the archer) has |belly| >= 0.27;
+    the objects the archetype rules wrongly call bows (crossbows laid out limb-wise, gift ribbons) sit at <= 0.11.
+    """
+    lo, size = float(v[:, up].min()), float(np.ptp(v[:, up]))
+    fext = float(np.ptp(v[:, fwd]))
+    if size <= 1e-9 or fext <= 1e-9:
+        return 0.0
+    t = (v[:, up] - lo) / size
+    mid = v[(t >= 0.5 - _BOW_MID_FRAC / 2) & (t <= 0.5 + _BOW_MID_FRAC / 2), fwd]
+    end_a = v[t <= _BOW_TIP_FRAC, fwd]
+    end_b = v[t >= 1.0 - _BOW_TIP_FRAC, fwd]
+    if not (len(mid) and len(end_a) and len(end_b)):
+        return 0.0
+    return float((mid.mean() - 0.5 * (end_a.mean() + end_b.mean())) / fext)
+
+
 def _weld_components(v: np.ndarray, tris: np.ndarray) -> np.ndarray:
     """Connected-component id per triangle. Vertices are welded by position first (``_WELD_M``): the GLB duplicates
     vertices along UV and normal seams, so index adjacency alone would shred every plate into pieces. Ids are the
@@ -258,7 +314,8 @@ def _shield_front_sign(v: np.ndarray, tris: np.ndarray, normal: int) -> tuple[in
 
     1. ``strap``: the arm straps / handles are small, elongated pieces that stand off the BACK of the plate (the
        boss, studs and cross-bars on the front are flat or round, so they fail the elongation / stand-off tests).
-       The side holding the biggest such piece is the back.
+       The side holding the biggest such piece is the back. A bowl-shaped shield whose handle sits on the convex
+       side is decided here, not by the dish, because the handle is outermost (``_STRAP_OUTER_*``).
     2. ``dish``: a shield is convex toward the front. The largest component's centre sits further along the front
        normal than its rim (the component excludes the straps, which would drag the centre the wrong way).
     """
@@ -288,9 +345,10 @@ def _shield_front_sign(v: np.ndarray, tris: np.ndarray, normal: int) -> tuple[in
         lo, hi = boxes[c]
         ext = hi - lo
         short, long_ = sorted(float(e) for e in ext[lat])
-        if short <= 1e-6 or long_ < _STRAP_ASPECT * short or float(ext[normal]) < _STRAP_STANDOFF * short:
-            continue
         off = (0.5 * (lo[normal] + hi[normal]) - main_mid) / thick
+        standoff = _STRAP_OUTER_STANDOFF if abs(off) >= _STRAP_OUTER_OFFSET else _STRAP_STANDOFF
+        if short <= 1e-6 or long_ < _STRAP_ASPECT * short or float(ext[normal]) < standoff * short:
+            continue
         if abs(off) >= _STRAP_OFFSET:
             side = 1 if off > 0 else -1
             side_max[side] = max(side_max[side], float(share))
@@ -412,9 +470,15 @@ def measure_weapon_detail(
             ua, us, u_src = long_axis, 1, "long_axis"
             rest = [i for i in range(3) if i != long_axis]
             fa = max(rest, key=lambda i: (size[i], i))  # the larger remaining axis (ties go to the later axis, z)
-            fs = 1 if _frac(0.0, mn[fa], size[fa]) < 0.5 else -1
+            belly = _bow_belly(verts, ua, fa)
             f_src = "bow_rule"
-            flags.add("forward_by_fallback")
+            if abs(belly) >= _BOW_BELLY_MIN:
+                fs = 1 if belly > 0 else -1
+            else:
+                # no readable belly (a flat stave, or an object that is not a bow): the sign the origin gave before
+                # this rule existed -- away from the origin -- stays, flagged as a fallback
+                fs = 1 if _frac(0.0, mn[fa], size[fa]) < 0.5 else -1
+                flags.add("forward_by_fallback")
         else:
             fa = long_axis
             f = _frac(0.0, mn[fa], size[fa])
@@ -424,6 +488,8 @@ def measure_weapon_detail(
                 fs = _section_sign(verts, fa, mn[fa], size[fa], archetype in _HEADED)
                 f_src = "section"
                 flags.add("forward_by_fallback")
+                if kind == "ranged" and role == "whole":
+                    fs = _ranged_convention_sign(rules, genre, kind, fa, fs)
             if kind == "ranged":
                 ua, us, u_src = (2 if fa == 1 else 1), 1, "fixed"
             else:
@@ -581,8 +647,6 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict) -
         "a": archetype, "k": kind, "r": role, "h": hold_class, "g": genre,
         "ax": rules.get("axes_expected"), "gp": rules.get("grip_proportion"),
     }
-    if kind == "shield" or archetype == "shield":
-        fp["sf"] = 1  # shield front-face rule revision: entries measured with the origin-only rule are stale
     return digest(fp)
 
 

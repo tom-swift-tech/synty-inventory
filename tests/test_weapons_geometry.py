@@ -90,12 +90,129 @@ def test_ac11_spear_and_axe_use_the_section_fallback_and_flag_it(glbs, rules, na
     assert abs(d["geometry"]["pivot_frac"] - 0.5) <= 0.01
 
 
-def test_ac11_bow_rule_is_always_flagged_and_the_pivot_rule_is_not(glbs, rules):
+def test_ac11_bow_rule_is_flagged_only_when_the_belly_is_unreadable_and_the_pivot_rule_is_not(glbs, rules):
     bow = meas(glbs, rules, "bow", "bow", "ranged")
     assert bow["geometry"]["axes"]["up_source"] == "long_axis"
-    assert "forward_by_fallback" in bow["flags"]
+    assert bow["geometry"]["axes"]["forward_source"] == "bow_rule"
+    assert "forward_by_fallback" not in bow["flags"]  # a measured belly is not a fallback (spec 3.5.2 item 3, PATCH W2c)
     for name, arch, kind in (("sword", "sword", "melee"), ("shield", "shield", "shield")):
         assert "forward_by_fallback" not in meas(glbs, rules, name, arch, kind)["flags"]
+
+
+# --- bow forward: the belly side (spec 3.5.2 item 3) ---------------------------------------------------------------
+#
+# bow(): riser at z +0.15 and limb tips at z 0 (the string is on the tip side, toward the archer), so forward = +z.
+# The "origin" fixtures put the origin past the belly, where the old "away from the origin" sign pointed at the archer.
+
+BOW_FORWARD = {
+    "bow": "+z",  # origin on the tip side: old and new rules agree
+    "bow_origin_past_belly_pz": "+z",  # old rule said -z
+    "bow_origin_past_belly_nz": "-z",  # old rule said +z
+}
+
+
+@pytest.mark.parametrize("name", sorted(BOW_FORWARD))
+def test_bow_forward_is_the_belly_side_whatever_side_the_origin_is_on(glbs, rules, name):
+    d = meas(glbs, rules, name, "bow", "ranged")
+    axes = d["geometry"]["axes"]
+    assert axes["forward"] == BOW_FORWARD[name] and axes["forward_source"] == "bow_rule"
+    assert axes["up"] == "+y" and d["geometry"]["long_axis"] == "y"
+    assert "forward_by_fallback" not in d["flags"]
+
+
+def test_bow_origin_side_fixtures_really_put_the_origin_on_the_other_side(glbs, rules):
+    """Guards the fixtures: the old rule (forward away from the origin, along z) would give the opposite sign."""
+    for name, old in (("bow_origin_past_belly_pz", "-z"), ("bow_origin_past_belly_nz", "+z")):
+        b = meas(glbs, rules, name, "bow", "ranged")["geometry"]["bounds"]
+        lo, hi = b["min"][2], b["max"][2]
+        frac = (0.0 - lo) / (hi - lo)
+        assert ("+z" if frac < 0.5 else "-z") == old, name
+
+
+def test_bow_with_a_barely_readable_belly_keeps_the_origin_sign_and_the_flag(glbs, rules, tmp_path):
+    """bow_with_belly(b): belly = b / (|b| + 0.02) of the depth. 0.003 -> 0.130 (under the 0.15 threshold: the origin,
+    far below the stave at z 0.1, says +z although the belly points -z) and 0.0045 -> 0.184 (over it: the belly)."""
+    def at(belly_z, dz, name):
+        path = M.write_glb(tmp_path / f"{name}.glb", [{"name": name, "mesh": M.shifted(M.bow_with_belly(belly_z), (0, 0, dz))}])
+        return measure_weapon_detail(path, None, 1.0, "bow", "ranged", "whole", rules, genre="fantasy")
+
+    weak = at(-0.003, 0.1, "weak")
+    assert weak["geometry"]["axes"]["forward"] == "+z" and "forward_by_fallback" in weak["flags"]
+    assert weak["geometry"]["axes"]["forward_source"] == "bow_rule"
+    strong = at(-0.0045, 0.1, "strong")
+    assert strong["geometry"]["axes"]["forward"] == "-z" and "forward_by_fallback" not in strong["flags"]
+    strong_pos = at(0.0045, -0.1, "strong_pos")  # origin above the stave: old sign -z; belly +z
+    assert strong_pos["geometry"]["axes"]["forward"] == "+z" and "forward_by_fallback" not in strong_pos["flags"]
+    weak_pos = at(0.003, -0.1, "weak_pos")
+    assert weak_pos["geometry"]["axes"]["forward"] == "-z" and "forward_by_fallback" in weak_pos["flags"]
+
+
+def test_a_crossbow_stays_under_the_firearm_rule_not_the_bow_rule(glbs, rules):
+    d = meas(glbs, rules, "gun", "crossbow", "ranged", hold="crossbow")
+    assert d["geometry"]["axes"]["forward_source"] == "pivot"  # not "bow_rule"
+
+
+# --- ranged non-bow forward when the origin is silent (spec 3.5.2 step 2) -----------------------------------------
+# Guns whose origin sits mid-length are decided by the end cross-sections, which cannot tell a muzzle from a stock;
+# the pack convention (axes_expected, ranged +z) breaks that tie. Signs are literals worked out from the stations.
+
+# name, archetype, hold, genre -> forward the section rule alone would give, and the forward reported
+MID_ORIGIN_GUNS = [
+    ("rifle_mid_origin", "rifle", "long_gun", "+z", "+z"),  # section already says +z
+    ("smg_fat_handguard", "smg", "long_gun", "-z", "+z"),  # slim stock, fat handguard: section says -z
+    ("pistol_mid_origin", "pistol", "one_hand", "-z", "+z"),  # bulky light at the muzzle: section says -z
+]
+
+
+@pytest.mark.parametrize("name,arch,hold,section_says,want", MID_ORIGIN_GUNS)
+def test_mid_origin_ranged_guns_take_the_convention_sign_and_stay_flagged(glbs, rules, name, arch, hold, section_says, want):
+    d = meas(glbs, rules, name, arch, "ranged", hold=hold, genre="modern")
+    axes = d["geometry"]["axes"]
+    assert abs(d["geometry"]["pivot_frac"] - 0.5) <= 0.001  # the pivot rule has no say
+    assert axes["forward"] == want and axes["forward_source"] == "section"
+    assert "forward_by_fallback" in d["flags"]
+    assert "axes_unexpected" not in d["reasons"]
+
+
+@pytest.mark.parametrize("name,arch,hold,section_says,want", MID_ORIGIN_GUNS)
+def test_without_a_genre_the_end_section_sign_stands(glbs, rules, name, arch, hold, section_says, want):
+    d = meas(glbs, rules, name, arch, "ranged", hold=hold, genre=None)
+    assert d["geometry"]["axes"]["forward"] == section_says
+    assert d["geometry"]["axes"]["forward_source"] == "section"
+
+
+def test_a_convention_on_another_axis_does_not_decide_the_sign(glbs, rules):
+    odd = copy.deepcopy(rules)
+    odd["axes_expected"]["modern"]["ranged"] = "-x"
+    d = meas(glbs, odd, "smg_fat_handguard", "smg", "ranged", hold="long_gun", genre="modern")
+    assert d["geometry"]["axes"]["forward"] == "-z"  # the end sections, as without a convention
+    assert "axes_unexpected" in d["reasons"]
+
+
+def test_the_convention_flips_a_minus_z_section_sign_to_the_convention_sign_and_the_opposite_one_too(glbs, rules):
+    neg = copy.deepcopy(rules)
+    neg["axes_expected"]["modern"]["ranged"] = "-z"
+    d = meas(glbs, neg, "rifle_mid_origin", "rifle", "ranged", hold="long_gun", genre="modern")
+    assert d["geometry"]["axes"]["forward"] == "-z"
+
+
+def test_an_emplaced_ranged_record_keeps_the_end_section_sign(glbs, rules):
+    d = meas(glbs, rules, "smg_fat_handguard", "cannon", "ranged", role="emplaced", genre="modern")
+    assert d["geometry"]["axes"]["forward"] == "-z" and d["geometry"]["axes"]["forward_source"] == "section"
+
+
+def test_a_shoulder_launcher_whose_origin_is_past_60_percent_keeps_the_pivot_sign_and_says_so(glbs, rules):
+    d = meas(glbs, rules, "shoulder_launcher", "launcher", "ranged", hold="long_gun", genre="modern")
+    axes = d["geometry"]["axes"]
+    assert d["geometry"]["pivot_frac"] == pytest.approx(0.63, abs=0.001)
+    # an origin that decides is never overridden by the convention: the mismatch is reported, not corrected
+    assert axes["forward"] == "-z" and axes["forward_source"] == "pivot"
+    assert "axes_unexpected" in d["reasons"] and "forward_by_fallback" not in d["flags"]
+
+
+def test_a_pivot_decided_gun_is_unchanged_by_the_convention_rule(glbs, rules):
+    d = meas(glbs, rules, "gun", "rifle", "ranged", hold="long_gun", genre="modern")
+    assert d["geometry"]["axes"]["forward"] == "+z" and d["geometry"]["axes"]["forward_source"] == "pivot"
 
 
 @pytest.mark.parametrize("name,arch,kind,hold", [(c[0], c[1], c[2], c[3]) for c in AC11_CASES])
@@ -174,6 +291,15 @@ def test_cone_front_falls_back_to_the_bounds_rule_with_a_reason(glbs, rules):
     geo = d["geometry"]
     assert geo["muzzle_source"] == "bounds_fallback" and "muzzle_fallback" in d["reasons"]
     assert close(geo["muzzle"], [0.0, 0.075, 0.65])  # min_up 0 + 0.75 * 0.10; never null on a measured ranged weapon
+
+
+def test_stepped_muzzle_is_decided_by_the_0002_window(glbs, rules):
+    """The barrel ends in an apex (z 0.65), a ring at 0.6485 and an off-centre ring at 0.646: the 0.001 window holds 1
+    point, the 0.002 window exactly 5 (lateral y mean 0.055) and the 0.005 window 9 (y mean 0.0639). The AC12 golden
+    never decides at 0.002, so this is the pipeline-level pin for that step."""
+    geo = meas(glbs, rules, "gun_stepped_muzzle", "rifle", "ranged", hold="long_gun", genre="modern")["geometry"]
+    assert geo["muzzle_source"] == "face"
+    assert close(geo["muzzle"], [0.0, 0.055, 0.65], tol=0.0005)
 
 
 def test_a_bow_has_no_muzzle_and_a_crossbow_does(glbs, rules):
@@ -377,6 +503,26 @@ def test_cache_entry_is_keyed_on_file_version_and_classification_context(glbs, r
     assert was is False and again["geometry"]["length_m"] == 0.29
 
 
+def test_a_version_1_cache_entry_is_not_served_under_geometry_version_2(glbs, rules, monkeypatch):
+    """The v2 algorithm (bow belly rule, ranged section-sign convention, shield front) changes stored results, so an
+    entry written by v1 must be re-measured. The v1 entry is poisoned: serving it would be visible in the length."""
+    import synty_inventory.weapons as pkg
+
+    assert pkg.WEAPON_GEOMETRY_VERSION == 2  # a literal: the bump itself is under test
+    root = glbs["sword"].parent
+    args = (root, "sword.glb", None, 1.0, "sword", "melee", "whole", rules)
+    cache: dict = {}
+    monkeypatch.setattr(pkg, "WEAPON_GEOMETRY_VERSION", 1)
+    old, was = measure_cached(*args, cache, genre="fantasy")
+    assert was is False and cache["sword.glb"]["version"] == 1
+    cache["sword.glb"]["by_inputs"][next(iter(cache["sword.glb"]["by_inputs"]))]["geometry"]["length_m"] = 999.0
+    assert measure_cached(*args, cache, genre="fantasy")[1] is True  # still served under v1 ...
+    monkeypatch.undo()  # ... and the real constant (2) must not take it
+    fresh, was = measure_cached(*args, cache, genre="fantasy")
+    assert was is False and fresh["geometry"]["length_m"] == 1.0
+    assert cache["sword.glb"]["version"] == 2
+
+
 def test_a_missing_file_is_not_cached_and_a_failure_is(glbs, rules, tmp_path):
     cache: dict = {}
     d, was = measure_cached(tmp_path, "absent.glb", None, 1.0, "sword", "melee", "whole", rules, cache)
@@ -577,9 +723,11 @@ def test_e2e_reasons_flags_and_hints_reflect_the_measurement(e2e):
     # plasma/laser ids on a rifle are energy weapons, and a plasma token is a tier-up token
     assert by_id["FAKE_SciFi/SM_Wep_Plasma_Rifle_02"]["hints"]["ammo_family"] == "energy"
     assert by_id["FAKE_SciFi/SM_Wep_Plasma_Rifle_02"]["hints"]["quality_tier"] == 4
-    # forward fallbacks were flagged where the stand-in bow used the bow rule
+    # the stand-in bows (make_glbs.bow) have a readable belly: measured by the bow rule, so not a fallback
     bows = [r for r in e2e["dir"]["weapons"] if r["archetype"] == "bow" and r["geometry"] is not None]
-    assert bows and all("forward_by_fallback" in r["flags"] for r in bows)
+    assert bows and all(
+        r["geometry"]["axes"]["forward_source"] == "bow_rule" and "forward_by_fallback" not in r["flags"] for r in bows
+    )
 
 
 def test_e2e_determinism_and_cache_equals_uncached(e2e, tmp_path):
