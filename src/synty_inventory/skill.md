@@ -76,10 +76,24 @@ scan` first (`scan --rebuild` after rule/precedence changes).
 | modular family grouped by role (slim rows) | `kit Apartment` / `kit "*"` `[--pack P] [--engine E] [--fields a,b,c]` |
 | stills-grounded assembler fields (Grok 4.6) | `vision --calibrate` / `vision --pack P [--ids a,b] [--match SM_Sign_]` |
 | ground-plan polygons from the GLBs | `footprint [--pack CSV] [--ids CSV] [--rebuild] [--dry-run] [--report PATH] [--min-coverage F]` (exit 4 below coverage) |
+| weapon profiles (role, kind, archetype, genre, grip, muzzle, tiers) | `weapons list [--pack CSV] [--kind K] [--archetype A] [--genre G]` / `weapons show PACK/ASSET_ID`; `weapons build` writes the sidecar `<catalogs>/weapons/directory.json` |
+| weapon icons incl. colourways | `weapons icons [--pack CSV] [--ids CSV] [--size N] [--rebuild] [--variants]` (exit 5 when the renderer is unavailable; nothing is written then) |
 
 Do **not** run `review` (Ollama) on POLYGON_City / SciFi_City / Starter. Do
 **not** use `scan --vlm`. `vision` may write type/role/mount; it must never
 write `placement.contact` or ship/mech sockets.
+
+## Weapon directory
+
+- `weapons` is a sidecar under `<catalogs>/weapons/` (`directory.json`, `excluded.json`, `icons/`); it never changes a
+  pack catalog, `search.db` or a `search` / `details` result. Read a weapon with `weapons show`, filter with `weapons list`.
+- A record's `visuals.variants[]` lists atlas-alt colourways (`variant_id`, `source`, `is_default`, `icon`). Only
+  records with sibling `Materials/Alts/..._NN_<L>.mat` files have any; `[]` means one colourway, not an error.
+  `weapons icons --variants` draws each one (`<id>@<L>.png`, `<id>@<L>@64.png`); a colourway that could not be
+  drawn keeps `icon: null` and is named under `variants.failed` in the command output. Never use a null icon.
+- `files.glb_scale` is not applied to the GLB on disk: a threejs consumer multiplies the mesh by it. The threejs
+  export keeps it; the godot and unity exports never carry it.
+- Corrections go through `weapons review` and `weapons apply-corrections`, never by editing `directory.json`.
 
 ## Record fields that matter
 
@@ -152,4 +166,5 @@ write `placement.contact` or ship/mech sockets.
 - Do not use `PolygonGeneric` trees/roads as building heroes; do not place `placeable: false` records.
 - Do not treat `*_Convex` / `Collisions/` as renderables (the scanner already drops them).
 - Never assume `footprint` exists or is non-null — check before using `area_m2` or `polygon_m`, and fall back to `bounds` when it is null.
-- `synty-inventory gauntlet` must stay all-green after any catalog change.
+- `synty-inventory gauntlet` must stay all-green after any catalog change. Its `weapons_directory` gate (skipped when no
+  weapon directory was built) also fails on a weapon the catalogs call a candidate but the directory lacks.

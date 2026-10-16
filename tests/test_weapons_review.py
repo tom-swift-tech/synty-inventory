@@ -295,8 +295,11 @@ def test_a_family_of_more_than_12_collapses_to_one_counted_tile_that_expands(wor
     assert len(shield) == 14
     fams = {t["_family"] for t in shield}
     assert len(fams) == 1 and None not in fams  # all 14 live inside one <details>
-    assert re.search(r'<summary class="family-tile"><span class="id">sm_wep_shield_set \(fantasy\)</span>'
-                     r'<span class="count">&times;17</span>', world.text)  # 14 here + 3 shields of FAKE_Fantasy: same genre+family
+    # AC36: a tile is one (pack, family): the 3 shields of FAKE_Fantasy do not join this pack's 14, and the glob
+    # (FAKE_Review/SM_Wep_Shield_Set_*) matches exactly those 14, so there is no "k of N" suffix
+    assert re.search(r'<summary class="family-tile"><span class="id">FAKE_Review/sm_wep_shield_set \(fantasy\)</span>'
+                     r'<span class="count">&times;14</span><span class="sub">', world.text)
+    assert "&times;17" not in world.text
     # a family of exactly 12 is not collapsed, a 13th member would be
     knife = [t for t in world.page.tiles if t["data-id"] in set(H.KNIFE_SET)]
     assert len(knife) == 12 and {t["_family"] for t in knife} == {None}

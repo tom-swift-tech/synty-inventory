@@ -59,6 +59,7 @@ details.family > summary::-webkit-details-marker { display:none; }
 details.family > summary::before { content:"+"; display:inline-block; width:16px; color:var(--acc); }
 details.family[open] > summary::before { content:"-"; }
 details.family .count { background:#2b5d96; border-radius:10px; padding:0 8px; }
+details.family .of { color:var(--warn); font-weight:normal; font-size:13px; }
 details.family .grid { margin-top:6px; }
 #panel { position:fixed; left:0; right:0; bottom:0; z-index:10; background:#1a1f27; border-top:2px solid var(--acc);
   max-height:68vh; overflow-y:auto; padding:10px 12px 14px; box-shadow:0 -6px 18px rgba(0,0,0,.5); }
@@ -125,7 +126,7 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
     <button id="b-restore" class="good" type="button">Restore</button>
     <button id="b-clear" type="button">Clear</button>
   </div>
-  <label class="fam" id="l-fam"><input id="c-fam" type="checkbox"><span>Apply to family <span id="p-glob"></span></span></label>
+  <label class="fam" id="l-fam"><input id="c-fam" type="checkbox"><span id="p-fam">Apply to family</span></label>
   <textarea id="note" placeholder="Note (optional)" aria-label="Note"></textarea>
   <div class="state" id="p-state"></div>
 </aside>
@@ -236,8 +237,11 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
       ? 'Excluded: ' + t.getAttribute('data-reason') + ' (' + t.getAttribute('data-matched') + ')'
       : t.getAttribute('data-archetype') + ' / ' + t.getAttribute('data-genre') + ' / conf ' + t.getAttribute('data-conf') + ' / ' + t.getAttribute('data-status') + (t.getAttribute('data-reasons') ? ' / ' + t.getAttribute('data-reasons') : '');
     el('p-info').textContent = info;
+    // The label text and N come from the page (data-famlabel): N is the number of ids the glob really matches in the
+    // directory plus excluded rows, i.e. exactly what a family correction written from here applies to.
     var g = t.getAttribute('data-glob');
-    el('p-glob').textContent = g ? '(' + g + ', ' + t.getAttribute('data-globn') + (t.getAttribute('data-globn') === '1' ? ' id)' : ' ids)') : '';
+    el('p-fam').textContent = t.getAttribute('data-famlabel') || 'Apply to family';
+    el('l-fam').title = g ? 'glob: ' + g : '';
     setPanelValues(t);
     el('panel').hidden = false;
     document.body.classList.add('panel-open');

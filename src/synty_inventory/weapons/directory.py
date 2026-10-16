@@ -26,9 +26,11 @@ from .hints import build_group_stats, derive_hints
 from .overrides import effective_override, load_overrides
 from .rules import load_rules
 from .schema import validate_directory
+from .variants import discover_variants, has_colourway_info, variant_link_paths
 
 DIRECTORY_NAME = "directory.json"
 EXCLUDED_NAME = "excluded.json"
+ICONS_DIRNAME = "icons"  # the folder weapons/icons.py fills; the carried-over variant links are checked against it
 
 
 def weapons_dir(catalogs_dir: Path) -> Path:
@@ -54,6 +56,22 @@ def load_pack_catalogs(catalogs_dir: Path) -> dict[str, dict]:
             raise InputError(f"two catalog files declare pack_id {doc['pack_id']}")
         docs[doc["pack_id"]] = doc
     return docs
+
+
+def _pack_tree(doc: dict, pack_id: str, extracted_root: Path | None) -> Path | None:
+    """The extracted Unity tree of one pack (the folder holding ``Assets/Synty/...``), or None.
+
+    With ``extracted_root`` (the configured folder with one sub-folder per pack) the tree is
+    ``<extracted_root>/<pack_id>`` or nothing. Without it the catalog's own ``source.extracted`` (where the scan
+    read the pack from) is tried, so a plain ``weapons build`` finds the tree without extra wiring. Neither is ever
+    written into the directory; a missing tree just means no variants are listed.
+    """
+    if extracted_root is not None:
+        tree = Path(extracted_root) / pack_id
+    else:
+        src = (doc.get("source") or {}).get("extracted")
+        tree = Path(src) if isinstance(src, str) and src else None
+    return tree if tree is not None and tree.is_dir() else None
 
 
 def _pack_settings(pack_settings: dict | None) -> dict:
@@ -224,14 +242,17 @@ def build_directory_report(
     pack_settings: dict | None = None,
     base: tuple[dict, dict] | None = None,
     geometry_cache: dict | None = None,
+    extracted_root: Path | None = None,
 ) -> tuple[dict, dict, dict]:
     """``(directory doc, excluded doc, report)``.
 
     ``pack_settings`` (pack_id -> {setting, era}) defaults to the curated table; ``base`` is the previous
     ``(directory, excluded)`` pair that a ``packs=`` partial build merges into (other packs stay untouched).
     ``threejs_v2_dir`` is the root ``files.glb`` is relative to; ``geometry_cache`` (default: a throwaway dict) is
-    read and filled in place. The report carries stale overrides, warnings and live-run statistics; it is never
-    part of the directory.
+    read and filled in place. ``extracted_root`` (the configured folder with one extracted tree per pack) lets
+    variant discovery list the colourways on disk (spec 3.7); when None the catalogs' ``source.extracted`` is used,
+    and without any tree no variants are listed. The report carries stale overrides, warnings and live-run statistics;
+    it is never part of the directory.
     """
     rules = rules if rules is not None else load_rules()
     overrides = overrides if overrides is not None else load_overrides()
@@ -259,6 +280,8 @@ def build_directory_report(
     geo_stats = {"decoded": 0, "cached": 0}
     can_measure = measure and threejs_v2_dir is not None
     skipped_for_root = False
+    listing_cache: dict = {}  # Alts directory listings, shared by every record of the build (fast over ~2,700)
+    trees_missing = 0
 
     if partial:
         if base is None:
@@ -279,6 +302,7 @@ def build_directory_report(
             warnings.append(f"pack {pack_id} is missing from pack_settings: genre falls back to the archetype table")
         seen_asset_ids: set[str] = set()
         n_records = n_excluded = 0
+        tree = _pack_tree(doc, pack_id, extracted_root)
         for asset in doc["assets"]:
             aid = asset.get("id")
             if not isinstance(aid, str) or not aid:
@@ -321,6 +345,15 @@ def build_directory_report(
             elif measure and (asset.get("files") or {}).get("glb"):
                 skipped_for_root = True
             rec = _record(asset, pack_id, cls, source, (eff or {}).get("renamed_from") or [])
+            if not has_colourway_info(asset):
+                rec["review"]["reasons"] = sorted(set(rec["review"]["reasons"]) | {"colourway_unknown"})
+            elif tree is not None:
+                try:
+                    rec["visuals"]["variants"] = discover_variants(asset, tree, listing_cache)
+                except (OSError, ValueError) as exc:  # never fail the build over colourways
+                    warnings.append(f"{full_id}: variants not listed ({exc})")
+            else:
+                trees_missing += 1
             if detail is not None:
                 _apply_measurement(rec, detail)
                 if detail.get("warning"):
@@ -350,6 +383,8 @@ def build_directory_report(
         rec["provenance"]["hints"] = "rules"
     if skipped_for_root:
         warnings.append("geometry skipped: threejs_v2 root is not configured, records stay unmeasured")
+    if trees_missing:
+        warnings.append(f"variants skipped for {trees_missing} record(s): no extracted tree for their pack")
 
     directory = {
         "schema": "weapon-directory/1",
@@ -421,12 +456,33 @@ def carry_icon_links(catalogs_dir: Path, directory: dict) -> None:
         return  # an unreadable previous file carries nothing; the new one is written regardless
     for rec in directory["weapons"]:
         vis = old.get(rec["id"])
-        if (not isinstance(vis, dict) or rec["visuals"]["icon"] is not None
-                or not all(isinstance(vis.get(k), str) and vis[k] for k in ("icon", "thumb", "icon_input_sha"))):
+        if not isinstance(vis, dict):
             continue
-        if (wdir / vis["icon"]).is_file() and (wdir / vis["thumb"]).is_file():
+        if (rec["visuals"]["icon"] is None
+                and all(isinstance(vis.get(k), str) and vis[k] for k in ("icon", "thumb", "icon_input_sha"))
+                and (wdir / vis["icon"]).is_file() and (wdir / vis["thumb"]).is_file()):
             for key in ("icon", "thumb", "icon_input_sha"):
                 rec["visuals"][key] = vis[key]
+        _carry_variant_links(wdir, rec, vis)
+
+
+def _carry_variant_links(wdir: Path, rec: dict, old_vis: dict) -> None:
+    """The same carry-forward for ``visuals.variants[]``, matched by ``variant_id``.
+
+    A variant takes its previous ``icon`` and ``icon_input_sha`` back only when the previous link is exactly the
+    path ``icons --variants`` writes for that colourway and both PNGs (icon and ``@64`` thumbnail) still exist.
+    A colourway that vanished from the tree is not carried (it is no longer in ``variants``), and one whose sibling
+    material changed keeps its link: the next ``icons --variants`` run re-checks the input sha.
+    """
+    old = {v.get("variant_id"): v for v in old_vis.get("variants") or [] if isinstance(v, dict)}
+    for var in rec["visuals"]["variants"]:
+        prev = old.get(var["variant_id"])
+        if var.get("icon") is not None or not isinstance(prev, dict):
+            continue
+        icon, thumb = variant_link_paths(ICONS_DIRNAME, rec["pack"], rec["asset_id"], var["variant_id"])
+        if (prev.get("icon") == icon and isinstance(prev.get("icon_input_sha"), str) and prev["icon_input_sha"]
+                and (wdir / icon).is_file() and (wdir / thumb).is_file()):
+            var["icon"], var["icon_input_sha"] = icon, prev["icon_input_sha"]
 
 
 def write_directory(catalogs_dir: Path, directory: dict, excluded: dict) -> tuple[Path, Path]:

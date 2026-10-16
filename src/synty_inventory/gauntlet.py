@@ -78,7 +78,12 @@ def _path_exists(source: dict | None, rel: str | None) -> bool:
     return (Path(root) / rel).is_file()
 
 
-def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root: Path | None = None) -> dict:
+def run_gauntlet(
+    catalogs_dir: Path,
+    threejs_v2: Path | None = None,
+    godot_root: Path | None = None,
+    strict: bool = False,
+) -> dict:
     gates: list[dict] = []
 
     def gate(name: str, ok: bool, detail: str) -> None:
@@ -603,6 +608,14 @@ def run_gauntlet(catalogs_dir: Path, threejs_v2: Path | None = None, godot_root:
         )
     else:
         gate("search_db", True, "search.db absent — linear fallback (build with scan --index)")
+
+    # Weapon directory (docs/weapon_directory.md AC30). Additive and read-only: it audits the sidecar under
+    # <catalogs>/weapons/ against the pack catalogs and is skipped when no directory was built. `strict` makes
+    # stale weapon overrides fail the gate; without it they are only listed in the detail.
+    from .weapons.gate import check_weapons_directory
+
+    weapons = check_weapons_directory(catalogs_dir, strict=strict)
+    gate("weapons_directory", weapons["ok"], weapons["detail"])
 
     ok = all(g["ok"] for g in gates)
     return {"ok": ok, "gates": gates}

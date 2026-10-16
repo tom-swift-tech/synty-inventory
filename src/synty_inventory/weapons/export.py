@@ -42,12 +42,12 @@ from .schema import validate_directory, validate_record
 ENGINES = ("godot", "unity", "threejs", "all")
 FRAMES = ("item", "asset")
 PROFILES = ("private", "public")
-# --engine -> the files.* keys it keeps. `all` keeps every key. threejs drops glb_scale on purpose (AC26 says
-# "only glb and glb_node"): a consumer that needs the scale reads it from the pack catalog.
+# --engine -> the files.* keys it keeps. `all` keeps every key. threejs keeps glb_scale (AC26/AC37): the exported
+# bounds are post-scale but the GLB file is not, so a consumer loading the mesh needs the factor to size it.
 ENGINE_FILE_KEYS = {
     "godot": ("godot_scene",),
     "unity": ("unity_prefab", "unity_mesh", "unity_materials"),
-    "threejs": ("glb", "glb_node"),
+    "threejs": ("glb", "glb_node", "glb_scale"),
 }
 # the engine names written into generated_from.filter.engines ("threejs" is the glb files)
 ENGINE_LABEL = {"godot": "godot", "unity": "unity", "threejs": "glb", "all": "all"}
@@ -221,6 +221,25 @@ def _check_geometry(geom: dict, frame: str, where: str) -> list[str]:
     return errs
 
 
+def _record_errors(rec: dict, where: str) -> list[str]:
+    """``validate_record`` violations of one snapshot record, with ``files.glb_scale`` checked here.
+
+    The weapon/1 JSON schema (weapons/schema.py) types every ``files.*`` value as null, string or string list, so it
+    rejects the numeric ``glb_scale`` that AC26/AC37 let a threejs snapshot carry. Until the schema learns the key,
+    the factor is validated here (a finite number > 0) and hidden from the schema check; every other violation is
+    reported as before.
+    """
+    files = rec.get("files")
+    if not (isinstance(files, dict) and "glb_scale" in files):
+        return [f"{where}: {e}" for e in validate_record(rec)]
+    scale = files["glb_scale"]
+    errs: list[str] = []
+    if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not (0 < scale < float("inf")):
+        errs.append(f"{where}.files.glb_scale: must be a finite number greater than 0, got {scale!r}")
+    view = {**rec, "files": {k: v for k, v in files.items() if k != "glb_scale"}}
+    return errs + [f"{where}: {e}" for e in validate_record(view)]
+
+
 def check_snapshot(doc) -> list[str]:
     """Shape, frame, sortedness, engine filter and path-leakage violations of a snapshot document."""
     if not isinstance(doc, dict):
@@ -285,7 +304,7 @@ def check_snapshot(doc) -> list[str]:
             elif sorted(w["geometry"] or {}) != ["length_m"] or sorted(w["visuals"] or {}) != ["icon", "thumb"]:
                 errs.append(f"{where}: public geometry/visuals may carry only length_m / icon, thumb")
             continue
-        errs += [f"{where}: {e}" for e in validate_record(w)]
+        errs += _record_errors(w, where)
         if w.get("geometry") and frame in FRAMES:
             errs += _check_geometry(w["geometry"], frame, where)
         engines = set(flt["engines"]) if isinstance(flt["engines"], list) else set()
