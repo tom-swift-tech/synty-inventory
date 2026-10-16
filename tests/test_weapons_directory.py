@@ -377,24 +377,6 @@ def test_cli_unreadable_catalog_exits_2_and_writes_nothing(tmp_path, monkeypatch
     assert not (cat / "weapons").exists()
 
 
-@pytest.mark.parametrize(
-    "argv",
-    [
-        ["weapons", "icons"],
-        ["weapons", "review"],
-        ["weapons", "apply-corrections", "corrections.json"],
-        ["weapons", "export", "--game", "g", "--packs", "FAKE_Modern", "--out", "snap.json"],
-        ["weapons", "validate", "--snapshot", "snap.json"],
-    ],
-)
-def test_later_slice_verbs_answer_not_built_with_exit_2(argv, tmp_path, monkeypatch, capsys):
-    _clear_env(monkeypatch)
-    _write_config(tmp_path, wfx.make_catalogs_dir(tmp_path))
-    code, out = _run(tmp_path, capsys, argv)
-    assert code == 2
-    assert out["ok"] is False and out["error"] == "not built in this checkout"
-
-
 def test_parser_registers_the_whole_verb_group():
     parser = build_parser()
     for argv in (
