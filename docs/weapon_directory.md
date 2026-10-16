@@ -964,13 +964,6 @@ Determinism, additivity, live gates
 - AC37. `export --engine threejs` keeps `files.glb_scale` when the record has it, and `validate --snapshot` accepts it
   under the glb engine filter and rejects it under `--engine godot`/`unity` snapshots. Test on a fixture record with a
   non-1.0 `glb_scale`.
-- AC40. Melee grip. On a labelled synthetic set of at least 12 meshes (sword with pommel, guard and blade; axe; hammer;
-  club/bat tapered to a thin butt; crowbar with hooked ends; short knife; a long spear/staff; a haft whose bins hold
-  one vertex or none; each also with the origin moved to the middle of its length) the grip lies inside the labelled
-  handle span for every mesh and `grip_source == "handle"`. On the live library, for a hand-checked sample of at least
-  10 mid-origin melee (crowbar, fire axe, machete, bat among them) the grip lies inside the hand-labelled span for at
-  least 9 of 10 and the distance outside it is reported at p50 / p90 / max; the live share of melee with
-  `grip_source == "handle"` is reported before and after (480 of 775 were `pivot`).
 - AC38. A fixture override `{"forward": "+z"}` on a record whose measured forward is `-z` yields `forward == "+z"`,
   `forward_source == "override"`, a muzzle at the `+z` end (ranged) and an `item_basis` equal to that of the same mesh
   measured with `+z` natively; the same override with the axis `+x` on a z-long mesh is not applied and appears in
@@ -979,6 +972,14 @@ Determinism, additivity, live gates
 - AC39. A fixture override `{"confidence_cap": 0.55}` on a record that would score 0.83 gives `confidence == 0.55`,
   reason `low_confidence` and the review page's Low confidence section; a value of 0.6 or above, or a glob entry
   carrying `forward` or `confidence_cap`, is a schema error (exit 6).
+
+- AC40. Melee grip. On a labelled synthetic set of at least 12 meshes (sword with pommel, guard and blade; axe; hammer;
+  club/bat tapered to a thin butt; crowbar with hooked ends; short knife; a long spear/staff; a haft whose bins hold
+  one vertex or none; each also with the origin moved to the middle of its length) the grip lies inside the labelled
+  handle span for every mesh and `grip_source == "handle"`. On the live library, for a hand-checked sample of at least
+  10 mid-origin melee (crowbar, fire axe, machete, bat among them) the grip lies inside the hand-labelled span for at
+  least 9 of 10 and the distance outside it is reported at p50 / p90 / max; the live share of melee with
+  `grip_source == "handle"` is reported before and after (480 of 775 were `pivot`).
 
 ## 7. Failure modes
 
