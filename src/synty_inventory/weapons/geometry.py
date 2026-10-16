@@ -414,7 +414,7 @@ def _fail(reasons: list[str], warning: str | None = None) -> dict:
 
 def measure_weapon_detail(
     glb: Path, glb_node: NodeSel, scale: float, archetype: str, kind: str | None, role: str, rules: dict,
-    *, hold_class: str | None = None, genre: str | None = None,
+    *, hold_class: str | None = None, genre: str | None = None, forward_override: str | None = None,
 ) -> dict:
     """``{'geometry': block | None, 'flags': [...], 'reasons': [...], 'warning': str | None}`` (spec 3.5).
 
@@ -422,6 +422,12 @@ def measure_weapon_detail(
     ``axes_unexpected``, ``muzzle_fallback``, ``origin_outside_bounds``, ``node_transform``) -- or, when the mesh
     cannot be measured, the failure (``no_geometry``, plus ``degenerate`` for a zero-extent mesh). A node that is not
     in the GLB is an undecodable mesh with a ``warning``. Never copies geometry from anywhere (INV-6).
+
+    ``forward_override`` (spec 4.5, W2e: a signed axis such as ``"+z"``, from an id override's ``forward``) replaces
+    the forward SIGN once the mesh has decided its own, when its axis equals the measured forward axis: the source
+    becomes ``override`` and every sign-derived value follows as if the mesh had decided that sign natively. The
+    fallback flag the natural sign may have carried goes (the sign is no longer a guess); ``axes_unexpected`` is still
+    judged from the final sign. A different axis is not applied: the measurement stays natural and ``warning`` says so.
     """
     if hold_class is None:
         hold_class = (rules.get("hold_by_archetype") or {}).get(archetype, "none") if role == "whole" else "none"
@@ -496,6 +502,15 @@ def measure_weapon_detail(
                 rest = [i for i in range(3) if i != fa]
                 ua = max(rest, key=lambda i: (size[i], -i))  # widest remaining axis; ties go to the earlier axis
                 us, u_src = 1, "width_axis"
+    warning = None
+    if forward_override is not None:
+        o_axis, o_sign = _parse_axis(forward_override)
+        if o_axis == fa:
+            fs, f_src = o_sign, "override"
+            flags.discard("forward_by_fallback")
+        else:
+            warning = (f"forward override {forward_override!r} ignored: its axis is not the measured forward axis "
+                       f"({_sig(fa, fs)})")
     forward, up = _sig(fa, fs), _sig(ua, us)
     basis = np.cross(_unit(ua, us), _unit(fa, fs))
     item_basis = [[int(round(c)) for c in row] for row in (basis, _unit(ua, us), _unit(fa, fs))]
@@ -599,16 +614,17 @@ def measure_weapon_detail(
         "support_source": support_source,
         "triangles": int(n_tris),
     }
-    return {"geometry": geometry, "flags": sorted(flags), "reasons": sorted(reasons), "warning": None}
+    return {"geometry": geometry, "flags": sorted(flags), "reasons": sorted(reasons), "warning": warning}
 
 
 def measure_weapon(
     glb: Path, glb_node: NodeSel, scale: float, archetype: str, kind: str | None, role: str, rules: dict,
-    *, hold_class: str | None = None, genre: str | None = None,
+    *, hold_class: str | None = None, genre: str | None = None, forward_override: str | None = None,
 ) -> dict | None:
     """The spec 4.1 ``geometry`` block, or None when the mesh cannot be measured (spec 3.3 signature)."""
     return measure_weapon_detail(
-        glb, glb_node, scale, archetype, kind, role, rules, hold_class=hold_class, genre=genre
+        glb, glb_node, scale, archetype, kind, role, rules, hold_class=hold_class, genre=genre,
+        forward_override=forward_override,
     )["geometry"]
 
 
@@ -640,23 +656,28 @@ def save_cache(path: Path, cache: dict) -> None:
     write_text_lf(path, json.dumps(cache, sort_keys=True, separators=(",", ":")) + "\n")
 
 
-def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict) -> str:
+def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, forward_override=None) -> str:
     # the measurement depends on the classification context, not only on the file (spec 3.5 says file + versions;
     # deviation reported): a rules or override change that flips archetype/kind/hold must not serve stale geometry
     fp = {
         "a": archetype, "k": kind, "r": role, "h": hold_class, "g": genre,
         "ax": rules.get("axes_expected"), "gp": rules.get("grip_proportion"),
     }
+    if forward_override is not None:
+        # the key exists only for an override, so every natural fingerprint (and every cache already on disk) is
+        # unchanged, while a natural result is never served for an override or the other way round
+        fp["fo"] = forward_override
     return digest(fp)
 
 
 def measure_cached(
     threejs_v2_dir: Path, glb_rel: str, glb_node: NodeSel, scale: float, archetype: str, kind: str | None,
     role: str, rules: dict, cache: dict, *, hold_class: str | None = None, genre: str | None = None,
+    forward_override: str | None = None,
 ) -> tuple[dict, bool]:
     """``(detail, was_cached)``. Entry id = relative GLB path + node tag + scale tag (as ``glb_measure``); the
     entry is valid while ``mtime:size`` and ``WEAPON_GEOMETRY_VERSION`` match, and holds one result per
-    classification-context fingerprint. Failures are cached too (an undecodable mesh stays undecodable); a missing
+    classification-context fingerprint (which includes ``forward_override``). Failures are cached too (an undecodable mesh stays undecodable); a missing
     file is not. The returned dict is a private copy.
     """
     abs_path = threejs_v2_dir / glb_rel
@@ -668,7 +689,7 @@ def measure_cached(
     cache_id = f"{glb_rel}#{node_cache_tag(glb_node)}" if glb_node else glb_rel
     cache_id += scale_cache_tag(scale)
     version = _pkg.WEAPON_GEOMETRY_VERSION
-    fp = _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules)
+    fp = _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules, forward_override)
     entry = cache.get(cache_id)
     if not entry or entry.get("key") != key or entry.get("version") != version:
         entry = {"key": key, "version": version, "by_inputs": {}}
@@ -677,7 +698,8 @@ def measure_cached(
     if hit is not None:
         return deepcopy(hit), True
     detail = measure_weapon_detail(
-        abs_path, glb_node, scale, archetype, kind, role, rules, hold_class=hold_class, genre=genre
+        abs_path, glb_node, scale, archetype, kind, role, rules, hold_class=hold_class, genre=genre,
+        forward_override=forward_override,
     )
     entry["by_inputs"][fp] = deepcopy(detail)
     return detail, False

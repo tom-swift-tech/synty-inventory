@@ -20,7 +20,11 @@ Checks (each is a row of ``checks``; the gate is the AND of the failing ones):
   way and fails the gate only when ``strict`` is true (the ``--strict`` of ``build`` and ``gauntlet``);
 * ``gold``               every id in the overrides file classifies to its overridden values after a clean rebuild
   (the scalar fields ``role``, ``kind``, ``archetype``, ``hold_class``, ``genre``; ``exclude`` means an excluded row
-  with reason ``override``). An id that no longer exists is not a gold case, it is a stale override.
+  with reason ``override``). An id that no longer exists is not a gold case, it is a stale override. An id entry
+  with a ``forward`` (spec 4.5, W2e) is also a gold case, checked on the audited directory itself (the clean rebuild
+  does not measure): its record needs ``geometry.axes.forward == forward`` and ``forward_source == "override"``, so a
+  directory built before the override was added, or one whose geometry the override could not reach, fails. An
+  excluded id is skipped.
 
 A gate that finds no directory is skipped (``skipped`` true, ``ok`` true): a library that never ran ``weapons build``
 is not a failure of the gauntlet.
@@ -109,9 +113,26 @@ def _coverage(directory: dict, excluded: dict, docs: dict[str, dict], rules: dic
     return {"ok": not problems, "problems": problems, "candidates": n_candidates}
 
 
-def _gold(overrides: dict, rebuilt: dict, rebuilt_excluded: dict, known_ids: set[str]) -> tuple[int, list[str]]:
+def _forward_problem(key: str, want: str, rec: dict | None) -> str | None:
+    """Why the audited record ``rec`` does not carry the ``forward`` override ``want``, or None when it does."""
+    if rec is None:
+        return f"{key}: forward override {want!r} but the directory has no record"
+    geo = rec.get("geometry")
+    if geo is None:
+        return f"{key}: forward override {want!r} but the record has no geometry"
+    axes = geo["axes"]
+    if axes["forward"] != want or axes["forward_source"] != "override":
+        return (f"{key}: forward is {axes['forward']!r} ({axes['forward_source']}), the override says {want!r} "
+                f"(an override whose axis is not the measured forward axis is not applied)")
+    return None
+
+
+def _gold(overrides: dict, rebuilt: dict, rebuilt_excluded: dict, known_ids: set[str],
+          directory: dict | None = None, audited_excluded: dict | None = None) -> tuple[int, list[str]]:
     by_id = {w["id"]: w for w in rebuilt["weapons"]}
     excluded = {e["id"]: e for e in rebuilt_excluded["excluded"]}
+    audited = {w["id"]: w for w in (directory or {}).get("weapons", [])}
+    audited_excluded_ids = {e["id"] for e in (audited_excluded or {}).get("excluded", [])}
     cases, bad = 0, []
     for key in sorted(overrides.get("ids", {})):
         entry = overrides["ids"][key]
@@ -123,7 +144,13 @@ def _gold(overrides: dict, rebuilt: dict, rebuilt_excluded: dict, known_ids: set
                 bad.append(f"{key}: exclude did not give an excluded row with reason override")
             continue
         want = entry.get("set") or {}
+        has_forward = bool(entry.get("forward")) and key not in audited_excluded_ids
+        if has_forward:
+            problem = _forward_problem(key, entry["forward"], audited.get(key))
+            if problem:
+                bad.append(problem)
         if not want:
+            cases += has_forward  # one case per id, whether it carries a set, a forward or both
             continue
         cases += 1
         rec = by_id.get(key)
@@ -230,7 +257,7 @@ def _audit(checks: list[dict], catalogs_dir: Path, directory: dict, excluded: di
         except WeaponsError as exc:  # e.g. two equal-length globs that disagree: the rebuild itself is refused
             checks.append(_check("gold", False, f"the clean rebuild failed: {str(exc).splitlines()[0]}"))
         else:
-            cases, bad = _gold(overrides, rebuilt, rebuilt_excl, known)
+            cases, bad = _gold(overrides, rebuilt, rebuilt_excl, known, directory, excluded)
             checks.append(_check(
                 "gold", not bad,
                 f"{cases} gold id(s) classify to their overridden values after a clean rebuild" if not bad

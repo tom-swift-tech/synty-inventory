@@ -277,6 +277,30 @@ def test_ac33_renamed_from_and_set_do_not_wipe_each_other(env):
     assert env.table()["ids"][H.SWORD_02] == {"confirm": True, "renamed_from": [OLD]}
 
 
+def test_w2e_a_later_correction_keeps_forward_and_confidence_cap_on_the_entry(env):
+    # the two fields are written by hand (a correction cannot create them) and must survive every merge
+    env.ovr_path.write_text(json.dumps(wfx.overrides_doc(ids={
+        H.SWORD_02: {"set": {"genre": "scifi"}, "forward": "-y", "confidence_cap": 0.55, "note": "old"}})),
+        encoding="utf-8")
+    code, _ = env.apply(corr({"target": {"id": H.SWORD_02}, "set": {"genre": "modern"}, "note": "new"}))
+    assert code == 0
+    assert env.table()["ids"][H.SWORD_02] == {"set": {"genre": "modern"}, "note": "new", "forward": "-y",
+                                              "confidence_cap": 0.55}
+    code, _ = env.apply(corr({"target": {"id": H.SWORD_02}, "confirm": True}))
+    assert code == 0
+    assert env.table()["ids"][H.SWORD_02] == {"confirm": True, "forward": "-y", "confidence_cap": 0.55}
+    code, _ = env.apply(corr({"target": {"id": H.SWORD_02}, "renamed_from": [OLD]}))  # the renamed_from-only branch
+    assert code == 0
+    assert env.table()["ids"][H.SWORD_02] == {"confirm": True, "forward": "-y", "confidence_cap": 0.55,
+                                              "renamed_from": [OLD]}
+
+
+def test_w2e_a_correction_file_cannot_carry_forward_or_confidence_cap(env):
+    before = env.bytes()
+    code, out = env.apply(corr({"target": {"id": H.SWORD_02}, "set": {"genre": "scifi"}, "forward": "+z"}))
+    assert code == 6 and "forward" in out["error"] and env.bytes() == before
+
+
 def test_ac33_renamed_from_equal_to_a_live_record_id_exits_6_and_writes_nothing(env):
     before = env.bytes()
     code, out = env.apply(corr({"target": {"id": H.SWORD_02}, "renamed_from": [H.SWORD_01]}))

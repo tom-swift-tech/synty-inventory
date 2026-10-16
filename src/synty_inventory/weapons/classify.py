@@ -299,6 +299,10 @@ def classify(
     if eff and (eff.get("set") or eff.get("confirm")):
         status = "overridden" if eff.get("set") else "reviewed"
         conf = 1.0
+    cap = (eff or {}).get("confidence_cap")
+    if cap is not None:
+        # id-only review nudge (spec 4.5, W2e): applied last so it also lowers an override's 1.0; it never sets status
+        conf = min(conf, cap)
     conf = round(conf, 2)
 
     reasons: list[str] = []

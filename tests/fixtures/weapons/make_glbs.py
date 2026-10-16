@@ -415,6 +415,9 @@ def generate_all(dest: Path) -> dict[str, Path]:
     put("smg_fat_handguard", smg_fat_handguard())  # z -0.45..0.45 ; slim stock at -z ; section says -z
     put("pistol_mid_origin", pistol_mid_origin())  # z -0.10..0.10 ; bulky light at +z ; section says -z
     put("shoulder_launcher", shoulder_launcher())  # z -0.63..0.37 ; origin 63 % from -z ; pivot says -z
+    # the same tube slid 0.26 along +z (z -0.37..0.63, origin 37 % from -z): the pivot says +z, i.e. what a forward
+    # "+z" override on shoulder_launcher must reproduce (W2e)
+    put("shoulder_launcher_pz", shifted(shoulder_launcher(), (0.0, 0.0, 0.26)))
     put("sword", sword())
     put("knife", knife())
     put("axe", axe())

@@ -25,8 +25,12 @@ from . import (
 
 SCHEMA = "weapon-overrides/1"
 SET_KEYS = ("role", "kind", "archetype", "hold_class", "genre", "component", "carrier", "ammo")
-ID_ENTRY_KEYS = ("set", "confirm", "exclude", "renamed_from", "note")
+# `forward` and `confidence_cap` (spec 4.5, W2e) are id-only: they correct ONE weapon's measured direction / rate it for
+# review, which a pattern must never do to a whole family
+ID_ENTRY_KEYS = ("set", "confirm", "exclude", "renamed_from", "forward", "confidence_cap", "note")
 GLOB_ENTRY_KEYS = ("set", "confirm", "exclude", "note")
+FORWARD_VALUES = ("+x", "-x", "+y", "-y", "+z", "-z")
+CONFIDENCE_CAP_RANGE = (0.05, 0.59)  # inclusive: below 0.6 so the record lands in Low confidence, the classifier's floor
 
 
 def default_overrides_path() -> Path:
@@ -112,7 +116,8 @@ def validate_overrides(doc) -> list[str]:
                 continue
             for k in entry:
                 if k not in allowed:
-                    hint = " (renamed_from is for exact ids only)" if k == "renamed_from" else ""
+                    hint = (f" ({k} is for exact ids only)"
+                            if k in ("renamed_from", "forward", "confidence_cap") else "")
                     errors.append(f"{where}.{k}: unknown key{hint}")
             if "set" in entry:
                 _validate_set(entry["set"], f"{where}.set", errors)
@@ -127,6 +132,14 @@ def validate_overrides(doc) -> list[str]:
                     errors.append(f"{where}.renamed_from: must be a list of '<pack>/<asset_id>' ids")
                 elif key in rf:
                     errors.append(f"{where}.renamed_from: an id cannot be renamed from itself")
+            if "forward" in entry and section == "ids" and entry["forward"] not in FORWARD_VALUES:
+                errors.append(f"{where}.forward: {entry['forward']!r} not in {list(FORWARD_VALUES)}")
+            if "confidence_cap" in entry and section == "ids":
+                cap = entry["confidence_cap"]
+                lo, hi = CONFIDENCE_CAP_RANGE
+                # a bool is an int in Python: reject it explicitly (true would otherwise read as 1)
+                if isinstance(cap, bool) or not isinstance(cap, (int, float)) or not lo <= cap <= hi:
+                    errors.append(f"{where}.confidence_cap: must be a number from {lo} to {hi}, got {cap!r}")
     return errors
 
 
@@ -196,6 +209,9 @@ def effective_override(full_id: str, doc: dict | None) -> dict | None:
         "exclude": any(e.get("exclude") for _, e in sources),
         "exclude_by": next((k for k, e in sources if e.get("exclude")), None),
         "renamed_from": sorted(set((id_entry or {}).get("renamed_from") or [])),
+        # id-only (a glob entry cannot carry them, see validate_overrides)
+        "forward": (id_entry or {}).get("forward"),
+        "confidence_cap": (id_entry or {}).get("confidence_cap"),
         "note": next((e["note"] for _, e in sources if e.get("note")), ""),
         "matched": [k for k, _ in sources],
     }
