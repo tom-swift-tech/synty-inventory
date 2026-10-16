@@ -34,7 +34,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-synty_inventory = ["config.example.yaml", "skill.md", "recipes/*.json", "data/*.json", "data/*.yaml", "weapons/icon_harness/*"]
+synty_inventory = ["config.example.yaml", "skill.md", "recipes/*.json", "data/*.json", "data/*.yaml", "weapons/icon_harness/*", "weapons/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

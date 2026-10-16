@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weapon directory review</title>
+<style>
+:root { --bg:#14171c; --card:#1e232b; --card2:#272d37; --line:#394150; --fg:#e6e9ef; --dim:#9aa4b5; --acc:#6cb6ff;
+  --ok:#5ec27a; --warn:#e8b04a; --bad:#ec6a6a; }
+* { box-sizing:border-box; }
+html, body { margin:0; padding:0; background:var(--bg); color:var(--fg); font:15px/1.35 system-ui, sans-serif; }
+body { padding:0 10px 90px; max-width:100%; overflow-x:hidden; }
+body.panel-open { padding-bottom:70vh; }
+header { position:sticky; top:0; z-index:5; background:var(--bg); padding:8px 0 6px; border-bottom:1px solid var(--line); }
+h1 { font-size:18px; margin:0 0 4px; }
+.sub { color:var(--dim); font-size:13px; }
+.bar { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; align-items:center; }
+.bar input[type=search] { flex:1 1 140px; min-width:0; padding:8px; border-radius:6px; border:1px solid var(--line);
+  background:var(--card); color:var(--fg); font-size:15px; }
+button, select, textarea { font:inherit; }
+button { padding:8px 12px; border-radius:6px; border:1px solid var(--line); background:var(--card2); color:var(--fg);
+  cursor:pointer; min-height:38px; }
+button.primary { background:#2b5d96; border-color:#3d7bc0; }
+button.good { background:#25663a; border-color:#34864e; }
+button.bad { background:#7a2c2c; border-color:#9c3c3c; }
+button:focus-visible, .tile:focus-visible, summary:focus-visible { outline:2px solid var(--acc); outline-offset:1px; }
+nav.jump { display:flex; flex-wrap:wrap; gap:4px 10px; margin:6px 0 0; font-size:13px; }
+nav.jump a { color:var(--acc); text-decoration:none; }
+nav.jump .zero { color:var(--dim); }
+section.sec { margin-top:16px; }
+section.sec h2 { font-size:16px; margin:0 0 8px; padding-bottom:4px; border-bottom:1px solid var(--line); }
+section.sec h2 .n { color:var(--dim); font-weight:normal; font-size:13px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:8px; }
+.empty { color:var(--dim); font-size:13px; margin:0; }
+.tile { display:flex; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:6px;
+  min-width:0; cursor:pointer; }
+.tile.sel { border-color:var(--acc); box-shadow:0 0 0 1px var(--acc); }
+.tile.pending { border-color:var(--warn); }
+.tile.hide, details.family.hide { display:none; }
+.thumb { flex:0 0 64px; width:64px; height:64px; border-radius:4px; background:#0d0f13; object-fit:contain; }
+.thumb.none { display:flex; align-items:center; justify-content:center; color:var(--dim); font-size:11px; text-align:center; }
+.meta { min-width:0; flex:1 1 auto; }
+.id { font-size:13px; font-weight:600; word-break:break-all; overflow-wrap:anywhere; }
+.line { display:flex; flex-wrap:wrap; gap:4px; margin-top:3px; font-size:12px; }
+.tag { background:var(--card2); border-radius:4px; padding:1px 6px; }
+.tag.arch { color:var(--acc); }
+.tag.conf-low { color:var(--bad); }
+.tag.conf-mid { color:var(--warn); }
+.tag.conf-ok { color:var(--ok); }
+.tag.status-reviewed, .tag.status-overridden { color:var(--ok); }
+.tag.reason { color:var(--warn); }
+.tag.pend { background:#5a4513; color:#ffd98a; }
+.flags { color:var(--dim); font-size:11px; margin-top:2px; overflow-wrap:anywhere; }
+details.family { grid-column:1 / -1; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:4px; }
+details.family > summary { cursor:pointer; padding:6px; list-style:none; display:flex; flex-wrap:wrap; gap:6px;
+  align-items:center; font-weight:600; }
+details.family > summary::-webkit-details-marker { display:none; }
+details.family > summary::before { content:"+"; display:inline-block; width:16px; color:var(--acc); }
+details.family[open] > summary::before { content:"-"; }
+details.family .count { background:#2b5d96; border-radius:10px; padding:0 8px; }
+details.family .grid { margin-top:6px; }
+#panel { position:fixed; left:0; right:0; bottom:0; z-index:10; background:#1a1f27; border-top:2px solid var(--acc);
+  max-height:68vh; overflow-y:auto; padding:10px 12px 14px; box-shadow:0 -6px 18px rgba(0,0,0,.5); }
+#panel[hidden] { display:none; }
+#panel h3 { margin:0 0 2px; font-size:15px; word-break:break-all; overflow-wrap:anywhere; }
+#panel .info { color:var(--dim); font-size:12px; margin-bottom:6px; overflow-wrap:anywhere; }
+#panel .fields { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:6px 8px; }
+#panel label { display:flex; flex-direction:column; font-size:12px; color:var(--dim); min-width:0; }
+#panel select { margin-top:2px; padding:7px; border-radius:6px; border:1px solid var(--line); background:var(--card);
+  color:var(--fg); min-width:0; width:100%; }
+#panel .row { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; align-items:center; }
+#panel .fam { margin-top:8px; font-size:13px; display:flex; flex-direction:row; gap:6px; align-items:flex-start; color:var(--fg); }
+#panel .fam input { margin-top:3px; }
+#panel textarea { width:100%; margin-top:8px; min-height:44px; padding:7px; border-radius:6px; background:var(--card);
+  color:var(--fg); border:1px solid var(--line); }
+#panel .state { margin-top:6px; font-size:12px; color:var(--warn); }
+#panel .close { float:right; }
+#msg { color:var(--ok); font-size:13px; min-height:1.2em; }
+details.raw { margin-top:16px; }
+details.raw textarea { width:100%; min-height:120px; background:var(--card); color:var(--fg); border:1px solid var(--line);
+  border-radius:6px; padding:6px; font:12px/1.3 monospace; }
+@media (min-width: 900px) {
+  body { padding-bottom:30px; }
+  body.panel-open { padding-bottom:30px; padding-right:372px; }
+  #panel { left:auto; top:0; width:360px; max-height:none; border-top:0; border-left:2px solid var(--acc); }
+}
+</style>
+</head>
+<body data-state-key="@@STATE_KEY@@">
+<header>
+  <h1>Weapon directory review</h1>
+  <div class="sub">@@SUMMARY@@</div>
+  <div class="bar">
+    <input id="q" type="search" placeholder="Filter by id" aria-label="Filter tiles by id">
+    <button id="dl" class="primary" type="button">Download corrections.json</button>
+    <button id="cp" type="button">Copy to clipboard</button>
+    <span id="msg" role="status"></span>
+  </div>
+  <nav class="jump">@@NAV@@</nav>
+</header>
+<main>
+@@SECTIONS@@
+</main>
+<details class="raw"><summary>Corrections JSON (<span id="pcount">0</span> pending)</summary>
+  <textarea id="raw" readonly rows="8" aria-label="Corrections JSON"></textarea>
+</details>
+<aside id="panel" hidden aria-label="Correction panel">
+  <button id="close" class="close" type="button">Close</button>
+  <h3 id="p-id"></h3>
+  <div class="info" id="p-info"></div>
+  <div class="fields">
+    <label>role<select id="f-role"></select></label>
+    <label>kind<select id="f-kind"></select></label>
+    <label>archetype<select id="f-archetype"></select></label>
+    <label>hold_class<select id="f-hold_class"></select></label>
+    <label>genre<select id="f-genre"></select></label>
+    <label id="l-carrier" hidden>carrier kind<select id="f-carrier"></select></label>
+    <label id="l-ammo" hidden>projectile<select id="f-ammo"></select></label>
+  </div>
+  <div class="row">
+    <button id="b-ok" class="good" type="button">Mark correct</button>
+    <button id="b-no" class="bad" type="button">Not a weapon</button>
+    <button id="b-restore" class="good" type="button">Restore</button>
+    <button id="b-clear" type="button">Clear</button>
+  </div>
+  <label class="fam" id="l-fam"><input id="c-fam" type="checkbox"><span>Apply to family <span id="p-glob"></span></span></label>
+  <textarea id="note" placeholder="Note (optional)" aria-label="Note"></textarea>
+  <div class="state" id="p-state"></div>
+</aside>
+<script type="application/json" id="enums">@@ENUMS@@</script>
+<script>
+(function () {
+  'use strict';
+  var ENUMS = JSON.parse(document.getElementById('enums').textContent);
+  var FIELDS = ['role', 'kind', 'archetype', 'hold_class', 'genre'];
+  var KEY = 'weapon-corrections/1:' + (document.body.getAttribute('data-state-key') || '');
+
+  // localStorage is optional: a blocked or full store falls back to memory and the page still works.
+  var store = null;
+  try { store = window.localStorage; store.setItem('__t', '1'); store.removeItem('__t'); } catch (e) { store = null; }
+  function load() {
+    try { var raw = store ? store.getItem(KEY) : null; var o = raw ? JSON.parse(raw) : {}; return o && typeof o === 'object' ? o : {}; }
+    catch (e) { return {}; }
+  }
+  function persist() { if (store) { try { store.setItem(KEY, JSON.stringify(state)); } catch (e) { /* quota */ } } }
+
+  // state: tile id -> {scope: 'id'|'family', set: {}, confirm: bool, exclude: bool, note: string}
+  var state = load();
+  var tiles = {};
+  var all = document.querySelectorAll('.tile[data-id]');
+  for (var i = 0; i < all.length; i++) { tiles[all[i].getAttribute('data-id')] = all[i]; }
+  var cur = null;
+
+  function el(id) { return document.getElementById(id); }
+  function fill(select, values, blankLabel) {
+    select.textContent = '';
+    var o = document.createElement('option'); o.value = ''; o.textContent = blankLabel; select.appendChild(o);
+    values.forEach(function (v) { var x = document.createElement('option'); x.value = v; x.textContent = v; select.appendChild(x); });
+  }
+  FIELDS.forEach(function (f) { fill(el('f-' + f), ENUMS[f], '(unchanged)'); });
+  fill(el('f-carrier'), ENUMS.carrier, '(choose)');
+  fill(el('f-ammo'), ENUMS.ammo, '(choose)');
+
+  function isEmpty(o) { for (var k in o) { if (Object.prototype.hasOwnProperty.call(o, k)) { return false; } } return true; }
+
+  // The corrections file (weapon-corrections/1) built from the pending state; sorted by target so it is stable.
+  function buildCorrections() {
+    var byTarget = {};
+    Object.keys(state).sort().forEach(function (id) {
+      var s = state[id], t = tiles[id];
+      if (!t || !s) { return; }
+      var family = s.scope === 'family' && t.getAttribute('data-glob') && !t.hasAttribute('data-excluded');
+      var target = family ? { glob: t.getAttribute('data-glob') } : { id: id };
+      var sset = s.set || {};
+      if ((sset.role === 'carrier' && !sset.carrier) || (sset.role === 'ammo' && !sset.ammo)) { return; }  // incomplete
+      var c = { target: target };
+      if (s.exclude) { c.exclude = true; }
+      else if (!isEmpty(s.set || {})) { c.set = s.set; }
+      else { c.confirm = true; }
+      if (s.note) { c.note = s.note; }
+      byTarget[JSON.stringify(target)] = c;
+    });
+    return { schema: 'weapon-corrections/1', corrections: Object.keys(byTarget).sort().map(function (k) { return byTarget[k]; }) };
+  }
+  window.__buildCorrections = buildCorrections;
+
+  function render() {
+    var n = 0;
+    Object.keys(tiles).forEach(function (id) {
+      var t = tiles[id], s = state[id], tag = t.querySelector('.pend');
+      if (s) {
+        n++;
+        t.classList.add('pending');
+        var label = s.exclude ? 'not a weapon' : (!isEmpty(s.set || {}) ? 'changed' : (t.hasAttribute('data-excluded') ? 'restore' : 'correct'));
+        if (s.scope === 'family') { label += ' (family)'; }
+        if (!tag) { tag = document.createElement('span'); tag.className = 'tag pend'; t.querySelector('.line').appendChild(tag); }
+        tag.textContent = label;
+      } else {
+        t.classList.remove('pending');
+        if (tag) { tag.parentNode.removeChild(tag); }
+      }
+    });
+    el('pcount').textContent = String(n);
+    el('raw').value = JSON.stringify(buildCorrections(), null, 1);
+    persist();
+  }
+
+  function setPanelValues(t) {
+    var s = state[cur] || { set: {} };
+    FIELDS.forEach(function (f) { el('f-' + f).value = (s.set && s.set[f]) || ''; });
+    var role = (s.set && s.set.role) || t.getAttribute('data-role');
+    el('l-carrier').hidden = role !== 'carrier';
+    el('l-ammo').hidden = role !== 'ammo';
+    el('f-carrier').value = (s.set && s.set.carrier) || '';
+    el('f-ammo').value = (s.set && s.set.ammo) || '';
+    el('note').value = s.note || '';
+    el('c-fam').checked = !!(state[cur] && state[cur].scope === 'family');
+    var excl = t.hasAttribute('data-excluded');
+    el('b-ok').hidden = excl; el('b-no').hidden = excl; el('b-restore').hidden = !excl;
+    el('l-fam').hidden = excl || !t.getAttribute('data-glob');
+    FIELDS.forEach(function (f) { el('f-' + f).disabled = excl; });
+    var st = state[cur];
+    el('p-state').textContent = st && st.set && ((st.set.role === 'carrier' && !st.set.carrier) || (st.set.role === 'ammo' && !st.set.ammo))
+      ? 'Choose the carrier kind / projectile: not emitted until then' : st ? ('Pending: ' + (st.exclude ? 'not a weapon' : (!isEmpty(st.set || {}) ? 'set ' + JSON.stringify(st.set) : (excl ? 'restore' : 'mark correct')))) : '';
+  }
+
+  function openPanel(id) {
+    cur = id;
+    var t = tiles[id];
+    Array.prototype.forEach.call(document.querySelectorAll('.tile.sel'), function (x) { x.classList.remove('sel'); });
+    t.classList.add('sel');
+    el('p-id').textContent = id;
+    var info = t.hasAttribute('data-excluded')
+      ? 'Excluded: ' + t.getAttribute('data-reason') + ' (' + t.getAttribute('data-matched') + ')'
+      : t.getAttribute('data-archetype') + ' / ' + t.getAttribute('data-genre') + ' / conf ' + t.getAttribute('data-conf') + ' / ' + t.getAttribute('data-status') + (t.getAttribute('data-reasons') ? ' / ' + t.getAttribute('data-reasons') : '');
+    el('p-info').textContent = info;
+    var g = t.getAttribute('data-glob');
+    el('p-glob').textContent = g ? '(' + g + ', ' + t.getAttribute('data-globn') + (t.getAttribute('data-globn') === '1' ? ' id)' : ' ids)') : '';
+    setPanelValues(t);
+    el('panel').hidden = false;
+    document.body.classList.add('panel-open');
+  }
+  function closePanel() {
+    el('panel').hidden = true; cur = null;
+    document.body.classList.remove('panel-open');
+    Array.prototype.forEach.call(document.querySelectorAll('.tile.sel'), function (x) { x.classList.remove('sel'); });
+  }
+
+  function entry() {
+    if (!state[cur]) {
+      var fam = el('c-fam').checked && !tiles[cur].hasAttribute('data-excluded');
+      state[cur] = { scope: fam ? 'family' : 'id', set: {}, confirm: false, exclude: false, note: '' };
+    }
+    return state[cur];
+  }
+  function after() { render(); if (cur) { setPanelValues(tiles[cur]); } }
+  function note() { if (cur && state[cur]) { state[cur].note = el('note').value; } }
+
+  function onField() {
+    if (!cur) { return; }
+    var e = entry(), t = tiles[cur];
+    e.set = {}; e.confirm = false; e.exclude = false;
+    FIELDS.forEach(function (f) {
+      var v = el('f-' + f).value;
+      if (v && v !== t.getAttribute('data-' + f)) { e.set[f] = v; }
+    });
+    if (e.set.role === 'carrier' && el('f-carrier').value) { e.set.carrier = el('f-carrier').value; }
+    if (e.set.role === 'ammo' && el('f-ammo').value) { e.set.ammo = el('f-ammo').value; }
+    e.note = el('note').value;
+    if (isEmpty(e.set)) { delete state[cur]; }
+    after();
+    // carrier/ammo need their sub-object before the correction is valid: keep the extra select in view
+    var role = el('f-role').value;
+    el('l-carrier').hidden = role !== 'carrier'; el('l-ammo').hidden = role !== 'ammo';
+  }
+  FIELDS.concat(['carrier', 'ammo']).forEach(function (f) { el('f-' + f).addEventListener('change', onField); });
+  el('note').addEventListener('input', function () { note(); render(); });
+  el('c-fam').addEventListener('change', function () {
+    if (!cur) { return; }
+    if (!state[cur]) { return; }
+    state[cur].scope = el('c-fam').checked ? 'family' : 'id'; after();
+  });
+  function simple(kind) {
+    if (!cur) { return; }
+    var e = entry(); e.set = {}; e.confirm = kind !== 'no'; e.exclude = kind === 'no';
+    if (kind === 'restore') { e.scope = 'id'; }  // a glob cannot restore: only an exact-id entry re-admits a rejected asset
+    e.note = el('note').value;
+    after();
+  }
+  el('b-ok').addEventListener('click', function () { simple('ok'); });
+  el('b-no').addEventListener('click', function () { simple('no'); });
+  el('b-restore').addEventListener('click', function () { simple('restore'); });
+  el('b-clear').addEventListener('click', function () { if (cur) { delete state[cur]; after(); } });
+  el('close').addEventListener('click', closePanel);
+
+  Object.keys(tiles).forEach(function (id) {
+    var t = tiles[id];
+    t.addEventListener('click', function () { openPanel(id); });
+    t.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openPanel(id); } });
+  });
+
+  function say(text) { el('msg').textContent = text; }
+  el('dl').addEventListener('click', function () {
+    var text = JSON.stringify(buildCorrections(), null, 1) + '\n';
+    var url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    var a = document.createElement('a'); a.href = url; a.download = 'corrections.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    say('corrections.json downloaded');
+  });
+  el('cp').addEventListener('click', function () {
+    var text = JSON.stringify(buildCorrections(), null, 1) + '\n';
+    function fallback() {
+      var ta = el('raw'); ta.value = text; ta.focus(); ta.select();
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      say(ok ? 'copied' : 'select the JSON under the tiles and copy it by hand');
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { say('copied'); }, fallback);
+    } else { fallback(); }
+  });
+
+  el('q').addEventListener('input', function () {
+    var q = el('q').value.trim().toLowerCase();
+    Object.keys(tiles).forEach(function (id) {
+      tiles[id].classList.toggle('hide', !!q && id.toLowerCase().indexOf(q) < 0);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('details.family'), function (d) {
+      var any = d.querySelector('.tile:not(.hide)');
+      d.classList.toggle('hide', !any);
+      if (q && any) { d.open = true; }
+    });
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
