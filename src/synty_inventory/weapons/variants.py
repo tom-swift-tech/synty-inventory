@@ -153,7 +153,13 @@ def _texture_dirs(material_rel: PurePosixPath) -> list[PurePosixPath]:
     for i in range(len(parts) - 1, -1, -1):
         if parts[i] == "Materials":
             tail = parts[i + 1:]
-            return [PurePosixPath(*parts[:i], "Textures", *tail[:n]) for n in range(len(tail), -1, -1)]
+            out = [PurePosixPath(*parts[:i], "Textures", *tail[:n]) for n in range(len(tail), -1, -1)]
+            # some packs name the atlas folder "Alt" (Materials/Alts, Textures/Alt): try both spellings last
+            for alt in ("Alt", "Alts"):
+                extra = PurePosixPath(*parts[:i], "Textures", alt)
+                if extra not in out:
+                    out.append(extra)
+            return out
     return []
 
 

@@ -107,3 +107,19 @@ def test_gauntlet_strict_flag_reaches_run_gauntlet(tmp_path, monkeypatch, capsys
 def test_gauntlet_is_not_strict_by_default(tmp_path, monkeypatch, capsys):
     code, seen = _gauntlet_calls(tmp_path, monkeypatch, capsys, [])
     assert code == 0 and len(seen) == 1 and seen[0]["strict"] is False
+
+
+
+# --- the Alts textures of a pack may sit in Textures/Alt (singular) -----------------------------------------------------
+
+def test_the_resolver_finds_an_atlas_in_a_singular_alt_textures_folder(tmp_path):
+    from synty_inventory.weapons.variants import resolve_variant_texture
+
+    mat = tmp_path / "Assets/Synty/PolyX/Materials/Alts/PolyX_01_B.mat"
+    mat.parent.mkdir(parents=True)
+    mat.write_text("%YAML 1.1", encoding="utf-8")
+    tex = tmp_path / "Assets/Synty/PolyX/Textures/Alt/PolyX_01_B.png"
+    tex.parent.mkdir(parents=True)
+    tex.write_bytes(b"png")
+    got = resolve_variant_texture(tmp_path, "Assets/Synty/PolyX/Materials/Alts/PolyX_01_B.mat")
+    assert got == tex
