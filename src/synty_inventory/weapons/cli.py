@@ -114,6 +114,8 @@ def cmd_build(args, cfg) -> int:
     directory, excluded, report = build_directory_report(
         catalogs_dir, packs=packs, rules=rules, overrides=overrides, measure=not args.no_geometry, base=base,
         threejs_v2_dir=threejs_v2, geometry_cache=cache,
+        # the configured per-pack extracted trees: variant discovery (spec 3.7) lists the colourways found there
+        extracted_root=Path(cfg["extracted_root"]) if cfg.get("extracted_root") else None,
     )
     dpath, epath = write_directory(catalogs_dir, directory, excluded)
     report["directory"] = dpath.name

@@ -119,6 +119,7 @@ WEAPON_SCHEMA = {
             "type": "object",
             "additionalProperties": {"anyOf": [
                 {"type": "null"}, {"type": "string"}, {"type": "array", "items": {"type": "string"}},
+                {"type": "number"},  # files.glb_scale (e.g. 0.01): the one numeric entry the catalogs carry
             ]},
         },
         "renamed_from": {"type": "array", "uniqueItems": True, "items": {"type": "string", "pattern": _ID_PATTERN}},

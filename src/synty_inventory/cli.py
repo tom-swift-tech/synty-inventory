@@ -761,7 +761,8 @@ def cmd_review(args, cfg) -> int:
 
 def cmd_gauntlet(args, cfg) -> int:
     catalogs_dir = _catalogs(args, cfg)
-    result = run_gauntlet(catalogs_dir, threejs_v2=_threejs_v2(cfg), godot_root=_engine_root(cfg, "godot_root"))
+    result = run_gauntlet(catalogs_dir, threejs_v2=_threejs_v2(cfg), godot_root=_engine_root(cfg, "godot_root"),
+                          strict=bool(getattr(args, "strict", False)))
     emit_json(result)
     return 0 if result["ok"] else 2
 
@@ -1113,6 +1114,8 @@ def build_parser() -> argparse.ArgumentParser:
     fp.set_defaults(func=cmd_footprint)
 
     g = sub.add_parser("gauntlet", help="Run acceptance gates against live catalogs")
+    g.add_argument("--strict", action="store_true",
+                   help="weapons_directory: stale overrides in weapon_overrides.json fail the gate (default: listed only)")
     g.set_defaults(func=cmd_gauntlet)
 
     pp = sub.add_parser(
