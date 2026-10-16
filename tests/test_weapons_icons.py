@@ -519,7 +519,7 @@ def _span(alpha, side):
 def test_ac17_forward_points_right_for_each_shape(ac17):
     """Tip and butt are told apart by shape, with per-fixture literals, so a mirrored image cannot pass:
     the gun's thin barrel, the sword's and spear's wide guard / ferrule at the butt, the axe's head at the tip and the
-    bow's limb ends (forward = the bulge direction) all have a known side. The shield is face-on and has none."""
+    bow's belly (forward = the riser bulge, the limb tips are behind it) all have a known side. The shield is face-on and has none."""
     def alpha(rid):
         return read_png(ac17["png1"][_png_name(rid)])[..., 3]
 
@@ -532,7 +532,7 @@ def test_ac17_forward_points_right_for_each_shape(ac17):
     (_, lh), (_, rh) = _tip_vs_butt(alpha("FAKE_Fantasy/SM_Wep_Axe_01"))
     assert rh > 2 * lh  # axe: the 24 cm head is on the tip side (right)
     b = alpha("FAKE_Fantasy/SM_Wep_Bow_03")
-    assert _span(b, "right") > 2 * _span(b, "left")  # bow: the two limb ends reach right, the grip is at the left
+    assert _span(b, "left") > 2 * _span(b, "right")  # bow: the limb ends sit behind (left), the riser / belly bulges forward (right)
 
 
 def test_ac17_links_are_written_relative_and_the_rest_of_directory_json_is_untouched(ac17):
