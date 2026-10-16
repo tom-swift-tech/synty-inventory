@@ -173,8 +173,8 @@ def test_a_boss_on_the_front_is_not_mistaken_for_a_strap(glbs, rules, tmp_path):
 
 # --- nothing but shields changes ---------------------------------------------------------------------------
 
-# W2d (geometry v3) re-hashed axe, spear and zigzag: only their grip / grip_r_m / grip_source changed (checked field by field
-# against the v2 output: axe grip y -0.18 -> -0.30, spear -0.35 -> -0.79, zigzag pivot -> handle, r 0.048)
+# W2d (geometry v3, revised) re-hashed zigzag only: its grip_r_m and grip_source changed (pivot -> handle, r 0.048; the grip
+# stays at the origin, y 0). The base rule runs first and is unchanged, so axe and spear keep their v2 hashes.
 # sha256[:16] of the compact, key-sorted JSON of measure_weapon_detail, computed from the code BEFORE the shield
 # change (same archetype / kind / hold / genre as the AC11 cases); the plain shield fixture is included because it
 # decides by the origin and must be byte-identical too
@@ -186,8 +186,8 @@ SNAPSHOT = {
     "pistol": ("pistol", "ranged", None, "modern", "1deae6a1ea70911f"),
     "sword": ("sword", "melee", None, "fantasy", "d5bc71055d327a9d"),
     "knife": ("knife", "melee", None, "fantasy", "3753d5d0be08aeee"),
-    "axe": ("axe", "melee", None, "fantasy", "81986f79e312a4c3"),
-    "spear": ("spear", "melee", None, "fantasy", "f60fcb6d495cd165"),
+    "axe": ("axe", "melee", None, "fantasy", "0f6198fd9cf0c0f2"),
+    "spear": ("spear", "melee", None, "fantasy", "e559abe79e1c646a"),
     "bow": ("bow", "ranged", None, "fantasy", "a951d8b4a32365a8"),
     "zlong_melee": ("sword", "melee", None, "fantasy", "675787f7d019805a"),
     "zigzag": ("club", "melee", None, "fantasy", "551a0a34eed6bb4d"),
