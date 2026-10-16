@@ -98,7 +98,7 @@ synty-inventory weapons review   [--out DIR] [--pack CSV] [--only-unreviewed] [-
 synty-inventory weapons apply-corrections FILE [--dry-run]
 synty-inventory weapons export   --game NAME (--packs CSV | --ids-file FILE) --out FILE
                                  [--roles whole,part,...|all] [--engine godot|unity|threejs|all]
-                                 [--frame asset|item] [--icons-dir DIR] [--profile private|public]
+                                 [--frame item|asset] [--icons-dir DIR] [--profile private|public]
 synty-inventory weapons validate [--directory FILE] [--snapshot FILE]
 ```
 
@@ -298,7 +298,7 @@ Survey (aggregate, 1,176 whole weapons with bounds): firearms are long on **+Z**
 origin 17-35 % from the rear end and laterally centred. Melee (fantasy, sci-fi, samurai, viking, modern) is long on
 **+Y**, blade/head toward +Y, origin 10-40 % from the butt end. sit_weapons' hold assumes barrel +Z (`GRIP_BASIS`);
 sit_melee's hold measures `tip_z_m`/`butt_z_m` along Z. So one convention cannot be assumed and `geometry` states its
-own axes; `export --frame item` bakes the rotation for consumers (§3.10).
+own axes; `export` bakes the rotation into the item frame by default (`--frame item`, §3.10).
 
 #### 3.5.2 Axes
 
@@ -366,9 +366,13 @@ For a +Z-forward, +Y-up gun this is identical to sit_weapons' rule. AC12 holds t
 
 #### 3.5.6 Support point (long_gun hold only)
 
+**Radii are unclamped measured facts** (`grip_r_m`, `support_r_m`). The directory applies no range cap; consumers cap
+them to their own pose limits (sit_weapons `support_r` <= 0.06, sit_melee `grip_r` <= 0.045) and treat null as "not
+measured".
+
 `support` = point on the forward axis at 0.62 of `length_m` from the butt, lateral/up = centroid of the vertices in
-the +-1 cm slice there; `support_r_m` = half the smaller lateral extent of that slice, clamped to [0.015, 0.06]
-(sit_weapons `support_r`, 0 = none). `support_source: "proportion"`. Null for any other hold class. These are
+the +-1 cm slice there; `support_r_m` = half the smaller lateral extent of that slice, **unclamped** (a measured
+fact; null when the slice has no vertices). `support_source: "proportion"`. Null for any other hold class. These are
 estimates by construction; the confidence of the record is not raised by them.
 
 #### 3.5.7 Failure to measure
@@ -386,7 +390,11 @@ All hints are suggestions a game MAY default from; none is a stat. Tables live i
   larger lateral extent < 0.12 m else `2`. (An addition to the shared contract, §10 C-7.)
 - `weight_class`: `light | medium | heavy | very_heavy` from `rules.weight_by_archetype`, +1 step when `size_class ==
   huge`, -1 step when `tiny`, clamped.
-- `quality_tier`: int 1-5. `base = rules.tier_base[archetype]`; `+1` if a tier-up token is present in the id
+- `quality_tier`: int 1-5, or **null**. It is null exactly when `rules.tier_base` has no entry for the record: `role`
+  in {part, ammo, carrier} or `archetype == "unknown"`. Null means "no tier suggested"; it is not the lowest tier and
+  it does not mean "unmeasured" (a record with `geometry: null` still gets a tier; only the triangle-count term is
+  skipped). Every `whole` or `emplaced` record with a known archetype has a non-null tier. Consumers fall back to
+  their own default tier on null. `base = rules.tier_base[archetype]`; `+1` if a tier-up token is present in the id
   (`gold|golden|ornate|royal|legendary|ancient|elite|master|plasma|power`); `-1` for tier-down tokens
   (`rusty|broken|improvised|makeshift|toy|clean|simple|old`); `+1` if the mesh triangle count is above the p75 of its
   `(archetype, genre)` group (group >= 8 members, else no term); clamp 1-5. Triangle count is objective and cheap
@@ -465,7 +473,8 @@ usable on a phone), referencing the 64 px thumbnails by relative path:
  "corrections": [
    {"target": {"id": "POLYGON_Fantasy_Kingdom/SM_Wep_Mace_03"}, "set": {"archetype": "club", "hold_class": "melee_bat"}, "note": "..."},
    {"target": {"glob": "POLYGON_Viking_Realm/SM_Wep_Shield_Set_*"}, "confirm": true},
-   {"target": {"id": "POLYGON_City/SM_Prop_Bow_Ribbon_01"}, "exclude": true}
+   {"target": {"id": "POLYGON_City/SM_Prop_Bow_Ribbon_01"}, "exclude": true},
+   {"target": {"id": "POLYGON_Fantasy_Kingdom/SM_Wep_Mace_03"}, "renamed_from": ["POLYGON_Fantasy_Kingdom/SM_Wep_Mace_03_old"]}
  ]}
 ```
 
@@ -477,7 +486,8 @@ on any machine. `weapon_overrides.json` holds ids/globs and enum values only: no
 Precedence per field, highest first: **exact-id override** > **longest matching glob override** > **rule match** >
 measurement fallback (`unknown`). `set` fields land with `provenance.<field> = "override"`; `confirm: true` with no
 `set` marks `review.status = "reviewed"` (the build's own values stand); a `set` marks it `"overridden"`;
-`exclude` removes the record to `excluded.json` with reason `override`. Overrides that no longer match any asset are
+`exclude` removes the record to `excluded.json` with reason `override`. A `renamed_from` correction (target must be an
+exact id) is merged into that id's entry as a sorted, de-duplicated list (§4.5, INV-13). Overrides that no longer match any asset are
 reported, never silently dropped (§7).
 
 ### 3.10 Snapshot export
@@ -500,10 +510,14 @@ give identical bytes, AC19). `--engine` keeps only the named `files.*` keys (alw
 or `all`). `--roles` default `whole`; `all` includes part/ammo/carrier/emplaced. `--icons-dir DIR` copies the 256 px
 and 64 px PNGs to `DIR/<pack>/...` and rewrites `visuals.icon`/`thumb` to be relative to the snapshot file.
 
-`--frame asset` (default) leaves geometry in asset-local space with `axes` + `item_basis` for the consumer.
-`--frame item` additionally bakes every geometry point (and `bounds`, `tip`, `butt`) through `item_basis` into the
-sit_weapons/sit_melee item frame (forward +Z, up +Y), sets `geometry.frame = "item"`, and keeps `item_basis` so the
-consumer can rotate the *mesh* to match (the mesh itself is never modified or exported).
+`--frame item` is the **default**: it bakes every geometry point (and `bounds`, `tip`, `butt`, `muzzle`, `grip`,
+`support`) through `item_basis` into the sit_weapons/sit_melee item frame (forward +Z, up +Y), sets
+`geometry.frame = "item"` and `generated_from.filter.frame = "item"`, and keeps `item_basis` so the consumer can rotate
+the *mesh* to match (the mesh itself is never modified or exported). The bake is a rotation (signed axis permutation)
+about the GLB scene origin; it adds no translation. Games are the export's only consumer, and `sit_armory` rejects a
+snapshot whose frame is not `item` (its ARM_E05). `--frame asset` is opt-in: it leaves geometry in the asset-local
+space of the directory (`geometry.frame = "asset"`) with `axes` + `item_basis` for a consumer that rotates itself.
+`directory.json` always stores the asset frame; the frame is chosen only at export.
 
 **Public profile** (`--profile public`, for an external storefront): emits only `id`, `kind`, `role`, `archetype`,
 `genre`, `family`, `hints`, `geometry.length_m`, `visuals.icon`/`thumb`; no `files`, no bounds, no points, no
@@ -522,7 +536,9 @@ decided by this spec (§8 B-1).
   "pack": "POLYGON_Fake_Modern",
   "asset_id": "SM_Wep_Rifle_01",
   "files": {"glb": "...", "glb_node": null, "godot_scene": null, "unity_prefab": "...", "unity_mesh": "..."},
-                                                      // copied from the catalog (engine-filtered on export)
+                                                      // copied from the catalog (engine-filtered on export).
+                                                      // glb_node: null | string | [string, ...], see below
+  "renamed_from": [],                                 // earlier ids of this weapon (override table, §4.5); default []
   "family": "sm_wep_rifle",
   "role": "whole",                                    // whole | part | ammo | carrier | emplaced
   "kind": "ranged",                                   // ranged | melee | thrown | shield | null (non-whole/emplaced)
@@ -536,7 +552,8 @@ decided by this spec (§8 B-1).
   "flags": [],                                        // §3.4.5
   "duplicate_of": null,                               // "<pack>/<asset_id>" of the first record sharing the same files.glb path
   "geometry": {                                       // null when unmeasured (§3.5.7)
-    "frame": "asset",                                 // asset | item
+    "frame": "asset",                                 // asset | item (a snapshot is "item" unless exported with --frame asset)
+    "node_offset": null,                              // [x,y,z] scene-space translation of the glb_node node, else null
     "axes": {"forward": "+z", "up": "+y", "forward_source": "pivot", "up_source": "fixed"},
     "item_basis": [[1,0,0],[0,1,0],[0,0,1]],
     "bounds": {"min": [0,0,0], "max": [0,0,0], "size": [0,0,0], "pivot": "other"},
@@ -571,10 +588,26 @@ decided by this spec (§8 B-1).
 }
 ```
 
+`files.glb_node` (copied from the catalog, never written back):
+- `null`: the asset is its own GLB (or uses the whole file); geometry covers the entire scene minus collision hulls.
+- a **string**: the name of one node inside a shared GLB (e.g. several bows in one `Bows.glb`); geometry covers that
+  node and its descendants only.
+- a **list of strings**: several node names of one shared GLB shown together (union of their meshes).
+All `geometry` points, `bounds` and `length_m` refer to the selected node(s) only, never the whole shared file, and are
+expressed in the **GLB scene space** that `sources.glb_geometry.load_triangles` returns (the same space as the catalog's
+`bounds`), after `files.glb_scale`. They are not re-based to the node's own origin, so a node placed away from the
+scene origin has its pivot away from the weapon (`pivot_frac` and `origin_outside_bounds` report that honestly). For a
+single-name selection, `geometry.node_offset` holds the node's world translation so a consumer that instantiates the
+node on its own can subtract it; it is null for `glb_node` null or a list. A selected node with rotation or scale in
+its world transform is not item-baked: it gets reason `node_transform` and is left for review (assumption NB-15). The
+export's `--frame item` rotation applies to these points as to any other record; `item_basis` is computed from the
+scene-space axes. `shared_glb_node` is set on every record with a non-null `glb_node`.
+
 Types and nullability: strings are non-empty; `kind` null iff `role` in {part, ammo, carrier}; `hold_class` is `none`
 for part/ammo/carrier/emplaced and for `mech_scale`; `geometry` null iff flag `unmeasured`; `tip` null for ranged and
 bow; `muzzle` null unless `kind == ranged` and archetype != `bow`; `support` null unless `hold_class == long_gun`;
-`hints.size_class`/`inventory_cells` null iff `geometry` null; all float fields rounded to 1e-4 (confidence 2 dp).
+`hints.size_class`/`inventory_cells` null iff `geometry` null; `hints.quality_tier` null iff role in {part, ammo,
+carrier} or archetype `unknown` (§3.6); all float fields rounded to 1e-4 (confidence 2 dp).
 
 ### 4.2 `weapon-directory/1` (`directory.json`)
 
@@ -602,9 +635,15 @@ bow; `muzzle` null unless `kind == ranged` and archetype != `bow`; `support` nul
 
 ```json
 {"schema": "weapon-overrides/1",
- "ids":   {"<pack>/<asset_id>": {"set": {}, "confirm": false, "exclude": false, "note": ""}},
+ "ids":   {"<pack>/<asset_id>": {"set": {}, "confirm": false, "exclude": false, "renamed_from": [], "note": ""}},
  "globs": {"<pack>/<pattern>":  {"set": {}, "confirm": false, "exclude": false, "note": ""}}}
 ```
+
+`renamed_from` (ids entries only, never globs) lists the earlier `<pack>/<asset_id>` ids of the weapon now at the entry's
+key, for when an id changes (a pack rename, a re-key). The build copies it into the record's `renamed_from` (sorted,
+de-duplicated; default `[]`) and into every snapshot, so a game's saved references and `sit_armory`'s previous-id
+lookup survive the change. An old id must not equal any live record id or any other record's renamed id (INV-13). An
+entry that carries only `renamed_from` changes no classification and does not change `review.status`.
 
 `set` keys allowed: `role`, `kind`, `archetype`, `hold_class`, `genre`, `component`, `carrier`, `ammo`. Geometry,
 hints and visuals are never overridable: they are measured/derived, and a wrong one means a wrong rule or a wrong
@@ -699,6 +738,8 @@ weapons. Mech-pack weapons are 4-5x hand scale. Colourways: ~50 % of weapon-clas
 - INV-9 Hints never carry stats: the schema validator rejects any hints key outside §4.1.
 - INV-10 Override precedence is exact id > longest glob > rule > measurement, and re-running `apply-corrections`
   with the same file is a no-op (idempotent).
+- INV-13 `renamed_from` ids are well-formed `<pack>/<asset_id>` strings, never equal to a live record id, and each is
+  claimed by at most one record; a violation is a schema error (exit 6).
 - INV-11 The public profile contains no `files`, no bounds/points and no engine path.
 - INV-12 `muzzle` lies on the max-`forward` plane within 0.01 m of `bounds` (`muzzle_source == face`) and inside the
   AABB laterally.
@@ -743,8 +784,9 @@ Geometry
 - AC13. Handle detection: the fixture sword/axe/knife with a known handle centre give `grip` within 0.02 m along the
   long axis and `grip_r_m` within 0.005 m of the label; a mesh with no qualifying run gives
   `grip_source == "pivot"`.
-- AC14. A long_gun fixture has a non-null `support` at 0.62 +- 0.01 of length with `support_r_m` in [0.015, 0.06]; a
-  one_hand fixture has `support == null`.
+- AC14. A long_gun fixture has a non-null `support` at 0.62 +- 0.01 of length with `support_r_m` equal to half the smaller
+  lateral extent of the fixture slice within 0.002 m (a fixture whose slice is 0.14 m wide gives 0.07, i.e. no cap at
+  0.06); a one_hand fixture has `support == null`.
 - AC15. A fixture whose GLB is missing, undecodable or zero-triangle yields a record with `geometry == null`, flag
   `unmeasured`, reason `no_geometry`, hints size fields null; its `family` siblings' geometry is untouched (INV-6).
 - AC16. An origin-outside-AABB fixture gets flag `origin_outside_bounds` and does not use `grip_source == "pivot"`.
@@ -774,9 +816,11 @@ Review, corrections, export
 - AC23. `export` for a 2-pack filter writes only those packs' records of the requested roles, `weapons` sorted by id,
   top-level keys exactly `schema_version`, `generated_from`, `weapons`; two runs with identical inputs are
   byte-identical (no clock); the output contains no drive letter, `\\` path or hostname.
-- AC24. `export --frame item` on the Y-long fixture sword: `geometry.frame == "item"` and `axes.forward` direction maps
-  to +Z (`tip.z > butt.z`, tip/butt lateral coordinates ~0 within the fixture's tolerance) while the asset-frame export
-  of the same weapon has the long extent on y.
+- AC24. `export` with no `--frame` option on the Y-long fixture sword: `geometry.frame == "item"`,
+  `generated_from.filter.frame == "item"`, and the forward direction maps to +Z (`tip.z > butt.z`, tip/butt lateral
+  coordinates ~0 within the fixture's tolerance); `export --frame asset` of the same weapon has `geometry.frame ==
+  "asset"` and the long extent on y; the two exports of one weapon differ only in the baked geometry fields and
+  `frame` values.
 - AC25. `export --profile public` without `weapons_public_icons_approved: true` exits 3 and writes nothing; with it,
   the output has no `files` key and no key outside the public list in §3.10.
 - AC26. `export --engine godot` keeps only the `files.godot_scene` key (every other `files.*` key removed, including
@@ -801,6 +845,20 @@ Determinism, additivity, live gates
 - AC32. Performance budget: `build` (cached geometry) on the live library <= 120 s; first uncached full geometry pass
   <= 20 min; `icons` for the default colourway of ~1,500 whole weapons <= 90 min on this machine.
 
+- AC33. Given an override entry for fixture id `FAKE_Fantasy/SM_Wep_Sword_02` with `renamed_from:
+  ["FAKE_Fantasy/SM_Wep_Sword_02_old"]` and a catalog that only contains the new id, then `build` yields that record
+  with `renamed_from == ["FAKE_Fantasy/SM_Wep_Sword_02_old"]`; a record with no such entry has `renamed_from == []`;
+  `export` carries the field unchanged; applying the same renamed-target correction twice leaves
+  `weapon_overrides.json` byte-identical; a `renamed_from` equal to a live record id exits 6 and writes nothing.
+- AC34. Given a fixture shared GLB holding two bow nodes, a record with `glb_node: "Bow_B"` has `bounds` equal to the
+  AABB of node `Bow_B` alone, unchanged by the presence of the other node; a record with `glb_node: ["Bow_B",
+  "Quiver_B"]` has the union AABB; a record with `glb_node: null` on a single-mesh GLB has the whole-file AABB;
+  `node_offset` equals the node's world translation for the single-name record and is null for the list and null
+  cases; a node with a rotated world transform gets reason `node_transform`.
+- AC35. Given fixture records of role `part`, `ammo`, `carrier` and archetype `unknown`, then `hints.quality_tier` is
+  null for all four (and `hints.size_class` is still set where geometry exists); every `whole`/`emplaced` fixture with
+  a known archetype, including one with `geometry: null`, has an integer `quality_tier` in 1-5.
+
 ## 7. Failure modes
 
 - Catalog missing or unreadable for a requested pack -> exit 2 naming the pack; other packs unaffected only with
@@ -811,6 +869,8 @@ Determinism, additivity, live gates
 - Shared-GLB `glb_node` not found in the GLB -> treated as undecodable, reason `no_geometry`, one warning in the report.
 - Override targets an id/glob that matches nothing -> warning listed under `report.stale_overrides`; exit 0
   (exit 3 with `--strict`). Never silently dropped.
+- A `renamed_from` id equals a live record id, or two records claim the same old id -> exit 6 at `build` and at
+  `apply-corrections`, naming both ids; nothing is written.
 - Two globs of equal length match one id with conflicting values -> exit 6 at `apply-corrections`, naming both.
 - `forward` cannot be determined (zero extent on the long axis) -> `geometry: null`, reason `degenerate`.
 - Muzzle face has < 3 points at 10 mm -> bounds fallback with `muzzle_source: "bounds_fallback"` and a reason;
@@ -872,6 +932,9 @@ Determinism, additivity, live gates
   asset or glob when it matters.
 - NB-13 Exports default to `--roles whole`; games wanting magazines/scopes/ammo ask for them explicitly.
 - NB-14 `quality_tier` and `weight_class` are tuned on the first review round; their tables are data, not code.
+- NB-15 `glb_node` records (7 in the survey) are assumed to have translation-only node transforms, so `node_offset` is
+  enough to re-base them; verified in slice W2 on those records. A node with rotation or scale is flagged
+  `node_transform` and not item-baked until Tom decides. Default: as stated.
 
 **Suggested build slices (non-binding; the plan stage decides):** W1 rules + candidates + classify + overrides +
 directory without geometry (AC1-10, 27-28); W2 geometry + muzzle parity + grip/support (AC11-16, NB-6/NB-7 probes);
@@ -909,3 +972,8 @@ GATE RESULT: PASS. Planning for W1-W5 may proceed.
 | C-9 | `genre`: modern \| scifi \| fantasy \| … | closed list: modern, scifi, fantasy, western, other; derived from `pack_settings.yaml` | existing curated table, no second pack table |
 | C-10 | snapshot `{schema_version, generated_from, weapons:[…]}` | shape kept exactly; `generated_from` = tool version, weapon/geometry versions, rules + overrides digests, per-pack `scanned_at`, filter; no paths or clock; `--roles`, `--engine`, `--frame`, `--icons-dir`, `--profile` options | determinism; public profile gated by B-1 |
 | C-11 | `archetype` closed list incl. pistol, smg, rifle, shotgun, sniper, lmg, launcher, sword, axe, mace, spear, bow, crossbow, staff | extended per the survey: + revolver, heavy_gun, flamethrower, utility_gun, knife, hammer, club, polearm, wand, whip, fist_weapon, tool, grenade, bomb, mine, throwing_blade, shield, turret, cannon, siege_engine, mortar, unknown | covers the observed vocabulary |
+| C-12 | snapshot frame is the producer's choice | `export` defaults to `--frame item`; `--frame asset` is opt-in; the snapshot records `generated_from.filter.frame` (reconciliation with sit_armory ARM_E05) | games are the only consumer and sit_armory requires the item frame |
+| C-13 | no rename tracking | optional `renamed_from: [ids]` on the record (default `[]`), sourced from the override table (§4.5), INV-13 | ids change when packs rename or re-key; sit_armory reads it as `previous_ids` |
+| C-14 | `files.glb_node` not defined | defined as null / node name / list of names in a shared GLB; geometry covers the selected node(s) in GLB scene space; `geometry.node_offset` for single-node records (§4.1) | shared bow GLBs and mech nodes |
+| C-15 | `hints.quality_tier` always an integer | int 1-5 or null; null iff role in part/ammo/carrier or archetype `unknown`; meaning "no suggestion" (§3.6) | records with no tier base |
+| C-16 | radii clamped | `grip_r_m` and `support_r_m` are unclamped measured facts; consumers cap them (§3.5.6) | measured facts stay raw |
