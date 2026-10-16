@@ -682,8 +682,8 @@ set (boxes/cylinders/cones in `tests/fixtures/weapons/make_glbs.py`, no Synty ge
 id). About 140 ids: for each archetype at least two positives; modular parts, ammo, carriers, an emplaced turret; and
 the **trap set** from the survey (each must be rejected or classified non-weapon): ribbon bow, road arrow, mine
 tunnel, club awning, windshield, face shield, crosshair UI mesh, torch, pickaxe prop, weapon rack/sign, confetti
-cannon FX, grass blade, finger-gun emote clip, syringe prop. Plus synthetic gun GLBs with an inflated bounds box
-(magazine, scope) and a 2-vertex muzzle edge (the cases that motivated sit_weapons M1-M6), a sword with a known
+cannon FX, grass blade, finger-gun emote clip, syringe prop. Plus a synthetic gun GLB with an inflated bounds box
+(magazine, scope), a sword with a known
 handle, a bow, a shield, an origin-outside-bounds mesh, and a Z-long melee (the one observed odd case).
 
 ### 4.9 Survey (2026-10-16, read-only, aggregate figures; per-pack table in the build report, not committed)
@@ -778,12 +778,17 @@ Geometry
 - AC11. Fixture axes: for the generated gun (Z-long), sword (Y-long), spear (origin mid-length), axe (heavy head),
   bow, shield and Z-long melee GLBs, `axes.forward`, `axes.up` and `long_axis` equal the labels in `expected.json`;
   the spear/axe cases report `forward_source == "section"` and flag `forward_by_fallback`.
-- AC12. Muzzle port parity: for each fixture gun GLB (plain, inflated-bounds, 2-vertex edge, 3-vertex edge), the
-  Python `muzzle` is within 0.0005 m per axis of the golden value produced by running
-  `SitGunHold.muzzle_local` (sit_weapons 0.2.1, `capability.json`) in Godot on the same GLB, stored in the fixture
-  (`fixtures/weapons/muzzle_golden.json`, produced once through `tools/run_godot.ps1` in sit-capabilities and
-  committed as literals). The inflated-bounds case differs from the bounds rule by >= 0.02 m; the 2-vertex-edge case
-  has `muzzle_source == "bounds_fallback"`, the 3-vertex case `face`.
+- AC12. Muzzle port parity: the fixture `tests/fixtures/weapons/muzzle_golden.json` is copied byte for byte from
+  sit-capabilities (`tools/probes/muzzle_golden.json`, schema `sit_muzzle_golden/1`, produced by the sit_armory-owned
+  Godot probe running `SitGunHold.muzzle_local`, sit_weapons 0.2.1). It holds five synthetic cases, each with a unique
+  vertex list, the `muzzle_local` result and a `fallback` flag. Given each case's vertex list (bounds taken as the
+  AABB of that list), `muzzle_point` returns a muzzle within 0.0005 m per axis of `muzzle_local` and a `muzzle_source`
+  that equals `bounds_fallback` iff the case's `fallback` is true, for these cases by name: `plain` -> (0, 0.05, 0.5);
+  `inflated_bounds` -> (0, 0.05, 0.5), differing from the bounds-centre rule by >= 0.02 m; `edge2_widened` ->
+  (0.001333, 0.05, 0.503) (M6 widens a 2-point edge to a face, so `face`, not a fallback); `edge3_face` -> (0,
+  0.053333, 0.503), `face`; `cone_apex` -> fallback (0, 0.01, 0.2), `bounds_fallback`. The test reads the golden and
+  fails if any of the five names is missing or the file is absent. **A skipped test does not pass AC12**: W2 stays
+  open on AC12 until the golden is present and this test passes.
 - AC13. Handle detection: the fixture sword/axe/knife with a known handle centre give `grip` within 0.02 m along the
   long axis and `grip_r_m` within 0.005 m of the label; a mesh with no qualifying run gives
   `grip_source == "pivot"`.
@@ -1049,13 +1054,14 @@ generator before W1 merges, but the order is kept strict (W2 needs W1's record s
   `node_offset`), the geometry cache, §3.6 hints, and the pass-2 measurement fallback in classification (`long_m`,
   plausibility penalty).
 - Creates: `src/synty_inventory/weapons/{geometry,hints}.py`, `tests/test_weapons_{geometry,hints,glb_node}.py`,
-  `tests/fixtures/weapons/make_glbs.py` (procedural GLB generator: gun, inflated-bounds gun, 2- and 3-vertex edge
-  guns, sword with known handle, spear, axe, bow, shield, Z-long melee, origin-outside mesh, shared two-node GLB with
+  `tests/fixtures/weapons/make_glbs.py` (procedural GLB generator: gun, inflated-bounds gun, sword with known
+  handle, spear, axe, bow, shield, Z-long melee, origin-outside mesh, shared two-node GLB with
   one rotated node) and its generated output directory (generated at test time, not committed if large).
 - Edits (the only shared edits, kept to the call sites): `weapons/directory.py` (call `measure_weapon` and
   `derive_hints` where W1 left the `unmeasured`/null stubs), `weapons/classify.py` (pass 2 only).
-- Gate: §11.1 command. AC12 is a separate test file `tests/test_weapons_muzzle_parity.py` that skips with reason
-  "muzzle golden not present" until the golden exists (§11.4); a skip is allowed for W2 to close, the AC stays open.
+- Gate: §11.1 command. AC12 is a separate test file `tests/test_weapons_muzzle_parity.py` that reads the golden of
+  §11.4 and calls `muzzle_point` on its vertex lists (no GLB needed). While the golden is absent the test skips with
+  reason "muzzle golden not present"; the skip is not a pass, and W2 stays open on AC12 until it passes.
 - Live step (after merge): `synty-inventory weapons build` with geometry on the real catalogs; report geometry
   coverage, `origin_outside_bounds` count, forward-source mix, and the two verification probes the spec names: A-grip
   against the Synty Military guns' hand-tuned `pos` (NB-6) and GLB vs `godot_scene` tip direction (NB-7), plus the 7
@@ -1111,9 +1117,12 @@ generator before W1 merges, but the order is kept strict (W2 needs W1's record s
 AC12 compares the Python muzzle port with `SitGunHold.muzzle_local` (sit_weapons 0.2.1) on the fixture GLBs. The
 golden values come from a Godot probe that runs in sit-capabilities through `tools/run_godot.ps1` with the console
 binary named in that repo's AGENTS.md; the **sit_armory side owns that probe**. Contract between the two repos:
-- Input: the fixture GLBs from W2's `make_glbs.py` (plain, inflated-bounds, 2-vertex edge, 3-vertex edge guns).
-- Output: `tests/fixtures/weapons/muzzle_golden.json` in synty-inventory, `{"<fixture name>": {"muzzle": [x, y, z],
-  "source": "face"|"bounds_fallback"}}`, committed as plain literals (no pack data), tolerance 0.0005 m per axis.
-- Consumed by W2 (`tests/test_weapons_muzzle_parity.py`). Its absence blocks **only AC12**: W2 closes with that test
-  skipped, every other W2 AC gating normally, and the lead marks AC12 open on the board until the golden lands. No
-  other slice depends on it, and nothing in W1-W5 writes to sit-capabilities.
+- Source: `tools/probes/muzzle_golden.json` in sit-capabilities (schema `sit_muzzle_golden/1`), five synthetic cases
+  (`plain`, `inflated_bounds`, `edge2_widened`, `edge3_face`, `cone_apex`), each holding a unique vertex list, the
+  `muzzle_local` result and `fallback`. It is copied byte for byte to `tests/fixtures/weapons/muzzle_golden.json` in
+  synty-inventory (plain synthetic literals, no pack data). No GLB is exchanged. If W2 needs a case the golden lacks,
+  it names the case to the lead; it does not invent one.
+- Consumed by W2 (`tests/test_weapons_muzzle_parity.py`), tolerance 0.0005 m per axis and `fallback` exact. Its absence
+  blocks **only AC12**: every other W2 AC gates normally and W2's other work may merge, but AC12 stays open on the
+  board and W2 is not closed until the golden lands and the test passes (a skip never counts). No other slice depends
+  on it, and nothing in W1-W5 writes to sit-capabilities.
