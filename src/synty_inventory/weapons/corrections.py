@@ -5,6 +5,8 @@ precedence), which is not changed here. The merge rules:
 
 * the target is an exact id or a glob; a later correction for the same target replaces the earlier one's
   ``set`` / ``confirm`` / ``exclude`` / ``note``;
+* ``forward`` and ``confidence_cap`` (exact-id entries, written by hand, W2e) are carried over unchanged when a
+  later correction replaces the classification; a correction cannot create or change them;
 * ``renamed_from`` (exact-id targets only) is *unioned* into the entry as a sorted, de-duplicated list, so it
   survives a later ``set`` correction and a correction that carries only ``renamed_from`` never wipes a ``set``;
 * applying the same file twice is a no-op (INV-10): every rule above is idempotent and the file is written in
@@ -128,8 +130,9 @@ def _merged_entry(old: dict | None, corr: dict) -> dict:
     classify = [k for k in _CLASSIFY_KEYS if corr.get(k)]  # the correction decides the classification
     if classify:
         new = _entry_of(corr)
-        if "renamed_from" in old:
-            new["renamed_from"] = list(old["renamed_from"])
+        for kept in ("renamed_from", "forward", "confidence_cap"):  # not classification: a later correction keeps them
+            if kept in old:
+                new[kept] = deepcopy(old[kept])
     else:
         new = deepcopy(old)  # renamed_from-only: everything else stays
         if corr.get("note"):

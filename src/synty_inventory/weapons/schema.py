@@ -59,6 +59,7 @@ GEOMETRY_SCHEMA = {
         "axes": {
             "type": "object",
             "required": ["forward", "up", "forward_source", "up_source"],
+            # forward_source stays a free string (pivot, section, bow_rule, shield_front, shield_rule, override, ...)
             "properties": {"forward": _AXIS, "up": _AXIS, "forward_source": {"type": "string"},
                            "up_source": {"type": "string"}},
         },

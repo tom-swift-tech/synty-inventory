@@ -302,6 +302,21 @@ def test_committed_override_file_is_valid_and_empty():
         {"schema": "weapon-overrides/1", "ids": {"A/B": {"renamed_from": ["nope"]}}, "globs": {}},
         {"schema": "weapon-overrides/1", "ids": {}, "globs": {"A/*": {"renamed_from": ["A/C"]}}},
         {"schema": "weapon-overrides/1", "ids": {}, "globs": {"A/*": {"note": 5}}},
+        # W2e: forward / confidence_cap are id-only and strictly typed
+        {"schema": "weapon-overrides/1", "ids": {}, "globs": {"A/*": {"forward": "+z"}}},
+        {"schema": "weapon-overrides/1", "ids": {}, "globs": {"A/*": {"confidence_cap": 0.5}}},
+        {"schema": "weapon-overrides/1", "ids": {"A/B": {"forward": "z"}}, "globs": {}},
+        {"schema": "weapon-overrides/1", "ids": {"A/B": {"forward": "+w"}}, "globs": {}},
+        {"schema": "weapon-overrides/1", "ids": {"A/B": {"forward": "++z"}}, "globs": {}},
+        {"schema": "weapon-overrides/1", "ids": {"A/B": {"forward": None}}, "globs": {}},
+        {"schema": "weapon-overrides/1", "ids": {"A/B": {"forward": ["+z"]}}, "globs": {}},
+        {"schema": "weapon-overrides/1", "ids": {"A/B": {"confidence_cap": 0.6}}, "globs": {}},
+        {"schema": "weapon-overrides/1", "ids": {"A/B": {"confidence_cap": 0.7}}, "globs": {}},
+        {"schema": "weapon-overrides/1", "ids": {"A/B": {"confidence_cap": 0.04}}, "globs": {}},
+        {"schema": "weapon-overrides/1", "ids": {"A/B": {"confidence_cap": 0}}, "globs": {}},
+        {"schema": "weapon-overrides/1", "ids": {"A/B": {"confidence_cap": True}}, "globs": {}},
+        {"schema": "weapon-overrides/1", "ids": {"A/B": {"confidence_cap": "0.5"}}, "globs": {}},
+        {"schema": "weapon-overrides/1", "ids": {"A/B": {"confidence_cap": None}}, "globs": {}},
     ],
 )
 def test_malformed_override_documents_are_rejected(doc, tmp_path):
@@ -327,6 +342,37 @@ def test_wellformed_documents_pass():
         globs={"A/S_*": {"exclude": True}},
     )
     assert ovr.validate_overrides(doc) == []
+
+
+def test_forward_and_confidence_cap_errors_name_the_key():
+    def errors(**sections):
+        return ovr.validate_overrides({"schema": "weapon-overrides/1", "ids": sections.get("ids", {}),
+                                       "globs": sections.get("globs", {})})
+
+    assert any("globs[A/*].forward" in e and "exact ids only" in e for e in errors(globs={"A/*": {"forward": "+z"}}))
+    assert any("globs[A/*].confidence_cap" in e for e in errors(globs={"A/*": {"confidence_cap": 0.5}}))
+    assert any("ids[A/B].forward" in e for e in errors(ids={"A/B": {"forward": "up"}}))
+    assert any("ids[A/B].confidence_cap" in e for e in errors(ids={"A/B": {"confidence_cap": 0.6}}))
+    assert any("ids[A/B].confidence_cap" in e for e in errors(ids={"A/B": {"confidence_cap": True}}))
+
+
+def test_forward_and_confidence_cap_are_valid_on_ids_at_the_edges_and_alone():
+    ids = {"A/B": {"forward": "-x"}, "A/C": {"confidence_cap": 0.05}, "A/D": {"confidence_cap": 0.59, "forward": "+y"},
+           "A/E": {"confidence_cap": 1 / 2, "set": {"genre": "fantasy"}, "note": "n"}}
+    for fwd in ("+x", "-x", "+y", "-y", "+z", "-z"):
+        ids[f"A/F_{fwd}"] = {"forward": fwd}
+    assert ovr.validate_overrides(wfx.overrides_doc(ids=ids)) == []
+
+
+def test_effective_override_exposes_forward_and_cap_from_the_id_entry_only():
+    doc = wfx.overrides_doc(ids={"A/B": {"forward": "-y", "confidence_cap": 0.4}, "A/C": {"note": "x"}},
+                            globs={"A/*": {"note": "g"}})
+    assert ovr.effective_override("A/B", doc)["forward"] == "-y"
+    assert ovr.effective_override("A/B", doc)["confidence_cap"] == 0.4
+    plain = ovr.effective_override("A/C", doc)  # id entry without them, and a glob that matches: None
+    assert plain["forward"] is None and plain["confidence_cap"] is None
+    only_glob = ovr.effective_override("A/Z", doc)
+    assert only_glob["forward"] is None and only_glob["confidence_cap"] is None
 
 
 def test_missing_or_unreadable_override_file_is_exit_2(tmp_path):

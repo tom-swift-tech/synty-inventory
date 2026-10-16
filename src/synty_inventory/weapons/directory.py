@@ -126,12 +126,14 @@ def _context(cls: dict) -> tuple:
     return cls["archetype"], cls["kind"], cls["role"], cls["hold_class"]
 
 
-def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, threejs_v2_dir, cache, stats):
+def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, threejs_v2_dir, cache, stats,
+                    forward_override=None):
     """Measure one record's GLB, then re-classify with the measured length (pass 2).
 
     Pass 2 can change archetype/hold (a length rule filling an unknown archetype, the long-blade exception); the
     measurement depends on both, so a changed context is measured once more (the decode is memoised, so this
-    costs no second read). Returns ``(final classification, last measurement detail)``.
+    costs no second read). ``forward_override`` is the id override's ``forward`` (spec 4.5), passed to every
+    measurement. Returns ``(final classification, last measurement detail)``.
     """
     files = asset.get("files") or {}
     node = files.get("glb_node") or None
@@ -140,7 +142,7 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
     for _ in range(3):
         detail, cached = measure_cached(
             threejs_v2_dir, files["glb"], node, scale, cls["archetype"], cls["kind"], cls["role"], rules, cache,
-            hold_class=cls["hold_class"], genre=cls["genre"],
+            hold_class=cls["hold_class"], genre=cls["genre"], forward_override=forward_override,
         )
         stats["cached" if cached else "decoded"] += 1
         measured = pass2_inputs(detail)
@@ -340,7 +342,7 @@ def build_directory_report(
             if can_measure and (asset.get("files") or {}).get("glb"):
                 cls, detail = _measure_record(
                     asset, pack_id, cls, source, rules, overrides, settings.get(pack_id), threejs_v2_dir, cache,
-                    geo_stats,
+                    geo_stats, forward_override=(eff or {}).get("forward"),
                 )
             elif measure and (asset.get("files") or {}).get("glb"):
                 skipped_for_root = True

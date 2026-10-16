@@ -335,6 +335,74 @@ def test_an_exclude_that_the_rebuild_does_not_honour_fails_the_gold_check(tmp_pa
     assert "gold" in failing(r) and "exclude did not give an excluded row" in by_check(r)["gold"]["detail"]
 
 
+# --- W2e: a forward override is a gold case on the audited directory -------------------------------------------------------
+
+
+FWD = {"schema": "weapon-overrides/1", "ids": {RIFLE: {"forward": "-z"}}, "globs": {}}
+
+
+def test_a_forward_override_the_directory_honours_passes_and_counts_as_one_gold_id(tmp_path):
+    w = make_world(tmp_path, overrides=FWD)
+    axes = rec(w["dir"], RIFLE)["geometry"]["axes"]
+    assert axes["forward"] == "-z" and axes["forward_source"] == "override"  # the fixture gun is +z natively
+    r = gate(w)
+    assert r["ok"] is True, r["detail"]
+    assert "1 gold id(s) classify to their overridden values" in by_check(r)["gold"]["detail"]
+
+
+def test_a_forward_override_and_a_set_on_one_id_count_once(tmp_path):
+    ov = {"schema": "weapon-overrides/1", "ids": {RIFLE: {"forward": "-z", "set": {"genre": "scifi"}}}, "globs": {}}
+    w = make_world(tmp_path, overrides=ov)
+    r = gate(w)
+    assert r["ok"] is True and "1 gold id(s)" in by_check(r)["gold"]["detail"], r["detail"]
+
+
+def test_a_directory_that_disagrees_with_a_forward_override_fails_the_gold_check_naming_the_id(tmp_path):
+    w = make_world(tmp_path, overrides=FWD)
+    axes = rec(w["dir"], RIFLE)["geometry"]["axes"]
+    axes["forward"], axes["forward_source"] = "+z", "pivot"  # the natural measurement, as if the override were lost
+    save(w)
+    r = gate(w)
+    assert r["ok"] is False and failing(r) == ["gold"]
+    assert f"{RIFLE}: forward is '+z' (pivot), the override says '-z'" in by_check(r)["gold"]["detail"]
+    assert "1 of 1 gold id(s) differ" in by_check(r)["gold"]["detail"]
+
+
+def test_a_forward_override_whose_sign_is_right_but_source_is_not_override_fails(tmp_path):
+    w = make_world(tmp_path, overrides=FWD)
+    rec(w["dir"], RIFLE)["geometry"]["axes"]["forward_source"] = "section"
+    save(w)
+    r = gate(w)
+    assert failing(r) == ["gold"] and f"{RIFLE}: forward is '-z' (section)" in by_check(r)["gold"]["detail"]
+
+
+def test_a_forward_override_on_a_record_without_geometry_fails(tmp_path):
+    w = make_world(tmp_path, overrides=FWD)
+    rec(w["dir"], RIFLE)["geometry"] = None
+    save(w)
+    r = gate(w)
+    assert "gold" in failing(r)
+    assert f"{RIFLE}: forward override '-z' but the record has no geometry" in by_check(r)["gold"]["detail"]
+
+
+def test_a_forward_override_on_the_wrong_axis_is_not_applied_and_the_gate_says_so(tmp_path):
+    ov = {"schema": "weapon-overrides/1", "ids": {RIFLE: {"forward": "+x"}}, "globs": {}}
+    w = make_world(tmp_path, overrides=ov)  # the gun is z-long: +x is not its forward axis
+    assert rec(w["dir"], RIFLE)["geometry"]["axes"]["forward_source"] == "pivot"
+    r = gate(w)
+    assert failing(r) == ["gold"] and f"{RIFLE}: forward is '+z' (pivot), the override says '+x'" in r["detail"]
+
+
+def test_a_forward_override_on_an_excluded_record_is_skipped(tmp_path):
+    w0 = make_world(tmp_path / "probe")
+    gone = next(e["id"] for e in w0["excl"]["excluded"] if e["reason"] != "override")
+    ov = {"schema": "weapon-overrides/1", "ids": {gone: {"forward": "+z"}}, "globs": {}}
+    w = make_world(tmp_path / "real", overrides=ov)
+    r = gate(w)
+    assert r["ok"] is True, r["detail"]
+    assert "0 gold id(s)" in by_check(r)["gold"]["detail"]
+
+
 # --- run_gauntlet: strict, the added gate, and AC29 additivity ------------------------------------------------------------
 
 
