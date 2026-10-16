@@ -318,6 +318,16 @@ own axes; `export` bakes the rotation into the item frame by default (`--frame i
      from the mesh alone). `crossbow` follows the firearm rule.
   4. `shield`: `forward` = the face normal (thinnest axis), sign away from the origin (the origin sits near the arm
      face); `up` = the longest remaining axis.
+
+     > **PATCH (W2b, 2026-10-16): shield front face.** The "sign away from the origin" rule rendered the BACK of
+     > real shields (Adventure Shield_01 was `-z`; 64/106 right on the measured set). The sign is now decided by,
+     > in order: (a) `strap`: the arm straps / handles are small elongated pieces standing off the back of the
+     > plate, so forward points away from the single biggest such piece; (b) `dish`: the plate is convex toward the
+     > front, so forward points toward the side where the plate centre stands further out than its rim; (c) only
+     > when neither signal decides, the origin rule above, with the middle band resolving to `+`. Signals (a) and
+     > (b) set `forward_source = "shield_front"` (new value); (c) keeps `shield_rule`. Result: 104/106 right on the
+     > measured set; library-wide `-z` shields 43 -> 2 of 297. Known regression: the two Kids shields (dish signal
+     > fires `-z`) and the residual cases go to review via the `axes_unexpected` reason.
 - `axes.up` (signed): ranged `+y` unless the long axis is `y` (then `+z`); melee = the widest remaining axis (the
   blade/guard width), sign `+`, `up_source = "width_axis"`; shield as above.
 - `item_basis`: the signed permutation `[[...],[...],[...]]` taking asset-local vectors to the sit_weapons/sit_melee
