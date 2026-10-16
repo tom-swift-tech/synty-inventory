@@ -38,11 +38,14 @@ def empty_overrides() -> dict:
 
 
 def well_formed_id(value) -> bool:
-    """``<pack>/<asset_id>``: exactly one slash, both halves non-empty, no whitespace."""
+    """``<pack>/<asset_id>``: exactly one slash, both halves non-empty, no whitespace in the pack.
+
+    The asset half may contain spaces: real Synty asset ids do (``FX_Bullet_Trail 1``).
+    """
     if not isinstance(value, str) or value.count("/") != 1:
         return False
     pack, asset = value.split("/")
-    return bool(pack) and bool(asset) and not any(c.isspace() for c in value)
+    return bool(pack) and bool(asset) and not any(c.isspace() for c in pack)
 
 
 def _name_of(value, key: str):

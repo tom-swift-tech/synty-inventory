@@ -431,3 +431,57 @@ def test_the_global_out_option_still_picks_the_catalogs_directory(tmp_path, monk
     out = json.loads(capsys.readouterr().out)
     assert code == 0, out
     assert (cat / "weapons" / "directory.json").is_file()
+
+
+# --- asset ids with spaces ---------------------------------------------------------------------------------
+# Real Synty ids can contain a space ("POLYGON_War_Map/FX_Bullet_Trail 1"). The id is `<pack>/<asset_id>`: the
+# pack part has no whitespace or slash, the asset part has no slash but may hold spaces.
+
+SPACED_ASSET = "SM_Wep_Sword_02 1"
+SPACED_ID = "FAKE_Fantasy/SM_Wep_Sword_02 1"
+SPACED_OLD = "FAKE_Fantasy/SM_Wep_Sword_02 0"
+
+
+def _catalogs_with_a_spaced_asset(tmp_path):
+    cat = wfx.make_catalogs_dir(tmp_path)
+    path = cat / "FAKE_Fantasy.json"
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    base = next(a for a in doc["assets"] if a["id"] == "SM_Wep_Sword_02")
+    clone = json.loads(json.dumps(base).replace("SM_Wep_Sword_02", SPACED_ASSET).replace("SM Wep Sword 02", SPACED_ASSET))
+    doc["assets"].append(clone)
+    doc["asset_count"] = len(doc["assets"])
+    path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    return cat
+
+
+def test_asset_ids_with_a_space_build_validate_and_keep_the_space(tmp_path):
+    cat = _catalogs_with_a_spaced_asset(tmp_path)
+    ovr_doc = wfx.overrides_doc(ids={SPACED_ID: {"renamed_from": [SPACED_OLD]}})
+    directory, excluded = wfx.build(cat, overrides=ovr_doc)  # schema-validates internally; raises on any violation
+    rec = wfx.records_by_id(directory)[SPACED_ID]
+    assert rec["asset_id"] == SPACED_ASSET and rec["pack"] == "FAKE_Fantasy"
+    assert rec["renamed_from"] == [SPACED_OLD]
+    assert validate_record(rec) == []
+    assert validate_directory(directory, excluded) == []
+    # the whole-id shape stays strict: a space in the pack part, a missing or doubled slash, an empty half
+    for bad in ("FAKE Fantasy/x", "FAKE_Fantasy/", "/x", "FAKE_Fantasy", "FAKE_Fantasy/a/b"):
+        broken = copy.deepcopy(rec)
+        broken["id"] = bad
+        assert validate_record(broken) != [], bad
+
+
+def test_cli_show_finds_an_asset_id_with_a_space(tmp_path, monkeypatch, capsys):
+    _clear_env(monkeypatch)
+    cat = _catalogs_with_a_spaced_asset(tmp_path)
+    _write_config(tmp_path, cat)
+    import synty_inventory.packs.profile as profile
+
+    monkeypatch.setattr(profile, "load_settings_table", lambda *a, **k: wfx.pack_settings())
+    code, out = _run(tmp_path, capsys, ["weapons", "build"])
+    assert code == 0, out
+    code, out = _run(tmp_path, capsys, ["weapons", "show", SPACED_ID])
+    assert code == 0 and out["weapon"]["id"] == SPACED_ID
+    code, out = _run(tmp_path, capsys, ["weapons", "show", SPACED_ASSET])  # the bare asset id (with its space) too
+    assert code == 0 and out["weapon"]["id"] == SPACED_ID
+    code, out = _run(tmp_path, capsys, ["weapons", "validate"])
+    assert code == 0, out
