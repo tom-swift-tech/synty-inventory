@@ -46,7 +46,7 @@ REQUIRED_TOP = (
     "tier_base", "ammo_by_archetype", "pack_flags", "family_strip_tokens",
 )
 # keys beyond spec 4.4 (judgment calls, reported): see weapon_rules.yaml for each.
-OPTIONAL_TOP = ("hold_exceptions", "id_flags", "tier_tokens", "unknown_confidence")
+OPTIONAL_TOP = ("hold_exceptions", "id_flags", "tier_tokens", "unknown_confidence", "ammo_token_overrides")
 
 _AXIS_RE = re.compile(r"^[+-][xyz]$")
 
@@ -415,6 +415,15 @@ def validate_rules(rules) -> list[str]:
     tt = rules.get("tier_tokens", {})
     if not isinstance(tt, dict) or any(k not in ("up", "down") for k in tt):
         errors.append("tier_tokens: must be a mapping with up/down lists")
+    ato = rules.get("ammo_token_overrides", {})
+    if not isinstance(ato, dict):
+        errors.append("ammo_token_overrides: must be a mapping ammo family -> [tokens]")
+    else:
+        for family, words in ato.items():
+            if family not in AMMO_FAMILIES:
+                errors.append(f"ammo_token_overrides.{family}: not an ammo family in {list(AMMO_FAMILIES)}")
+            else:
+                _check_str_list(words, f"ammo_token_overrides.{family}", errors, lower=True)
     uc = rules.get("unknown_confidence", 0.2)
     if not _is_num(uc) or not (0.05 <= uc <= 0.99):
         errors.append("unknown_confidence: must be a number in [0.05, 0.99]")

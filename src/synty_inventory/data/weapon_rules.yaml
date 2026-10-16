@@ -335,7 +335,7 @@ hold_by_archetype:
 hold_exceptions:
   - {name: smg_one_handed, archetypes: [smg], gear_two_handed: false, hold: one_hand}
   - {name: melee_two_handed, kind: melee, gear_two_handed: true, hold: melee_two}
-  # needs a measured length, so it only fires from W2 on (rules entries with min_length_m are skipped in W1)
+  # needs a measured length, so it only fires in pass 2 (classify(measured=...))
   - {name: long_blade_two_handed, archetypes: [sword, axe, mace, hammer], min_length_m: 1.1, hold: melee_two}
 
 # Genre fallback for packs whose setting does not decide it (generic, or absent from pack_settings.yaml)
@@ -518,3 +518,8 @@ ammo_by_archetype:
   bow: arrow
   crossbow: bolt
   grenade: grenade
+
+# Id tokens that re-label an ammo user's family (spec 3.6: plasma|laser|arc|energy|power -> energy). Applied only
+# when the archetype already has a family, so a plasma sword stays null.
+ammo_token_overrides:
+  energy: [plasma, laser, arc, energy, power]
