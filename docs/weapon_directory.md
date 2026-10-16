@@ -458,7 +458,11 @@ Framing (so a 1.4 m rifle is not a sliver and a 0.2 m pistol is not tiny):
 usable on a phone), referencing the 64 px thumbnails by relative path:
 
 - Sections, in order: **Low confidence** (< 0.6), **Unknown**, then one section per `archetype` (alphabetical), then
-  **Excluded** (from `excluded.json`, so false rejections can be restored). Within a section, sorted by genre, then
+  **Parts**, **Ammo**, **Carriers**, then **Excluded** (from `excluded.json`, so false rejections can be restored).
+  A record appears in the first section that applies. **Unknown** holds only `role` whole/emplaced records with
+  `archetype == unknown`; `role` part/ammo/carrier records (about 775 on the live library) go to their own role
+  section so they cannot flood it. Every tile carries a role chip; the jump nav shows a count per section.
+  *PATCH note (Tom via lead, 2026-10-16, W4 review): page layout only, no schema change.* Within a section, sorted by genre, then
   family, then id; a family of > 12 near-identical members is collapsed to one tile with a count (`Shield_Set` x80)
   and expands on tap.
 - A tile shows: thumbnail, `<pack>/<asset_id>`, archetype, genre, confidence, `review.status`, flags.
