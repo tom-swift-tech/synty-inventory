@@ -106,7 +106,7 @@ def test_ac23_generated_from_is_copied_from_the_directory_and_the_pack_catalogs(
     gf = load(out)["generated_from"]
     d = world.directory
     assert gf["tool"].startswith("synty-inventory ") and re.fullmatch(r"synty-inventory \d+\.\d+\.\d+", gf["tool"])
-    assert gf["weapon_version"] == 1 and gf["geometry_version"] == 3
+    assert gf["weapon_version"] == 1 and gf["geometry_version"] == 4
     assert gf["rules_digest"] == d["rules_digest"] and gf["overrides_digest"] == d["overrides_digest"]
     assert re.fullmatch(r"[0-9a-f]{16}", gf["rules_digest"]) and re.fullmatch(r"[0-9a-f]{16}", gf["overrides_digest"])
     assert gf["packs"] == [
