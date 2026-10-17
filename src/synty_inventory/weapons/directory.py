@@ -465,6 +465,8 @@ def carry_icon_links(catalogs_dir: Path, directory: dict) -> None:
                 and (wdir / vis["icon"]).is_file() and (wdir / vis["thumb"]).is_file()):
             for key in ("icon", "thumb", "icon_input_sha"):
                 rec["visuals"][key] = vis[key]
+            if vis.get("icon_mode") == "blend_retry":  # optional key; only with the link it describes
+                rec["visuals"]["icon_mode"] = "blend_retry"
         _carry_variant_links(wdir, rec, vis)
 
 
@@ -485,6 +487,10 @@ def _carry_variant_links(wdir: Path, rec: dict, old_vis: dict) -> None:
         if (prev.get("icon") == icon and isinstance(prev.get("icon_input_sha"), str) and prev["icon_input_sha"]
                 and (wdir / icon).is_file() and (wdir / thumb).is_file()):
             var["icon"], var["icon_input_sha"] = icon, prev["icon_input_sha"]
+            if prev.get("icon_mode") == "blend_retry":  # optional keys; only with the link they describe
+                var["icon_mode"] = "blend_retry"
+            if isinstance(prev.get("visually_identical"), bool):
+                var["visually_identical"] = prev["visually_identical"]
 
 
 def write_directory(catalogs_dir: Path, directory: dict, excluded: dict) -> tuple[Path, Path]:
