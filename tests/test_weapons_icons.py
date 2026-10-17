@@ -896,9 +896,6 @@ def test_a_rebuild_keeps_the_variant_links_while_the_pictures_exist(atlas_run):
     atlas_run["dpath"].write_bytes(wfx_text(before))  # leave the module fixture as the icons run wrote it
 
 
-@pytest.mark.xfail(strict=True, reason="directory.carry_icon_links / carry_variant_links (directory.py, not owned by W6) "
-                   "still drop visuals.icon_mode and variants[].icon_mode / visually_identical on a rebuild; "
-                   "when they carry them this turns XPASS and the marker must go")
 def test_a_rebuild_keeps_icon_mode_and_visually_identical(atlas_run):
     before = atlas_run["dpath"].read_bytes()
     try:
