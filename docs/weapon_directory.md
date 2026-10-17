@@ -528,13 +528,20 @@ in slice W5, not W3. A record with unknown colourway (no `unity_materials`, ~16 
 > duplicates of the default (113 of 189 pairs differ by exactly 0), so a picker listing them is noise. Every
 > `variants[]` entry whose default and variant PNGs both exist gets `visually_identical: bool`, computed from the PNGs
 > on disk after each render: the share of covered pixels (alpha > 0 in either image) whose largest RGBA channel
-> difference exceeds 12/255 is below `VISUALLY_IDENTICAL_MAX_SHARE = 0.005`. The variant is kept (the data says the
-> colourway exists); the flag lets a consumer hide it. Threshold choice: in that sample nothing lies between 0 and
-> 0.0055; four pairs sit at 0.0055-0.0062 (Shield_01 B/C, and Staff_01 B/C whose only difference is a 13-pixel gem) and
-> the next cluster starts at 0.035. Any value below 0.0055 gives the same result on this data, and a false "identical"
-> hides a real small-decal colourway, so the stricter 0.005 is kept. The flag is carried across a directory rebuild
-> only while the icon link itself is carried. A default re-render without `--variants` leaves the variant flags stale
-> until the next `icons --variants`.
+> difference exceeds 12/255 is below `VISUALLY_IDENTICAL_MAX_SHARE = 0.005`, **or** is below
+> `VISUALLY_IDENTICAL_FAINT_SHARE = 0.01` and none of those pixels differs by more than 40/255 (`ICON_STRONG_CHANNEL`;
+> a "faint tail"). The variant is kept (the data says the colourway exists); the flag lets a consumer hide it.
+> Calibration (all 285 variant pairs with icons on disk, 2026-10-16): 165 pairs differ in exactly 0 pixels and nothing
+> lies in (0, 0.0055); two pairs sit at 0.0055 and two at 0.0062; the next pair is at 0.035. The 0.0055 pair is
+> Apocalypse_Wasteland Shield_01 B/C: a real but faint palette shift (render is deterministic: A equals the default
+> exactly and B equals C), 26.7 % of the pixels moved by more than 4 levels, 154 pixels (0.55 %) by more than 12, none by
+> more than 34; side by side it is the same shield. The 0.0062 pair is Dark_Fantasy Staff_01 B/C, whose only change is a
+> 13-pixel gem (up to 125 levels, 11 pixels over 40): a different colourway. The share alone cannot separate them
+> (the gem has the larger share), so the strong-pixel count does. Pairs that are subtle but real stay different
+> (Goblin_War_Camp Prop_Sword_02 C: 10 % of pixels, at most 22 levels). The flag is carried across a directory
+> rebuild only while the icon link itself is carried, and it is recomputed from the PNGs on disk on every `icons` run
+> (with or without `--variants`), because it compares with the default icon: redrawing the default (`--rebuild`, or a
+> blank icon that now needs the BLEND retry) updates every colourway's flag. `icon_mode` plays no part in it.
 
 ### 3.8 Icon pipeline
 
@@ -1066,8 +1073,11 @@ Determinism, additivity, live gates
   `visuals.icon_mode == "blend_retry"` with a non-empty PNG; a GLB that stays blank fails with `blank_render`, keeps no
   PNG and appears in `report.failed`; a normal render has no `icon_mode` key; a `directory.json` rebuild keeps the key.
 - AC45. `visually_identical`. For a synthetic default/variant pair whose PNGs differ in under 0.5 % of covered pixels
-  the variant entry has `visually_identical: true`, for a pair above it `false`, and a variant with a missing PNG has
-  no key; the flag survives a directory rebuild (a strict test, not an xfail).
+  the variant entry has `visually_identical: true`; between 0.5 % and 1 % it is true only when no differing pixel is
+  off by more than 40/255 (8 of 1600 pixels at +30 is true, at +100 false; 17 at +30 is false); above 1 % false; a
+  variant with a missing PNG has no key; the flag survives a directory rebuild (a strict test, not an xfail). A default
+  icon redrawn by `icons --rebuild` without `--variants` refreshes the flags of its colourways, also when the default
+  needed the BLEND retry.
 - AC46. Process lock. With another `synty_inventory` python process in the (stubbed) process listing, `weapons build`
   and `weapons icons` exit 2 naming its pid; a listing that raises does not block; `export`, `show`, `list` and
   `validate` are not locked. The suite stubs the listing empty except in the guard's own tests.
@@ -1168,8 +1178,7 @@ Determinism, additivity, live gates
   - The default-colourway icon batch for the ~1,500 whole weapons is untimed against the AC32 90-minute budget; the
     full ~6,000-render variant batch has not been run and is Tom's call (about 60 % of sampled variants are exact
     duplicates, so `visually_identical` will flag most of them).
-  - Blank pre-W6 icons are not re-checked without `--rebuild`; a default re-render without `--variants` leaves variant
-    `visually_identical` flags stale.
+  - Blank pre-W6 icons are not re-checked without `--rebuild`.
   - The geometry cache digest covers `geometry.py` only, not its helper modules.
 
 **Suggested build slices (non-binding; the plan stage decides):** W1 rules + candidates + classify + overrides +

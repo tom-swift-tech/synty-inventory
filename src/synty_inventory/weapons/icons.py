@@ -51,6 +51,12 @@ BLANK_RENDER = "blank_render"  # the error text of an asset that renders no visi
 # ICON_DIFF_CHANNEL (of 255, max over straight RGBA channels). One named constant: it is calibrated on live data.
 VISUALLY_IDENTICAL_MAX_SHARE = 0.005
 ICON_DIFF_CHANNEL = 12
+# A faint tail also counts as the same picture: under VISUALLY_IDENTICAL_FAINT_SHARE of the covered pixels differ by more
+# than ICON_DIFF_CHANNEL and none by more than ICON_STRONG_CHANNEL (a few texels of a slightly shifted palette, such as
+# Apocalypse_Wasteland Shield_01 B/C: 0.55 % of pixels, at most 34 of 255). A small decal in a clear colour (the 13-pixel
+# gem of Dark_Fantasy Staff_01, up to 125 of 255) has strong pixels and is a different colourway. Calibrated on live data.
+VISUALLY_IDENTICAL_FAINT_SHARE = 0.01
+ICON_STRONG_CHANNEL = 40
 AZIMUTH_DEG = 25.0  # fixed 3/4 view, the same for every icon so icons are comparable
 ELEVATION_DEG = 15.0
 HARNESS_DIR = Path(__file__).resolve().parent / "icon_harness"
@@ -295,6 +301,12 @@ def icon_difference(default_png, variant_png) -> float:
     channels is more than ``ICON_DIFF_CHANNEL`` (of 255). Two empty pictures do not differ (0.0). The PNGs must have the
     same size (``ValueError`` otherwise, as for an unreadable PNG; a missing file raises ``OSError``).
     """
+    return icon_difference_shares(default_png, variant_png)[0]
+
+
+def icon_difference_shares(default_png, variant_png) -> tuple[float, float]:
+    """``(visible share, strong share)``: the share of covered pixels that differ by more than ``ICON_DIFF_CHANNEL`` and
+    the share that differ by more than ``ICON_STRONG_CHANNEL``. Same rules and errors as ``icon_difference``."""
     a = decode_png(Path(default_png).read_bytes()).astype(np.int16)
     b = decode_png(Path(variant_png).read_bytes()).astype(np.int16)
     if a.shape != b.shape:
@@ -302,9 +314,18 @@ def icon_difference(default_png, variant_png) -> float:
     covered = (a[..., 3] > 0) | (b[..., 3] > 0)
     n = int(covered.sum())
     if n == 0:
-        return 0.0
-    visible = covered & (np.abs(a - b).max(axis=-1) > ICON_DIFF_CHANNEL)
-    return int(visible.sum()) / n
+        return 0.0, 0.0
+    delta = np.abs(a - b).max(axis=-1)
+    visible = covered & (delta > ICON_DIFF_CHANNEL)
+    strong = covered & (delta > ICON_STRONG_CHANNEL)
+    return int(visible.sum()) / n, int(strong.sum()) / n
+
+
+def looks_identical(default_png, variant_png) -> bool:
+    """True when the colourway icon shows the same picture as the default: fewer than ``VISUALLY_IDENTICAL_MAX_SHARE`` of
+    the covered pixels differ visibly, or fewer than ``VISUALLY_IDENTICAL_FAINT_SHARE`` do and none of them strongly."""
+    share, strong = icon_difference_shares(default_png, variant_png)
+    return share < VISUALLY_IDENTICAL_MAX_SHARE or (share < VISUALLY_IDENTICAL_FAINT_SHARE and strong == 0.0)
 
 
 def is_blank(px: np.ndarray) -> bool:
@@ -385,6 +406,33 @@ def apply_variant_links(directory: dict, links: dict[str, dict[str, dict]], fail
                     changed = True
             for key, value in extra.items():
                 changed = _put(var, key, value) or changed
+    return changed
+
+
+def refresh_visually_identical(directory: dict, base_dir: Path, ids: set[str] | None = None) -> bool:
+    """Recompute ``visually_identical`` of every colourway entry from the PNGs on disk (in place); False when nothing
+    changed. ``ids`` limits it to those records (None = all).
+
+    The flag compares a colourway icon with the *default* icon, so it goes stale whenever the default is drawn again
+    (``--rebuild``, a blank icon that now needs the BLEND retry) without ``--variants``. Judged from the files, it is
+    refreshed on every ``icons`` run. An entry whose pair cannot be compared (no variant icon, no default icon, a missing,
+    unreadable or differently sized PNG) loses the key. ``icon_mode`` plays no part: a BLEND-retry picture is compared
+    like any other.
+    """
+    changed = False
+    for rec in directory["weapons"]:
+        if ids is not None and rec["id"] not in ids:
+            continue
+        visuals = rec.get("visuals") or {}
+        default = visuals.get("icon")
+        for var in visuals.get("variants") or []:
+            value = None
+            if default and var.get("icon"):
+                try:
+                    value = looks_identical(base_dir / default, base_dir / var["icon"])
+                except (OSError, ValueError):
+                    value = None
+            changed = _put(var, "visually_identical", value) or changed
     return changed
 
 
@@ -740,10 +788,10 @@ def _flag_identical(base_dir: Path, results: dict[str, dict], vlinks: dict[str, 
             continue
         for letter, link in per_letter.items():
             try:
-                share = icon_difference(base_dir / default["icon"], base_dir / link["icon"])
+                looks_same = looks_identical(base_dir / default["icon"], base_dir / link["icon"])
             except (OSError, ValueError):
                 continue
-            link["visually_identical"] = share < VISUALLY_IDENTICAL_MAX_SHARE
+            link["visually_identical"] = looks_same
             if link["visually_identical"]:
                 same.append(f"{rid}@{letter}")
     return sorted(same)
@@ -845,6 +893,8 @@ def _run(args, cfg) -> int:
         for f in vreport["failed"]:
             vfailed.setdefault(f["id"], set()).add(f["variant"])
         changed = apply_variant_links(directory, vreport["links"], vfailed) or changed
+    # the flag compares with the default icon, which this run may have drawn again without --variants
+    changed = refresh_visually_identical(directory, wdir, {w["id"] for w in chosen}) or changed
     written = False
     if changed:
         excluded_path = wdir / EXCLUDED_NAME

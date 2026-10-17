@@ -391,6 +391,30 @@ def test_icon_difference_covered_means_alpha_in_either_image_and_alpha_counts_as
         icons.icon_difference(empty, tmp_path / "missing.png")
 
 
+def big_pair(tmp_path, n_changed: int, delta: int):
+    """Two 64x64 icons with a 40x40 opaque block (1600 covered pixels); the second has its first ``n_changed`` pixels
+    brightened by ``delta`` on every colour channel."""
+    a = np.zeros((64, 64, 4), np.uint8)
+    a[12:52, 12:52] = (100, 90, 80, 255)
+    b = a.copy()
+    for i in range(n_changed):
+        b[12, 12 + i, :3] += delta
+    return png_of(a, tmp_path / "a.png"), png_of(b, tmp_path / "b.png")
+
+
+@pytest.mark.parametrize("n_changed,delta,identical", [
+    (7, 100, True),    # 0.44 % of the pixels: under the plain 0.5 % bound, even though the pixels are strong
+    (8, 30, True),     # 0.50 %, all faint (30 of 255): the faint tail counts as the same picture (live: Shield_01 B/C)
+    (15, 30, True),    # 0.94 %, faint
+    (17, 30, False),   # 1.06 %: more than 1 % of the picture is tinted
+    (8, 100, False),   # 0.50 % with strong pixels: a small decal in a clear colour (live: the Staff_01 gem)
+    (0, 0, True),
+])
+def test_looks_identical_accepts_a_faint_tail_but_not_a_strong_decal(tmp_path, n_changed, delta, identical):
+    pair = big_pair(tmp_path, n_changed, delta)
+    assert icons.looks_identical(*pair) is identical
+
+
 def test_a_colourway_that_looks_like_the_default_is_flagged_and_the_others_are_not(world, monkeypatch):
     results, report = render(world, monkeypatch, FakeRenderer(by_colourway), ids=(SWORD,))
     links = report["variants"]["links"][SWORD]
@@ -472,6 +496,27 @@ def test_the_cli_summary_counts_blend_retries_and_identical_colourways(world, mo
     code, out = run_cli(world, "--variants")  # a second run draws nothing and keeps everything
     assert out["rendered"] == [] and out["blend_retry"] == 0 and out["directory_written"] is False
     assert read_json(world.dpath) == d
+
+
+def test_a_default_icon_drawn_again_without_variants_refreshes_the_colourway_flags(world, monkeypatch):
+    """Live finding (Mech Shotgun_01): the default icon was blank before W6, so colourway A was flagged different; the
+    default was then redrawn through the BLEND retry with a plain ``icons --rebuild`` and A, now the same picture, kept
+    the stale ``False``. The flag compares with the default icon, so every run refreshes it from the PNGs on disk; a
+    blend_retry picture is compared like any other (there is no rule that excludes it)."""
+    monkeypatch.setattr(icons, "Renderer", FakeRenderer(by_colourway_blank_sword))
+    code, _out = run_cli(world, "--variants", "--ids", SWORD)
+    assert code == 0
+    sword = wfx.records_by_id(read_json(world.dpath))[SWORD]["visuals"]
+    assert sword["icon_mode"] == "blend_retry"  # the default needed the retry, as the shotgun did
+    assert [v["visually_identical"] for v in sword["variants"]] == [True, False, True]
+    # the default is redrawn on its own as green: the colourways are not drawn again, so only the refresh can fix flags
+    green_default = FakeRenderer(lambda glb, tex, blend: GREEN if tex is None else by_colourway(glb, tex, blend))
+    monkeypatch.setattr(icons, "Renderer", green_default)
+    code, out = run_cli(world, "--rebuild", "--ids", SWORD)
+    assert code == 0 and out["rendered"] == [SWORD] and "variants" not in out
+    sword = wfx.records_by_id(read_json(world.dpath))[SWORD]["visuals"]
+    assert [v["visually_identical"] for v in sword["variants"]] == [False, True, False]
+    assert validate_directory(read_json(world.dpath), world.excl) == []
 
 
 def by_colourway_blank_sword(glb, tex, blend):
