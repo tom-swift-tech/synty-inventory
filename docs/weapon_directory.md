@@ -344,7 +344,7 @@ own axes; `export` bakes the rotation into the item frame by default (`--frame i
      > - **spear** (incl. trident, fishing spear): excluded after the hand check. Reversible: seven live ids would flip
      >   if it were added back (Ancient_Egypt Spear_01, Goblin_War_Camp Prop_Spear_02 and Spear_01, Pirate_Realm
      >   Trident_01, Viking_Realm Spear_01 and Spear_02, Vikings FishingSpear_01). Tom can re-enable the rule for spears
-     >   after looking at those seven.
+     >   after looking at those seven. **Tom confirmed the spear exclusion on 2026-10-17** (still reversible).
      > - **sword and knife**: on pivot-sourced records the larger-end rule agrees with the pivot sign only 43 % / 51 % of
      >   the time, no better than chance, so it is not applied.
      > - `Wrench_01` is symmetric end to end and keeps the old sign.
@@ -542,6 +542,7 @@ in slice W5, not W3. A record with unknown colourway (no `unity_materials`, ~16 
 > rebuild only while the icon link itself is carried, and it is recomputed from the PNGs on disk on every `icons` run
 > (with or without `--variants`), because it compares with the default icon: redrawing the default (`--rebuild`, or a
 > blank icon that now needs the BLEND retry) updates every colourway's flag. `icon_mode` plays no part in it.
+> **Tom confirmed the faint-tail rule on 2026-10-17.**
 
 ### 3.8 Icon pipeline
 
