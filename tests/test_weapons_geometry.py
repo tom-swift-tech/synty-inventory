@@ -333,7 +333,8 @@ def test_ac13_a_mesh_with_no_qualifying_run_grips_at_the_pivot(glbs, rules):
     # the butt (zigzag, the previous fixture here, now has a surface run holding its origin: see test_w2d_zigzag_*)
     geo = meas(glbs, rules, "banded", "club", "melee")["geometry"]
     assert geo["grip_source"] == "pivot" and geo["grip_r_m"] is None
-    assert close(geo["grip"], [0.0, 0.0, 0.0])
+    # W2f: the pivot grip at the butt is kept a hand-half (0.045 m) off the end, along the forward axis only
+    assert close(geo["grip"], [0.0, 0.045, 0.0])
 
 
 def test_w2d_zigzag_is_one_thin_run_because_the_edges_fill_the_bins(glbs, rules):
@@ -416,6 +417,7 @@ def test_ac15_a_zero_extent_mesh_is_degenerate(glbs, rules):
 # haft: at most one vertex per bin) defeats the base rule and takes step 3.
 
 
+BUTT_INSET = 0.045  # W2f: a melee grip is kept this far (m) from the butt end, along the forward axis (half the 0.09 m hand)
 BASE_LONGEST_RUN_LIMIT = ("tang", "wire")  # AC40's named shapes do not include them; see make_glbs.W2D_SET
 
 
@@ -466,7 +468,8 @@ def test_ac40_the_grip_lies_in_the_labelled_handle_with_the_labelled_radius(w2d,
     else:
         assert lo <= y <= hi
     # step 1 (base rule): the hand-worked run centre, whatever the origin; step 3 ("origin"): the pivot itself
-    assert abs(y - (frac * length if grip_y == "origin" else grip_y)) <= 0.0005
+    # (W2f: a grip nearer the butt than BUTT_INSET is pushed out to it)
+    assert abs(y - max(frac * length if grip_y == "origin" else grip_y, BUTT_INSET)) <= 0.0005
     assert abs(geo["grip_r_m"] - radius) <= 0.005
     assert abs(geo["grip"][0]) <= 0.005 and abs(geo["grip"][2]) <= 0.005  # lateral: the mean of a symmetric surface
 
@@ -505,7 +508,7 @@ def test_ac40_the_sparse_haft_really_has_at_most_one_vertex_per_bin():
     assert np.bincount(bins).max() == 1 and len(window) >= 20
 
 
-@pytest.mark.parametrize("frac,want_y", [(0.0, 0.0), (0.2, 0.201), (0.5, 0.5025)])
+@pytest.mark.parametrize("frac,want_y", [(0.0, 0.045), (0.2, 0.201), (0.5, 0.5025)])  # 0.0 -> 0.045: W2f butt inset
 def test_ac40_a_the_sparse_haft_gets_handle_at_the_origin_with_a_measured_radius(tmp_path, rules, frac, want_y):
     """Case (a), the one that broke the old rule: step 3. The surface profile is one thin run of 61 bins (bins 0-60, every
     shaft bin is <= 0.03), the origin lies inside it, so the grip is the origin (y = frac * 1.005) and the radius is the run's
@@ -535,7 +538,7 @@ def test_ac40_c_a_machete_origin_in_the_hilt_stays_pivot_and_is_never_moved(tmp_
     30 % (< 0.2115), so it is never moved: pivot, grip at the origin, no radius. The rejected rule gripped the blade."""
     geo, y = grip_of(tmp_path, rules, M.sparse_machete(), "machete", 0.705, frac)
     assert geo["grip_source"] == "pivot" and geo["grip_r_m"] is None
-    assert abs(y - frac * 0.705) <= 0.0005
+    assert abs(y - max(frac * 0.705, BUTT_INSET)) <= 0.0005  # W2f: an origin at the butt is held 0.045 m off the end
     assert y < 0.15  # not on the blade
 
 
@@ -601,11 +604,11 @@ def test_w2d_zigzag_grip_stays_at_the_pivot_inside_its_one_run(tmp_path, rules):
 
 @pytest.mark.parametrize("length,handle_bins,source,grip_y,radius", [
     (0.28, 12, "handle", 0.06, 0.01),  # step 1: the base rule's 12-bin run, centre 6 cm
-    (0.28, 6, "handle", 0.03, 0.01),  # step 1: exactly the base rule's 6-bin minimum, centre 3 cm
-    (0.28, 5, "pivot", 0.0, None),  # 5 bins: below the base minimum (6) and below the surface step's 5.6 cm -> 6 bins
-    (0.18, 5, "handle", 0.0, 0.01),  # step 3: max(2, min(6, 3.6)) = 3.6 cm -> 4 bins <= 5; the origin (the butt) is inside
-    (0.18, 4, "handle", 0.0, 0.01),  # step 3: exactly 4 bins
-    (0.18, 3, "pivot", 0.0, None),  # 3 bins < 4
+    (0.28, 6, "handle", 0.045, 0.01),  # step 1: exactly the base rule's 6-bin minimum, centre 3 cm (W2f: pushed out to 4.5 cm)
+    (0.28, 5, "pivot", 0.045, None),  # 5 bins: below the base minimum (6) and below the surface step's 5.6 cm -> 6 bins (W2f: grip 0 -> 4.5 cm)
+    (0.18, 5, "handle", 0.045, 0.01),  # step 3: max(2, min(6, 3.6)) = 3.6 cm -> 4 bins <= 5; the origin (the butt) is inside (W2f: 0 -> 4.5 cm)
+    (0.18, 4, "handle", 0.045, 0.01),  # step 3: exactly 4 bins (W2f: 0 -> 4.5 cm)
+    (0.18, 3, "pivot", 0.045, None),  # 3 bins < 4 (W2f: 0 -> 4.5 cm)
 ])
 def test_ac40_the_surface_minimum_run_scales_with_a_short_blade(tmp_path, rules, length, handle_bins, source, grip_y, radius):
     geo, y = grip_of(tmp_path, rules, M.short_blade(length, handle_bins), "knife", length, 0.0)
@@ -774,24 +777,25 @@ def test_cache_entry_is_keyed_on_file_version_and_classification_context(glbs, r
     assert was is False and again["geometry"]["length_m"] == 0.29
 
 
-def test_a_version_2_cache_entry_is_not_served_under_geometry_version_3(glbs, rules, monkeypatch):
-    """The v3 algorithm (melee grip from the surface width profile, W2d) changes stored grips, so an entry written by v2
-    must be re-measured. The v2 entry is poisoned: serving it would be visible in the length."""
+def test_a_version_3_cache_entry_is_not_served_under_geometry_version_4(glbs, rules, monkeypatch):
+    """The v4 algorithm (W2f: melee grip kept off the butt, forward sign by the larger end head) changes stored geometry, so
+    an entry written by v3 must be re-measured. The v3 entry is poisoned: serving it would be visible in the length. (Since
+    W2f an entry's version is "<int>+<code digest>", see tests/test_weapons_w2f_cache.py.)"""
     import synty_inventory.weapons as pkg
 
-    assert pkg.WEAPON_GEOMETRY_VERSION == 3  # a literal: the bump itself is under test
+    assert pkg.WEAPON_GEOMETRY_VERSION == 4  # a literal: the bump itself is under test
     root = glbs["sword"].parent
     args = (root, "sword.glb", None, 1.0, "sword", "melee", "whole", rules)
     cache: dict = {}
-    monkeypatch.setattr(pkg, "WEAPON_GEOMETRY_VERSION", 2)
+    monkeypatch.setattr(pkg, "WEAPON_GEOMETRY_VERSION", 3)
     old, was = measure_cached(*args, cache, genre="fantasy")
-    assert was is False and cache["sword.glb"]["version"] == 2
+    assert was is False and cache["sword.glb"]["version"].startswith("3+")
     cache["sword.glb"]["by_inputs"][next(iter(cache["sword.glb"]["by_inputs"]))]["geometry"]["length_m"] = 999.0
-    assert measure_cached(*args, cache, genre="fantasy")[1] is True  # still served under v2 ...
-    monkeypatch.undo()  # ... and the real constant (3) must not take it
+    assert measure_cached(*args, cache, genre="fantasy")[1] is True  # still served under v3 ...
+    monkeypatch.undo()  # ... and the real constant (4) must not take it
     fresh, was = measure_cached(*args, cache, genre="fantasy")
     assert was is False and fresh["geometry"]["length_m"] == 1.0
-    assert cache["sword.glb"]["version"] == 3
+    assert cache["sword.glb"]["version"].startswith("4+")
 
 
 def test_a_missing_file_is_not_cached_and_a_failure_is(glbs, rules, tmp_path):

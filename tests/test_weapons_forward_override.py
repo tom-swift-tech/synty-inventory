@@ -234,10 +234,11 @@ def test_a_natural_cache_entry_is_keyed_as_before_the_override_existed(glbs, rul
     assert set(fresh["shoulder_launcher.glb"]["by_inputs"]) == natural_keys
 
 
-def test_the_override_did_not_bump_the_geometry_version_past_the_w2d_bump():
+def test_the_override_did_not_bump_the_geometry_version_past_the_w2f_bump():
     import synty_inventory.weapons as pkg
 
-    assert pkg.WEAPON_GEOMETRY_VERSION == 3  # 2 -> 3 is W2d's melee grip; the override added no bump of its own
+    # 2 -> 3 is W2d's melee grip, 3 -> 4 is W2f's butt inset and head-forward sign; the override added no bump of its own
+    assert pkg.WEAPON_GEOMETRY_VERSION == 4
 
 
 # --- the build ------------------------------------------------------------------------------------------------------
