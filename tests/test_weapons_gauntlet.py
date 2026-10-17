@@ -34,7 +34,6 @@ from synty_inventory.weapons.directory import (  # noqa: E402
     DIRECTORY_NAME,
     EXCLUDED_NAME,
     build_directory_report,
-    read_json,
     write_directory,
 )
 

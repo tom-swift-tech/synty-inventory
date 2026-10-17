@@ -7,6 +7,8 @@ tasks/
 
 # Generated catalogs / Synty previews if someone points config in-repo
 catalogs/
+# the synthetic FAKE_* fixture catalogs are tracked on purpose (no pack data); re-include only that directory
+!tests/fixtures/weapons/catalogs/
 previews/
 # Derived FTS index (rebuilt by scan / scan --index; JSON is source of record)
 search.db

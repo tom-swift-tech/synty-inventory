@@ -24,7 +24,7 @@ from pathlib import Path
 import yaml
 
 from .. import __version__
-from ..paths import checkout_root, find_config_file
+from ..paths import find_config_file
 from ..schema import pivot_from_aabb
 from . import (
     EXIT_OK,
@@ -37,6 +37,7 @@ from . import (
     write_text_lf,
 )
 from .cli import _catalogs, _csv, _emit, _guarded
+from .guards import refuse_export_target, repo_root
 from .schema import validate_directory, validate_record
 
 ENGINES = ("godot", "unity", "threejs", "all")
@@ -56,6 +57,8 @@ _POINTS = ("tip", "butt", "muzzle", "grip", "support")
 _HEX16 = re.compile(r"^[0-9a-f]{16}$")
 _DRIVE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]")
 _PUBLIC_APPROVAL_KEY = "weapons_public_icons_approved"
+SNAPSHOTS_DIRNAME = "snapshots"  # <catalogs>/weapons/snapshots/: the default output folder (spec 3.1)
+_UNSAFE_STEM = re.compile(r'[\\/:*?"<>|\x00-\x1f]')  # path separators, drive/stream colon, wildcards, control chars
 
 
 # -- item-frame bake --------------------------------------------------------------------------------------
@@ -351,13 +354,25 @@ def _public_approved(args) -> bool:
 
 def _repo_root() -> Path | None:
     """This checkout (INV-1: a snapshot never lands in the public repo); a seam so tests can aim elsewhere."""
-    return checkout_root()
+    return repo_root()
 
 
-def _forbidden_roots(catalogs_dir: Path, cfg) -> list[Path]:
+def _forbidden_roots(catalogs_dir: Path | None, cfg) -> list[Path]:
+    """Folders a snapshot must not land in. ``catalogs_dir=None`` leaves the catalogs folder out (the default output
+    ``<catalogs>/weapons/snapshots/`` is inside it by design, spec 3.1); the checkout and every pack root stay."""
     roots = [catalogs_dir, _repo_root()]
     roots += [v for k, v in cfg.items() if k != "catalogs" and isinstance(v, Path)]
     return [r.resolve() for r in roots if r is not None]
+
+
+def default_snapshot_path(catalogs_dir: Path, game: str) -> Path:
+    """``<catalogs>/weapons/snapshots/<game>.json``; ``game`` must be a safe file stem (no path parts)."""
+    from .directory import weapons_dir
+
+    if (not game or game != game.strip() or game in (".", "..") or game.endswith(".") or _UNSAFE_STEM.search(game)):
+        raise InputError(f"--game {game!r} cannot be used as a file name for the default snapshot; "
+                         "use a plain name (no path separators) or give --out")
+    return weapons_dir(catalogs_dir) / SNAPSHOTS_DIRNAME / f"{game}.json"
 
 
 def _read_ids(path: Path) -> set[str]:
@@ -434,12 +449,14 @@ def cmd(args, cfg) -> int:
             "that public icon renders are licence-safe (spec B-1)")
 
     catalogs_dir = _catalogs(args, cfg)
-    out_file = Path(args.export_out).resolve()
-    for root in _forbidden_roots(catalogs_dir, cfg):
+    explicit = bool(args.export_out)
+    out_file = (Path(args.export_out) if explicit else default_snapshot_path(catalogs_dir, args.game)).resolve()
+    for root in _forbidden_roots(catalogs_dir if explicit else None, cfg):
         if out_file == root or root in out_file.parents:
             raise RefusalError(
                 "refusing to write a snapshot inside the catalogs dir, a pack root or this repository "
                 "(it is pack-derived data for a game's private repo, INV-1)", details={"root": root.name})
+    refuse_export_target(out_file, repo=_repo_root())  # this checkout, or a git repo that tracks *.synty* files
 
     directory = load_directory(catalogs_dir)
     problems = validate_directory(directory)

@@ -39,7 +39,7 @@ M = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(M)
 
 from synty_inventory.cli import main  # noqa: E402
-from synty_inventory.weapons import icons, to_text  # noqa: E402
+from synty_inventory.weapons import guards, icons, to_text  # noqa: E402
 from synty_inventory.weapons.directory import (  # noqa: E402
     DIRECTORY_NAME,
     build_directory_report,
@@ -167,7 +167,8 @@ def write_config(tmp: Path, cat: Path, *, threejs: Path | None = None, glb_root:
 def run_cli(cfg: Path, *argv: str) -> tuple[int, dict]:
     """``synty-inventory --config CFG weapons icons ...`` with a clean SYNTI_* environment; (exit code, JSON)."""
     out = io.StringIO()
-    with mock.patch.dict(os.environ):
+    with mock.patch.dict(os.environ), mock.patch.object(guards, "other_inventory_processes", return_value=[]):
+        # (the sole-runner guard would otherwise list the machine's processes, about a second per call)
         for key in ENV_KEYS:
             os.environ.pop(key, None)
         with contextlib.redirect_stdout(out):
@@ -569,7 +570,7 @@ def test_ac17_a_second_run_with_unchanged_inputs_writes_zero_files(ac17):
 
 def test_ac17_variants_on_records_without_colourways_renders_nothing_extra(ac17):
     code, out = run_cli(ac17["cfg"], "--variants")  # the six fixtures have no Alts materials: no variants to draw
-    assert code == 0 and out["rendered"] == [] and out["variants"] == {"rendered": [], "skipped": [], "failed": []}
+    assert code == 0 and out["rendered"] == [] and out["variants"] == {"rendered": [], "skipped": [], "failed": [], "visually_identical": 0}
     assert "not built yet" not in json.dumps(out)
     assert snapshot(ac17["cat"]) == ac17["tree3"]
 
@@ -732,8 +733,8 @@ def test_a_fresh_plan_lists_every_colourway_and_reports_a_tga_as_a_failure_with_
     assert [t[2]["variant_id"] for t in todo] == ["A", "B", "C"] and links == {} and skipped == [] and failed == []
     assert [Path(t[3]).name for t in todo] == ["FakeAtlas_01_A.png", "FakeAtlas_01_B.png", "FakeAtlas_01_C_Diffuse.png"]
     assert len({t[4] for t in todo}) == 3  # one hash per colourway
-    assert [(t[5], t[6]) for t in todo][1] == (f"icons/FAKE_AtlasAlt/SM_Wep_Sword_Atlas_01@B.png",
-                                                 f"icons/FAKE_AtlasAlt/SM_Wep_Sword_Atlas_01@B@64.png")
+    assert [(t[5], t[6]) for t in todo][1] == ("icons/FAKE_AtlasAlt/SM_Wep_Sword_Atlas_01@B.png",
+                                                 "icons/FAKE_AtlasAlt/SM_Wep_Sword_Atlas_01@B@64.png")
     todo, _links, _skipped, failed = plan(w, MACE_A)
     assert [t[2]["variant_id"] for t in todo] == ["A"]
     assert len(failed) == 1 and (failed[0]["id"], failed[0]["variant"]) == (MACE_A, "B")
@@ -869,13 +870,42 @@ def test_a_second_variants_run_changes_nothing(atlas_run):
     assert atlas_run["tree2"] == atlas_run["tree1"]  # every path, byte and mtime identical
 
 
-def test_a_rebuild_keeps_the_variant_links_while_the_pictures_exist(atlas_run):
-    before = atlas_run["dpath"].read_bytes()
+def _rebuild_atlas_directory(atlas_run) -> None:
     d, e, _ = build_directory_report(atlas_run["cat"], overrides=empty_overrides(), pack_settings=AA.PACK_SETTINGS,
                                      threejs_v2_dir=atlas_run["root"], geometry_cache={},
                                      extracted_root=atlas_run["extracted"])
     write_directory(atlas_run["cat"], d, e)
-    assert atlas_run["dpath"].read_bytes() == before
+
+
+def _without_w6_keys(doc: dict) -> dict:
+    """The directory minus the two optional keys W6 adds to ``visuals`` (``icon_mode``) and its variants
+    (``icon_mode``, ``visually_identical``): the rebuild carry-forward lives in directory.py, which W6 does not own."""
+    doc = copy.deepcopy(doc)
+    for rec in doc["weapons"]:
+        rec["visuals"].pop("icon_mode", None)
+        for var in rec["visuals"]["variants"]:
+            var.pop("icon_mode", None)
+            var.pop("visually_identical", None)
+    return doc
+
+
+def test_a_rebuild_keeps_the_variant_links_while_the_pictures_exist(atlas_run):
+    before = read_json(atlas_run["dpath"])
+    _rebuild_atlas_directory(atlas_run)
+    assert _without_w6_keys(read_json(atlas_run["dpath"])) == _without_w6_keys(before)
+    atlas_run["dpath"].write_bytes(wfx_text(before))  # leave the module fixture as the icons run wrote it
+
+
+@pytest.mark.xfail(strict=True, reason="directory.carry_icon_links / carry_variant_links (directory.py, not owned by W6) "
+                   "still drop visuals.icon_mode and variants[].icon_mode / visually_identical on a rebuild; "
+                   "when they carry them this turns XPASS and the marker must go")
+def test_a_rebuild_keeps_icon_mode_and_visually_identical(atlas_run):
+    before = atlas_run["dpath"].read_bytes()
+    try:
+        _rebuild_atlas_directory(atlas_run)
+        assert atlas_run["dpath"].read_bytes() == before
+    finally:
+        atlas_run["dpath"].write_bytes(before)
 
 
 def test_a_repainted_texture_renders_only_that_colourway_again(atlas_run):

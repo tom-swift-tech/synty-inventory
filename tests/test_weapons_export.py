@@ -24,7 +24,6 @@ _spec.loader.exec_module(H)
 wfx = H.wfx
 
 from synty_inventory.weapons import export as X  # noqa: E402
-from synty_inventory.weapons.directory import read_json  # noqa: E402
 
 TWO_PACKS = "FAKE_Fantasy,FAKE_Modern"
 BAKED = {"bounds", "tip", "butt", "muzzle", "grip", "support", "frame"}  # the geometry fields an item bake may change

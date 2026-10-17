@@ -11,6 +11,8 @@ import importlib.util
 import json
 from pathlib import Path
 
+import pytest
+
 _FIX = Path(__file__).parent / "fixtures" / "weapons"
 _spec = importlib.util.spec_from_file_location("wfx", _FIX / "wfx.py")
 wfx = importlib.util.module_from_spec(_spec)
@@ -20,11 +22,19 @@ AA = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(AA)
 
 from synty_inventory.cli import main  # noqa: E402
+from synty_inventory.weapons import guards  # noqa: E402
 from synty_inventory.weapons.directory import write_directory  # noqa: E402
 from synty_inventory.weapons.schema import validate_directory, validate_record  # noqa: E402
 
 _ENV = ("SYNTI_CONFIG", "SYNTI_UNITY_ROOT", "SYNTI_EXTRACTED_ROOT", "SYNTI_THREEJS_V2", "SYNTI_VIEWER_DATA",
         "SYNTI_CATALOGS", "SYNTI_GODOT_ROOT", "SYNTI_UNREAL_ROOT", "SYNTI_SYNTY_GLB_ROOT")
+
+
+@pytest.fixture(autouse=True)
+def _no_other_inventory_runner(monkeypatch):
+    """`weapons build` refuses to start beside another inventory process (guards.ensure_sole_runner); a developer's own
+    live run must not fail these tests, and the process listing costs about a second per CLI call."""
+    monkeypatch.setattr(guards, "other_inventory_processes", lambda: [])
 
 
 def _config(tmp_path: Path, catalogs: Path, extracted: Path) -> Path:
