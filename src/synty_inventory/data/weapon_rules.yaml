@@ -1,0 +1,525 @@
+# Weapon directory rules (docs/weapon_directory.md sections 3.4, 4.4). Human-edited, ordered, commented.
+#
+# Everything here is PATTERNS: token names, id regexes, enum values. No Synty content, no per-asset data
+# (INV-1). Naming families the patterns are written against (see spec section 4.9):
+#   SM_Wep_*       the confirmed weapon backbone       SM_Gen_Wep_*   shared tools, same mesh in many packs
+#   Wep_*          un-prefixed bow/sword animation packs
+#   SM_Prop_* / SM_Item_* / SM_Veh_* / SM_Env_*   real weapons mixed with scenery (the noisy bucket)
+#   SM_Chr_Attach_*  holstered character props     Preset_*   prefab presets     Mod_*   modular gun parts
+#
+# How ids are matched: an asset id is split on "_" and camelCase, lower-cased, digits dropped, and run through
+# token_aliases (so "SM_Wep_SubMGun_01" -> sm wep smg). Rules therefore use the CANONICAL (alias target) token
+# only; the loader rejects a rule that names an alias variant, because it could never match.
+#
+# Every table below is first-match-wins. `weapons validate` fails (exit 6) if an entry is shadowed by an
+# earlier one, and tests/test_weapons_classify.py checks each entry is the first match of >= 1 fixture id.
+# When adding a rule, put it BEFORE any broader rule that would swallow it and add a fixture id.
+version: 1
+
+# canonical token -> variants that collapse to it. Variants are whole lower-cased "_" segments or the join of
+# 2-3 neighbouring tokens (so Nail_Gun and NailGun both reach "nailgun").
+token_aliases:
+  smg: [submgun, submachinegun, machinepistol]
+  lmg: [machinegun, lightmachinegun, mg]
+  hmg: [heavymachinegun, chaingun]
+  rpg: [rocketlauncher, bazooka]
+  pistol: [handgun, sidearm]
+  utilgun: [nailgun, paintgun, watergun, flaregun, spraygun, dartgun, staplegun, taser, welder, syringegun, gluegun]
+  throwblade: [shuriken, kunai, throwingstar, throwingknife, throwingaxe]
+  axe: [hatchet, tomahawk, battleaxe, waraxe, handaxe]
+  sword: [katana, rapier, cutlass, machete, scimitar, saber, sabre, longsword, shortsword, greatsword, broadsword]
+  knife: [dagger, shiv, tanto, kukri, razor]
+  mace: [flail, morningstar]
+  club: [cudgel, baton, truncheon, nightstick, crowbar]
+  hammer: [warhammer, maul, sledgehammer, mallet]
+  spear: [pike, trident, harpoon, lance, javelin]
+  polearm: [halberd, naginata, glaive, scythe, poleaxe, bardiche]
+  staff: [quarterstaff]
+  fistweapon: [knuckles, knuckleduster, claws, claw, tonfa, sai, cestus]
+  bow: [longbow, shortbow, warbow, compoundbow]
+  shield: [buckler, pavise, kiteshield, towershield]
+  bomb: [molotov, dynamite, pipebomb, tnt, c4]
+  mine: [landmine, ied]
+  grenade: [flashbang]
+  turret: [sentry]
+  cannon: [artillery]
+  siege: [catapult, trebuchet, ballista, batteringram, mangonel]
+  mortar: [flak]
+  cannonball: [cannonball]  # lets Cannon_Ball and CannonBall reach the same token
+  flamethrower: [flamer]
+  optic: [scope, sight, ironsight, reddot, holo, acog, reflex, optics]
+  magazine: [mag, clip, drum, mags]
+  silencer: [suppressor]
+  grip: [foregrip, vertgrip]
+  bullet: [bullets, cartridge, casing]
+  arrow: [arrows]
+
+candidates:
+  # Weapon-noun tokens (canonical, post-alias). The noisy `name_token` bucket is every asset id that carries one
+  # of these; the exclude table below then removes the survey's false-positive families.
+  nouns: &nouns
+    - sword
+    - knife
+    - axe
+    - mace
+    - hammer
+    - club
+    - spear
+    - polearm
+    - staff
+    - wand
+    - whip
+    - fistweapon
+    - pickaxe
+    - spade
+    - shovel
+    - wrench
+    - chainsaw
+    - pitchfork
+    - torch
+    - syringe
+    - shield
+    - bow
+    - crossbow
+    - arrow
+    - bolt
+    - quiver
+    - sheath
+    - scabbard
+    - holster
+    - pistol
+    - revolver
+    - rifle
+    - carbine
+    - shotgun
+    - sniper
+    - smg
+    - lmg
+    - hmg
+    - minigun
+    - gatling
+    - rpg
+    - launcher
+    - flamethrower
+    - utilgun
+    - grenade
+    - bomb
+    - mine
+    - claymore
+    - throwblade
+    - cannon
+    - cannonball
+    - turret
+    - mortar
+    - siege
+    - gun
+    - blaster
+    - bullet
+    - ammo
+    - blade
+    - weapon
+
+  # An asset becomes a name_token candidate when the FIRST matching include entry fires (assets with a catalog
+  # signal - type/semantic_role/gear.kind = weapon - are candidates without consulting this table).
+  include:
+    - name: veh_cannon          # SM_Veh_*Cannon*: vehicle-mounted guns (spec 3.4.1)
+      match: {id_regex: '^SM_Veh_.*Cannon'}
+    - name: prop_item_noun      # SM_Prop_/SM_Item_/SM_Env_/SM_Gen_/SM_Sign_ ... <weapon noun>
+      match:
+        id_regex: '^S[MA]_(Prop|Item|Veh|Env|Gen|Sign|Bld)_'
+        tokens_any: *nouns
+    - name: nonmesh_noun        # clips, UI sprites and FX that mention a weapon: kept only so they are audited
+      match:
+        asset_kind_any: [animation, ui, fx]
+        tokens_any: *nouns
+    - name: compound_substring  # one-word compounds the tokenizer cannot split (Windshield, Shieldwall, Launchpad)
+      match: {id_contains_any: [shield, cannon, launcher]}
+
+  # Rejections. Each entry carries a closed reason (EXCLUDE_REASONS). Order matters: the first match wins.
+  # `nonplaceable` is applied in code after these, to anything still standing.
+  exclude:
+    - name: chr_attach          # holstered character props are wardrobe pieces (NB-4); restorable from review
+      reason: character_attachment
+      match: {id_regex: '^SM_Chr_Attach_'}
+    - name: mech_weapon_attach  # Mech attachments and shared-body geo_* nodes are out of v1 (NB-3)
+      reason: mech_attachment
+      match: {id_regex: '^(SM_Mech_.*_Weapon_|geo_)'}
+    - name: ui_kind
+      reason: ui
+      match: {asset_kind_any: [ui]}
+    - name: ui_crosshair        # SM_Wep_Crosshair*: carries type=weapon through the Wep prefix
+      reason: ui
+      match: {tokens_any: [crosshair, reticle, hud]}
+    - name: fx_prefix
+      reason: fx
+      match: {id_regex: '^(SM_)?(FX|VFX|PS)_'}
+    - name: fx_kind
+      reason: fx
+      match: {asset_kind_any: [fx]}
+    - name: ribbon_bow          # gift/ribbon bows are not archery
+      reason: scenery
+      match: {id_regex: '(ribbon|gift|present)_?bow|bow_?(ribbon|tie)'}
+    - name: road_arrow          # road markings
+      reason: scenery
+      match: {id_regex: '(road|street|floor|ground|path|direction|lane)_?arrow|arrow_?(sign|marking)'}
+    - name: mine_tunnel         # the mining kind of "mine"
+      reason: scenery
+      match: {id_regex: 'mine_?(tunnel|track|cart|shaft|entrance)|(tunnel|cart)_?mine'}
+    - name: club_awning         # nightclub signage
+      reason: scenery
+      match: {id_regex: 'club_?(awning|sign|door|entrance|facade|house)'}
+    - name: windshield          # contains "shield" but is glass
+      reason: scenery
+      match: {id_regex: 'windshield|windscreen'}
+    - name: face_shield         # visors are headgear
+      reason: scenery
+      match: {id_regex: 'face_?shield|visor'}
+    - name: weapon_rack_sign    # racks, shop signs and display stands named Weapon*
+      reason: scenery
+      match: {id_regex: 'weapons?_?(rack|sign|shop|store|stand|case|display|crate)|(rack|sign|stand|display)_?weapons?'}
+    - name: grass_blade         # plant/machine blades
+      reason: scenery
+      match: {id_regex: '(grass|fan|rotor|turbine|propeller|wiper)_?blade'}
+    - name: torch               # torches are lighting props, Wep-prefixed or not (NB-5)
+      reason: tool_prop
+      match: {tokens_any: [torch]}
+    - name: nonwep_tool_prop    # pickaxe/spade/syringe PROPS; a Wep-prefixed pickaxe is archetype `tool` (NB-5)
+      reason: tool_prop
+      match:
+        id_regex: '^S[MA]_(Prop|Env|Item|Gen)_'
+        tokens_any: [pickaxe, spade, shovel, syringe, wrench, chainsaw, pitchfork]
+        tokens_none: [wep]
+
+# Classification rules, FIRST MATCH WINS. Set is {role, kind?, archetype?, component?|carrier?|ammo?}; kind is
+# derived from the archetype when omitted. `confidence` is the base (0.5-0.95), see spec 3.4.2 for the
+# adjustments. Order is by specificity: carriers, ammo, gun parts and emplaced weapons come BEFORE whole
+# weapons, because a part id carries the host gun's name (SM_Wep_Rifle_Scope_01 must not become a rifle).
+rules:
+  # --- carriers ---
+  - {name: carrier_quiver, match: {tokens_any: [quiver]}, set: {role: carrier, carrier: quiver}, confidence: 0.92}
+  - {name: carrier_sheath, match: {tokens_any: [sheath]}, set: {role: carrier, carrier: sheath}, confidence: 0.92}
+  - {name: carrier_scabbard, match: {tokens_any: [scabbard]}, set: {role: carrier, carrier: scabbard}, confidence: 0.92}
+  - {name: carrier_holster, match: {tokens_any: [holster]}, set: {role: carrier, carrier: holster}, confidence: 0.92}
+  # --- loose ammunition ---
+  - {name: ammo_arrow, match: {tokens_any: [arrow]}, set: {role: ammo, ammo: arrow}, confidence: 0.9}
+  # "bolt" is also a rifle action (BoltAction): only a bolt WITHOUT those words is a crossbow bolt
+  - name: ammo_bolt
+    match: {tokens_any: [bolt], tokens_none: [action, rifle, sniper]}
+    set: {role: ammo, ammo: bolt}
+    confidence: 0.88
+  # a rocket that is not a launcher is a loose projectile
+  - name: ammo_rocket
+    match: {tokens_any: [rocket, missile], tokens_none: [rpg, launcher]}
+    set: {role: ammo, ammo: rocket}
+    confidence: 0.88
+  - {name: ammo_shell, match: {tokens_any: [shell]}, set: {role: ammo, ammo: shell}, confidence: 0.85}
+  - {name: ammo_bullet, match: {tokens_any: [bullet, ammo]}, set: {role: ammo, ammo: bullet}, confidence: 0.9}
+  - {name: ammo_cannonball, match: {tokens_any: [cannonball]}, set: {role: ammo, ammo: other}, confidence: 0.85}
+  # --- modular gun parts (Mod_* and SM_Wep_<Gun>_<Part>) ---
+  - {name: part_optic, match: {tokens_any: [optic]}, set: {role: part, component: optic}, confidence: 0.9}
+  - {name: part_magazine, match: {tokens_any: [magazine]}, set: {role: part, component: magazine}, confidence: 0.9}
+  - {name: part_stock, match: {tokens_any: [stock]}, set: {role: part, component: stock}, confidence: 0.9}
+  - {name: part_barrel, match: {tokens_any: [barrel]}, set: {role: part, component: barrel}, confidence: 0.88}
+  - {name: part_silencer, match: {tokens_any: [silencer]}, set: {role: part, component: silencer}, confidence: 0.9}
+  - {name: part_bayonet, match: {tokens_any: [bayonet]}, set: {role: part, component: bayonet}, confidence: 0.9}
+  - {name: part_rail, match: {tokens_any: [rail]}, set: {role: part, component: rail}, confidence: 0.88}
+  - {name: part_trigger, match: {tokens_any: [trigger]}, set: {role: part, component: trigger}, confidence: 0.88}
+  - {name: part_handguard, match: {tokens_any: [handguard]}, set: {role: part, component: handguard}, confidence: 0.9}
+  - {name: part_grip, match: {tokens_any: [grip]}, set: {role: part, component: grip}, confidence: 0.88}
+  - {name: part_body, match: {tokens_any: [body, receiver]}, set: {role: part, component: body}, confidence: 0.85}
+  # Mod_<anything else>: a part, slot unknown
+  - {name: part_misc, match: {tokens_any: [mod, flashlight, bipod, sling, attachment, muzzle]}, set: {role: part, component: misc}, confidence: 0.8}
+  # melee pieces of modular swords/axes use the same part vocabulary (slot misc)
+  - {name: part_melee, match: {tokens_any: [hilt, pommel, crossguard, handle, guard]}, set: {role: part, component: misc}, confidence: 0.8}
+  # --- emplaced (not hand-held); kind is ranged ---
+  - {name: emplaced_turret, match: {tokens_any: [turret]}, set: {role: emplaced, archetype: turret}, confidence: 0.9}
+  - {name: emplaced_siege, match: {tokens_any: [siege]}, set: {role: emplaced, archetype: siege_engine}, confidence: 0.9}
+  - {name: emplaced_mortar, match: {tokens_any: [mortar]}, set: {role: emplaced, archetype: mortar}, confidence: 0.88}
+  - {name: emplaced_cannon, match: {tokens_any: [cannon]}, set: {role: emplaced, archetype: cannon}, confidence: 0.85}
+  # --- whole ranged weapons, most specific first ---
+  # a rocket/grenade LAUNCHER must precede the grenade rule: Grenade_Launcher carries both tokens
+  - {name: launcher, match: {tokens_any: [rpg, launcher]}, set: {role: whole, archetype: launcher}, confidence: 0.93}
+  - {name: flamethrower, match: {tokens_any: [flamethrower]}, set: {role: whole, archetype: flamethrower}, confidence: 0.93}
+  - {name: heavy_gun, match: {tokens_any: [minigun, gatling, hmg]}, set: {role: whole, archetype: heavy_gun}, confidence: 0.92}
+  - {name: lmg, match: {tokens_any: [lmg]}, set: {role: whole, archetype: lmg}, confidence: 0.92}
+  - name: sniper
+    match: {tokens_any: [sniper], tokens_none: [optic, ammo]}
+    set: {role: whole, archetype: sniper}
+    confidence: 0.92
+  - {name: shotgun, match: {tokens_any: [shotgun]}, set: {role: whole, archetype: shotgun}, confidence: 0.93}
+  - {name: revolver, match: {tokens_any: [revolver]}, set: {role: whole, archetype: revolver}, confidence: 0.93}
+  - {name: smg, match: {tokens_any: [smg]}, set: {role: whole, archetype: smg}, confidence: 0.92}
+  - {name: pistol, match: {tokens_any: [pistol]}, set: {role: whole, archetype: pistol}, confidence: 0.92}
+  - {name: utility_gun, match: {tokens_any: [utilgun]}, set: {role: whole, archetype: utility_gun}, confidence: 0.88}
+  - {name: rifle, match: {tokens_any: [rifle, carbine]}, set: {role: whole, archetype: rifle}, confidence: 0.9}
+  # crossbow before bow: Crossbow ids may also carry "bow" through the alias table
+  - {name: crossbow, match: {tokens_any: [crossbow]}, set: {role: whole, archetype: crossbow}, confidence: 0.93}
+  - {name: bow, match: {tokens_any: [bow]}, set: {role: whole, archetype: bow}, confidence: 0.9}
+  # --- thrown ---
+  - {name: throwing_blade, match: {tokens_any: [throwblade]}, set: {role: whole, archetype: throwing_blade}, confidence: 0.9}
+  # Claymore is a sword in the fantasy-style packs and a mine in the modern ones: decided by pack id glob
+  - name: claymore_sword
+    match: {tokens_any: [claymore], packs_any: ['*Fantasy*', '*Viking*', '*Samurai*', '*Pirate*', '*Ancient*', '*Kingdom*']}
+    set: {role: whole, archetype: sword}
+    confidence: 0.88
+  - {name: grenade, match: {tokens_any: [grenade]}, set: {role: whole, archetype: grenade}, confidence: 0.92}
+  - {name: bomb, match: {tokens_any: [bomb]}, set: {role: whole, archetype: bomb}, confidence: 0.9}
+  - {name: mine, match: {tokens_any: [mine, claymore]}, set: {role: whole, archetype: mine}, confidence: 0.85}
+  # --- melee ---
+  - {name: sword, match: {tokens_any: [sword]}, set: {role: whole, archetype: sword}, confidence: 0.93}
+  - {name: knife, match: {tokens_any: [knife]}, set: {role: whole, archetype: knife}, confidence: 0.93}
+  - {name: axe, match: {tokens_any: [axe]}, set: {role: whole, archetype: axe}, confidence: 0.93}
+  - {name: mace, match: {tokens_any: [mace]}, set: {role: whole, archetype: mace}, confidence: 0.93}
+  - {name: hammer, match: {tokens_any: [hammer]}, set: {role: whole, archetype: hammer}, confidence: 0.92}
+  - {name: club, match: {tokens_any: [club, bat]}, set: {role: whole, archetype: club}, confidence: 0.88}
+  - {name: spear, match: {tokens_any: [spear]}, set: {role: whole, archetype: spear}, confidence: 0.93}
+  - {name: polearm, match: {tokens_any: [polearm]}, set: {role: whole, archetype: polearm}, confidence: 0.92}
+  - {name: staff, match: {tokens_any: [staff]}, set: {role: whole, archetype: staff}, confidence: 0.9}
+  - {name: wand, match: {tokens_any: [wand]}, set: {role: whole, archetype: wand}, confidence: 0.9}
+  - {name: whip, match: {tokens_any: [whip]}, set: {role: whole, archetype: whip}, confidence: 0.9}
+  - {name: fist_weapon, match: {tokens_any: [fistweapon]}, set: {role: whole, archetype: fist_weapon}, confidence: 0.88}
+  # Wep-prefixed improvised tools (the non-Wep props were excluded above)
+  - name: tool
+    match: {tokens_any: [pickaxe, spade, shovel, wrench, chainsaw, pitchfork]}
+    set: {role: whole, archetype: tool}
+    confidence: 0.85
+  - {name: shield, match: {tokens_any: [shield]}, set: {role: whole, archetype: shield}, confidence: 0.93}
+  # --- last resort: it is a gun, which gun is unknown (kept for review, never dropped) ---
+  - {name: generic_gun, match: {tokens_any: [gun, blaster]}, set: {role: whole, kind: ranged, archetype: unknown}, confidence: 0.5}
+
+# Confidence for an id no rule matched (role whole, archetype unknown, kind null).
+unknown_confidence: 0.2
+
+# archetype -> hold_class (spec 3.4.2). `none` = not hand-held.
+hold_by_archetype:
+  pistol: one_hand
+  revolver: one_hand
+  utility_gun: one_hand
+  smg: long_gun
+  rifle: long_gun
+  shotgun: long_gun
+  sniper: long_gun
+  lmg: long_gun
+  heavy_gun: long_gun
+  launcher: long_gun
+  flamethrower: long_gun
+  bow: bow
+  crossbow: crossbow
+  knife: melee_one
+  sword: melee_one
+  axe: melee_one
+  mace: melee_one
+  whip: melee_one
+  wand: melee_one
+  tool: melee_one
+  fist_weapon: melee_one
+  spear: melee_two
+  polearm: melee_two
+  staff: melee_two
+  club: melee_bat
+  hammer: melee_bat
+  grenade: thrown
+  bomb: thrown
+  mine: thrown
+  throwing_blade: thrown
+  shield: shield
+  turret: none
+  cannon: none
+  siege_engine: none
+  mortar: none
+  unknown: none
+
+# Exceptions to the table, first match wins; they need gear.twoHanded (spec 3.4.2). The spec lists smg under both
+# one_hand ("twoHanded != true") and long_gun ("default"); read as: an smg is one_hand only when the catalog says
+# twoHanded is explicitly false, otherwise long_gun.
+hold_exceptions:
+  - {name: smg_one_handed, archetypes: [smg], gear_two_handed: false, hold: one_hand}
+  - {name: melee_two_handed, kind: melee, gear_two_handed: true, hold: melee_two}
+  # needs a measured length, so it only fires in pass 2 (classify(measured=...))
+  - {name: long_blade_two_handed, archetypes: [sword, axe, mace, hammer], min_length_m: 1.1, hold: melee_two}
+
+# Genre fallback for packs whose setting does not decide it (generic, or absent from pack_settings.yaml)
+genre_by_archetype:
+  default: other
+  pistol: modern
+  revolver: modern
+  smg: modern
+  rifle: modern
+  shotgun: modern
+  sniper: modern
+  lmg: modern
+  heavy_gun: modern
+  launcher: modern
+  flamethrower: modern
+  utility_gun: modern
+  sword: fantasy
+  axe: fantasy
+  mace: fantasy
+  hammer: fantasy
+  bow: fantasy
+  crossbow: fantasy
+  spear: fantasy
+  polearm: fantasy
+  staff: fantasy
+  wand: fantasy
+  whip: fantasy
+
+# A pack-id glob adds flags to every record of the pack. Mech-pack weapons are 4-5x hand scale: hold_class none.
+pack_flags:
+  POLYGON_Mech: [mech_scale]
+  Mech: [mech_scale]
+  '*_Mech': [mech_scale]
+
+# Flags decided by the id alone (spec 3.4.5). Preset_* are prefab presets.
+id_flags:
+  - {flag: preset, id_regex: '(^|_)preset(_|\d|$)'}
+
+# Family = lower-cased id minus trailing _NN and these suffix tokens (spec 3.4.4).
+family_strip_tokens: [clean, rigged, unrigged, alt, optimised, separate, covered, preset]
+
+# --- tables below are read by later slices (W2 geometry/hints). Minimal stubs, tuned on the first review round ---
+# plausible measured length range in metres per archetype (confidence -0.25 outside it, W2)
+plausible_length_m:
+  pistol: [0.12, 0.35]
+  revolver: [0.15, 0.40]
+  smg: [0.25, 0.80]
+  rifle: [0.60, 1.30]
+  shotgun: [0.60, 1.40]
+  sniper: [0.80, 1.60]
+  lmg: [0.70, 1.40]
+  heavy_gun: [0.60, 2.00]
+  launcher: [0.60, 1.60]
+  flamethrower: [0.50, 1.40]
+  bow: [0.60, 2.00]
+  crossbow: [0.40, 1.00]
+  knife: [0.10, 0.60]
+  sword: [0.50, 1.80]
+  axe: [0.30, 1.60]
+  mace: [0.30, 1.40]
+  hammer: [0.30, 2.00]
+  club: [0.30, 1.40]
+  spear: [1.00, 3.00]
+  polearm: [1.20, 3.00]
+  staff: [0.80, 2.50]
+  wand: [0.15, 0.80]
+  whip: [0.30, 3.00]
+  fist_weapon: [0.08, 0.50]
+  shield: [0.30, 1.80]
+  grenade: [0.05, 0.30]
+  bomb: [0.10, 0.60]
+  mine: [0.10, 0.80]
+  throwing_blade: [0.05, 0.40]
+
+# expected forward axis per (genre, kind) in asset space (W2; a mismatch adds reason axes_unexpected)
+axes_expected:
+  modern: {ranged: '+z', melee: '+y', thrown: '+y', shield: '+z'}
+  scifi: {ranged: '+z', melee: '+y', thrown: '+y', shield: '+z'}
+  fantasy: {ranged: '+z', melee: '+y', thrown: '+y', shield: '+z'}
+  western: {ranged: '+z', melee: '+y', thrown: '+y', shield: '+z'}
+  other: {ranged: '+z', melee: '+y', thrown: '+y', shield: '+z'}
+
+# only used if assumption A-grip fails in W2: [fraction along forward, fraction of up]
+grip_proportion:
+  pistol: [0.20, 0.50]
+  rifle: [0.30, 0.45]
+
+size_class_cuts_m: [0.20, 0.45, 0.90, 1.50]
+
+weight_by_archetype:
+  pistol: light
+  revolver: light
+  utility_gun: light
+  smg: medium
+  rifle: medium
+  shotgun: medium
+  sniper: heavy
+  lmg: heavy
+  heavy_gun: very_heavy
+  launcher: heavy
+  flamethrower: heavy
+  bow: light
+  crossbow: medium
+  knife: light
+  sword: medium
+  axe: medium
+  mace: medium
+  hammer: heavy
+  club: medium
+  spear: medium
+  polearm: heavy
+  staff: light
+  wand: light
+  whip: light
+  fist_weapon: light
+  tool: medium
+  shield: medium
+  grenade: light
+  bomb: light
+  mine: medium
+  throwing_blade: light
+  turret: very_heavy
+  cannon: very_heavy
+  siege_engine: very_heavy
+  mortar: very_heavy
+
+tier_base:
+  pistol: 2
+  revolver: 2
+  utility_gun: 1
+  smg: 2
+  rifle: 3
+  shotgun: 3
+  sniper: 4
+  lmg: 4
+  heavy_gun: 5
+  launcher: 5
+  flamethrower: 4
+  bow: 2
+  crossbow: 3
+  knife: 1
+  sword: 3
+  axe: 3
+  mace: 3
+  hammer: 3
+  club: 1
+  spear: 2
+  polearm: 3
+  staff: 2
+  wand: 3
+  whip: 2
+  fist_weapon: 2
+  tool: 1
+  shield: 2
+  grenade: 2
+  bomb: 2
+  mine: 3
+  throwing_blade: 2
+  turret: 4
+  cannon: 4
+  siege_engine: 5
+  mortar: 4
+
+tier_tokens:
+  up: [gold, golden, ornate, royal, legendary, ancient, elite, master, plasma, power]
+  down: [rusty, broken, improvised, makeshift, toy, clean, simple, old]
+
+ammo_by_archetype:
+  pistol: handgun
+  revolver: handgun
+  utility_gun: handgun
+  smg: handgun
+  rifle: rifle
+  sniper: rifle
+  lmg: rifle
+  heavy_gun: heavy
+  shotgun: shotgun
+  launcher: rocket
+  flamethrower: fuel
+  bow: arrow
+  crossbow: bolt
+  grenade: grenade
+
+# Id tokens that re-label an ammo user's family (spec 3.6: plasma|laser|arc|energy|power -> energy). Applied only
+# when the archetype already has a family, so a plasma sword stays null.
+ammo_token_overrides:
+  energy: [plasma, laser, arc, energy, power]

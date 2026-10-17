@@ -1,0 +1,73 @@
+{
+ "schema": "sit_muzzle_golden/1",
+ "source": "hand-worked from spec 3.5.4 (M1-M6 windows); NOT produced by the Godot probe. Fills the gap that no case of the shared muzzle_golden.json is first decided by the 0.002 window.",
+ "frame": "+z forward, +y up",
+ "tolerance_m": 0.0005,
+ "cases": [
+  {
+   "name": "window_0001_three_points",
+   "note": "0.001 window (z >= 0.499) holds the two max points and the 0.4995 point: 3, so it decides; the 0.4985 decoy must stay out",
+   "vertices": [
+    [-0.02, 0.0, -0.2],
+    [0.02, 0.0, -0.2],
+    [0.02, 0.1, -0.2],
+    [-0.02, 0.1, -0.2],
+    [-0.01, 0.04, 0.5],
+    [0.02, 0.06, 0.5],
+    [0.0, 0.1, 0.4995],
+    [0.05, 0.0, 0.4985]
+   ],
+   "fallback": false,
+   "muzzle": [0.003333, 0.066667, 0.5]
+  },
+  {
+   "name": "window_0002_exactly_three",
+   "note": "0.001 window: 2 points; 0.002 window (z >= 0.498): exactly 3, so it decides; the 0.005 window would add two decoys and move the mean to (0.016, 0.04)",
+   "vertices": [
+    [-0.02, 0.0, -0.2],
+    [0.02, 0.0, -0.2],
+    [0.02, 0.1, -0.2],
+    [-0.02, 0.1, -0.2],
+    [-0.01, 0.04, 0.5],
+    [0.02, 0.06, 0.5],
+    [0.0, 0.1, 0.4985],
+    [0.03, 0.0, 0.4965],
+    [0.04, 0.0, 0.4955]
+   ],
+   "fallback": false,
+   "muzzle": [0.003333, 0.066667, 0.5]
+  },
+  {
+   "name": "window_0005_three_points",
+   "note": "0.002 window: 2 points; 0.005 window (z >= 0.495): 3, so it decides; the 0.010 window would add two decoys",
+   "vertices": [
+    [-0.02, 0.0, -0.2],
+    [0.02, 0.0, -0.2],
+    [0.02, 0.1, -0.2],
+    [-0.02, 0.1, -0.2],
+    [-0.01, 0.04, 0.5],
+    [0.02, 0.06, 0.5],
+    [0.0, 0.1, 0.497],
+    [0.03, 0.0, 0.491],
+    [0.04, 0.0, 0.491]
+   ],
+   "fallback": false,
+   "muzzle": [0.003333, 0.066667, 0.5]
+  },
+  {
+   "name": "window_0010_three_points",
+   "note": "0.005 window: 2 points; 0.010 window (z >= 0.490): 3, so it decides; without that step the bounds fallback applies",
+   "vertices": [
+    [-0.02, 0.0, -0.2],
+    [0.02, 0.0, -0.2],
+    [0.02, 0.1, -0.2],
+    [-0.02, 0.1, -0.2],
+    [-0.01, 0.04, 0.5],
+    [0.02, 0.06, 0.5],
+    [0.0, 0.1, 0.4915]
+   ],
+   "fallback": false,
+   "muzzle": [0.003333, 0.066667, 0.5]
+  }
+ ]
+}

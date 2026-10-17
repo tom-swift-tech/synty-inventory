@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<!-- Weapon icon harness (docs/weapon_directory.md section 3.8, option B). Served by weapons/icons.py from a local
+     127.0.0.1 server: /harness/* is this directory, /three/* is <synty_glb_root>/node_modules/three/. No network. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>weapon icon harness</title>
+    <style>
+      html, body { margin: 0; background: transparent; overflow: hidden; }
+      canvas { display: block; }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/three/build/three.module.js",
+          "three/addons/": "/three/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <script type="module" src="/harness/icon.js"></script>
+  </body>
+</html>

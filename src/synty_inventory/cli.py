@@ -38,6 +38,7 @@ from .unitypackage import extract_previews
 from .vision import DEFAULT_VIEWS as VISION_DEFAULT_VIEWS
 from .vision import default_stills_root, vision_pack
 from .vlm import HOSTED_DEFAULT_MODEL, enrich_asset_vlm, vlm_available
+from .weapons.cli import register as register_weapons
 
 
 def configure_stdio() -> None:
@@ -760,7 +761,8 @@ def cmd_review(args, cfg) -> int:
 
 def cmd_gauntlet(args, cfg) -> int:
     catalogs_dir = _catalogs(args, cfg)
-    result = run_gauntlet(catalogs_dir, threejs_v2=_threejs_v2(cfg), godot_root=_engine_root(cfg, "godot_root"))
+    result = run_gauntlet(catalogs_dir, threejs_v2=_threejs_v2(cfg), godot_root=_engine_root(cfg, "godot_root"),
+                          strict=bool(getattr(args, "strict", False)))
     emit_json(result)
     return 0 if result["ok"] else 2
 
@@ -1112,6 +1114,8 @@ def build_parser() -> argparse.ArgumentParser:
     fp.set_defaults(func=cmd_footprint)
 
     g = sub.add_parser("gauntlet", help="Run acceptance gates against live catalogs")
+    g.add_argument("--strict", action="store_true",
+                   help="weapons_directory: stale overrides in weapon_overrides.json fail the gate (default: listed only)")
     g.set_defaults(func=cmd_gauntlet)
 
     pp = sub.add_parser(
@@ -1243,6 +1247,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="seconds to wait per hosted VLM call (default: 180)",
     )
     vis.set_defaults(func=cmd_vision)
+    register_weapons(sub)
     return p
 
 

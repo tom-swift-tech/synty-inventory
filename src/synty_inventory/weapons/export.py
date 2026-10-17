@@ -1,0 +1,500 @@
+"""``weapons export``: a per-game snapshot of the directory (spec 3.10) and its validator.
+
+A snapshot is pack-derived data meant for a *game's* private repo, never for this one (INV-1), so the verb refuses an
+output path inside the catalogs dir, a configured pack root or this checkout. The file is deterministic (INV-4
+style): sorted keys, 1-space indent, ``\\n``, no clock, no machine path, no hostname; ``scanned_at`` is copied from
+the pack catalogs through the directory.
+
+The default ``--frame item`` bakes every point of the geometry block through ``item_basis`` (a signed axis
+permutation, so a rotation about the scene origin: no translation, no rounding drift). Fields that are *not*
+coordinates, or that describe the mesh rather than the weapon, stay as measured: ``axes``, ``item_basis``,
+``long_axis``, ``pivot_frac``, ``length_m``, the radii, the ``*_source`` labels, ``triangles`` and ``node_offset``
+(the node's scene-space translation, which a consumer applies as ``item_basis * node_offset`` itself; AC34).
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import socket
+from copy import deepcopy
+from pathlib import Path
+
+import yaml
+
+from .. import __version__
+from ..paths import find_config_file
+from ..schema import pivot_from_aabb
+from . import (
+    EXIT_OK,
+    ROLES,
+    InputError,
+    RefusalError,
+    SchemaError,
+    digest,  # noqa: F401  (re-exported: the spec lists it in this module's surface)
+    to_text,
+    write_text_lf,
+)
+from .cli import _catalogs, _csv, _emit, _guarded
+from .guards import refuse_export_target, repo_root
+from .schema import validate_directory, validate_record
+
+ENGINES = ("godot", "unity", "threejs", "all")
+FRAMES = ("item", "asset")
+PROFILES = ("private", "public")
+# --engine -> the files.* keys it keeps. `all` keeps every key. threejs keeps glb_scale (AC26/AC37): the exported
+# bounds are post-scale but the GLB file is not, so a consumer loading the mesh needs the factor to size it.
+ENGINE_FILE_KEYS = {
+    "godot": ("godot_scene",),
+    "unity": ("unity_prefab", "unity_mesh", "unity_materials"),
+    "threejs": ("glb", "glb_node", "glb_scale"),
+}
+# the engine names written into generated_from.filter.engines ("threejs" is the glb files)
+ENGINE_LABEL = {"godot": "godot", "unity": "unity", "threejs": "glb", "all": "all"}
+PUBLIC_KEYS = ("archetype", "family", "genre", "geometry", "hints", "id", "kind", "role", "visuals")
+_POINTS = ("tip", "butt", "muzzle", "grip", "support")
+_HEX16 = re.compile(r"^[0-9a-f]{16}$")
+_DRIVE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]")
+_PUBLIC_APPROVAL_KEY = "weapons_public_icons_approved"
+SNAPSHOTS_DIRNAME = "snapshots"  # <catalogs>/weapons/snapshots/: the default output folder (spec 3.1)
+_UNSAFE_STEM = re.compile(r'[\\/:*?"<>|\x00-\x1f]')  # path separators, drive/stream colon, wildcards, control chars
+
+
+# -- item-frame bake --------------------------------------------------------------------------------------
+
+
+def _rows(basis) -> list[tuple[int, int]]:
+    """``[(source axis, sign)]`` per row of a signed-permutation ``item_basis``; ValueError otherwise."""
+    out = []
+    for row in basis:
+        nz = [(i, int(v)) for i, v in enumerate(row) if v]
+        if len(nz) != 1 or abs(nz[0][1]) != 1:
+            raise ValueError(f"item_basis row {row!r} is not a signed axis")
+        out.append(nz[0])
+    if sorted(i for i, _ in out) != [0, 1, 2]:
+        raise ValueError(f"item_basis {basis!r} does not permute the axes")
+    return out
+
+
+def _det(basis) -> int:
+    m = [[int(v) for v in row] for row in basis]
+    return (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+            - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]))
+
+
+def _apply(rows: list[tuple[int, int]], p: list[float]) -> list[float]:
+    """``item_basis * p``; ``+ 0.0`` turns a negated zero back into 0.0 so the bytes cannot flip."""
+    return [sign * p[axis] + 0.0 for axis, sign in rows]
+
+
+def bake_item_frame(geometry: dict) -> dict:
+    """The geometry block in the item frame (forward +Z, up +Y); a new dict, the input is not modified."""
+    rows = _rows(geometry["item_basis"])
+    out = deepcopy(geometry)
+    out["frame"] = "item"
+    for key in _POINTS:
+        if geometry.get(key) is not None:
+            out[key] = _apply(rows, geometry[key])
+    b = geometry["bounds"]
+    lo, hi = _apply(rows, b["min"]), _apply(rows, b["max"])
+    new_min = [min(a, c) for a, c in zip(lo, hi)]
+    new_max = [max(a, c) for a, c in zip(lo, hi)]
+    out["bounds"] = {
+        "min": new_min, "max": new_max,
+        "size": [b["size"][axis] for axis, _ in rows],  # a permutation of the measured size: no re-subtraction
+        # the pivot label is relative to a y-up box, so it is re-derived in the item frame
+        "pivot": pivot_from_aabb(new_min, new_max),
+    }
+    return out
+
+
+# -- snapshot ---------------------------------------------------------------------------------------------
+
+
+def _filter_files(files: dict, engines: set[str]) -> dict:
+    if "all" in engines:
+        return deepcopy(files)
+    keep = {k for e in engines for k in ENGINE_FILE_KEYS[e]}
+    return {k: deepcopy(v) for k, v in files.items() if k in keep}
+
+
+def _public_record(rec: dict) -> dict:
+    geom = rec["geometry"]
+    return {
+        "id": rec["id"], "kind": rec["kind"], "role": rec["role"], "archetype": rec["archetype"],
+        "genre": rec["genre"], "family": rec["family"], "hints": deepcopy(rec["hints"]),
+        "geometry": {"length_m": geom["length_m"] if geom else None},
+        "visuals": {"icon": rec["visuals"]["icon"], "thumb": rec["visuals"]["thumb"]},
+    }
+
+
+def _private_record(rec: dict, engines: set[str], frame: str) -> dict:
+    out = deepcopy(rec)
+    out["files"] = _filter_files(rec["files"], engines)
+    if frame == "item" and rec["geometry"] is not None:
+        out["geometry"] = bake_item_frame(rec["geometry"])
+    return out
+
+
+def export_snapshot(
+    directory: dict, *, game: str, pack_ids: set[str] | None, ids: set[str] | None, roles: set[str],
+    engines: set[str], frame: str, profile: str, pack_meta: dict[str, dict], rules_digest: str,
+    overrides_digest: str,
+) -> dict:
+    """The snapshot document (spec 3.10). ``engines`` holds CLI engine names (godot, unity, threejs, all)."""
+    chosen = [
+        w for w in directory["weapons"]
+        if (pack_ids is None or w["pack"] in pack_ids) and (ids is None or w["id"] in ids) and w["role"] in roles
+    ]
+    chosen.sort(key=lambda w: w["id"])
+    if profile == "public":
+        weapons = [_public_record(w) for w in chosen]
+    else:
+        weapons = [_private_record(w, engines, frame) for w in chosen]
+    packs = sorted(pack_ids) if pack_ids is not None else sorted({w["pack"] for w in chosen})
+    return {
+        "schema_version": 1,
+        "generated_from": {
+            "tool": f"synty-inventory {__version__}",
+            "weapon_version": directory["weapon_version"],
+            "geometry_version": directory["geometry_version"],
+            "rules_digest": rules_digest,
+            "overrides_digest": overrides_digest,
+            "packs": [
+                {"pack": p, "scanned_at": (pack_meta.get(p) or {}).get("scanned_at"),
+                 "asset_count": (pack_meta.get(p) or {}).get("asset_count")}
+                for p in packs
+            ],
+            "filter": {"game": game, "roles": sorted(roles), "engines": sorted({ENGINE_LABEL[e] for e in engines}),
+                       "frame": frame},
+        },
+        "weapons": weapons,
+    }
+
+
+# -- validation -------------------------------------------------------------------------------------------
+
+
+def _strings(obj):
+    if isinstance(obj, str):
+        yield obj
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            yield k
+            yield from _strings(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from _strings(v)
+
+
+def _leaks(doc) -> list[str]:
+    """Drive letters, backslashes, absolute paths and the machine's hostname anywhere in the document."""
+    host = socket.gethostname().strip()
+    host_re = re.compile(rf"(?<![A-Za-z0-9]){re.escape(host)}(?![A-Za-z0-9])", re.IGNORECASE) if len(host) >= 4 else None
+    out: list[str] = []
+    for s in _strings(doc):
+        if _DRIVE.search(s):
+            out.append(f"drive-letter path: {s[:80]!r}")
+        elif "\\" in s:
+            out.append(f"backslash path: {s[:80]!r}")
+        elif s.startswith(("/", "~", "file:")):
+            out.append(f"absolute path: {s[:80]!r}")
+        elif host_re and host_re.search(s):
+            out.append(f"hostname: {s[:80]!r}")
+    return out
+
+
+def _check_geometry(geom: dict, frame: str, where: str) -> list[str]:
+    errs: list[str] = []
+    if geom["frame"] != frame:
+        errs.append(f"{where}.geometry.frame: {geom['frame']!r} != filter.frame {frame!r}")
+    try:
+        _rows(geom["item_basis"])
+        if _det(geom["item_basis"]) != 1:
+            errs.append(f"{where}.geometry.item_basis: not a rotation (determinant != 1)")
+    except ValueError as exc:
+        errs.append(f"{where}.geometry.item_basis: {exc}")
+    b = geom["bounds"]
+    if any(lo > hi + 1e-9 for lo, hi in zip(b["min"], b["max"])):
+        errs.append(f"{where}.geometry.bounds: min exceeds max")
+    if frame == "item" and geom["tip"] is not None and geom["tip"][2] < geom["butt"][2] - 1e-4:
+        errs.append(f"{where}.geometry: item frame must point forward along +Z (tip.z < butt.z)")
+    return errs
+
+
+def _record_errors(rec: dict, where: str) -> list[str]:
+    """``validate_record`` violations of one snapshot record, with ``files.glb_scale`` checked here.
+
+    The weapon/1 JSON schema (weapons/schema.py) types every ``files.*`` value as null, string or string list, so it
+    rejects the numeric ``glb_scale`` that AC26/AC37 let a threejs snapshot carry. Until the schema learns the key,
+    the factor is validated here (a finite number > 0) and hidden from the schema check; every other violation is
+    reported as before.
+    """
+    files = rec.get("files")
+    if not (isinstance(files, dict) and "glb_scale" in files):
+        return [f"{where}: {e}" for e in validate_record(rec)]
+    scale = files["glb_scale"]
+    errs: list[str] = []
+    if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not (0 < scale < float("inf")):
+        errs.append(f"{where}.files.glb_scale: must be a finite number greater than 0, got {scale!r}")
+    view = {**rec, "files": {k: v for k, v in files.items() if k != "glb_scale"}}
+    return errs + [f"{where}: {e}" for e in validate_record(view)]
+
+
+def check_snapshot(doc) -> list[str]:
+    """Shape, frame, sortedness, engine filter and path-leakage violations of a snapshot document."""
+    if not isinstance(doc, dict):
+        return ["snapshot: top level must be an object"]
+    if sorted(doc) != ["generated_from", "schema_version", "weapons"]:
+        return [f"snapshot: top-level keys must be exactly schema_version, generated_from, weapons (got {sorted(doc)})"]
+    errs: list[str] = []
+    if doc["schema_version"] != 1:
+        errs.append(f"schema_version: expected 1, got {doc['schema_version']!r}")
+    gf = doc["generated_from"]
+    if not isinstance(gf, dict) or sorted(gf) != sorted(
+            ["tool", "weapon_version", "geometry_version", "rules_digest", "overrides_digest", "packs", "filter"]):
+        return errs + ["generated_from: keys must be tool, weapon_version, geometry_version, rules_digest, "
+                       "overrides_digest, packs, filter"]
+    if not (isinstance(gf["tool"], str) and gf["tool"].startswith("synty-inventory ")):
+        errs.append("generated_from.tool: must read 'synty-inventory <version>'")
+    for key in ("weapon_version", "geometry_version"):
+        if not (isinstance(gf[key], int) and gf[key] >= 1):
+            errs.append(f"generated_from.{key}: must be a positive integer")
+    for key in ("rules_digest", "overrides_digest"):
+        if not (isinstance(gf[key], str) and _HEX16.match(gf[key])):
+            errs.append(f"generated_from.{key}: must be 16 lower-case hex characters")
+    packs = gf["packs"]
+    if not (isinstance(packs, list) and all(
+            isinstance(p, dict) and sorted(p) == ["asset_count", "pack", "scanned_at"] for p in packs)):
+        errs.append("generated_from.packs: must be a list of {pack, scanned_at, asset_count}")
+    elif [p["pack"] for p in packs] != sorted(p["pack"] for p in packs):
+        errs.append("generated_from.packs: must be sorted by pack")
+    flt = gf["filter"]
+    if not (isinstance(flt, dict) and sorted(flt) == ["engines", "frame", "game", "roles"]):
+        return errs + ["generated_from.filter: keys must be exactly game, roles, engines, frame"]
+    frame = flt["frame"]
+    if frame not in FRAMES:
+        errs.append(f"generated_from.filter.frame: {frame!r} not in {list(FRAMES)}")
+    if not (isinstance(flt["game"], str) and flt["game"]):
+        errs.append("generated_from.filter.game: must be a non-empty string")
+    if not (isinstance(flt["roles"], list) and set(flt["roles"]) <= set(ROLES) and flt["roles"] == sorted(flt["roles"])):
+        errs.append("generated_from.filter.roles: must be a sorted list of roles")
+    labels = set(ENGINE_LABEL.values())
+    if not (isinstance(flt["engines"], list) and set(flt["engines"]) <= labels and flt["engines"]):
+        errs.append(f"generated_from.filter.engines: must be a non-empty list drawn from {sorted(labels)}")
+    weapons = doc["weapons"]
+    if not isinstance(weapons, list):
+        return errs + ["weapons: must be a list"]
+    ids = [w.get("id") if isinstance(w, dict) else None for w in weapons]
+    if None in ids:
+        return errs + ["weapons: every entry must be an object with an id"]
+    if len(set(ids)) != len(ids):
+        errs.append("weapons: duplicate ids")
+    if ids != sorted(ids):
+        errs.append("weapons: must be sorted by id")
+    public = ["files" not in w for w in weapons]
+    if any(public) and not all(public):
+        errs.append("weapons: public-profile and full records are mixed")
+    for i, w in enumerate(weapons):
+        where = f"weapons[{i}]"
+        if isinstance(flt.get("roles"), list) and w.get("role") not in flt["roles"]:
+            errs.append(f"{where}.role: {w.get('role')!r} not in filter.roles")
+        if "files" not in w:  # public profile: exactly the public key list (INV-11)
+            if sorted(w) != sorted(PUBLIC_KEYS):
+                errs.append(f"{where}: public record keys must be exactly {list(PUBLIC_KEYS)}")
+            elif sorted(w["geometry"] or {}) != ["length_m"] or sorted(w["visuals"] or {}) != ["icon", "thumb"]:
+                errs.append(f"{where}: public geometry/visuals may carry only length_m / icon, thumb")
+            continue
+        errs += _record_errors(w, where)
+        if w.get("geometry") and frame in FRAMES:
+            errs += _check_geometry(w["geometry"], frame, where)
+        engines = set(flt["engines"]) if isinstance(flt["engines"], list) else set()
+        if engines and "all" not in engines:
+            allowed = {k for lab, e in (("godot", "godot"), ("unity", "unity"), ("glb", "threejs"))
+                       if lab in engines for k in ENGINE_FILE_KEYS[e]}
+            extra = sorted(set(w["files"]) - allowed)
+            if extra:
+                errs.append(f"{where}.files: keys {extra} are outside the engine filter {sorted(engines)}")
+    errs += [f"leak: {m}" for m in _leaks(doc)]
+    return errs
+
+
+def validate_snapshot(path) -> list[str]:
+    """Violations of a snapshot file: unreadable JSON, non-canonical bytes, then ``check_snapshot``."""
+    path = Path(path)
+    try:
+        raw = path.read_bytes()
+        doc = json.loads(raw.decode("utf-8"))
+    except (OSError, ValueError) as exc:
+        return [f"snapshot unreadable: {exc}"]
+    errs = check_snapshot(doc)
+    if b"\r" in raw:
+        errs.append("file: must use LF line endings")
+    elif raw != to_text(doc).encode("utf-8"):
+        errs.append("file: not in canonical form (sorted keys, 1-space indent, trailing newline)")
+    return errs
+
+
+# -- CLI --------------------------------------------------------------------------------------------------
+
+
+def _public_approved(args) -> bool:
+    """``weapons_public_icons_approved: true`` in config.yaml (not a path, so it is not in ``cfg``; spec B-1)."""
+    path = find_config_file(getattr(args, "config", None))
+    if path is None:
+        return False
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return False
+    return isinstance(data, dict) and data.get(_PUBLIC_APPROVAL_KEY) is True
+
+
+def _repo_root() -> Path | None:
+    """This checkout (INV-1: a snapshot never lands in the public repo); a seam so tests can aim elsewhere."""
+    return repo_root()
+
+
+def _forbidden_roots(catalogs_dir: Path | None, cfg) -> list[Path]:
+    """Folders a snapshot must not land in. ``catalogs_dir=None`` leaves the catalogs folder out (the default output
+    ``<catalogs>/weapons/snapshots/`` is inside it by design, spec 3.1); the checkout and every pack root stay."""
+    roots = [catalogs_dir, _repo_root()]
+    roots += [v for k, v in cfg.items() if k != "catalogs" and isinstance(v, Path)]
+    return [r.resolve() for r in roots if r is not None]
+
+
+def default_snapshot_path(catalogs_dir: Path, game: str) -> Path:
+    """``<catalogs>/weapons/snapshots/<game>.json``; ``game`` must be a safe file stem (no path parts)."""
+    from .directory import weapons_dir
+
+    if (not game or game != game.strip() or game in (".", "..") or game.endswith(".") or _UNSAFE_STEM.search(game)):
+        raise InputError(f"--game {game!r} cannot be used as a file name for the default snapshot; "
+                         "use a plain name (no path separators) or give --out")
+    return weapons_dir(catalogs_dir) / SNAPSHOTS_DIRNAME / f"{game}.json"
+
+
+def _read_ids(path: Path) -> set[str]:
+    """One id per line (blank lines and ``#`` comments ignored), or a JSON list of ids."""
+    if not path.is_file():
+        raise InputError(f"ids file not found: {path}")
+    text = path.read_text(encoding="utf-8")
+    if text.lstrip().startswith("["):
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise InputError(f"ids file is not valid JSON: {exc}") from exc
+        if not all(isinstance(i, str) for i in data):
+            raise InputError("ids file: every entry must be a string")
+        return set(data)
+    return {ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("#")}
+
+
+def _relocate_icons(snapshot: dict, src_base: Path, icons_dir: Path, out_file: Path) -> tuple[list, list[str]]:
+    """Point every icon/thumb at ``icons_dir/<pack>/<name>`` relative to the snapshot file.
+
+    Returns the ``(src, dst)`` copies to make and warnings. An icon whose file is missing becomes null (never a
+    path to nothing). Nothing is copied here, so a later validation failure leaves the disk untouched.
+    """
+    import os
+
+    copies: dict[Path, Path] = {}
+    warnings: list[str] = []
+
+    def move(rec_id: str, pack: str, holder: dict, key: str) -> None:
+        rel = holder.get(key)
+        if rel is None:
+            return
+        src = src_base / rel
+        if not src.is_file():
+            warnings.append(f"{rec_id}: {key} file missing, set to null")
+            holder[key] = None
+            return
+        dst = icons_dir / pack / Path(rel).name
+        try:
+            holder[key] = Path(os.path.relpath(dst, out_file.parent)).as_posix()
+        except ValueError as exc:  # another drive: no relative path exists
+            raise InputError(f"--icons-dir cannot be made relative to the snapshot file: {exc}") from exc
+        copies[src] = dst
+
+    for w in snapshot["weapons"]:
+        pack = w["id"].split("/", 1)[0]
+        vis = w["visuals"]
+        for key in ("icon", "thumb"):
+            move(w["id"], pack, vis, key)
+        for var in vis.get("variants") or []:
+            move(w["id"], pack, var, "icon")
+    return sorted(copies.items()), warnings
+
+
+@_guarded
+def cmd(args, cfg) -> int:
+    from .directory import load_directory, weapons_dir
+
+    engine = args.engine
+    engines = {engine}
+    frame, profile = args.frame, args.profile
+    if engine not in ENGINES or frame not in FRAMES or profile not in PROFILES:
+        raise InputError("bad --engine, --frame or --profile value")
+    roles_arg = _csv(args.roles) or ["whole"]
+    roles = set(ROLES) if "all" in roles_arg else set(roles_arg)
+    if not roles <= set(ROLES):
+        raise InputError(f"unknown role(s) {sorted(roles - set(ROLES))}; allowed: {list(ROLES)} or 'all'")
+
+    # B-1: the public profile is refused before anything else is read or touched
+    if profile == "public" and not _public_approved(args):
+        raise RefusalError(
+            f"--profile public is refused: set `{_PUBLIC_APPROVAL_KEY}: true` in config.yaml once Tom has confirmed "
+            "that public icon renders are licence-safe (spec B-1)")
+
+    catalogs_dir = _catalogs(args, cfg)
+    explicit = bool(args.export_out)
+    out_file = (Path(args.export_out) if explicit else default_snapshot_path(catalogs_dir, args.game)).resolve()
+    for root in _forbidden_roots(catalogs_dir if explicit else None, cfg):
+        if out_file == root or root in out_file.parents:
+            raise RefusalError(
+                "refusing to write a snapshot inside the catalogs dir, a pack root or this repository "
+                "(it is pack-derived data for a game's private repo, INV-1)", details={"root": root.name})
+    refuse_export_target(out_file, repo=_repo_root())  # this checkout, or a git repo that tracks *.synty* files
+
+    directory = load_directory(catalogs_dir)
+    problems = validate_directory(directory)
+    if problems:
+        raise SchemaError("the weapon directory violates weapon-directory/1:\n  " + "\n  ".join(problems[:25]),
+                          details={"errors": problems})
+    pack_meta = {p["pack"]: p for p in directory["packs"]}
+    pack_ids = ids = None
+    if args.packs:
+        pack_ids = set(_csv(args.packs) or [])
+        unknown = sorted(pack_ids - set(pack_meta))
+        if unknown:
+            raise InputError(f"unknown pack(s) in the directory: {', '.join(unknown)}", details={"unknown": unknown})
+    else:
+        ids = _read_ids(Path(args.ids_file))
+        absent = sorted(ids - {w["id"] for w in directory["weapons"]})
+        if absent:
+            raise InputError(f"{len(absent)} id(s) are not in the directory; a snapshot must not silently shrink",
+                             details={"missing": absent})
+
+    snapshot = export_snapshot(
+        directory, game=args.game, pack_ids=pack_ids, ids=ids, roles=roles, engines=engines, frame=frame,
+        profile=profile, pack_meta=pack_meta, rules_digest=directory["rules_digest"],
+        overrides_digest=directory["overrides_digest"],
+    )
+    copies: list = []
+    warnings: list[str] = []
+    if args.icons_dir:
+        copies, warnings = _relocate_icons(snapshot, weapons_dir(catalogs_dir), Path(args.icons_dir).resolve(),
+                                           out_file)
+    errors = check_snapshot(snapshot)
+    if errors:
+        raise SchemaError("the snapshot violates the export contract:\n  " + "\n  ".join(errors[:25]),
+                          details={"errors": errors})
+    for src, dst in copies:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dst)
+    write_text_lf(out_file, to_text(snapshot))
+    _emit({"ok": True, "weapons": len(snapshot["weapons"]), "packs": [p["pack"] for p in snapshot["generated_from"]["packs"]],
+           "frame": frame, "profile": profile, "icons_copied": len(copies), "warnings": warnings})
+    return EXIT_OK
