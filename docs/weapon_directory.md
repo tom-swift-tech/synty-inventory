@@ -64,6 +64,7 @@ src/synty_inventory/weapons/
   icons.py           icon pipeline + icon_harness/ (html + js) (§3.8)
   review.py          review page + corrections (§3.9)
   export.py          per-game snapshot + public profile (§3.10)
+  guards.py          process lock for build/icons, export-target refusal (§7; PATCH W6)
 src/synty_inventory/data/weapon_rules.yaml       name-pattern + threshold tables (human-edited, commented)
 src/synty_inventory/data/weapon_overrides.json   corrections (machine-merged, sorted keys; §3.9)
 ```
@@ -94,10 +95,10 @@ synty-inventory weapons build    [--pack CSV] [--rebuild] [--no-geometry] [--rep
 synty-inventory weapons show     ID                      # ID = "<pack>/<asset_id>"; bare asset_id allowed iff unique
 synty-inventory weapons list     [--pack CSV] [--kind K] [--role R] [--archetype A] [--genre G]
                                  [--status auto|reviewed|overridden] [--max-confidence F] [--limit N]
-synty-inventory weapons icons    [--pack CSV] [--ids CSV] [--size 256] [--rebuild] [--variants]
+synty-inventory weapons icons    [--pack CSV] [--ids CSV] [--size 256] [--rebuild] [--variants] [--gpu]
 synty-inventory weapons review   [--out DIR] [--pack CSV] [--only-unreviewed] [--max-confidence F]
 synty-inventory weapons apply-corrections FILE [--dry-run]
-synty-inventory weapons export   --game NAME (--packs CSV | --ids-file FILE) --out FILE
+synty-inventory weapons export   --game NAME (--packs CSV | --ids-file FILE) [--out FILE]
                                  [--roles whole,part,...|all] [--engine godot|unity|threejs|all]
                                  [--frame item|asset] [--icons-dir DIR] [--profile private|public]
 synty-inventory weapons validate [--directory FILE] [--snapshot FILE]
@@ -113,7 +114,7 @@ violation in an input or output file.
 ```python
 # weapons/__init__.py
 WEAPON_VERSION = 1             # classification + hints; bump invalidates directory.json
-WEAPON_GEOMETRY_VERSION = 3    # geometry algorithm; bump invalidates _geometry_cache.json entries
+WEAPON_GEOMETRY_VERSION = 4    # geometry algorithm; bump invalidates _geometry_cache.json entries
 
 def build_directory(catalogs_dir: Path, *, packs: list[str] | None = None, rules: dict | None = None,
                     overrides: dict | None = None, measure: bool = True,
@@ -293,6 +294,13 @@ and scale handling as footprint, so shared-GLB `glb_node` lists and the 100x-sma
 hulls are excluded with `naming.SKIP_STEM_RE`. All coordinates are **asset-local metres**, the space of the catalog's
 `bounds` (never re-centred). Cache key = `glb_measure._cache_key` + `WEAPON_GEOMETRY_VERSION` + node tag + scale tag.
 
+> **PATCH (W2f, 2026-10-16): cache self-invalidation.** A geometry rule change without a version bump served stale
+> cached measurements. Each cache entry now carries `"<WEAPON_GEOMETRY_VERSION>+<12 hex>"`, the 12 hex being the
+> sha256 of `geometry.py` with CRLF normalised to LF, so an edit to the file invalidates every entry by itself.
+> `directory.json` `generated_from.geometry_version` stays the plain integer (now 4). Known limit: the digest covers
+> `geometry.py` only, not helpers it imports (`glb_geometry`, `naming`, `glb_scale`); a change there still needs a
+> manual `WEAPON_GEOMETRY_VERSION` bump or `--rebuild`.
+
 #### 3.5.1 Why an axes block
 
 Survey (aggregate, 1,176 whole weapons with bounds): firearms are long on **+Z** with the barrel toward +Z, the
@@ -324,6 +332,25 @@ own axes; `export` bakes the rotation into the item frame by default (`--frame i
      > sections, unverified. Live effect: 17 whole firearms flipped to `+z`. Known residue: 10 whole ranged records
      > stay `-z` because their pivot decided (3 clearly wrong rocket launchers, 3 ambiguous ones, 2 bunker guns and
      > 2 tripods whose direction is meaningless); they are handled by overrides or exclusion, not by this rule.
+
+     > **PATCH (W2f, 2026-10-16): head-forward rule (geometry version 4).** Hand-checking 16 mid-origin melee on the live
+     > set found 6 with the tip/head pointing the wrong way: the "smaller end cross-section" test mistakes a flared
+     > butt or pommel for a head. For `kind == melee` on a record whose forward came from this step (origin in the
+     > middle band, `forward_source = "section"`) and whose archetype is a *headed* one (`_HEAD_FORWARD` in
+     > `geometry.py`: axe, mace, hammer, club, staff, tool, polearm), forward points to the end whose **lateral AABB extent over the outer 25 % of the length is
+     > larger**, provided the ratio between the two ends is at least 1.15 (`_HEAD_RATIO`; `_HEAD_FRAC = 0.25`). Below
+     > the ratio the old `_section_sign` decides. The source stays `"section"` and `forward_by_fallback` stays set. Not
+     > covered, on purpose (reversible, one entry each in `_HEAD_FORWARD`):
+     > - **spear** (incl. trident, fishing spear): excluded after the hand check. Reversible: seven live ids would flip
+     >   if it were added back (Ancient_Egypt Spear_01, Goblin_War_Camp Prop_Spear_02 and Spear_01, Pirate_Realm
+     >   Trident_01, Viking_Realm Spear_01 and Spear_02, Vikings FishingSpear_01). Tom can re-enable the rule for spears
+     >   after looking at those seven.
+     > - **sword and knife**: on pivot-sourced records the larger-end rule agrees with the pivot sign only 43 % / 51 % of
+     >   the time, no better than chance, so it is not applied.
+     > - `Wrench_01` is symmetric end to end and keeps the old sign.
+     >
+     > Effect on the live set: the known-wrong ids of the 16-record hand check are fixed, and the forward flips moved 24
+     > records into review (`axes_unexpected`). A per-id `forward` override (§3.9) remains the way to fix any residue.
   3. `bow`: `axes.up` = the long axis; `forward` = the larger of the remaining two axes, sign away from the origin,
      `forward_source = "bow_rule"`, always flagged `forward_by_fallback` (a bow's arrow direction is not recoverable
      from the mesh alone). `crossbow` follows the firearm rule.
@@ -415,6 +442,15 @@ For a +Z-forward, +Y-up gun this is identical to sit_weapons' rule. AC12 holds t
   > 5. Else the pivot fallback, unchanged. Geometry version 3.
   > Accuracy gate (AC40): a labelled synthetic set, and a hand-checked live sample with the displacement of the grip
   > from the pivot reported (p50 / p90 / max).
+  >
+  > **PATCH (W2d2/W2f, 2026-10-16): butt inset and live grip check.** A grip centred on a handle run could sit at the
+  > very end of the butt, where a hand cannot close. The melee grip's forward coordinate is clamped to at least
+  > `fmin + min(0.045, flen / 2)` (`_GRIP_BUTT_INSET_M`; 0.045 m is half the sit_melee `bat_hand_gap_m` of 0.09 m, one
+  > hand width); the lateral coordinates and `grip_r_m` are unchanged. Live hand check after the change: the grip lies
+  > on the handle or shaft for 15 of 16 sampled mid-origin melee. Known limit: on scythes (a polearm) and other long poles the
+  > pivot-anchored rule leaves the grip where the designer put the pivot, which can be far from where a hand would
+  > hold it. **Future option, not built:** per-id grip overrides in `weapon_overrides.json` (like the `forward`
+  > override, §3.9) for those cases; nothing in this spec depends on it.
 - Ranged one_hand / long_gun: `grip` = the origin (`grip_source: "pivot"`): the survey shows the pivot at the
   pistol grip for guns (laterally centred, 17-35 % from the rear). `grip_r_m` = null. This is **assumption A-grip**
   (§8 NB-6), validated in build slice W2 against the hand-tuned `pos` values of the Synty Military guns that
@@ -488,6 +524,18 @@ in slice W5, not W3. A record with unknown colourway (no `unity_materials`, ~16 
 > `.tga` the harness cannot load, a missing tree) is a per-variant failure with its reason, its stale files are
 > deleted (INV-8), and `icon` goes back to null.
 
+> **PATCH (W6, 2026-10-16): `visually_identical`.** About 60 % of the colourways in a 60-id live sample are pixel
+> duplicates of the default (113 of 189 pairs differ by exactly 0), so a picker listing them is noise. Every
+> `variants[]` entry whose default and variant PNGs both exist gets `visually_identical: bool`, computed from the PNGs
+> on disk after each render: the share of covered pixels (alpha > 0 in either image) whose largest RGBA channel
+> difference exceeds 12/255 is below `VISUALLY_IDENTICAL_MAX_SHARE = 0.005`. The variant is kept (the data says the
+> colourway exists); the flag lets a consumer hide it. Threshold choice: in that sample nothing lies between 0 and
+> 0.0055; four pairs sit at 0.0055-0.0062 (Shield_01 B/C, and Staff_01 B/C whose only difference is a 13-pixel gem) and
+> the next cluster starts at 0.035. Any value below 0.0055 gives the same result on this data, and a false "identical"
+> hides a real small-decal colourway, so the stricter 0.005 is kept. The flag is carried across a directory rebuild
+> only while the icon link itself is carried. A default re-render without `--variants` leaves the variant flags stale
+> until the next `icons --variants`.
+
 ### 3.8 Icon pipeline
 
 Render options, evaluated:
@@ -520,6 +568,15 @@ Framing (so a 1.4 m rifle is not a sliver and a 0.2 m pistol is not tiny):
 - Determinism: the *metadata* (paths, input hash) is deterministic; PNG bytes depend on the GPU/ANGLE backend and
   are not byte-compared across machines. The renderer is launched with a software ANGLE/SwiftShader backend by
   default so repeated runs on one machine are byte-identical (AC17); `--gpu` opts out.
+
+> **PATCH (W6, 2026-10-16): blank renders.** Some alpha-masked materials (MASK, `alphaTest > 0`) render fully
+> transparent in the harness (the Mech Shotgun default icon was an empty PNG). A render whose pixels are all alpha 0 is
+> retried once with every MASK material forced to BLEND; success is recorded as `visuals.icon_mode = "blend_retry"`
+> (the same key on a `variants[]` entry; absent for a normal render, carried across a rebuild only when it is
+> `"blend_retry"`). If the retry is still blank the asset fails with reason `blank_render`, no PNG is kept (INV-8), and
+> it is listed in `report.failed`. `ICON_HARNESS_VERSION` stays 1, so previously cached icons are not re-checked: a
+> pre-W6 blank icon needs `--rebuild` to be retried. `icons` refuses to start beside another inventory process (§7).
+> `--gpu` is accepted by the `icons` command (it was documented but not wired).
 
 ### 3.9 Review page and corrections
 
@@ -593,6 +650,12 @@ not touch (see §4.1). Games are the export's only consumer, and `sit_armory` re
 snapshot whose frame is not `item` (its ARM_E05). `--frame asset` is opt-in: it leaves geometry in the asset-local
 space of the directory (`geometry.frame = "asset"`) with `axes` + `item_basis` for a consumer that rotates itself.
 `directory.json` always stores the asset frame; the frame is chosen only at export.
+
+> **PATCH (W6, 2026-10-16): export target.** `--out` is optional; the default is
+> `<catalogs>/weapons/snapshots/<game>.json` (`<game>` must be a plain name; a path-like or empty name exits 2). That
+> default is a staging file under the generated sidecar, never committed; a game copies it into its own private repo.
+> An explicit `--out` is refused with exit 3 when it lies inside this checkout or inside any git work tree that tracks
+> `*.synty*` files, so a pack-derived snapshot cannot be written into a public repo by accident (INV-1).
 
 **Public profile** (`--profile public`, for an external storefront): emits only `id`, `kind`, `role`, `archetype`,
 `genre`, `family`, `hints`, `geometry.length_m`, `visuals.icon`/`thumb`; no `files`, no bounds, no points, no
@@ -988,6 +1051,33 @@ Determinism, additivity, live gates
   shaft for at least 9 of 10; the share of melee with `grip_source == "handle"` and the displacement of the grip
   from the pivot (p50 / p90 / max) are reported before and after (480 of 775 were `pivot`).
 
+- AC41. Butt inset. A synthetic melee whose labelled handle run reaches the butt face has `grip` at least
+  `min(0.045, flen/2)` m from the butt face along the long axis (literal bounds in the test, not the constant); a mesh
+  shorter than 0.09 m clamps to half its length; lateral coordinates and `grip_r_m` are identical with and without the
+  clamp.
+- AC42. Head-forward rule. On synthetic mid-origin headed melee (axe, mace, hammer, club) with the head at the `-` end,
+  `forward` points to the head and `forward_source == "section"`; with an end ratio below 1.15 the old section sign is
+  kept; spear, sword, knife and a symmetric wrench are unchanged by the rule. Removing the rule makes the headed cases
+  fail.
+- AC43. Cache digest. Editing `geometry.py` (a one-byte change in a copy of the module) changes the cache entry version
+  string and a cached result is not served; a CRLF-to-LF difference alone does not change it;
+  `generated_from.geometry_version` is the plain integer 4.
+- AC44. Blank render. A synthetic MASK-material GLB that renders empty is retried with BLEND and gets
+  `visuals.icon_mode == "blend_retry"` with a non-empty PNG; a GLB that stays blank fails with `blank_render`, keeps no
+  PNG and appears in `report.failed`; a normal render has no `icon_mode` key; a `directory.json` rebuild keeps the key.
+- AC45. `visually_identical`. For a synthetic default/variant pair whose PNGs differ in under 0.5 % of covered pixels
+  the variant entry has `visually_identical: true`, for a pair above it `false`, and a variant with a missing PNG has
+  no key; the flag survives a directory rebuild (a strict test, not an xfail).
+- AC46. Process lock. With another `synty_inventory` python process in the (stubbed) process listing, `weapons build`
+  and `weapons icons` exit 2 naming its pid; a listing that raises does not block; `export`, `show`, `list` and
+  `validate` are not locked. The suite stubs the listing empty except in the guard's own tests.
+- AC47. Export refusals. `export --out` inside this checkout, or inside a git work tree that tracks a `*.synty*` file,
+  exits 3 and writes nothing; `--out` omitted writes `<catalogs>/weapons/snapshots/<game>.json`; a game name containing
+  a path separator or `..` exits 2.
+- AC48. `weapons icons --gpu` is accepted by the parser and drops the software-ANGLE flags from the renderer launch.
+- AC49. The synthetic `FAKE_*` fixture catalogs under `tests/fixtures/weapons/catalogs/` are tracked despite the
+  `*.synty*` ignore pattern (`.gitignore` negation); no pack-derived file is.
+
 ## 7. Failure modes
 
 - Catalog missing or unreadable for a requested pack -> exit 2 naming the pack; other packs unaffected only with
@@ -1007,12 +1097,17 @@ Determinism, additivity, live gates
 - Renderer unavailable or one asset fails to render -> exit 5 / that asset's `visuals.icon` stays null and is listed
   in `report.failed`; the batch continues; no placeholder (INV-8).
 - Icon cache poisoned or `icon_input_sha` mismatch -> re-rendered (not trusted).
-- Catalog re-scanned while a build runs -> `build` refuses to start if a `synty_inventory` python process is running
-  (same lesson as the footprint pass: both write cache files) -> exit 2 with the pid.
+- Catalog re-scanned while a build runs -> `build` and `icons` refuse to start if another `synty-inventory` /
+  `-m synty_inventory` / `synty_inventory.cli` python process is running (same lesson as the footprint pass: both
+  write cache files) -> exit 2 naming the pid. The process listing is PowerShell CIM on Windows or `/proc` on POSIX; if
+  the listing itself fails the guard does not block.
+- An icon render stays blank after the MASK-to-BLEND retry -> that asset fails with `blank_render` (listed in
+  `report.failed`, no PNG kept); the batch continues.
 - `export` filter names an unknown pack -> exit 2; an id absent from the directory -> exit 2 listing the ids (a game's
   snapshot must not silently shrink).
 - `export` output path inside a git repo that tracks `*.synty*` or inside this repo -> refuse (exit 3): the snapshot is
-  pack-derived and goes to a *game's* private repo, never here (INV-1).
+  pack-derived and goes to a *game's* private repo, never here (INV-1). The default target
+  (`<catalogs>/weapons/snapshots/<game>.json`) is exempt because it sits in the generated sidecar.
 - Two cataloged packs share an `id` but one mesh file (the `SM_Gen_Wep_*` kit) -> two records, the later one with
   `duplicate_of` set; no merge.
 - Pack missing from `pack_settings.yaml` -> genre falls back to archetype with a `genre_source` of `archetype` and a
@@ -1064,6 +1159,18 @@ Determinism, additivity, live gates
 - NB-15 `glb_node` records (7 in the survey) are assumed to have translation-only node transforms, so `node_offset` is
   enough to re-base them; verified in slice W2 on those records. A node with rotation or scale is flagged
   `node_transform` and not item-baked until Tom decides. Default: as stated.
+- NB-16 (build findings, 2026-10-16; none block, each is Tom's call):
+  - Spear is excluded from the head rule and can be re-enabled (7 live ids would flip; §3.5.2 PATCH W2f).
+  - Per-id grip overrides are a future option only (§3.5.5 PATCH W2d2/W2f).
+  - The firearm convention tiebreak (§3.5.2 PATCH W2c) is not a measured shape rule.
+  - `whole` records that are props rather than weapons exist (Knife_Holder, PikeFence).
+  - `unknown_share` and a null `quality_tier` are not reconciled.
+  - The default-colourway icon batch for the ~1,500 whole weapons is untimed against the AC32 90-minute budget; the
+    full ~6,000-render variant batch has not been run and is Tom's call (about 60 % of sampled variants are exact
+    duplicates, so `visually_identical` will flag most of them).
+  - Blank pre-W6 icons are not re-checked without `--rebuild`; a default re-render without `--variants` leaves variant
+    `visually_identical` flags stale.
+  - The geometry cache digest covers `geometry.py` only, not its helper modules.
 
 **Suggested build slices (non-binding; the plan stage decides):** W1 rules + candidates + classify + overrides +
 directory without geometry (AC1-10, 27-28); W2 geometry + muzzle parity + grip/support (AC11-16, NB-6/NB-7 probes);
