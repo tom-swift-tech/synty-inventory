@@ -27,6 +27,7 @@ from . import (
     STATUSES,
     WeaponsError,
 )
+from .guards import ensure_sole_runner
 
 # verb -> module that implements it (None = implemented in this file)
 _LATER_MODULES = {
@@ -100,6 +101,7 @@ def cmd_build(args, cfg) -> int:
     from .overrides import load_overrides
     from .rules import load_rules
 
+    ensure_sole_runner()  # exit 2 naming the pid when another inventory process runs: both write cache files
     catalogs_dir = _catalogs(args, cfg)
     packs = _csv(args.pack)
     rules = load_rules()
@@ -288,12 +290,14 @@ def register(sub) -> None:
     ls.add_argument("--limit", type=int, default=0, help="max rows (0 = all)")
     ls.set_defaults(func=cmd_list)
 
-    ic = wsub.add_parser("icons", help="Render 256/64 px icons (later slice)")
+    ic = wsub.add_parser("icons", help="Render 256/64 px icons")
     pack_opt(ic)
     ic.add_argument("--ids", default=None, help="comma list of <pack>/<asset_id>")
     ic.add_argument("--size", type=int, default=256)
     ic.add_argument("--rebuild", action="store_true")
     ic.add_argument("--variants", action="store_true")
+    ic.add_argument("--gpu", action="store_true",
+                    help="use the GPU's ANGLE backend instead of software SwiftShader; output bytes then depend on the machine")
     ic.set_defaults(func=lambda a, c: _not_built(a, c, "icons"))
 
     rv = wsub.add_parser("review", help="Write the static review page (later slice)")
@@ -313,7 +317,8 @@ def register(sub) -> None:
     grp = ex.add_mutually_exclusive_group(required=True)
     grp.add_argument("--packs", default=None, help="comma list of pack ids")
     grp.add_argument("--ids-file", dest="ids_file", default=None)
-    ex.add_argument("--out", dest="export_out", required=True, help="snapshot file (distinct from the global --out)")
+    ex.add_argument("--out", dest="export_out", default=None,
+                    help="snapshot file (distinct from the global --out); default <catalogs>/weapons/snapshots/<game>.json")
     ex.add_argument("--roles", default="whole")
     ex.add_argument("--engine", choices=("godot", "unity", "threejs", "all"), default="all")
     ex.add_argument("--frame", choices=("item", "asset"), default="item")

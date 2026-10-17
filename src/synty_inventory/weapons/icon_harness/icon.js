@@ -127,6 +127,23 @@ async function substituteAlbedo(meshes, url) {
   if (!replaced) throw new Error("the model has no base-colour texture to replace");
 }
 
+// Blank-render retry (spec 3.8): GLTFLoader turns a glTF MASK material into alphaTest > 0. When the base-colour alpha sits
+// under the cutoff every fragment is discarded and the picture is empty. Python asks for `forceBlend` only after such a
+// blank render: each drawn alphaTest material is then drawn as BLEND (no cutoff, transparent) instead.
+function forceBlendMaterials(meshes) {
+  const seen = new Set();
+  for (const mesh of meshes) {
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const mat of mats) {
+      if (!mat || seen.has(mat) || !(mat.alphaTest > 0)) continue;
+      seen.add(mat);
+      mat.alphaTest = 0;
+      mat.transparent = true;
+      mat.needsUpdate = true;
+    }
+  }
+}
+
 window.iconPrepare = async function iconPrepare(p) {
   disposeCurrent();
   if (MeshoptDecoder && MeshoptDecoder.ready) await MeshoptDecoder.ready;
@@ -142,6 +159,7 @@ window.iconPrepare = async function iconPrepare(p) {
     if (o.isMesh && !keptSet.has(o)) o.visible = false;
   });
   if (p.texture) await substituteAlbedo(kept, p.texture);
+  if (p.forceBlend) forceBlendMaterials(kept);
 
   // item_basis rows are the item-frame x, y, z axes expressed in asset space: item = B * asset. glb_scale is the
   // asset's size correction, applied about the GLB origin like load_triangles does.

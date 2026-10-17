@@ -45,6 +45,7 @@ _VEC3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems"
 _VEC3_NULL = {"anyOf": [_VEC3, {"type": "null"}]}
 _NUM_NULL = {"type": ["number", "null"]}
 _STR_NULL = {"type": ["string", "null"]}
+_ICON_MODE = {"type": "string", "enum": ["blend_retry"]}  # icons.ICON_MODE_BLEND (schema imports no sibling)
 _AXIS = {"type": "string", "pattern": "^[+-][xyz]$"}
 
 GEOMETRY_SCHEMA = {
@@ -158,12 +159,17 @@ WEAPON_SCHEMA = {
             "required": ["icon", "thumb", "icon_input_sha", "variants"],
             "properties": {
                 "icon": _STR_NULL, "thumb": _STR_NULL, "icon_input_sha": _STR_NULL,
+                # present only when the icon needed the BLEND retry (weapons icons, spec 3.8); absent for a normal render
+                "icon_mode": _ICON_MODE,
                 "variants": {"type": "array", "items": {
                     "type": "object",
                     "required": ["variant_id", "mechanism", "source", "is_default", "icon"],
                     "properties": {"variant_id": {"type": "string"}, "mechanism": {"type": "string"},
                                    "source": {"type": "string"}, "is_default": {"type": "boolean"},
-                                   "icon": _STR_NULL},
+                                   "icon": _STR_NULL, "icon_mode": _ICON_MODE,
+                                   # true when the colourway icon looks like the default icon; written on every variant
+                                   # that has an icon while the default icon exists
+                                   "visually_identical": {"type": "boolean"}},
                 }},
             },
         },

@@ -18,10 +18,18 @@ wfx = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(wfx)
 
 from synty_inventory.cli import build_parser, main  # noqa: E402
+from synty_inventory.weapons import guards  # noqa: E402
 from synty_inventory.weapons.schema import validate_directory, validate_record  # noqa: E402
 
 ROLES = {"whole", "part", "ammo", "carrier", "emplaced"}
 KINDS = {"ranged", "melee", "thrown", "shield", None}
+
+
+@pytest.fixture(autouse=True)
+def _no_other_inventory_runner(monkeypatch):
+    """`weapons build` refuses to start beside another inventory process (guards.ensure_sole_runner); a developer's own
+    live run must not fail these tests, and the process listing costs about a second per CLI call."""
+    monkeypatch.setattr(guards, "other_inventory_processes", lambda: [])
 ARCHETYPES = {
     "pistol", "revolver", "smg", "rifle", "shotgun", "sniper", "lmg", "heavy_gun", "launcher", "flamethrower",
     "bow", "crossbow", "utility_gun", "knife", "sword", "axe", "mace", "hammer", "club", "spear", "polearm",

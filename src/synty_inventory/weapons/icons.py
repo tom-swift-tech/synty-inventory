@@ -14,6 +14,12 @@ exits 5; a failed asset keeps ``visuals.icon: null`` and is listed under ``faile
 ``--variants`` (spec 3.7) adds one icon per colourway of an atlas-alt record: the same render with the albedo atlas
 swapped for the sibling material's texture (``variants.resolve_variant_texture``). Outputs sit beside the default
 icon as ``<id>@<L>.png`` / ``<id>@<L>@64.png`` and are cached on a hash that includes the texture file's bytes.
+
+A picture with no visible pixel is a failure, not an icon: a glTF MASK material whose base-colour alpha is under its
+cutoff discards every fragment. The render is then tried once more with MASK materials drawn as BLEND
+(``visuals.icon_mode = "blend_retry"``); a second blank result fails the asset with the error ``blank_render``.
+Every colourway icon is also compared with the default icon (``icon_difference``) and flagged ``visually_identical``
+when they look the same, so a shop does not list duplicates.
 """
 
 from __future__ import annotations
@@ -31,6 +37,7 @@ from urllib.parse import unquote, urlparse
 import numpy as np
 
 from . import EXIT_OK, EXIT_RENDERER, InputError, WeaponsError, digest, to_text, write_text_lf
+from .guards import ensure_sole_runner
 from .variants import TextureNotFound, resolve_variant_texture, variant_link_paths
 
 ICON_HARNESS_VERSION = 1  # bump when the harness, framing or encoding changes what a render looks like
@@ -38,6 +45,12 @@ ICONS_DIRNAME = "icons"
 THUMB_SIZE = 64
 MAX_SIZE = 1024
 FILL = 0.88  # the opaque bounding box fills this share of the long image edge (6 % padding each side)
+ICON_MODE_BLEND = "blend_retry"  # visuals.icon_mode of an icon that only appeared after MASK materials were forced to BLEND
+BLANK_RENDER = "blank_render"  # the error text of an asset that renders no visible pixel even after the retry
+# A colourway looks the same as the default icon when fewer than this share of the covered pixels differ by more than
+# ICON_DIFF_CHANNEL (of 255, max over straight RGBA channels). One named constant: it is calibrated on live data.
+VISUALLY_IDENTICAL_MAX_SHARE = 0.005
+ICON_DIFF_CHANNEL = 12
 AZIMUTH_DEG = 25.0  # fixed 3/4 view, the same for every icon so icons are comparable
 ELEVATION_DEG = 15.0
 HARNESS_DIR = Path(__file__).resolve().parent / "icon_harness"
@@ -211,26 +224,129 @@ def encode_png(rgba: np.ndarray) -> bytes:
             + chunk(b"IDAT", zlib.compress(rows.tobytes(), 9)) + chunk(b"IEND", b""))
 
 
+def decode_png(data: bytes) -> np.ndarray:
+    """An 8-bit RGBA, non-interlaced PNG (all five filter types) as an (h, w, 4) uint8 array; ``ValueError`` otherwise.
+
+    The inverse of ``encode_png`` for any conforming encoder. Pillow is not a core dependency, so this is numpy plus a
+    byte loop for the filters that need the left neighbour (Average and Paeth; Sub is a running sum).
+    """
+    if data[:8] != _PNG_SIG:
+        raise ValueError("not a PNG")
+    pos, idat, header = 8, [], None
+    while pos + 8 <= len(data):
+        (n,) = struct.unpack(">I", data[pos:pos + 4])
+        tag, body = data[pos + 4:pos + 8], data[pos + 8:pos + 8 + n]
+        pos += 12 + n
+        if tag == b"IHDR" and len(body) == 13:
+            header = struct.unpack(">IIBBBBB", body)
+        elif tag == b"IDAT":
+            idat.append(body)
+        elif tag == b"IEND":
+            break
+    if header is None or not idat:
+        raise ValueError("PNG without IHDR or IDAT")
+    w, h, depth, ctype, _comp, _filt, interlace = header
+    if (depth, ctype, interlace) != (8, 6, 0):
+        raise ValueError("only 8-bit RGBA, non-interlaced PNGs are supported")
+    try:
+        raw = zlib.decompress(b"".join(idat))
+    except zlib.error as exc:
+        raise ValueError(f"PNG data does not inflate: {exc}") from exc
+    stride = w * 4
+    if len(raw) != h * (stride + 1):
+        raise ValueError("PNG data has the wrong length")
+    out = np.zeros((h, stride), dtype=np.uint8)
+    prev = np.zeros(stride, dtype=np.int32)
+    for y in range(h):
+        ft = raw[y * (stride + 1)]
+        line = np.frombuffer(raw, np.uint8, stride, y * (stride + 1) + 1).astype(np.int32)
+        if ft == 0:
+            cur = line
+        elif ft == 1:  # Sub: each pixel adds the pixel on its left, per channel
+            cur = np.cumsum(line.reshape(w, 4), axis=0).reshape(stride) & 255
+        elif ft == 2:  # Up
+            cur = (line + prev) & 255
+        elif ft in (3, 4):
+            row, up = line.tolist(), prev.tolist()
+            cur_l = [0] * stride
+            for i in range(stride):
+                a = cur_l[i - 4] if i >= 4 else 0
+                b = up[i]
+                if ft == 3:
+                    pred = (a + b) >> 1
+                else:
+                    c = up[i - 4] if i >= 4 else 0
+                    p = a + b - c
+                    pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                    pred = a if pa <= pb and pa <= pc else (b if pb <= pc else c)
+                cur_l[i] = (row[i] + pred) & 255
+            cur = np.array(cur_l, dtype=np.int32)
+        else:
+            raise ValueError(f"unknown PNG filter type {ft}")
+        out[y] = cur
+        prev = cur.astype(np.int32)
+    return out.reshape(h, w, 4)
+
+
+def icon_difference(default_png, variant_png) -> float:
+    """Share of the covered pixels on which two icon PNGs differ visibly (0.0 = the same picture, 1.0 = nothing alike).
+
+    Covered = alpha > 0 in either image; visibly = the largest absolute difference over the straight R, G, B and A
+    channels is more than ``ICON_DIFF_CHANNEL`` (of 255). Two empty pictures do not differ (0.0). The PNGs must have the
+    same size (``ValueError`` otherwise, as for an unreadable PNG; a missing file raises ``OSError``).
+    """
+    a = decode_png(Path(default_png).read_bytes()).astype(np.int16)
+    b = decode_png(Path(variant_png).read_bytes()).astype(np.int16)
+    if a.shape != b.shape:
+        raise ValueError(f"icons differ in size: {a.shape[:2]} vs {b.shape[:2]}")
+    covered = (a[..., 3] > 0) | (b[..., 3] > 0)
+    n = int(covered.sum())
+    if n == 0:
+        return 0.0
+    visible = covered & (np.abs(a - b).max(axis=-1) > ICON_DIFF_CHANNEL)
+    return int(visible.sum()) / n
+
+
+def is_blank(px: np.ndarray) -> bool:
+    """True when no pixel of an RGBA image has alpha above 0 (nothing was drawn)."""
+    return not bool((px[..., 3] > 0).any())
+
+
+def _put(holder: dict, key: str, value) -> bool:
+    """Set ``holder[key]``, or drop the key when ``value`` is None; True when that changed anything."""
+    if value is None:
+        return holder.pop(key, None) is not None
+    if holder.get(key) != value or key not in holder:
+        holder[key] = value
+        return True
+    return False
+
+
 def apply_links(directory: dict, results: dict[str, dict], failed: set[str]) -> bool:
     """Write the icon links into the directory's records (in place); False when nothing changed.
 
-    A rendered or skipped record gets its three link fields; a failed one is reset to null even when an older file
-    exists (INV-8: no stale icon is presented as current). Every other field is untouched.
+    A rendered or skipped record gets its three link fields and its ``icon_mode`` (present only for a blend-retry icon;
+    the key is dropped when the result carries none, so a re-render that no longer needs the retry clears it). A failed
+    record is reset to null (and loses ``icon_mode``) even when an older file exists (INV-8: no stale icon is presented
+    as current). Every other field is untouched.
     """
     changed = False
     for rec in directory["weapons"]:
         vis = rec["visuals"]
         if rec["id"] in results:
-            want = {"icon": results[rec["id"]]["icon"], "thumb": results[rec["id"]]["thumb"],
-                    "icon_input_sha": results[rec["id"]]["sha256"]}
+            res = results[rec["id"]]
+            want = {"icon": res["icon"], "thumb": res["thumb"], "icon_input_sha": res["sha256"]}
+            mode = res.get("icon_mode")
         elif rec["id"] in failed:
             want = {"icon": None, "thumb": None, "icon_input_sha": None}
+            mode = None
         else:
             continue
         for key, value in want.items():
             if vis.get(key) != value:
                 vis[key] = value
                 changed = True
+        changed = _put(vis, "icon_mode", mode) or changed
     return changed
 
 
@@ -243,9 +359,11 @@ def variant_input_sha(default_sha: str, texture_sha256: str, variant_id: str) ->
 def apply_variant_links(directory: dict, links: dict[str, dict[str, dict]], failed: dict[str, set[str]]) -> bool:
     """Write colourway icon links into ``visuals.variants[]`` (in place); False when nothing changed.
 
-    ``links`` is ``id -> variant_id -> {icon, thumb, sha256}`` for rendered or still valid icons, ``failed`` is
-    ``id -> {variant_id}``: those go back to ``icon: null`` and lose their ``icon_input_sha`` (INV-8). A variant
-    with a link carries ``icon`` and ``icon_input_sha``; one without carries the five spec keys only.
+    ``links`` is ``id -> variant_id -> {icon, thumb, sha256[, icon_mode][, visually_identical]}`` for rendered or still
+    valid icons, ``failed`` is ``id -> {variant_id}``: those go back to ``icon: null`` and lose their
+    ``icon_input_sha``, ``icon_mode`` and ``visually_identical`` (INV-8). A variant with a link carries ``icon`` and
+    ``icon_input_sha``, plus ``icon_mode`` / ``visually_identical`` only when the link has them (a key the link lacks is
+    dropped); one without carries the five spec keys only.
     """
     changed = False
     for rec in directory["weapons"]:
@@ -253,17 +371,20 @@ def apply_variant_links(directory: dict, links: dict[str, dict[str, dict]], fail
         for var in rec["visuals"]["variants"]:
             letter = var["variant_id"]
             if letter in mine:
-                want = {"icon": mine[letter]["icon"], "icon_input_sha": mine[letter]["sha256"]}
+                link = mine[letter]
+                want = {"icon": link["icon"], "icon_input_sha": link["sha256"]}
+                extra = {"icon_mode": link.get("icon_mode"), "visually_identical": link.get("visually_identical")}
             elif letter in bad:
                 want = {"icon": None}
+                extra = {"icon_input_sha": None, "icon_mode": None, "visually_identical": None}
             else:
                 continue
             for key, value in want.items():
                 if var.get(key) != value:
                     var[key] = value
                     changed = True
-            if letter in bad and var.pop("icon_input_sha", None) is not None:
-                changed = True
+            for key, value in extra.items():
+                changed = _put(var, key, value) or changed
     return changed
 
 
@@ -423,10 +544,12 @@ class Renderer:
         return f"/tex/{key}"
 
     def render(self, glb: Path, nodes, scale: float, item_basis, shield: bool, size: int,
-               texture: Path | None = None) -> np.ndarray:
+               texture: Path | None = None, force_blend: bool = False) -> np.ndarray:
         """Premultiplied RGBA (``size`` x ``size`` x 4 uint8, top row first) of one GLB. Raises ``RenderError``.
 
         ``texture`` (a variant's atlas image) replaces the base-colour map of every drawn material that has one.
+        ``force_blend`` (the blank-render retry) draws every MASK material (alphaTest > 0) as BLEND; false leaves the
+        render exactly as it was before the option existed.
         """
         try:
             bounds = self._page.evaluate("p => window.iconPrepare(p)", {
@@ -434,6 +557,7 @@ class Renderer:
                 "itemBasis": [[int(c) for c in row] for row in item_basis],
                 "camDir": list(camera_direction(shield)),
                 "texture": self._tex_url(texture) if texture is not None else None,
+                "forceBlend": bool(force_blend),
             })
             frustum = fit_frustum(bounds["min"], bounds["max"])
             out = self._page.evaluate("p => window.iconRender(p)", {"frustum": frustum, "size": size})
@@ -466,6 +590,21 @@ def _check_size(size: int) -> None:
         raise InputError(f"--size must be a multiple of {THUMB_SIZE} between {THUMB_SIZE} and {MAX_SIZE}, got {size}")
 
 
+def _render_icon_pair(renderer, glb, nodes, scale, item_basis, shield, size, texture=None) -> tuple[bytes, bytes, str | None]:
+    """``(icon PNG, thumbnail PNG, icon_mode)`` of one render. A picture with no visible pixel is drawn once more with
+    MASK materials forced to BLEND (``icon_mode`` ``"blend_retry"``); still blank raises ``RenderError("blank_render")``.
+    A first render that shows something is used as it is (mode None) and the retry never runs."""
+    extra = {} if texture is None else {"texture": texture}
+    px = renderer.render(glb, nodes, scale, item_basis, shield, size, **extra)
+    mode = None
+    if is_blank(px):
+        px = renderer.render(glb, nodes, scale, item_basis, shield, size, **extra, force_blend=True)
+        if is_blank(px):
+            raise RenderError(BLANK_RENDER)
+        mode = ICON_MODE_BLEND
+    return encode_png(unpremultiply(px)), encode_png(unpremultiply(downsample(px, THUMB_SIZE))), mode
+
+
 def _write_atomic(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
@@ -479,12 +618,17 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
     """``id -> {icon, thumb, sha256}`` for every record that has an icon after the call (rendered or still valid).
 
     ``icon``/``thumb`` are relative to ``out_dir``'s parent (the directory.json folder); ``sha256`` is the input hash
-    (``visuals.icon_input_sha``). Raises ``RendererUnavailable`` before anything is written. ``report`` (optional)
-    receives ``rendered``, ``skipped`` and ``failed`` (``[{id, error}]``) so a caller can list them.
+    (``visuals.icon_input_sha``); ``icon_mode`` is present (``"blend_retry"``) only for an icon that needed the BLEND
+    retry, and a skipped icon keeps the mode stored in its record. Raises ``RendererUnavailable`` before anything is
+    written. ``report`` (optional) receives ``rendered``, ``skipped``, ``failed`` (``[{id, error}]``) and
+    ``blend_retry`` (the ids, variants as ``<id>@<L>``, that were rendered through the retry in this call; an asset
+    that is blank even then fails with the error ``blank_render``) so a caller can list them.
     With ``variants`` the colourway icons of every record's ``visuals.variants`` are rendered as well. They need
     ``extracted_root`` (the folder with one extracted tree per pack) to find each sibling texture; without it the
     call raises ``InputError``. Their outcome goes into ``report["variants"]`` = ``{rendered: ["<id>@<L>"],
-    skipped: [...], failed: [{id, variant, error}], links: {id: {L: {icon, thumb, sha256}}}}``; the return value
+    skipped: [...], failed: [{id, variant, error}], visually_identical: ["<id>@<L>"], links: {id: {L: {icon, thumb,
+    sha256[, icon_mode][, visually_identical]}}}}``; ``visually_identical`` is set on every link whose default icon
+    and colourway icon both exist (``icon_difference`` under ``VISUALLY_IDENTICAL_MAX_SHARE``); the return value
     stays the default icons only. Records without ``geometry`` or ``files.glb`` get no icon and are not mentioned.
     """
     _check_size(size)
@@ -503,6 +647,7 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
     vrendered: list[str] = []
     vskipped: list[str] = []
     vfailed: list[dict] = []
+    blend: list[str] = []
     listing_cache: dict = {}
     tex_sha: dict[Path, str] = {}
 
@@ -525,6 +670,8 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
         else:
             skipped.append(rec["id"])
             results[rec["id"]] = {"icon": icon_rel, "thumb": thumb_rel, "sha256": sha}
+            if (rec.get("visuals") or {}).get("icon_mode") == ICON_MODE_BLEND:  # the stored mode stays true
+                results[rec["id"]]["icon_mode"] = ICON_MODE_BLEND
         if variants:
             _plan_variants(rec, glb, sha, out_dir, Path(extracted_root), size, rebuild, listing_cache, tex_sha,
                            vtodo, vlinks, vskipped, vfailed)
@@ -536,10 +683,8 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
                 scale = float(files.get("glb_scale") or 1.0)
                 shield = rec.get("kind") == "shield" or rec.get("archetype") == "shield"
                 try:
-                    px = renderer.render(glb, _selection(files.get("glb_node")), scale,
-                                         rec["geometry"]["item_basis"], shield, size)
-                    big = encode_png(unpremultiply(px))
-                    small = encode_png(unpremultiply(downsample(px, THUMB_SIZE)))
+                    big, small, mode = _render_icon_pair(renderer, glb, _selection(files.get("glb_node")), scale,
+                                                         rec["geometry"]["item_basis"], shield, size)
                 except RenderError as exc:
                     failed.append({"id": rec["id"], "error": str(exc)})
                     for rel in (icon_rel, thumb_rel):  # no stale picture is left as if current (INV-8)
@@ -549,15 +694,17 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
                 _write_atomic(base_dir / thumb_rel, small)
                 rendered.append(rec["id"])
                 results[rec["id"]] = {"icon": icon_rel, "thumb": thumb_rel, "sha256": sha}
+                if mode:
+                    results[rec["id"]]["icon_mode"] = mode
+                    blend.append(rec["id"])
             for rec, glb, var, texture, vsha, icon_rel, thumb_rel in vtodo:
                 files = rec["files"]
                 shield = rec.get("kind") == "shield" or rec.get("archetype") == "shield"
                 letter = var["variant_id"]
                 try:
-                    px = renderer.render(glb, _selection(files.get("glb_node")), float(files.get("glb_scale") or 1.0),
-                                         rec["geometry"]["item_basis"], shield, size, texture=texture)
-                    big = encode_png(unpremultiply(px))
-                    small = encode_png(unpremultiply(downsample(px, THUMB_SIZE)))
+                    big, small, mode = _render_icon_pair(renderer, glb, _selection(files.get("glb_node")),
+                                                         float(files.get("glb_scale") or 1.0),
+                                                         rec["geometry"]["item_basis"], shield, size, texture=texture)
                 except RenderError as exc:
                     vfailed.append({"id": rec["id"], "variant": letter, "error": str(exc)})
                     for rel in (icon_rel, thumb_rel):  # no stale picture is left as if current (INV-8)
@@ -566,14 +713,40 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
                 _write_atomic(base_dir / icon_rel, big)
                 _write_atomic(base_dir / thumb_rel, small)
                 vrendered.append(f"{rec['id']}@{letter}")
-                vlinks.setdefault(rec["id"], {})[letter] = {"icon": icon_rel, "thumb": thumb_rel, "sha256": vsha}
+                link = vlinks.setdefault(rec["id"], {})[letter] = {"icon": icon_rel, "thumb": thumb_rel, "sha256": vsha}
+                if mode:
+                    link["icon_mode"] = mode
+                    blend.append(f"{rec['id']}@{letter}")
 
+    identical = _flag_identical(base_dir, results, vlinks) if variants else []
     if report is not None:
-        report.update(rendered=sorted(rendered), skipped=sorted(skipped), failed=failed)
+        report.update(rendered=sorted(rendered), skipped=sorted(skipped), failed=failed, blend_retry=sorted(blend))
         if variants:
             report["variants"] = {"rendered": sorted(vrendered), "skipped": sorted(vskipped),
-                                  "failed": sorted(vfailed, key=lambda f: (f["id"], f["variant"])), "links": vlinks}
+                                  "failed": sorted(vfailed, key=lambda f: (f["id"], f["variant"])),
+                                  "visually_identical": identical, "links": vlinks}
     return results
+
+
+def _flag_identical(base_dir: Path, results: dict[str, dict], vlinks: dict[str, dict[str, dict]]) -> list[str]:
+    """Set ``visually_identical`` on every colourway link whose default icon and own icon are both on disk (judged from
+    the PNGs, so skipped icons are covered and the answer does not depend on how the files got there). A pair that
+    cannot be compared (missing default, unreadable or differently sized PNG) gets no key. Returns the ``<id>@<L>`` that
+    look the same as the default icon, sorted."""
+    same: list[str] = []
+    for rid, per_letter in vlinks.items():
+        default = results.get(rid)
+        if default is None:
+            continue
+        for letter, link in per_letter.items():
+            try:
+                share = icon_difference(base_dir / default["icon"], base_dir / link["icon"])
+            except (OSError, ValueError):
+                continue
+            link["visually_identical"] = share < VISUALLY_IDENTICAL_MAX_SHARE
+            if link["visually_identical"]:
+                same.append(f"{rid}@{letter}")
+    return sorted(same)
 
 
 def _plan_variants(rec, glb, default_sha, out_dir, extracted_root, size, rebuild, listing_cache, tex_sha,
@@ -609,7 +782,9 @@ def _plan_variants(rec, glb, default_sha, out_dir, extracted_root, size, rebuild
             vtodo.append((rec, glb, var, texture, vsha, icon_rel, thumb_rel))
         else:
             vskipped.append(f"{rec['id']}@{letter}")
-            vlinks.setdefault(rec["id"], {})[letter] = {"icon": icon_rel, "thumb": thumb_rel, "sha256": vsha}
+            link = vlinks.setdefault(rec["id"], {})[letter] = {"icon": icon_rel, "thumb": thumb_rel, "sha256": vsha}
+            if var.get("icon_mode") == ICON_MODE_BLEND:  # a valid picture that is not drawn again keeps its mode
+                link["icon_mode"] = ICON_MODE_BLEND
 
 
 # --- CLI -----------------------------------------------------------------------------------------------------------
@@ -626,6 +801,7 @@ def _run(args, cfg) -> int:
     from .directory import DIRECTORY_NAME, EXCLUDED_NAME, read_json, weapons_dir
     from .schema import validate_directory
 
+    ensure_sole_runner()  # exit 2 naming the pid when another inventory process runs: both write cache files
     size = getattr(args, "size", 256)
     _check_size(size)
     root = check_renderer(cfg.get("synty_glb_root"))  # exit 5 before anything is read or written
@@ -684,11 +860,12 @@ def _run(args, cfg) -> int:
     summary = {
         "ok": True, "size": size, "rendered": report["rendered"], "skipped": report["skipped"],
         "failed": report["failed"], "no_geometry": sum(1 for w in chosen if w not in wanted),
+        "blend_retry": len(report["blend_retry"]),
         "directory": dpath.name, "directory_written": written,
     }
     if vreport is not None:
         summary["variants"] = {"rendered": vreport["rendered"], "skipped": vreport["skipped"],
-                               "failed": vreport["failed"]}
+                               "failed": vreport["failed"], "visually_identical": len(vreport["visually_identical"])}
     _emit(summary)
     return EXIT_OK
 
