@@ -12,6 +12,7 @@ geometry block plus the flags and reasons the measurement implies.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from copy import deepcopy
@@ -47,6 +48,13 @@ _SNAP_REACH_FRAC = 0.10  # a mid-origin snaps onto a counting run at most this s
 _SURFACE_STEP_M = 0.005  # e(bin) sees the surface: points along every triangle edge at most this far apart
 _SURFACE_MAX_SEGMENTS = 2000  # sanity cap per edge (an edge over 10 m is not a weapon mesh); keeps a garbage mesh bounded
 _SURFACE_CHUNK = 1 << 21  # sample points held at once
+# melee grip butt inset (W2f): the hand fist is centred on `grip` (sit_melee: the mesh point held in the fist), so a grip at
+# the very butt (a bat whose pivot is the end of the handle) leaves half the hand off the knob. The nearest sit_melee
+# constant is `bat_hand_gap_m` = 0.09 m, the distance between a bat's two hands (the upper hand sits one hand-width up
+# the shaft); half of it, 0.045 m, is fist centre to fist edge. `empty_fist_r` (0.012) and `default_shaft_r` (0.026) are
+# radii ACROSS the handle, not along it, so they do not apply. 0.09 m is also the adult palm width. For a very short item
+# the inset is capped at half the length.
+_GRIP_BUTT_INSET_M = 0.045
 _SUPPORT_AT = 0.62
 _SUPPORT_SLICE_M = 0.01
 _MUZZLE_TOLS_M = (0.001, 0.002, 0.005, 0.010)  # sit_weapons FACE_TOLS_M
@@ -55,6 +63,19 @@ _MUZZLE_MIN_POINTS = 3
 _MUZZLE_HEIGHT_FRAC = 0.75
 _OUTSIDE_EPS = 1e-4  # the origin counts as inside the AABB within the rounding unit
 _HEADED = ("axe", "mace", "hammer", "club")  # the larger end is the working end; every other archetype is pointed
+# W2f: a melee item whose origin is mid-length reads its forward sign from the larger of the two end heads when the ends
+# differ clearly. Calibrated on the melee records that have a designer-given sign (forward_source "pivot"): the larger
+# lateral extent over the outer 25 % of the length is the forward end for these archetypes (agreement with the pivot sign,
+# fallbacks included: axe .96, mace 1.0, hammer 1.0, club .80, staff 1.0, tool .69 (13 distinct meshes), polearm .83; the
+# 10 % cross-section rule it replaces: .78 / .85 / .98 / .71 / .25 / .38 / .67). The pointed archetypes are left out on
+# purpose: for sword / knife the heavier end (guard, pommel) is the BUTT, so the larger end is forward only .4-.5 of the
+# time there; a spear's leaf head and its butt are a wash (.83 vs .79 for the current rule, the two rules disagree on 14
+# of 48 and the larger end wins 8 of them), and a ferrule can be wider than the head; fist_weapon / wand are too few
+# (4 / 2) to calibrate.
+_HEAD_FORWARD = ("axe", "mace", "hammer", "club", "staff", "tool", "polearm")
+_HEAD_FRAC = 0.25  # outer share of the length whose largest lateral extent is the end's head size
+_HEAD_RATIO = 1.15  # the larger end must exceed the smaller by 15 %, else the end-section rule decides (agreement is flat
+# for ratios 1.1-1.3; the upper bound is set by the double-headed staff that must still flip, ratio about 1.22)
 # shield front face (spec 3.5.2 item 4): which side of the face normal is the outer face
 _WELD_M = 1e-4  # vertices closer than this share a component (the GLB splits vertices at UV / normal seams)
 _STRAP_MAX_AREA = 0.10  # a strap / handle is a small piece: at most 10 % of the surface area
@@ -245,6 +266,22 @@ def _section_sign(v: np.ndarray, axis: int, lo: float, size: float, headed: bool
         return 1
     tip_is_hi = (a_hi > a_lo) if headed else (a_hi < a_lo)
     return 1 if tip_is_hi else -1
+
+
+def _head_sign(v: np.ndarray, axis: int, lo: float, size: float) -> int:
+    """Forward sign (+1 / -1) of the end with the clearly larger head, or 0 when the two ends are within ``_HEAD_RATIO``.
+
+    Head size = the largest lateral AABB extent of the vertices in the outer ``_HEAD_FRAC`` of the length at each end.
+    The caller applies it to the ``_HEAD_FORWARD`` archetypes only and falls back to ``_section_sign`` on 0.
+    """
+    win = _HEAD_FRAC * size
+    lat = [i for i in range(3) if i != axis]
+    a_lo, a_hi = (float((p[:, lat].max(axis=0) - p[:, lat].min(axis=0)).max())
+                  for p in (v[v[:, axis] <= lo + win + 1e-9], v[v[:, axis] >= lo + size - win - 1e-9]))
+    big, small = max(a_lo, a_hi), min(a_lo, a_hi)
+    if big <= 1e-12 or big < _HEAD_RATIO * small:
+        return 0
+    return 1 if a_hi > a_lo else -1
 
 
 def _ranged_convention_sign(rules: dict, genre: str | None, kind: str | None, fa: int, section_fs: int) -> int:
@@ -630,6 +667,8 @@ def measure_weapon_detail(
                 fs = _section_sign(verts, fa, mn[fa], size[fa], archetype in _HEADED)
                 f_src = "section"
                 flags.add("forward_by_fallback")
+                if kind == "melee" and archetype in _HEAD_FORWARD:
+                    fs = _head_sign(verts, fa, mn[fa], size[fa]) or fs
                 if kind == "ranged" and role == "whole":
                     fs = _ranged_convention_sign(rules, genre, kind, fa, fs)
             if kind == "ranged":
@@ -694,16 +733,18 @@ def measure_weapon_detail(
     elif is_shield:
         grip, grip_source = at(fmin, {}), "centre"
     elif kind == "melee" or archetype == "throwing_blade":
+        # the fist is centred on the grip: keep it a hand-half off the butt end, along the forward axis only
+        butt_min = fmin + min(_GRIP_BUTT_INSET_M, 0.5 * flen)
         run = _find_handle(verts, fa, fc, fmin, flen)
         if run is None and not outside:
             # the base rule found no handle: let the pivot decide, checked against the surface profile (W2d). An origin
             # outside the AABB is no pivot (spec 3.5.5), so it is never used as the anchor.
             run = _pivot_handle(verts, tris, fa, fc, fmin, flen, float(fs * origin[fa]))
         if run is not None:
-            grip, grip_r, grip_source = at(run[0], run[1]), _r(run[2]), "handle"
+            grip, grip_r, grip_source = at(max(run[0], butt_min), run[1]), _r(run[2]), "handle"
         elif not outside:
             # no handle run: the origin projected onto the weapon's long axis (the line through the bounds centre)
-            grip, grip_source = at(float(fs * origin[fa]), {}), "pivot"
+            grip, grip_source = at(max(float(fs * origin[fa]), butt_min), {}), "pivot"
     elif not outside:
         grip, grip_source = _vec(origin), "pivot"
     else:
@@ -796,6 +837,20 @@ def save_cache(path: Path, cache: dict) -> None:
     write_text_lf(path, json.dumps(cache, sort_keys=True, separators=(",", ":")) + "\n")
 
 
+def code_digest(data: bytes) -> str:
+    """First 12 hex characters of the sha256 of source text with CRLF turned into LF, so a CRLF worktree and the LF blob
+    of the same commit agree."""
+    return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()[:12]
+
+
+# The digest of this file, computed once at import. A cache entry's version is "<WEAPON_GEOMETRY_VERSION>+<digest>", so a
+# rule change that forgot the version bump (or an edit between two commits at the same version) rebuilds the entry
+# instead of serving stale geometry. It is cache-only: `directory.json` keeps `generated_from.geometry_version` as the
+# plain integer (the schema says integer), because the directory must stay byte-identical across machines and a
+# digest of the local checkout would not be.
+_CODE_DIGEST = code_digest(Path(__file__).read_bytes())
+
+
 def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, forward_override=None) -> str:
     # the measurement depends on the classification context, not only on the file (spec 3.5 says file + versions;
     # deviation reported): a rules or override change that flips archetype/kind/hold must not serve stale geometry
@@ -816,7 +871,7 @@ def measure_cached(
     forward_override: str | None = None,
 ) -> tuple[dict, bool]:
     """``(detail, was_cached)``. Entry id = relative GLB path + node tag + scale tag (as ``glb_measure``); the
-    entry is valid while ``mtime:size`` and ``WEAPON_GEOMETRY_VERSION`` match, and holds one result per
+    entry is valid while ``mtime:size`` and its version (``WEAPON_GEOMETRY_VERSION`` + the digest of this file) match, and holds one result per
     classification-context fingerprint (which includes ``forward_override``). Failures are cached too (an undecodable mesh stays undecodable); a missing
     file is not. The returned dict is a private copy.
     """
@@ -828,7 +883,7 @@ def measure_cached(
         return _fail([], None), False
     cache_id = f"{glb_rel}#{node_cache_tag(glb_node)}" if glb_node else glb_rel
     cache_id += scale_cache_tag(scale)
-    version = _pkg.WEAPON_GEOMETRY_VERSION
+    version = f"{_pkg.WEAPON_GEOMETRY_VERSION}+{_CODE_DIGEST}"
     fp = _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules, forward_override)
     entry = cache.get(cache_id)
     if not entry or entry.get("key") != key or entry.get("version") != version:
