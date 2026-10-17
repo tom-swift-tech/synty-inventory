@@ -32,6 +32,21 @@ def _empty_weapon_overrides(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(ovr, "default_overrides_path", lambda: path)
 
 
+@pytest.fixture(autouse=True)
+def _no_live_process_table(request, monkeypatch):
+    """``weapons build`` / ``weapons icons`` refuse to start beside another inventory process (guards.ensure_sole_runner).
+    A test that calls them in-process must not depend on what else runs on the machine (a live ``icons`` run made one
+    full-suite run flaky) and must not pay about 1 s for the PowerShell listing, so the listing is empty unless the
+    guard's own test module drives it."""
+    if request.module.__name__.endswith("test_weapons_w6_guards"):
+        return
+    try:
+        from synty_inventory.weapons import guards
+    except ImportError:  # a checkout without the guards module
+        return
+    monkeypatch.setattr(guards, "_list_processes", lambda: [])
+
+
 PYTEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".pytest_tmp"
 PRUNE_AFTER_S = 24 * 3600
 
