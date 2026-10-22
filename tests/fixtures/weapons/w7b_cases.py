@@ -40,14 +40,16 @@ ALIAS_CASES = [
     ("SM_Wep_Gunstock_01", "part", "unknown", "stock", "part_stock"),
     ("SM_Wep_Cleaver_01", "whole", "knife", None, "knife"),
     ("SM_Wep_Mining_Laser_Battery_01", "part", "unknown", "misc", "part_misc"),
+    ("SM_Wep_FlameThrower_Tanks_01", "part", "unknown", "misc", "part_misc"),  # a fuel pack, not a flamethrower
 ]
 
 # kind hints: every token of the shipped lists, by kind. The id is `SM_Wep_<Token>_01`; the archetype stays unknown.
 HINT_TOKENS = {
     "ranged": ["laser", "cutter", "mining", "slingshot"],
     "melee": ["shock", "stick", "sickle", "hacksaw", "spanner", "drill", "surgical", "scalpel", "charm", "sceptre",
-              "scepter"],
-    "thrown": ["rock", "stone"],
+              "scepter", "butcher", "crutch", "tongs", "rammer", "ram", "saw", "pipe", "horn", "golem", "pick", "plank",
+              "trimmer", "corkscrew"],
+    "thrown": ["rock", "stone", "star", "potato"],
 }
 # the spec's named examples: (asset id, kind)
 HINT_CASES = [
@@ -55,4 +57,13 @@ HINT_CASES = [
     ("SM_Wep_Sickle_01", "melee"),
     ("SM_Wep_Laser_01", "ranged"),
     ("SM_Wep_Rock_01", "thrown"),
+    ("SM_Wep_Butcher_01", "melee"),
+    ("SM_Wep_Crutch_01", "melee"),
+    ("SM_Wep_Tongs_01", "melee"),
+    ("SM_Wep_Rammer_01", "melee"),
+    ("SM_Wep_Saw_01", "melee"),
+    ("SM_Wep_Pipe_01", "melee"),
+    ("SM_Wep_Horn_01", "melee"),
+    ("SM_Wep_Star_01", "thrown"),
+    ("SM_Wep_Potato_01", "thrown"),
 ]

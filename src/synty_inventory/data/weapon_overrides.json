@@ -33,18 +33,6 @@
       "confidence_cap": 0.55,
       "note": "siege engine facing ambiguous in the icon; for Tom to confirm in review"
     },
-    "POLYGON_War/SM_Bld_Bunker_Gun_01": {
-      "exclude": true,
-      "note": "building piece (concrete bunker), not a carried or aimable weapon"
-    },
-    "POLYGON_War/SM_Bld_Bunker_Gun_Damaged_01": {
-      "exclude": true,
-      "note": "building piece (concrete bunker), not a carried or aimable weapon"
-    },
-    "POLYGON_War/SM_Bld_Bunker_Gun_Grass_Mounds_01": {
-      "exclude": true,
-      "note": "building piece (concrete bunker), not a carried or aimable weapon"
-    },
     "POLYGON_War/SM_Wep_American_HeavyMachineGun_Tripod_01": {
       "note": "a tripod mount: no direction of its own",
       "set": {
