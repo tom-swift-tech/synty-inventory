@@ -144,6 +144,8 @@ POLYGON_Wheelchair: {setting: generic, era: modern}
 POLYGON_Woodland_Apocalypse_Map: {setting: post_apoc, era: near_future}
 POLYGON_Xmas: {setting: generic, era: modern}
 
+SIDEKICK_Modern_Civilians: {setting: modern_city, era: modern}
+SIDEKICK_Modern_Thugs: {setting: modern_city, era: modern}
 SIDEKICK_SciFi_Civilians: {setting: scifi_frontier, era: far_future}
 SIDEKICK_SciFi_Robots: {setting: scifi_frontier, era: far_future}
 SIDEKICK_SciFi_Soldiers: {setting: scifi_frontier, era: far_future}
