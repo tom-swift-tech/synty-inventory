@@ -69,7 +69,7 @@ BONDED's overlay selects 52 ids from five packs: 48 ranged guns and 4 grenades. 
 | D-9 | Grenades, melee, shields and ammo get `mounts: null` (`not_applicable`). | no slot exists for them |
 | D-10 | Default export output is **byte-identical** to the W7 export unless `--attachments` is passed. | sit_armory and every game snapshot keep working untouched |
 | D-11 | Cross-pack fit candidates are generated but excluded from the default export (`--min-compat-tier same_pack_fit`). | 8 BONDED guns have no same-pack attachments; Tom decides whether they borrow (Q-1) |
-| D-12 | `WEAPON_ATTACH_VERSION` (new, starts 1) and `WEAPON_GEOMETRY_VERSION` 5 -> 6 (mounts are geometry). Record `schema_version` stays 1: the changes are additive. | cache invalidation without breaking readers that ignore unknown keys |
+| D-12 | `WEAPON_ATTACH_VERSION` (new, starts 1) versions attachment records and mounts; it joins the geometry/attachment cache keys, so the cache invalidates without touching `WEAPON_GEOMETRY_VERSION`, which **stays 5** (the exported `generated_from.geometry_version` therefore stays 5 and the default export stays byte-identical, D-10). Record `schema_version` stays 1: the changes are additive. | cache invalidation without breaking readers that ignore unknown keys |
 
 ## 3. Attachment record (`attachment` on `role == "part"` records)
 
@@ -105,7 +105,7 @@ formula then holds in the item frame provided the consumer has applied each reco
 "attachment": {                      // null unless role == "part" and the rules recognise a user-swappable accessory
   "slot": "optic",                   // ATTACH_SLOTS = (optic, muzzle, underbarrel, magazine, laser_light)
   "kind": "scope",                   // per-slot closed list, ATTACH_KINDS below
-  "anchor": {                        // the attachment's own contact frame (§3.1), null with reason when unmeasurable
+  "anchor": {                        // the attachment's own contact frame (§3.1), null with reason when unmeasurable; `footprint` is then null too
     "point": [0,0,0], "forward": [0,0,1], "up": [0,1,0],
     "foot_source": "authored_up",    // authored_up | measured | override
     "forward_source": "section",     // section | authored | override
@@ -119,10 +119,10 @@ formula then holds in the item frame provided the consumer has applied each reco
     "foot_width_m": 0.0,
     "mate_d_m": null                 // muzzle devices only: diameter of the mating ring, else null
   },
-  "compatible_hosts": [              // §5; sorted by (tier rank, -score, id); empty list is valid
+  "compatible_hosts": [              // §5; sorted by (tier rank, -score, host); empty list is valid
     {"host": "<pack>/<asset_id>", "tier": "twin", "score": 0.95, "signals": ["twin"], "replaces": []}
   ],
-  "pending_hosts": []                // hosts that look compatible but have mounts.<slot>.source == "none" (D-8)
+  "pending_hosts": []                // directory: [{"host", "tier"}]; export: ids only. Hosts that look compatible but have mounts.<slot>.source == "none" (D-8)
 }
 ```
 
@@ -302,7 +302,7 @@ Signals (all listed in the entry's `signals`):
 - `veto`: `slot_disabled` on the host; an override removal; the host being `mech_scale` while the part is not.
 
 Score = sum of the signal weights in `weapon_rules.yaml: attach_compat` (initial values are in that file's comments and
-are *parameters*, not contract: the gate is AC80's precision and recall). Entries are sorted by `(rank, -score, id)`;
+are *parameters*, not contract: the gate is AC80's precision and recall). Entries are sorted by `(rank, -score, host)`;
 the list is deterministic. An attachment may have any number of hosts; a host any number of attachments per slot.
 
 ### 5.2 Why two lists
@@ -358,15 +358,15 @@ Any other key (`point`, `up`, `span_m`, `offset`, a number...) is rejected with 
 
 ## 7. Export (DS§3.10 additions)
 
-- `weapons export ... --attachments` (new flag, default off, D-10): adds `geometry.mounts` to host records and
-  `attachment` blocks to part records, and turns on `--roles attachment` (a pseudo-role on the roles filter; an `--only-attachments` flag is the alternative the lead may prefer; value: parts with a non-null
-  `attachment`; `all` includes them too). Without the flag nothing changes and the output is byte-identical to the W7
-  export of the same ids (AC77).
+- `weapons export ... --attachments` (new flag, default off, D-10): alone emits host `geometry.mounts` plus the attachment part records (parts with a non-null
+  `attachment`, added to the exported set). `--roles attachment` is only an extra filter, to export the attachments alone
+  (`all` includes them too). Without `--attachments` nothing changes and the output is byte-identical to the W7
+  export of the same snapshot, `generated_from` included (AC77).
 - `--min-compat-tier {override|twin|same_pack_fit|cross_pack_fit}` (default `same_pack_fit`, D-11) filters
-  `compatible_hosts`. Entries whose host is not in the exported set are dropped unless `--keep-foreign-hosts`.
+  `compatible_hosts` **and `pending_hosts`** by the same rule (a cross-pack candidate on a mountless host must not reach a game's `fits` list). Entries whose host is not in the exported set are dropped from both unless `--keep-foreign-hosts`. In the directory, `pending_hosts` entries are `{host, tier}` so the filter has the tier; the export emits ids only, sorted by `(tier rank, host)`, for candidates that pass the filter.
 - `--frame item` bakes every point and vector of `anchor` and `mounts` through the record's own `item_basis`
   (points: rotated; vectors: rotated; `span_m`, `footprint`, `bore_d_m` unchanged). `node_offset` keeps its rule (DS§4.1).
-  `generated_from` gains `attach_version` and `filter.attachments` (boolean, `true`, present only with `--attachments`).
+  `generated_from` gains `attach_version` and `filter.attachments` (boolean, `true`) **only with `--attachments`**; without it neither key exists and `geometry_version` is unchanged (5).
 - Exit 6 on a contract violation: `attachment` on a non-part, `compatible_hosts` naming an id absent from the
   directory, a mount with `source == "none"` that has coordinates, or non-orthonormal frames (INV-14 to INV-18).
 - New verbs: `weapons attach-eval` (precision/recall against a labels file and the twin truth; JSON on stdout, exit 4
@@ -390,8 +390,10 @@ Any other key (`point`, `up`, `span_m`, `offset`, a number...) is rejected with 
 - **INV-14** `compatible_hosts[].host` and `pending_hosts[]` ids exist in the directory, are `whole`, ranged, and eligible;
   the relation is stored on the part only.
 - **INV-15** `mounts.<slot>.source == "none"` iff `point`, `forward`, `up`, `span_m` are all null, and then `reason` is set.
-- **INV-16** `occupied_by` is non-empty only for `child_node` or `override` sources; every name is a mesh node present in the
-  host GLB (selected-node scope), the list is sorted and duplicate-free, and it contains `child_node`.
+- **INV-16** `occupied_by` is non-empty only for `child_node` or `override` sources, **except the muzzle slot**, where a `probe`
+  source may carry a non-empty `occupied_by` (baked devices) with `child_node` null. Every name is a mesh node present in the
+  host GLB (selected-node scope) and the list is sorted and duplicate-free; for every slot other than a `probe` muzzle it
+  contains `child_node`.
 - **INV-17** The committed override and labels files contain no coordinate, offset or measured number (extends INV-1).
 - **INV-18** Every non-null frame is orthonormal within 1e-3 and right-handed (`right = up x forward`).
 - **INV-19** The default (no `--attachments`) export is byte-identical to the W7 export.
@@ -413,8 +415,8 @@ Continues the table in DS§10.
 | C-20 | frame and units | §3.1: `{point, forward, up}`, metres, 1e-4, unit vectors 4 dp, right-handed with `right = up x forward`. Asset frame: asset-local GLB scene space after `glb_scale`. Item frame: each record baked through **its own** `item_basis`; consumer applies each record's own `item_basis` to its own mesh. `span_m`, `footprint.*`, `bore_d_m`, `mate_d_m` are scalars in metres, never baked. Part records always carry `geometry.item_basis` (and `geometry.node_offset` for shared-GLB nodes, unrotated and not item-baked, DS C-17), so a consumer can orient the part mesh before using item-frame fields. |
 | C-21 | placement | `part_T = T(mount) * T(anchor)^-1` where `T(F)` has rotation columns `[right | up | forward]` and translation `point`. After placement `anchor.point -> mount.point` exactly and the two `up` and `forward` vectors coincide. Reference implementation: `weapons.attach.place(anchor, mount)` plus a GDScript port written by DM-B against the shared oracle `sit_mount_place/1` (AC69). The three literal cases of that oracle (muzzle identity, optic authored on its side, underbarrel hanging down) were checked by hand against this formula and agree. |
 | C-22 | occupancy | `mounts.<slot>.occupied_by`: sorted list of GLB node names to hide when a separate attachment is mounted; `[]` = free. `occupied_by` and `child_node` are **raw GLB node names, unsanitised**; the engine importer's renaming (Godot replaces `. : @ / " %` with `_` and renames duplicates) is the consumer's job (sit_weapons M15). For the muzzle slot the mount `point` is the seat measured with these nodes excluded, not the face of a baked device (R1, AC84). A mount with `source: "none"` is unavailable: a consumer must not synthesise a position (D-8). **One exception, muzzle slot only:** a muzzle mount with `source: "none"` may be self-measured by the consumer with the same face-probe rule (sit_weapons' shipped M6 probe, the same measurement as A0, not a guess). A bounds guess is never allowed, and no other slot gets this exception. |
-| C-23 | compatibility | `compatible_hosts[]`: `{host, tier, score, signals[], replaces[]}`; `tier` in `COMPAT_TIERS`; sorted by `(tier rank, -score, host)`. `pending_hosts[]` are ids only. Relation stored on the part only (INV-14). Default export keeps tiers up to `same_pack_fit`. An **empty `compatible_hosts` means the part fits nothing**: only `pending_hosts` and a game overlay's own `fits` add can extend it. |
-| C-24 | export surface | `--attachments`, `--roles attachment`, `--min-compat-tier`, `--keep-foreign-hosts`; default output byte-identical to W7. `sit_armory` ignores unknown keys (it already ignores `component`) and keeps the `whole`-only default. `generated_from.filter.attachments` is a boolean, present and `true` only when the export was made with `--attachments` (absent otherwise, so the default output stays byte-identical). |
+| C-23 | compatibility | `compatible_hosts[]`: `{host, tier, score, signals[], replaces[]}`; `tier` in `COMPAT_TIERS`; sorted by `(tier rank, -score, host)`. `pending_hosts[]` are ids only, filtered by the same `--min-compat-tier` rule as `compatible_hosts` (default up to `same_pack_fit`). Relation stored on the part only (INV-14). Default export keeps tiers up to `same_pack_fit`. An **empty `compatible_hosts` means the part fits nothing**: only `pending_hosts` and a game overlay's own `fits` add can extend it. |
+| C-24 | export surface | `--attachments` alone emits host `mounts` plus the attachment part records; `--roles attachment` is only an extra filter to export attachments alone; also `--min-compat-tier`, `--keep-foreign-hosts`. Default output is byte-identical to W7, `generated_from` included (`geometry_version` stays 5; `attach_version` and `filter.attachments` appear only with `--attachments`). `sit_armory` ignores unknown keys (it already ignores `component`) and keeps the `whole`-only default. `generated_from.filter.attachments` is a boolean, present and `true` only when the export was made with `--attachments` (absent otherwise, so the default output stays byte-identical). |
 | C-25 | vocabulary | `ATTACH_SLOTS` / `ATTACH_KINDS` may grow in minor versions; consumers ignore unknown slots/kinds. `compatible_hosts` and `mounts` may later gain keys. |
 | C-26 | stats | The directory carries no attachment stats. `sit_armory` overlays key stat modifiers by the part's `<pack>/<asset_id>` (or `renamed_from`, C-13) and read the slot from `attachment.slot`. |
 | C-27 | numeric corrections | There are none in the directory. A game that needs a nudge carries it in its own overlay, relative to the exported `mounts.<slot>.point` (D-5). `seat_depth_m` (how far a part may sink into the host) is overlay-owned on the game side; the directory adds nothing for it. |
@@ -442,12 +444,12 @@ that must make the test fail.
 | AC69 | Placement math: for every slot kind `place(anchor, mount)` maps `anchor.point` to `mount.point` within **0.5 mm** and each of `up`, `forward` within 0.1 degrees. **Twin ground truth:** placing the standalone twin on the fixture host gives an AABB centre within **3 mm** of the child's AABB centre and AABB IoU >= 0.90. **Shared oracle:** `place` also reproduces, within 0.5 mm / 0.1 degrees, the three cases of sit_weapons' `fixtures/mount_place.json` (schema `sit_mount_place/1`: muzzle_identity, optic_part_authored_on_its_side, underbarrel_hangs_down), copied byte for byte to `tests/fixtures/weapons/mount_place.json` with a provenance note (source repo, commit, copy date), like the A0 muzzle golden (DS§11.4); no case is edited here (DM-B is committing `addons/sit_weapons/fixtures/mount_place.json` now: W8c copies that file, not the spec literals), and a disagreement is reported to the lead instead of fixed. The directory's own cases stay as well. The GDScript port passes the same cases (DM-B) | swap `T(mount)*T(anchor)^-1` for `T(anchor)^-1*T(mount)` -> fails |
 | AC70 | No intrusion: after placement of each "fit" fixture attachment, penetration depth along `mount.up` into the host body AABB is <= **3 mm**, and the attachment's AABB volume outside its foot slab that overlaps the host body AABB is <= 5 % of its volume | shift the anchor by 10 mm -> fails |
 | AC71 | Twin detection: extents within `max(3 %, 0.8 mm)` per sorted axis are `twin`; a 5 % difference is not; one-to-many is `twin_multi` | widen the tolerance to 6 % -> the 5 % fixture becomes a twin, fails |
-| AC72 | Tiers: `same_pack_fit` requires `family_overlap` AND `affinity`; the other-pack host only reaches `cross_pack_fit` (score <= 0.6, reason `compat_cross_pack`); ordering is `(rank, -score, id)`; two builds give identical output | drop the pack check -> the other-pack host gets rank 3, fails |
+| AC72 | Tiers: `same_pack_fit` requires `family_overlap` AND `affinity`; the other-pack host only reaches `cross_pack_fit` (score <= 0.6, reason `compat_cross_pack`); ordering is `(rank, -score, host)`; two builds give identical output | drop the pack check -> the other-pack host gets rank 3, fails |
 | AC73 | `fit_span` and `fit_bore`: a `foot_length_m` 1.2x a `child_foot` span still fits; 1.8x a `probe` span is vetoed; `fit_bore` ignored for `face_extent` mounts | allow `child_foot` to veto -> the 1.2x fixture is rejected |
 | AC74 | Overrides: `compatible` add/remove by id and glob; precedence exact id > longest glob > rule; a missing id/node is reported (`child_not_found`), not dropped; `mounts` rejects any key other than `source`/`child` with **exit 6**; `apply-corrections` round-trips a review-page file | allow a `point` key -> the numeric variant is accepted, fails |
-| AC75 | `pending_hosts`: a compatible host with a `none` mount appears there and not in `compatible_hosts`; adding a measured mount by override moves it | list it in both -> fails |
+| AC75 | `pending_hosts`: a compatible host with a `none` mount appears there and not in `compatible_hosts`; adding a measured mount by override moves it; **tier filter:** a `cross_pack_fit` candidate on a mountless host is in the directory's `pending_hosts` (with its tier) but must not appear in the default export's `pending_hosts` | list it in both -> fails; skip the tier filter on `pending_hosts` -> the cross-pack candidate leaks into the default export and fails |
 | AC76 | Review page: Attachments section exists, checklist states round-trip into `weapon-corrections/1` (parsed from the embedded data); mounts table lists every slot for an eligible host; no network access | remove the section -> fails |
-| AC77 | Export: default output equals the stored W7-format golden byte for byte; with `--attachments` item-frame points equal `item_basis * asset point` within 1e-4 per record (host and part separately), `occupied_by` lists preserved, tiers below `--min-compat-tier` dropped, foreign hosts dropped, exit 6 on each violation of INV-14..18 | bake the part through the host's `item_basis` -> fails on a rotated fixture |
+| AC77 | Export: default output equals the stored W7-format golden byte for byte, `generated_from` included (`geometry_version` 5, no `attach_version`, no `filter.attachments`); the same snapshot exported with `--attachments` differs only by the added keys, `attach_version` and `filter.attachments`; with `--attachments` item-frame points equal `item_basis * asset point` within 1e-4 per record (host and part separately), `occupied_by` lists preserved, tiers below `--min-compat-tier` dropped, foreign hosts dropped, exit 6 on each violation of INV-14..18 | bake the part through the host's `item_basis` -> fails on a rotated fixture; bump `WEAPON_GEOMETRY_VERSION` or emit `attach_version` unconditionally -> the byte diff fails |
 | AC78 | Determinism and caching: two builds identical; bumping `WEAPON_ATTACH_VERSION` or `WEAPON_GEOMETRY_VERSION` invalidates cached entries; a cache hit equals a recompute | omit the version from the key -> stale hit survives a bump |
 | AC79 | `weapons attach-eval`: on the fixture labels, reported precision and recall equal hand-computed values exactly; exit 4 when below the supplied gates | remove one fixture rule -> recall drops below the gate, exit 4 |
 | AC80 | **Live (local, not CI; reported, never committed).** On BONDED's packs: (a) sanity: the live `twin` count equals the survey figure (11 parts on BONDED's packs; a different count is reported and investigated, not gated); (b) twin placement on the real hosts: AABB centre within **5 mm** and IoU >= 0.85 for >= 90 % of twin pairs; (c) on Tom's labels (stratified, >= 150 pairs with >= 40 positives, Q-5): precision >= 0.90 and recall >= 0.80 for tiers up to `same_pack_fit`; cross-pack reported separately, ungated until Q-1 is answered; (d) child-node coverage printed (expected: magazine 19, optic 12 of 48) | n/a (acceptance run) |
@@ -497,7 +499,7 @@ gates by exit code, synthetic fixtures only). Approval of this spec starts W8a. 
 | slice | depends | parallel-with | ACs | owns (new unless noted) | live data | size |
 |---|---|---|---|---|---|---|
 | W8a attachment records | none | none | AC61-AC65, AC78 (parts) | `weapons/attach.py` (anchor/footprint/place), `weapons/classify.py` hook (edit), `weapon_rules.yaml` tables (edit), `weapons/__init__.py` constants (edit, W8a owns the enum additions), `cli.py` lazy stubs for `attach-eval`/`attach-preview` (edit, W8a only), `schema.py` (edit), fixtures `FAKE_Attach`, tests | no | M: ~900 lines |
-| W8b host mounts | W8a | none | AC66-AC68, AC84, AC78 (geometry) | `geometry.py` (edit: mounts, ring estimator, cache version 6), `weapons/mounts.py`, tests | live probe after merge: coverage counts | M: ~800 lines |
+| W8b host mounts | W8a | none | AC66-AC68, AC84, AC78 (geometry) | `geometry.py` (edit: mounts, ring estimator, cache key gains WEAPON_ATTACH_VERSION, WEAPON_GEOMETRY_VERSION stays 5), `weapons/mounts.py`, tests | live probe after merge: coverage counts | M: ~800 lines |
 | W8c compatibility, overrides, eval | W8b | W9 | AC69-AC75, AC79 | `tests/fixtures/weapons/mount_place.json` (copy of DM-B's committed `mount_place.json`, provenance note), `weapons/compat.py`, `overrides.py` + `corrections.py` (edit), `weapon_rules.yaml` compat table (edit), `weapons/eval.py`, tests | no | L: ~1,100 lines |
 | W8d review page, export, preview | W8c | W9 | AC76, AC77, AC82, AC83 (look) | `review.py` + `review_template.html` (edit), `export.py` (edit), `weapons/preview.py` + harness additions, tests | preview needs the renderer on this machine | L: ~1,200 lines |
 | W9 rail-probe spike | W8b | W8c, W8d | AC81 | `weapons/mount_probe.py`, a report script (not shipped if it fails) | yes (calibration on the child-bearing hosts) | S: ~400 lines |
