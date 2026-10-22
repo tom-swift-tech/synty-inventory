@@ -16,7 +16,7 @@ from fnmatch import fnmatchcase
 
 from . import ARCHETYPE_KIND, NON_WEAPON_ROLES
 from .overrides import effective_override
-from .rules import compile_regex, kind_hints, load_rules, match_conditions
+from .rules import attachment_rules, compile_regex, kind_hints, load_rules, match_conditions
 
 _SEGMENT_SPLIT_RE = re.compile(r"[^A-Za-z0-9]+")
 # camelCase boundaries: "RecurveBow" -> Recurve, Bow; "SMGun" -> SM, Gun; digits are separate runs
@@ -83,6 +83,44 @@ def tokenize_id(asset_id: str, rules: dict | None = None) -> list[str]:
             out.append(tokens[i])
             i += 1
     return out
+
+
+def raw_tokens(asset_id: str) -> set[str]:
+    """Lower-cased `_`/camelCase tokens of an id with NO alias step, digits dropped, plus the joins of 2-3 neighbours.
+
+    The attachment table (docs/weapon_attachments.md 3.3) needs the words the alias table folds together (scope versus
+    reflex, drum versus mag), and the joins let `Red_Dot` / `RedDot` reach `reddot` and `Fore_Grip` reach `foregrip`.
+    """
+    seq: list[str] = []
+    for segment in _SEGMENT_SPLIT_RE.split(asset_id):
+        for part in _CAMEL_RE.findall(segment):
+            tok = part.lower()
+            if not tok.isdigit():
+                seq.append(tok)
+    out = set(seq)
+    for n in (2, 3):
+        out.update("".join(seq[i : i + n]) for i in range(len(seq) - n + 1))
+    return out
+
+
+def classify_attachment(asset_id: str, pack_id: str, role: str, component: dict | None, rules: dict) -> dict | None:
+    """``{slot, kind, rule}`` when a `part` record is a user-swappable accessory (docs/weapon_attachments.md 3.3), else None.
+
+    Runs on the final classification (after the part rules and any override), reads only the id tokens, the pack and
+    ``component.slot``, and never changes ``component``. A part matching a ``never`` row (vehicle accessories) is not an
+    attachment whatever else it matches; a part no row matches stays None (rack and rail segments, bayonets, stocks).
+    """
+    if role != "part":
+        return None
+    table = attachment_rules(rules)
+    ctx = {"id": asset_id, "tokens": raw_tokens(asset_id), "pack": pack_id,
+           "component_slot": (component or {}).get("slot")}
+    if any(match_conditions(row["match"], ctx) for row in table["never"]):
+        return None
+    for row in table["rows"]:
+        if match_conditions(row["match"], ctx):
+            return {"slot": row["set"]["slot"], "kind": row["set"]["kind"], "rule": row["name"]}
+    return None
 
 
 # spec 3.4.3

@@ -18,6 +18,8 @@ from . import (
     AMMO_PROJECTILES,
     ARCHETYPE_KIND,
     ARCHETYPES,
+    ATTACH_KINDS,
+    ATTACH_SLOTS,
     CARRIER_KINDS,
     COMPONENT_SLOTS,
     EMPLACED_ARCHETYPES,
@@ -40,6 +42,11 @@ CANDIDATE_MATCH_KEYS = (
     "asset_kind_any",
 )
 RULE_SET_KEYS = ("role", "kind", "archetype", "component", "carrier", "ammo")
+# attachment_rules rows (docs/weapon_attachments.md 3.3): the same match engine, raw (un-aliased) tokens, plus the part's
+# existing component slot. The spec calls the negative list `not_tokens`; the engine's key is `tokens_none`, kept here.
+ATTACH_MATCH_KEYS = ("tokens_any", "tokens_all", "tokens_none", "component_slot")
+ATTACH_NEVER_KEYS = ("tokens_any", "packs_any")
+ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never")
 REQUIRED_TOP = (
     "version", "token_aliases", "candidates", "rules", "hold_by_archetype", "genre_by_archetype",
     "plausible_length_m", "axes_expected", "grip_proportion", "size_class_cuts_m", "weight_by_archetype",
@@ -50,6 +57,7 @@ OPTIONAL_TOP = (
     "hold_exceptions", "id_flags", "tier_tokens", "unknown_confidence", "ammo_token_overrides",
     "head_lead_tokens", "icon_albedo_from_material",  # W7: both default to empty (spec 4.4)
     "kind_hints",  # W7b: defaults to empty (spec 4.4)
+    "attachment_rules",  # W8a: absent = no part is an attachment (docs/weapon_attachments.md 3.3)
 )
 # the kinds a hint list can name, in the order the lists are consulted when an id matches more than one (never a
 # conflict at load time: the loader rejects a token that sits in two lists). `shield` has an archetype of its own.
@@ -71,10 +79,15 @@ def compile_regex(pattern: str) -> re.Pattern:
 def match_conditions(match: dict, ctx: dict) -> bool:
     """True when every key present in ``match`` holds for ``ctx`` (keys are ANDed).
 
-    ctx: id, tokens (set), pack, gear_two_handed (bool|None), long_m (float|None), asset_kind (str|None).
+    ctx: id, tokens (set), pack, gear_two_handed (bool|None), long_m (float|None), asset_kind (str|None),
+    component_slot (str|None, attachment rows only).
     A ``long_m`` condition never matches in pass 1 (``ctx['long_m'] is None``).
     """
     tokens = ctx["tokens"]
+    if "component_slot" in match:  # attachment rows only: a str or a list of the part's component.slot values
+        want = match["component_slot"]
+        if ctx.get("component_slot") not in ([want] if isinstance(want, str) else want):
+            return False
     if "tokens_any" in match and not any(t in tokens for t in match["tokens_any"]):
         return False
     if "tokens_all" in match and not all(t in tokens for t in match["tokens_all"]):
@@ -120,6 +133,11 @@ def subsumes(a: dict, b: dict) -> bool:
     Conservative: it only claims subsumption when it can prove it from the declared conditions.
     """
     b_req = _required_tokens(b)
+    if "component_slot" in a:
+        a_c = {a["component_slot"]} if isinstance(a["component_slot"], str) else set(a["component_slot"])
+        b_c = b.get("component_slot")
+        if b_c is None or not ({b_c} if isinstance(b_c, str) else set(b_c)) <= a_c:
+            return False
     if "tokens_any" in a:
         a_any = set(a["tokens_any"])
         b_any = b.get("tokens_any")
@@ -162,6 +180,7 @@ def shadowed_rules(rules: dict) -> list[dict]:
         ("rules", rules.get("rules") or []),
         ("candidates.include", cand.get("include") or []),
         ("candidates.exclude", cand.get("exclude") or []),
+        ("attachment_rules.rows", (rules.get("attachment_rules") or {}).get("rows") or []),
     )
     for table, entries in tables:
         for i, later in enumerate(entries):
@@ -317,6 +336,68 @@ def _check_kind_hints(val, aliases) -> list[str]:
                 errors.append(f"kind_hints: token {t!r} is in both {owner[t]!r} and {kind!r}")
             owner.setdefault(t, kind)
     return errors
+
+
+def _check_attachment_rules(val) -> list[str]:
+    """``attachment_rules`` (docs/weapon_attachments.md 3.3 and 4.2): ``{never, rows, child_tokens?, child_never?}``.
+
+    Tokens here are RAW lower-case tokens (no ``token_aliases`` step: the alias table folds scope, sight, reddot and
+    reflex into one ``optic`` token and mag, drum and clip into ``magazine``, which would erase the slot/kind
+    distinction the table exists to make), so the alias-variant rejection of the other tables does not apply.
+    ``never`` is an OR-list of ``{name, match}`` (a part matching any row is never an attachment, AC62); ``rows`` is the
+    ordered first-match-wins table ``{name, match, set: {slot, kind}}``.
+    """
+    if not isinstance(val, dict):
+        return ["attachment_rules: must be a mapping with never and rows"]
+    errors: list[str] = []
+    for key in val:
+        if key not in ATTACH_TOP_KEYS:
+            errors.append(f"attachment_rules.{key}: unknown key (allowed: {', '.join(ATTACH_TOP_KEYS)})")
+    never = val.get("never")
+    if not isinstance(never, list):
+        errors.append("attachment_rules.never: must be a list of {name, match} rows (may be empty)")
+    else:
+        for row in _check_table(never, "attachment_rules.never", errors) if never else ():
+            _check_match(row.get("match"), f"attachment_rules.never[{row['name']}].match", ATTACH_NEVER_KEYS, errors)
+    rows = val.get("rows")
+    if not isinstance(rows, list):
+        errors.append("attachment_rules.rows: must be a list")
+    else:
+        for row in _check_table(rows, "attachment_rules.rows", errors) if rows else ():
+            where = f"attachment_rules.rows[{row['name']}]"
+            m = row.get("match")
+            _check_match(m, where + ".match", ATTACH_MATCH_KEYS, errors)
+            if isinstance(m, dict) and "component_slot" in m:
+                cs = m["component_slot"]
+                cs_list = [cs] if isinstance(cs, str) else cs
+                if not (isinstance(cs_list, list) and cs_list and set(cs_list) <= set(COMPONENT_SLOTS)):
+                    errors.append(f"{where}.match.component_slot: must be one or a list of {list(COMPONENT_SLOTS)}")
+            s = row.get("set")
+            if not isinstance(s, dict) or set(s) != {"slot", "kind"}:
+                errors.append(f"{where}.set: must be a mapping with exactly slot and kind")
+            elif s["slot"] not in ATTACH_SLOTS:
+                errors.append(f"{where}.set.slot: {s['slot']!r} not in {list(ATTACH_SLOTS)}")
+            elif s["kind"] not in ATTACH_KINDS[s["slot"]]:
+                errors.append(f"{where}.set.kind: {s['kind']!r} not in {list(ATTACH_KINDS[s['slot']])}")
+    # W8b host-child vocabulary (docs/weapon_attachments.md 4.2): slot -> name tokens of the baked children that fill it
+    ct = val.get("child_tokens")
+    if ct is not None:
+        if not isinstance(ct, dict):
+            errors.append("attachment_rules.child_tokens: must be a mapping slot -> [tokens]")
+        else:
+            for slot, tokens in ct.items():
+                if slot not in ATTACH_SLOTS:
+                    errors.append(f"attachment_rules.child_tokens.{slot}: not in {list(ATTACH_SLOTS)}")
+                else:
+                    _check_str_list(tokens, f"attachment_rules.child_tokens.{slot}", errors, lower=True)
+    if val.get("child_never") is not None:
+        _check_str_list(val["child_never"], "attachment_rules.child_never", errors, lower=True)
+    return errors
+
+
+def attachment_rules(rules: dict) -> dict:
+    """The ``attachment_rules`` mapping; an empty table (nothing is an attachment) when the key is absent."""
+    return rules.get("attachment_rules") or {"never": [], "rows": []}
 
 
 def kind_hints(rules: dict) -> list[tuple[str, frozenset[str]]]:
@@ -525,6 +606,8 @@ def validate_rules(rules) -> list[str]:
     errors.extend(_check_head_lead_tokens(rules.get("head_lead_tokens", [])))
     errors.extend(_check_icon_albedo(rules.get("icon_albedo_from_material", [])))
     errors.extend(_check_kind_hints(rules.get("kind_hints", {}), rules["token_aliases"]))
+    if "attachment_rules" in rules:
+        errors.extend(_check_attachment_rules(rules["attachment_rules"]))
     uc = rules.get("unknown_confidence", 0.2)
     if not _is_num(uc) or not (0.05 <= uc <= 0.99):
         errors.append("unknown_confidence: must be a number in [0.05, 0.99]")
