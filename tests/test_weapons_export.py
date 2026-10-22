@@ -105,7 +105,7 @@ def test_ac23_generated_from_is_copied_from_the_directory_and_the_pack_catalogs(
     gf = load(out)["generated_from"]
     d = world.directory
     assert gf["tool"].startswith("synty-inventory ") and re.fullmatch(r"synty-inventory \d+\.\d+\.\d+", gf["tool"])
-    assert gf["weapon_version"] == 1 and gf["geometry_version"] == 4
+    assert gf["weapon_version"] == 1 and gf["geometry_version"] == 5
     assert gf["rules_digest"] == d["rules_digest"] and gf["overrides_digest"] == d["overrides_digest"]
     assert re.fullmatch(r"[0-9a-f]{16}", gf["rules_digest"]) and re.fullmatch(r"[0-9a-f]{16}", gf["overrides_digest"])
     assert gf["packs"] == [
@@ -411,12 +411,13 @@ def test_ac33_renamed_from_is_exported_unchanged(tmp_path, monkeypatch, capsys):
 # --- refusals, icons ----------------------------------------------------------------------------------------
 
 def test_an_output_path_inside_the_catalogs_dir_or_a_pack_root_is_refused(world, capsys, tmp_path):
-    for target in (world.cat / "weapons" / "snapshots" / "x.json", world.cat / "x.json",
+    # W7b: <catalogs>/weapons/snapshots/ is open to an explicit --out (AC60); the rest of the catalogs dir is not
+    for target in (world.cat / "weapons" / "x.json", world.cat / "x.json",
                    world.tmp / "unity" / "x.json", world.tmp / "extracted" / "FAKE_Modern" / "x.json"):
         code, res = H.run(world.cfg, capsys, ["weapons", "export", "--game", "g", "--packs", "FAKE_Modern", "--out",
                                               str(target)])
         assert code == 3 and res["ok"] is False, target
-        assert not target.exists() and not target.parent.exists() or target.parent == world.cat
+        assert not target.exists() and (not target.parent.exists() or target.parent in (world.cat, world.cat / "weapons"))
     assert not (world.cat / "x.json").exists()
 
 

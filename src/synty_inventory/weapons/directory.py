@@ -20,11 +20,11 @@ from ..paths import is_pack_catalog_file
 from ..schema import migrate_catalog
 from . import InputError, SchemaError, digest, to_text, write_text_lf
 from .candidates import evaluate_candidate
-from .classify import classify
+from .classify import classify, tokenize_id
 from .geometry import measure_cached, pass2_inputs
 from .hints import build_group_stats, derive_hints
 from .overrides import effective_override, load_overrides
-from .rules import load_rules
+from .rules import head_lead_tokens, load_rules
 from .schema import validate_directory
 from .variants import discover_variants, has_colourway_info, variant_link_paths
 
@@ -133,16 +133,28 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
     Pass 2 can change archetype/hold (a length rule filling an unknown archetype, the long-blade exception); the
     measurement depends on both, so a changed context is measured once more (the decode is memoised, so this
     costs no second read). ``forward_override`` is the id override's ``forward`` (spec 4.5), passed to every
-    measurement. Returns ``(final classification, last measurement detail)``.
+    measurement, and so is ``head_lead`` (W7 R-H2: one of the id's tokens is in ``rules.head_lead_tokens``; the id decides
+    it, so it does not change between the pass-1 and pass-2 classifications). Returns ``(final classification, last measurement detail)``.
+
+    W7b: a whole/emplaced record whose rules leave ``kind`` null starts as ``melee`` (``kind_guessed``, unmeasured
+    fallback), is measured as such, and pass 2 then takes ``ranged`` when the measured long axis is ``z``. ``kind`` is part
+    of ``_context``, so that change is measured once more with the final kind (a ranged record gets a muzzle and no tip).
+    The loop cannot oscillate: the long axis depends on the kind only through the tie-break default of
+    ``geometry._pick_long_axis`` (``y`` for melee/thrown, ``z`` otherwise), which applies among axes within the tie
+    tolerance of the longest. A first axis ``z`` was either the default or the strict longest, so the ranged re-measure
+    picks ``z`` again; a first axis that is not ``z`` means ``z`` was outside the tolerance, so the melee kind keeps it
+    outside. Either way the second classification repeats the first kind.
     """
     files = asset.get("files") or {}
     node = files.get("glb_node") or None
     scale = float(files.get("glb_scale") or 1.0)
     detail = None
+    head_lead = bool(head_lead_tokens(rules) & set(tokenize_id(asset["id"], rules)))
     for _ in range(3):
         detail, cached = measure_cached(
             threejs_v2_dir, files["glb"], node, scale, cls["archetype"], cls["kind"], cls["role"], rules, cache,
             hold_class=cls["hold_class"], genre=cls["genre"], forward_override=forward_override,
+            head_lead=head_lead,
         )
         stats["cached" if cached else "decoded"] += 1
         measured = pass2_inputs(detail)
@@ -410,6 +422,8 @@ def build_directory_report(
         "counts": _counts(mine),
         "low_confidence_share": round(sum(1 for r in mine if r["review"]["confidence"] < 0.6) / n, 4),
         "unknown_share": round(sum(1 for r in mine if r["archetype"] == "unknown" and r["role"] in ("whole", "emplaced")) / n, 4),
+        # W7b: the guessed kinds (measured long axis, or melee when unmeasured) for the lead's hand check from icons
+        "kind_guessed": [{"id": r["id"], "kind": r["kind"]} for r in mine if "kind_guessed" in r["review"]["reasons"]],
         "geometry_coverage": (round(sum(1 for r in with_glb if r["geometry"] is not None) / len(with_glb), 4)
                               if with_glb else 1.0),
         "geometry_stats": dict(geo_stats),

@@ -29,6 +29,10 @@ _LETTER_MAT = re.compile(r"^[A-Z]\.mat$")
 # The albedo slot of a Unity material, by shader family (Synty shader graphs use _Albedo_Map, URP lit _BaseMap,
 # built-in lit _MainTex). The first slot in this order that holds a texture wins.
 _ALBEDO_SLOTS = ("_Albedo_Map", "_BaseMap", "_MainTex", "_BaseColorMap")
+# Slots only the icon renderer's albedo-from-material path adds (spec 3.8 PATCH W7): the Viking_Realm shield materials
+# keep their texture in ``_Base_Texture``. Colourway resolution never passes this, so its behaviour is unchanged.
+EXTRA_ALBEDO_SLOTS = ("_Base_Texture",)
+MATERIAL_ALBEDO_SLOTS = _ALBEDO_SLOTS + EXTRA_ALBEDO_SLOTS
 _GUID = re.compile(r"^\s*guid:\s*([0-9a-fA-F]{32})\s*$", re.MULTILINE)
 TEXTURE_EXTS = (".png", ".jpg", ".jpeg")  # what the browser harness loads; .tga and others are reported, not guessed
 
@@ -136,8 +140,8 @@ def _guid_index(directory: Path, cache: dict | None) -> dict[str, str]:
     return index
 
 
-def _albedo_guid(material_text: str) -> str | None:
-    for slot in _ALBEDO_SLOTS:
+def _albedo_guid(material_text: str, slots: tuple[str, ...] = _ALBEDO_SLOTS) -> str | None:
+    for slot in slots:
         m = re.search(rf"^\s*-\s*{re.escape(slot)}:\s*\r?\n\s*m_Texture:\s*\{{[^}}]*guid:\s*([0-9a-fA-F]{{32}})",
                       material_text, re.MULTILINE)
         if m:
@@ -163,8 +167,12 @@ def _texture_dirs(material_rel: PurePosixPath) -> list[PurePosixPath]:
     return []
 
 
-def resolve_variant_texture(extracted_root: Path, source: str, cache: dict | None = None) -> Path:
+def resolve_variant_texture(extracted_root: Path, source: str, cache: dict | None = None, *,
+                            slots: tuple[str, ...] = _ALBEDO_SLOTS) -> Path:
     """The albedo image of the variant material ``source`` (a path relative to ``extracted_root``).
+
+    ``slots`` are the albedo slots tried in order; the default is the colourway set. The icon renderer's
+    albedo-from-material path passes ``MATERIAL_ALBEDO_SLOTS``.
 
     Order: the texture whose ``.meta`` guid the material's albedo slot names, looked up in the mirrored
     ``Textures`` directory; then the same file stem there with a loadable extension. ``TextureNotFound`` carries
@@ -181,7 +189,7 @@ def resolve_variant_texture(extracted_root: Path, source: str, cache: dict | Non
     dirs = _texture_dirs(rel)
     if not dirs:
         raise TextureNotFound(f"material is not under a Materials directory: {rel.as_posix()}")
-    guid = _albedo_guid(text)
+    guid = _albedo_guid(text, slots)
     stem = rel.name[: -len(".mat")]
     unsupported: str | None = None
     for d_rel in dirs:  # the guid beats the file name in every directory before the next directory is tried

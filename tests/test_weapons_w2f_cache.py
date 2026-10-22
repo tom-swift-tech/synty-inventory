@@ -57,32 +57,32 @@ def test_a_written_cache_entry_carries_the_version_and_the_digest(sword_root, ru
     cache: dict = {}
     measure_cached(*args(sword_root, rules), cache, genre="fantasy")
     version = cache["s.glb"]["version"]
-    assert re.fullmatch(r"4\+[0-9a-f]{12}", version)
-    assert version == "4+" + G.code_digest(Path(G.__file__).read_bytes())
+    assert re.fullmatch(r"5\+[0-9a-f]{12}", version)
+    assert version == "5+" + G.code_digest(Path(G.__file__).read_bytes())
 
 
 def test_the_directory_header_keeps_the_plain_integer_version():
     # directory.json's generated_from.geometry_version is the schema's integer; only the cache entry carries the digest
-    assert pkg.WEAPON_GEOMETRY_VERSION == 4 and isinstance(pkg.WEAPON_GEOMETRY_VERSION, int)
+    assert pkg.WEAPON_GEOMETRY_VERSION == 5 and isinstance(pkg.WEAPON_GEOMETRY_VERSION, int)
 
 
 def test_an_entry_written_under_another_code_digest_is_not_served(sword_root, rules, monkeypatch):
     cache: dict = {}
     monkeypatch.setattr(G, "_CODE_DIGEST", "000000000000")
     measure_cached(*args(sword_root, rules), cache, genre="fantasy")
-    assert cache["s.glb"]["version"] == "4+000000000000"
+    assert cache["s.glb"]["version"] == "5+000000000000"
     cache["s.glb"]["by_inputs"][next(iter(cache["s.glb"]["by_inputs"]))]["geometry"]["length_m"] = 999.0  # poison it
     assert measure_cached(*args(sword_root, rules), cache, genre="fantasy")[1] is True  # same digest: served
     monkeypatch.undo()  # the real digest differs: the entry is rebuilt
     fresh, was = measure_cached(*args(sword_root, rules), cache, genre="fantasy")
     assert was is False and fresh["geometry"]["length_m"] == 0.9
-    assert re.fullmatch(r"4\+[0-9a-f]{12}", cache["s.glb"]["version"]) and not cache["s.glb"]["version"].endswith("0" * 12)
+    assert re.fullmatch(r"5\+[0-9a-f]{12}", cache["s.glb"]["version"]) and not cache["s.glb"]["version"].endswith("0" * 12)
 
 
 def test_a_legacy_entry_with_a_bare_integer_version_is_not_served(sword_root, rules):
     cache: dict = {}
     measure_cached(*args(sword_root, rules), cache, genre="fantasy")
-    cache["s.glb"]["version"] = 4  # the pre-digest format at the same integer version
+    cache["s.glb"]["version"] = 5  # the pre-digest format at the same integer version
     cache["s.glb"]["by_inputs"][next(iter(cache["s.glb"]["by_inputs"]))]["geometry"]["length_m"] = 999.0
     fresh, was = measure_cached(*args(sword_root, rules), cache, genre="fantasy")
     assert was is False and fresh["geometry"]["length_m"] == 0.9

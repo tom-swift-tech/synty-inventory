@@ -129,7 +129,10 @@ async function substituteAlbedo(meshes, url) {
 
 // Blank-render retry (spec 3.8): GLTFLoader turns a glTF MASK material into alphaTest > 0. When the base-colour alpha sits
 // under the cutoff every fragment is discarded and the picture is empty. Python asks for `forceBlend` only after such a
-// blank render: each drawn alphaTest material is then drawn as BLEND (no cutoff, transparent) instead.
+// blank render: each drawn alphaTest material is then drawn as BLEND (no cutoff, transparent) instead. The material's
+// opacity (the glTF base-colour factor alpha) is set to 1 (spec 3.8 PATCH W7): the factor alpha that made the MASK cutoff
+// discard everything is an authoring artifact on an atlas without an alpha channel, not translucency, so the retry must
+// not draw the model washed out. Texture alpha is separate and still blends.
 function forceBlendMaterials(meshes) {
   const seen = new Set();
   for (const mesh of meshes) {
@@ -138,6 +141,7 @@ function forceBlendMaterials(meshes) {
       if (!mat || seen.has(mat) || !(mat.alphaTest > 0)) continue;
       seen.add(mat);
       mat.alphaTest = 0;
+      mat.opacity = 1;
       mat.transparent = true;
       mat.needsUpdate = true;
     }

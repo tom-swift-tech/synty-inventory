@@ -4,6 +4,9 @@ Pass 1 uses the name and catalog signals only. Pass 2 runs when ``classify`` is 
 (the geometry summary of ``geometry.pass2_inputs``): ``long_m`` rules may fill a still-unknown archetype at
 confidence <= 0.4, the ``min_length_m`` hold exceptions can fire, and the plausibility / forward-axis penalties
 join the confidence. Without ``measured`` nothing length-dependent fires.
+
+``kind`` is never None for a whole/emplaced record (spec 3.4.2 PATCH W7b). When the rules and the overrides leave it
+null, ``_infer_kind`` fills it: ``kind_hints`` tokens, then (pass 2) the measured long axis, then ``melee``.
 """
 
 from __future__ import annotations
@@ -13,7 +16,7 @@ from fnmatch import fnmatchcase
 
 from . import ARCHETYPE_KIND, NON_WEAPON_ROLES
 from .overrides import effective_override
-from .rules import compile_regex, load_rules, match_conditions
+from .rules import compile_regex, kind_hints, load_rules, match_conditions
 
 _SEGMENT_SPLIT_RE = re.compile(r"[^A-Za-z0-9]+")
 # camelCase boundaries: "RecurveBow" -> Recurve, Bow; "SMGun" -> SM, Gun; digits are separate runs
@@ -158,6 +161,21 @@ _TWO_HAND_HOLDS = ("long_gun", "melee_two")
 _ONE_HAND_HOLDS = ("one_hand", "melee_one", "melee_bat")
 
 
+def _infer_kind(tokens: set[str], measured: dict | None, rules: dict) -> tuple[str, str, bool]:
+    """``(kind, provenance, guessed)`` for a whole/emplaced record whose rules and overrides left ``kind`` null.
+
+    Spec 3.4.2 PATCH W7b, in order: a ``kind_hints`` list that shares a token with the id (provenance ``rules``, not a
+    guess); in pass 2 the measured long axis (``z`` -> ranged, else melee; provenance ``measured``); otherwise ``melee``
+    (provenance ``rules``). The last two are guesses: the caller adds the review reason ``kind_guessed``.
+    """
+    for kind, hint_tokens in kind_hints(rules):
+        if tokens & hint_tokens:
+            return kind, "rules", False
+    if measured is not None:
+        return ("ranged" if measured.get("long_axis") == "z" else "melee"), "measured", True
+    return "melee", "rules", True
+
+
 def _sub_objects(role: str, rule_set: dict) -> tuple[dict | None, dict | None, dict | None]:
     component = {"slot": rule_set.get("component") or "misc", "fits": None} if role == "part" else None
     carrier = {"kind": rule_set["carrier"]} if role == "carrier" and rule_set.get("carrier") else None
@@ -180,7 +198,9 @@ def classify(
     Returns role, kind, archetype, hold_class, component, carrier, ammo, genre, genre_source, family, flags,
     confidence, matched_rule, status (auto|reviewed|overridden), provenance and reasons.
     ``candidate_source`` is an addition to the spec signature: the name_token confidence cap needs it.
-    ``measured`` (pass 2) is ``{'length_m', 'forward_by_fallback', 'axes_unexpected'}`` from the geometry pass.
+    ``measured`` (pass 2) is ``{'length_m', 'long_axis', 'forward_by_fallback', 'axes_unexpected'}`` from the geometry
+    pass. The long axis is the one of the latest measurement (it can differ between two kinds only on a near tie of two
+    axes, see ``directory._measure_record``).
     """
     asset_id = asset["id"]
     full_id = f"{pack_id}/{asset_id}"
@@ -266,6 +286,12 @@ def classify(
         if role == "part" and isinstance(set_.get("component"), dict):
             component = {"slot": set_["component"]["slot"], "fits": set_["component"].get("fits")}
 
+    # W7b: kind is never null for whole/emplaced. This runs after the overrides on purpose: an override of kind (or of
+    # archetype, which carries its own kind) has already filled it, so the guess and its reason never apply to it.
+    guessed = False
+    if role in ("whole", "emplaced") and kind is None:
+        kind, prov["kind"], guessed = _infer_kind(ctx["tokens"], measured, rules)
+
     hold = (set_["hold_class"] if hold_overridden
             else derive_hold(role, kind, archetype, flags, ctx["gear_two_handed"], rules, long_m))
     if hold_overridden:
@@ -310,6 +336,8 @@ def classify(
         reasons.append("low_confidence")
     if role in ("whole", "emplaced") and archetype == "unknown":
         reasons.append("unknown_archetype")
+    if guessed:
+        reasons.append("kind_guessed")
 
     return {
         "role": role,

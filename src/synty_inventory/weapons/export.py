@@ -1,7 +1,8 @@
 """``weapons export``: a per-game snapshot of the directory (spec 3.10) and its validator.
 
 A snapshot is pack-derived data meant for a *game's* private repo, never for this one (INV-1), so the verb refuses an
-output path inside the catalogs dir, a configured pack root or this checkout. The file is deterministic (INV-4
+output path inside the catalogs dir (except under its own ``weapons/snapshots/`` folder, W7b), a configured pack root or
+this checkout. The file is deterministic (INV-4
 style): sorted keys, 1-space indent, ``\\n``, no clock, no machine path, no hostname; ``scanned_at`` is copied from
 the pack catalogs through the directory.
 
@@ -365,6 +366,11 @@ def _forbidden_roots(catalogs_dir: Path | None, cfg) -> list[Path]:
     return [r.resolve() for r in roots if r is not None]
 
 
+def kind_violations(directory: dict) -> list[str]:
+    """Ids of the whole/emplaced records with ``kind: null`` (spec 3.4.2 PATCH W7b), in directory order."""
+    return [w["id"] for w in directory["weapons"] if w.get("role") in ("whole", "emplaced") and w.get("kind") is None]
+
+
 def default_snapshot_path(catalogs_dir: Path, game: str) -> Path:
     """``<catalogs>/weapons/snapshots/<game>.json``; ``game`` must be a safe file stem (no path parts)."""
     from .directory import weapons_dir
@@ -451,7 +457,11 @@ def cmd(args, cfg) -> int:
     catalogs_dir = _catalogs(args, cfg)
     explicit = bool(args.export_out)
     out_file = (Path(args.export_out) if explicit else default_snapshot_path(catalogs_dir, args.game)).resolve()
-    for root in _forbidden_roots(catalogs_dir if explicit else None, cfg):
+    # W7b: an explicit --out below the default folder is as safe as the default (the resolve() above has already folded
+    # any `..`), so it skips the catalogs-dir refusal; pack roots, this checkout and the git check still apply
+    snapshots_dir = (weapons_dir(catalogs_dir) / SNAPSHOTS_DIRNAME).resolve()
+    skip_catalogs_root = not explicit or snapshots_dir in out_file.parents
+    for root in _forbidden_roots(None if skip_catalogs_root else catalogs_dir, cfg):
         if out_file == root or root in out_file.parents:
             raise RefusalError(
                 "refusing to write a snapshot inside the catalogs dir, a pack root or this repository "
@@ -459,6 +469,15 @@ def cmd(args, cfg) -> int:
     refuse_export_target(out_file, repo=_repo_root())  # this checkout, or a git repo that tracks *.synty* files
 
     directory = load_directory(catalogs_dir)
+    # W7b: a record with a null kind would make sit_armory reject the whole snapshot (ARM_E02). The validation below
+    # refuses it too, but only with a positional message; name the ids first so the cure (rebuild) is obvious
+    bad_kind = kind_violations(directory)
+    if bad_kind:
+        shown = ", ".join(bad_kind[:5]) + (f", ... ({len(bad_kind)} in all)" if len(bad_kind) > 5 else "")
+        raise SchemaError(
+            f"{len(bad_kind)} whole/emplaced record(s) have kind null, so the export would write a snapshot "
+            f"that consumers reject: {shown}; rebuild the directory with `weapons build` (kind is inferred) or set a "
+            "kind override", details={"kind_null_ids": bad_kind[:25]})
     problems = validate_directory(directory)
     if problems:
         raise SchemaError("the weapon directory violates weapon-directory/1:\n  " + "\n  ".join(problems[:25]),

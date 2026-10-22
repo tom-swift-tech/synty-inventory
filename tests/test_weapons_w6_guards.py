@@ -264,7 +264,8 @@ def test_an_explicit_out_wins_over_the_default(world, capsys):
 
 
 def test_an_explicit_out_inside_the_catalogs_dir_is_still_refused(world, capsys):
-    target = world["cat"] / "weapons" / "snapshots" / "x.json"
+    # W7b: only the snapshots folder itself is open to an explicit --out (tests/test_weapons_w7_kind.py, AC60)
+    target = world["cat"] / "weapons" / "x.json"
     code, res = H.run(world["cfg"], capsys, [*EXPORT, "--out", str(target)])
     assert code == 3 and not target.exists()
 

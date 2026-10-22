@@ -46,7 +46,15 @@ REQUIRED_TOP = (
     "tier_base", "ammo_by_archetype", "pack_flags", "family_strip_tokens",
 )
 # keys beyond spec 4.4 (judgment calls, reported): see weapon_rules.yaml for each.
-OPTIONAL_TOP = ("hold_exceptions", "id_flags", "tier_tokens", "unknown_confidence", "ammo_token_overrides")
+OPTIONAL_TOP = (
+    "hold_exceptions", "id_flags", "tier_tokens", "unknown_confidence", "ammo_token_overrides",
+    "head_lead_tokens", "icon_albedo_from_material",  # W7: both default to empty (spec 4.4)
+    "kind_hints",  # W7b: defaults to empty (spec 4.4)
+)
+# the kinds a hint list can name, in the order the lists are consulted when an id matches more than one (never a
+# conflict at load time: the loader rejects a token that sits in two lists). `shield` has an archetype of its own.
+HINT_KINDS = ("ranged", "melee", "thrown")
+_ALBEDO_KEYS = ("name", "packs_any", "id_regex")
 
 _AXIS_RE = re.compile(r"^[+-][xyz]$")
 
@@ -237,6 +245,96 @@ def _check_enum_map(m, where: str, keys: tuple[str, ...], values: tuple[str, ...
                 errors.append(f"{where}: missing {k}")
 
 
+def _check_head_lead_tokens(val) -> list[str]:
+    """``head_lead_tokens`` (W7, spec 3.5.2 R-H2): a list of lower-case canonical tokens; empty is allowed."""
+    if not isinstance(val, list):
+        return ["head_lead_tokens: must be a list of lower-case strings"]
+    if not all(isinstance(s, str) and s and s == s.lower() for s in val):
+        return ["head_lead_tokens: every entry must be a non-empty lower-case string"]
+    return []
+
+
+def _check_icon_albedo(val) -> list[str]:
+    """``icon_albedo_from_material`` (W7, spec 3.8): ``[{name, packs_any?, id_regex}]``, names unique."""
+    if not isinstance(val, list):
+        return ["icon_albedo_from_material: must be a list of mappings"]
+    errors: list[str] = []
+    seen: set[str] = set()
+    for i, row in enumerate(val):
+        here = f"icon_albedo_from_material[{i}]"
+        if not isinstance(row, dict):
+            errors.append(f"{here}: must be a mapping with name, packs_any (optional) and id_regex")
+            continue
+        for key in row:
+            if key not in _ALBEDO_KEYS:
+                errors.append(f"{here}.{key}: unknown key (allowed: {', '.join(_ALBEDO_KEYS)})")
+        name = row.get("name")
+        if not isinstance(name, str) or not name:
+            errors.append(f"{here}.name: must be a non-empty string")
+        elif name in seen:
+            errors.append(f"{here}.name: duplicate name {name!r}")
+        else:
+            seen.add(name)
+        if "packs_any" in row:
+            _check_str_list(row["packs_any"], f"{here}.packs_any", errors)
+        pattern = row.get("id_regex")
+        if not isinstance(pattern, str) or not pattern:
+            errors.append(f"{here}.id_regex: must be a non-empty regex string")
+        else:
+            try:
+                compile_regex(pattern)
+            except re.error as exc:
+                errors.append(f"{here}.id_regex: invalid regex ({exc})")
+    return errors
+
+
+def _check_kind_hints(val, aliases) -> list[str]:
+    """``kind_hints`` (W7b, spec 3.4.2 PATCH W7b): ``{ranged|melee|thrown: [canonical lower-case tokens]}``.
+
+    A token must be canonical (an alias variant could never match an id), and it may sit in one list only: the first
+    kind whose list shares a token with the id wins, so a token in two lists would make the result depend on list order.
+    """
+    if not isinstance(val, dict):
+        return ["kind_hints: must be a mapping kind -> [tokens]"]
+    errors: list[str] = []
+    owner: dict[str, str] = {}
+    variants: dict[str, str] = {}
+    if isinstance(aliases, dict):
+        for target, vs in aliases.items():
+            if isinstance(vs, list):
+                variants.update({v: target for v in vs if isinstance(v, str)})
+    for kind, tokens in val.items():
+        if kind not in HINT_KINDS:
+            errors.append(f"kind_hints.{kind}: unknown kind (allowed: {', '.join(HINT_KINDS)})")
+            continue
+        if not isinstance(tokens, list) or not all(isinstance(t, str) and t and t == t.lower() for t in tokens):
+            errors.append(f"kind_hints.{kind}: must be a list of non-empty lower-case tokens")
+            continue
+        for t in tokens:
+            if t in variants and variants[t] != t:
+                errors.append(f"kind_hints.{kind}: token {t!r} is an alias variant of {variants[t]!r} and can never match")
+            if t in owner and owner[t] != kind:
+                errors.append(f"kind_hints: token {t!r} is in both {owner[t]!r} and {kind!r}")
+            owner.setdefault(t, kind)
+    return errors
+
+
+def kind_hints(rules: dict) -> list[tuple[str, frozenset[str]]]:
+    """``[(kind, tokens)]`` for the non-empty ``kind_hints`` lists, in ``HINT_KINDS`` order; empty when the key is absent."""
+    table = rules.get("kind_hints") or {}
+    return [(k, frozenset(table[k])) for k in HINT_KINDS if table.get(k)]
+
+
+def head_lead_tokens(rules: dict) -> frozenset[str]:
+    """The tool tokens whose head leads (W7 R-H2); empty when the key is absent."""
+    return frozenset(rules.get("head_lead_tokens") or ())
+
+
+def icon_albedo_entries(rules: dict) -> list[dict]:
+    """The ``icon_albedo_from_material`` entries (W7), in file order; empty when the key is absent."""
+    return list(rules.get("icon_albedo_from_material") or ())
+
+
 def validate_rules(rules) -> list[str]:
     """Every violation of the weapon_rules.yaml schema (spec 4.4), as readable messages naming the key."""
     errors: list[str] = []
@@ -424,6 +522,9 @@ def validate_rules(rules) -> list[str]:
                 errors.append(f"ammo_token_overrides.{family}: not an ammo family in {list(AMMO_FAMILIES)}")
             else:
                 _check_str_list(words, f"ammo_token_overrides.{family}", errors, lower=True)
+    errors.extend(_check_head_lead_tokens(rules.get("head_lead_tokens", [])))
+    errors.extend(_check_icon_albedo(rules.get("icon_albedo_from_material", [])))
+    errors.extend(_check_kind_hints(rules.get("kind_hints", {}), rules["token_aliases"]))
     uc = rules.get("unknown_confidence", 0.2)
     if not _is_num(uc) or not (0.05 <= uc <= 0.99):
         errors.append("unknown_confidence: must be a number in [0.05, 0.99]")
