@@ -1,7 +1,10 @@
 # Spec: weapon attachments (amendment to the weapon directory)
 
-**Written:** 2026-10-22. **Status:** DRAFT, awaiting Tom's approval (decisions D-1 to D-12 are mine, from Tom's three
-2026-10-22 decisions; open questions are in §12). No code exists; nothing is built until this is approved.
+**Written:** 2026-10-22. **Status:** APPROVED (Tom, 2026-10-22), with all defaults: "Approve both T4 attachment specs (synty-inventory 17cc1c6,
+sit-capabilities b800211) with all defaults: no rail probe in v1 (W9 spike), seats without a measured point come from game
+overlays, cross-pack off, additive-percent stacking, magazine = mesh swap, ~150 phone labels after W8d. Start the builds."
+Decisions D-1 to D-12 came from Tom's three 2026-10-22 decisions; Q-1 to Q-10 (§12) are decided on their defaults.
+The approved base for the build slices is the commit that records this approval.
 **Branch:** `spec/attachments`, based on `main` at `e6e82b6` (W7 merged).
 **Parent:** [weapon_directory.md](weapon_directory.md) (called "the directory spec" below). Everything there still
 holds; this document adds fields and verbs and amends nothing it does not name. `DS§N` points into the directory spec;
@@ -461,9 +464,12 @@ that must make the test fail.
 Gate commands are those of DS§11.1 (`pytest -k weapons`, then the full suite, each judged by exit
 code). W8a/b/c/d add `tests/test_weapons_attach_*.py`; none reads Synty data.
 
-## 12. Open questions for Tom
+## 12. Questions for Tom (DECIDED 2026-10-22: every default accepted)
 
-Each has a recommendation; none blocks W8a.
+Tom approved the spec "with all defaults" (quoted in the header), so Q-1 to Q-10 below stand as decided on the
+recommendation each one states. Decided: no rail probe in v1 (W9 is a spike), seats without a measured point come from game
+overlays, cross-pack off, magazine = mesh swap, about 150 phone labels after W8d. Q-2 (no numeric corrections in the
+directory), Q-3, Q-4, Q-6, Q-9 and Q-10 stand on their stated defaults.
 
 - **Q-1 Cross-pack borrowing.** Eight of BONDED's guns (one SciFi pack and CyberCity) have no same-pack attachments.
   Cross-pack candidates exist but stay out of the default export (D-11). *Recommend:* keep it that way; Tom opts a family
