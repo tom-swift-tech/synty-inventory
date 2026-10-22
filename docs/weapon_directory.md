@@ -184,6 +184,33 @@ review page ("Excluded" section).
 
 Rule order for exclusion is data (`weapon_rules.yaml`), not code; a test asserts no rule is shadowed (AC9).
 
+> **PATCH (W7, 2026-10-22): scenery, furniture and vehicle attachments.** Tom's W7 list named the StripClub club
+> match. The premise was a substring bug; it is not one. The tokenizer splits `StripClub` into `strip`, `club`, so the
+> real token `club` fires the `club` rule, and the narrow `club_awning` exclude (`club_?(awning|sign|door|...)`)
+> never sees a `StripClub` id. The fix is context, not a matcher change. New data, all in `weapon_rules.yaml`, every
+> entry with a synthetic fixture id that first-matches it (AC9, AC50-AC53):
+> - **excludes (reason `scenery` unless stated)**: `strip_club` (`strip_?club`: the building and the 8 props); `bld_env_prefix`
+>   (`^SM_(Bld|Env)_`: building and environment pieces that carry a weapon noun: mine towers and wheels, vents, ArrowSlit,
+>   Bomb, Planetary_Cannon); `chr_prefix` (`^SM_Chr_`, reason `character_attachment`: whole character meshes such as the
+>   Shieldmaidens); `sign_prop` (`^SM_(Prop|Sign|SignBorder)_` with token `sign`, none of `wep`: arrow signs, nightclub
+>   signs; a `Wep`-prefixed `Sign_Shield` stays, it is an improvised shield); `container_furniture`
+>   (`^SM_(Prop|Item)_` with a container or furniture token (crate, case, locker, holder, stand, hanging, hook, altar,
+>   display, machine, rack, arcade, box, fence) and none of ammo, bullet, arrow, quiver, magazine, shell, rocket,
+>   missile, `wep`: gun cases, knife holders, weapon hangers, claw machines, crates, pike fences); `pestle` (a mortar
+>   with a pestle is kitchenware, not artillery).
+> - **vehicle attachments**: a new rule `part_attach` (token `attach`, role `part`, `component.slot` misc) between
+>   `part_misc` and the emplaced rules: Veh/Heli/Jet/Tug attachments and the `SM_Wep_Attach_*` set are mounting pieces of
+>   a vehicle or mech, not hand-held weapons. `Heli_Attach_Missile` and `Attach_Bolt` stay `ammo` (earlier rules). A new
+>   rule `emplaced_vehicle` (token `veh`, after `emplaced_cannon`) makes vehicle-mounted guns (`Veh_Extra_Gun`,
+>   `Wep_Veh_*`) role `emplaced`, archetype `turret`; a vehicle cannon stays `cannon`.
+> - **aliases** (unambiguous compound spellings only): `fireaxe` -> axe; `straightsword`, `zweihander`, `ninjato`,
+>   `odachi`, `machette` -> sword; `pickacxe` -> pickaxe; `cannonballs` -> cannonball (the Pirate `CannonBalls`
+>   were an emplaced cannon, they are loose ammo).
+> - Gate: the full before -> after list of changed records (role, archetype, excluded) is printed and reviewed
+>   record by record (capture a of the W7 report); no `SM_Wep_*` record may be excluded by these entries. Golf clubs
+>   (`Golf_Club`, `Minigolf`) are left as `club`; they are an open question (NB-16). About 100 real weapons whose names
+>   the vocabulary does not know stay `unknown` and are listed in NB-16; they are not aliased wholesale.
+
 #### 3.4.2 Role, kind, archetype, hold_class
 
 First-match-wins ordered rules in `weapon_rules.yaml`:
@@ -351,6 +378,26 @@ own axes; `export` bakes the rotation into the item frame by default (`--frame i
      >
      > Effect on the live set: the known-wrong ids of the 16-record hand check are fixed, and the forward flips moved 24
      > records into review (`axes_unexpected`). A per-id `forward` override (§3.9) remains the way to fix any residue.
+     > **PATCH (W7, 2026-10-22): head over pivot (geometry version 5).** The W2f rule only decided mid-origin records.
+     > A pivot-sourced headed melee whose origin sits nearer the head than the butt (Halberd_06, Farm Scythe_01,
+     > AncientEmpire Axe_02, Farm Tool_Axe_01, Horror_Mansion Hatchet_01) pointed away from its head: the pivot rule
+     > assumes the origin is in the grip. Two additions, both from the same `_head_sign` measurement (outer 25 % lateral
+     > extent, ratio at least 1.15):
+     > 1. **R-H1**: for `kind == melee` with archetype in `_HEAD_PIVOT` (axe, mace, hammer, polearm, staff), a
+     >    pivot-decided sign is replaced by the head sign when `_head_sign` is non-zero. `forward_source = "head"` (a free
+     >    string in the schema), the flag `forward_by_fallback` is NOT set (a measured rule, like the bow belly), and an
+     >    override still wins. `club` and `tool` are not in `_HEAD_PIVOT`: side-handle batons (Police_Baton_01, ratio 4.3,
+     >    and the Police/Apocalypse/Asylum batons), PipeWrench_01 and the motor-heavy Chainsaw_01 have a bigger end that is
+     >    not the working end, and no ratio separates them from the right flips. Sword, knife, spear: as W2f.
+     > 2. **R-H2**: `weapon_rules.yaml: head_lead_tokens` (spade, shovel, pitchfork) names the tool tokens whose head leads
+     >    (the blade, not the handle, is the working end). For `kind == melee`, archetype `tool`, with one of those tokens,
+     >    the head sign replaces the pivot sign the same way. The tokens are passed from `directory.py` to the measurement
+     >    as `head_lead` and are part of the cache fingerprint. Live effect: the one `Gen_Spade_01` mesh (17 records
+     >    across packs) flips; `Shovel_01` already agreed.
+     > `Fireaxe_01` (archetype `unknown`, section sign) becomes `axe` through the `fireaxe` alias (3.4.1 PATCH W7) and is
+     > then decided by the W2f rule. Live effect on `forward`: only records whose pivot and head disagree move; every
+     > moved record is listed and hand-checked on a before/after sheet (16 records minimum, green arrow = `forward`).
+     > Flipped records get a new `item_basis` and therefore a new `icon_input_sha`, so `icons` redraws them.
   3. `bow`: `axes.up` = the long axis; `forward` = the larger of the remaining two axes, sign away from the origin,
      `forward_source = "bow_rule"`, always flagged `forward_by_fallback` (a bow's arrow direction is not recoverable
      from the mesh alone). `crossbow` follows the firearm rule.
@@ -586,6 +633,27 @@ Framing (so a 1.4 m rifle is not a sliver and a 0.2 m pistol is not tiny):
 > pre-W6 blank icon needs `--rebuild` to be retried. `icons` refuses to start beside another inventory process (§7).
 > `--gpu` is accepted by the `icons` command (it was documented but not wired).
 
+> **PATCH (W7, 2026-10-22): wrong embedded textures and washed-out retries.** Two converter faults, seen on the live
+> icons, are handled at render time (the GLBs belong to the converter and are not touched):
+> - **Albedo from the Unity material.** Every `SM_Wep_Shield_Set_*` and `SM_Wep_Shield_Set_Optimised_*` GLB in
+>   `POLYGON_Viking_Realm` (160 records) embeds the pack's general decor atlas instead of the shield texture, so the
+>   icons show piano keys and plaid. A pixel audit of every whole record with a Unity material found these 160
+>   to be the only systematic mismatch (1,132 of 1,295 embed their material's texture; three single records,
+>   Samurai `Sword`, `Rigged_Bow_01`, Wasteland `Superheavy_01`, differ and are not touched). `weapon_rules.yaml:
+>   icon_albedo_from_material` lists `{name, packs_any, id_regex}` entries; a matching record is drawn with the
+>   albedo of its first Unity material (`variants.resolve_variant_texture`, with the extra slot `_Base_Texture` passed
+>   by this caller only, so variant resolution is unchanged), substituted by the same mechanism as a colourway. The
+>   texture file's sha256 is added to `icon_input_sha` under the key `albedo` ONLY for such records, so every other
+>   icon keeps its stored hash and is not redrawn. If the texture cannot be resolved the record keeps the embedded one
+>   and the run reports it in `report.warnings`, never a silent fallback.
+> - **Retry opacity.** The Mech `GattlingGun_01` GLB carries a single material, the Unity `_Screens` material, with a
+>   base-colour factor alpha of 0.47 on an RGB atlas, so MASK at 0.5 discards everything and the BLEND retry then drew the
+>   gun translucent and washed out. In the retry, a forced-BLEND material is also set to opacity 1: the factor alpha of
+>   an atlas without an alpha channel is an authoring artifact, not translucency. Texture alpha still blends.
+>   `ICON_HARNESS_VERSION` stays 1; the two live `blend_retry` records (GattlingGun_01, Shotgun_01) are redrawn with
+>   `icons --rebuild --ids`. The Mech GLB's missing body material (Unity lists `PolygonMech_01_A` and
+>   `PolygonMech_01_A_Screens`, the GLB keeps only the second) is a converter issue and is recorded in NB-16.
+
 ### 3.9 Review page and corrections
 
 `weapons review` writes one self-contained static page `<catalogs>/weapons/review/index.html` (no server, no network,
@@ -776,7 +844,9 @@ carrier} or archetype `unknown` (§3.6); all float fields rounded to 1e-4 (confi
 
 `version`, `token_aliases`, `candidates.{include,exclude}`, `rules[]` (`name`, `match`, `set`, `confidence`),
 `hold_by_archetype`, `genre_by_archetype`, `plausible_length_m`, `axes_expected`, `grip_proportion`,
-`size_class_cuts_m`, `weight_by_archetype`, `tier_base`, `ammo_by_archetype`, `pack_flags`, `family_strip_tokens`.
+`size_class_cuts_m`, `weight_by_archetype`, `tier_base`, `ammo_by_archetype`, `pack_flags`, `family_strip_tokens`;
+PATCH W7: `head_lead_tokens` (list of canonical tokens) and `icon_albedo_from_material` (`[{name, packs_any, id_regex}]`),
+both optional, defaulting to empty.
 
 ### 4.5 `weapon_overrides.json`
 
@@ -1069,7 +1139,7 @@ Determinism, additivity, live gates
   fail.
 - AC43. Cache digest. Editing `geometry.py` (a one-byte change in a copy of the module) changes the cache entry version
   string and a cached result is not served; a CRLF-to-LF difference alone does not change it;
-  `generated_from.geometry_version` is the plain integer 4.
+  `generated_from.geometry_version` is the plain integer 5 (PATCH W7: it was 4).
 - AC44. Blank render. A synthetic MASK-material GLB that renders empty is retried with BLEND and gets
   `visuals.icon_mode == "blend_retry"` with a non-empty PNG; a GLB that stays blank fails with `blank_render`, keeps no
   PNG and appears in `report.failed`; a normal render has no `icon_mode` key; a `directory.json` rebuild keeps the key.
@@ -1088,6 +1158,39 @@ Determinism, additivity, live gates
 - AC48. `weapons icons --gpu` is accepted by the parser and drops the software-ANGLE flags from the renderer launch.
 - AC49. The synthetic `FAKE_*` fixture catalogs under `tests/fixtures/weapons/catalogs/` are tracked despite the
   `*.synty*` ignore pattern (`.gitignore` negation); no pack-derived file is.
+- AC50. StripClub (PATCH W7). Synthetic ids `SM_Bld_StripClub_01` and `SM_Prop_StripClub_01` are `excluded` (reason
+  `scenery`), while `SM_Wep_Club_01` and `SM_Prop_Club_01` stay `club`; the existing `club_awning` cases still exclude.
+  Removing the `strip_club` entry makes the first pair classify as `club`.
+- AC51. Scenery and furniture excludes (PATCH W7). One synthetic id per entry (`bld_env_prefix`, `chr_prefix`, `sign_prop`,
+  `container_furniture`, `pestle`) is excluded with its reason; counter-cases stay: `SM_Wep_Sign_Shield_01` is a `shield`,
+  a `Crate_Bullets` id is `ammo`, a `Wep`-prefixed gun with a `case` word in the name is not excluded. Removing any one
+  entry makes its id a candidate again (mutation per entry). A fixture proves the table is not shadowed (AC9).
+- AC52. Vehicle attachments (PATCH W7). `SM_Veh_Attach_HMG_01`, `SM_Jet_Attach_Bomb_01` and `SM_Wep_Attach_Axe_01` are
+  `part` with `component.slot == "misc"`; `SM_Heli_Attach_Missile_01` and `SM_Veh_Attach_Bolt_01` stay `ammo`;
+  `SM_Wep_Veh_MiniGun_01` and `SM_Veh_Extra_Gun_01` are `emplaced`/`turret`/`ranged`; `SM_Veh_Cannon_01` stays
+  `cannon`. Removing `part_attach` or `emplaced_vehicle` makes the cases fail.
+- AC53. Aliases (PATCH W7). `SM_Wep_Fireaxe_01` -> `axe`, `Straightsword`/`Zweihander`/`Ninjato`/`Odachi`/`Machette` ->
+  `sword`, `Wep` `Pickacxe` -> `tool`, `CannonBalls_01` -> `ammo`; each fails without its alias.
+- AC54. Head over pivot, R-H1 (PATCH W7). On synthetic pivot-sourced axe, mace, hammer, polearm and staff meshes whose
+  origin sits at the head end (head extent ratio at least 1.15), `forward` points to the head,
+  `forward_source == "head"` and `forward_by_fallback` is false; at a ratio below 1.15 the pivot sign and
+  `"pivot"` stay; a club, a tool without a head-lead token, a sword, a knife and a spear with the same shape keep the
+  pivot sign; a `forward` override still wins (`"override"`). The test bounds are literals; removing the rule makes
+  the headed cases fail.
+- AC55. Head-lead tools, R-H2 (PATCH W7). A synthetic `tool` with token `spade`, `shovel` or `pitchfork` and the head
+  at the pivot end follows the head; a `wrench`, `chainsaw` and `pickaxe` tool with the same shape keep the pivot sign.
+  Editing `head_lead_tokens` changes the cache fingerprint (a stale result is not served). Removing the table makes
+  the spade case fail.
+- AC56. Albedo from the material (PATCH W7). A synthetic GLB embedding texture A, with a synthetic extracted tree whose
+  Unity material points to texture B (by `_Base_Texture`), listed in `icon_albedo_from_material`, renders with B (the
+  dominant colour of the tile is B's, not A's) and its `icon_input_sha` differs from the same record without the
+  entry; a record not in the table has the same `icon_input_sha` as before (a literal hash); a material with only a
+  `_Base_Texture` slot is still unresolved by `resolve_variant_texture` with its default slots (variant behaviour is
+  unchanged); an unresolvable material keeps the embedded texture and is reported.
+- AC57. Retry opacity (PATCH W7). A synthetic MASK-material GLB whose base-colour factor alpha is 0.4 on an opaque RGB
+  texture renders blank first, is retried, gets `icon_mode == "blend_retry"` and the covered pixels have alpha 255
+  (not about 102); a MASK material with a real texture alpha channel still blends. Removing the opacity line makes the
+  alpha assertion fail.
 
 ## 7. Failure modes
 
@@ -1181,6 +1284,14 @@ Determinism, additivity, live gates
     duplicates, so `visually_identical` will flag most of them).
   - Blank pre-W6 icons are not re-checked without `--rebuild`.
   - The geometry cache digest covers `geometry.py` only, not its helper modules.
+  - W7 (2026-10-22), Tom's call: golf clubs (`Golf_Club`, `Minigolf`, `Sport_Golf_Club`, 9 records) stay `club`; they are
+    sports gear, not weapons, and were not named. About 100 real weapons the vocabulary does not know (Cleaver, Sickle,
+    Slingshot, Elephant_Gun, BlunderBuss, FlameThrower, Hacksaw, Spanner, Sceptre, Stungun, ...) stay `unknown` and are
+    listed in the W7 report; only unambiguous compound spellings were aliased.
+  - W7: the Viking_Realm shield GLBs embed the wrong texture and the Mech `GattlingGun_01` GLB keeps only its `_Screens`
+    material. Both are converter faults outside this repo (a game that loads these GLBs sees them too); the icons are fixed
+    at render time (3.8 PATCH W7), the GLBs are not. Three single records (Samurai `Sword`, `Rigged_Bow_01`, Wasteland
+    `Superheavy_01`) embed a texture that differs from their material's and were not investigated.
 
 **Suggested build slices (non-binding; the plan stage decides):** W1 rules + candidates + classify + overrides +
 directory without geometry (AC1-10, 27-28); W2 geometry + muzzle parity + grip/support (AC11-16, NB-6/NB-7 probes);
