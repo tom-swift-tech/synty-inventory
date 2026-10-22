@@ -71,12 +71,23 @@ def test_ends_within_the_margin_fall_back_to_the_end_section_rule(tmp_path, rule
     assert d["geometry"]["axes"]["forward_source"] == "section" and "forward_by_fallback" in d["flags"]
 
 
-def test_a_pivot_decided_sign_is_never_touched_by_the_head_rule(tmp_path, rules):
+def test_a_pivot_decided_sign_is_not_touched_by_the_mid_origin_head_rule_for_a_club(tmp_path, rules):
     """With the origin at the head end the designer's origin says forward is -y (away from the origin), although the head is
-    at +y: the head rule must not override a pivot-given sign."""
-    d = measure(tmp_path, rules, F.ornate_staff(), "staff", 2.0)
+    at +y. The W2f rule only decides mid-origin records; since W7 a staff is also moved by the head-over-pivot rule
+    (tests/test_weapons_w7_geometry.py), but a club is not in that list: its pivot-given sign stays."""
+    d = measure(tmp_path, rules, F.ornate_staff(), "club", 2.0)
     assert d["geometry"]["axes"]["forward"] == "-y" and d["geometry"]["axes"]["forward_source"] == "pivot"
     assert "forward_by_fallback" not in d["flags"]
+
+
+def test_w7_the_same_staff_with_its_origin_at_the_head_now_points_at_the_head(tmp_path, rules):
+    """W7 (R-H1) replaces the old claim that a pivot sign is never touched: the staff's pivot sign (-y) disagrees with its
+    clearly larger head (+y), so the head wins and the source says so; no fallback flag."""
+    d = measure(tmp_path, rules, F.ornate_staff(), "staff", 2.0)
+    assert d["geometry"]["axes"]["forward"] == "+y" and d["geometry"]["axes"]["forward_source"] == "head"
+    assert "forward_by_fallback" not in d["flags"]
+    agree = measure(tmp_path, rules, F.ornate_staff(), "staff", 0.0)  # origin at the butt: the pivot already says +y
+    assert agree["geometry"]["axes"]["forward"] == "+y" and agree["geometry"]["axes"]["forward_source"] == "pivot"
 
 
 # --- item 1: the grip is kept a hand-half off the butt ------------------------------------------------------------------

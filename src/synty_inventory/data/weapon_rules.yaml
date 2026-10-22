@@ -26,8 +26,8 @@ token_aliases:
   pistol: [handgun, sidearm]
   utilgun: [nailgun, paintgun, watergun, flaregun, spraygun, dartgun, staplegun, taser, welder, syringegun, gluegun]
   throwblade: [shuriken, kunai, throwingstar, throwingknife, throwingaxe]
-  axe: [hatchet, tomahawk, battleaxe, waraxe, handaxe]
-  sword: [katana, rapier, cutlass, machete, scimitar, saber, sabre, longsword, shortsword, greatsword, broadsword]
+  axe: [hatchet, tomahawk, battleaxe, waraxe, handaxe, fireaxe]
+  sword: [katana, rapier, cutlass, machete, scimitar, saber, sabre, longsword, shortsword, greatsword, broadsword, straightsword, zweihander, ninjato, odachi, machette]
   knife: [dagger, shiv, tanto, kukri, razor]
   mace: [flail, morningstar]
   club: [cudgel, baton, truncheon, nightstick, crowbar]
@@ -35,6 +35,7 @@ token_aliases:
   spear: [pike, trident, harpoon, lance, javelin]
   polearm: [halberd, naginata, glaive, scythe, poleaxe, bardiche]
   staff: [quarterstaff]
+  pickaxe: [pickacxe]  # the Wep_Pickacxe misspelling (W7)
   fistweapon: [knuckles, knuckleduster, claws, claw, tonfa, sai, cestus]
   bow: [longbow, shortbow, warbow, compoundbow]
   shield: [buckler, pavise, kiteshield, towershield]
@@ -45,7 +46,7 @@ token_aliases:
   cannon: [artillery]
   siege: [catapult, trebuchet, ballista, batteringram, mangonel]
   mortar: [flak]
-  cannonball: [cannonball]  # lets Cannon_Ball and CannonBall reach the same token
+  cannonball: [cannonball, cannonballs]  # lets Cannon_Ball, CannonBall and CannonBalls reach the same token
   flamethrower: [flamer]
   optic: [scope, sight, ironsight, reddot, holo, acog, reflex, optics]
   magazine: [mag, clip, drum, mags]
@@ -189,6 +190,33 @@ candidates:
         id_regex: '^S[MA]_(Prop|Env|Item|Gen)_'
         tokens_any: [pickaxe, spade, shovel, syringe, wrench, chainsaw, pitchfork]
         tokens_none: [wep]
+    # --- W7 (spec 3.4.1 PATCH): scenery, furniture and whole characters that carry a weapon noun. They sit AFTER the
+    # survey families on purpose: an older entry keeps every id it already caught (same reason, same `matched`); the order
+    # inside the block matters (strip_club before bld_env_prefix, so SM_Bld_StripClub_* is named for the club) ---
+    - name: strip_club          # the StripClub building and its props: the tokenizer splits it into strip + club
+      reason: scenery
+      match: {id_regex: 'strip_?club'}
+    - name: bld_env_prefix      # building and environment pieces (mine towers, vents, ArrowSlit, Bomb, Planetary_Cannon)
+      reason: scenery
+      match: {id_regex: '^SM_(Bld|Env)_'}
+    - name: chr_prefix          # whole character meshes (the Shieldmaidens); SM_Chr_Attach_ is caught above
+      reason: character_attachment
+      match: {id_regex: '^SM_Chr_'}
+    - name: sign_prop           # arrow signs, nightclub signs; a Wep-prefixed Sign_Shield is an improvised shield
+      reason: scenery
+      match:
+        id_regex: '^SM_(Prop|Sign|SignBorder)_'
+        tokens_any: [sign]
+        tokens_none: [wep]
+    - name: container_furniture # gun cases, knife holders, weapon hangers, claw machines, crates, pike fences
+      reason: scenery
+      match:
+        id_regex: '^SM_(Prop|Item)_'
+        tokens_any: [crate, case, locker, holder, stand, hanging, hook, altar, display, machine, rack, arcade, box, fence]
+        tokens_none: [ammo, bullet, arrow, quiver, magazine, shell, rocket, missile, wep]
+    - name: pestle              # a mortar with a pestle is kitchenware, not artillery
+      reason: scenery
+      match: {tokens_any: [pestle]}
 
 # Classification rules, FIRST MATCH WINS. Set is {role, kind?, archetype?, component?|carrier?|ammo?}; kind is
 # derived from the archetype when omitted. `confidence` is the base (0.5-0.95), see spec 3.4.2 for the
@@ -229,6 +257,9 @@ rules:
   - {name: part_body, match: {tokens_any: [body, receiver]}, set: {role: part, component: body}, confidence: 0.85}
   # Mod_<anything else>: a part, slot unknown
   - {name: part_misc, match: {tokens_any: [mod, flashlight, bipod, sling, attachment, muzzle]}, set: {role: part, component: misc}, confidence: 0.8}
+  # Veh/Heli/Jet/Tug attachments and the SM_Wep_Attach_* set mount on a vehicle or mech (W7); Heli_Attach_Missile and
+  # Attach_Bolt are caught as ammo above
+  - {name: part_attach, match: {tokens_any: [attach]}, set: {role: part, component: misc}, confidence: 0.85}
   # melee pieces of modular swords/axes use the same part vocabulary (slot misc)
   - {name: part_melee, match: {tokens_any: [hilt, pommel, crossguard, handle, guard]}, set: {role: part, component: misc}, confidence: 0.8}
   # --- emplaced (not hand-held); kind is ranged ---
@@ -236,6 +267,13 @@ rules:
   - {name: emplaced_siege, match: {tokens_any: [siege]}, set: {role: emplaced, archetype: siege_engine}, confidence: 0.9}
   - {name: emplaced_mortar, match: {tokens_any: [mortar]}, set: {role: emplaced, archetype: mortar}, confidence: 0.88}
   - {name: emplaced_cannon, match: {tokens_any: [cannon]}, set: {role: emplaced, archetype: cannon}, confidence: 0.85}
+  # vehicle-mounted guns (Veh_Extra_Gun, Wep_Veh_*); a vehicle cannon stays `cannon` (W7). `tokens_none: [cannon]` is not
+  # needed for the result (emplaced_cannon is first) but keeps the cannon rule from counting as an ambiguous second match,
+  # which would cost every SM_Veh_*Cannon* a confidence step
+  - name: emplaced_vehicle
+    match: {tokens_any: [veh], tokens_none: [cannon]}
+    set: {role: emplaced, archetype: turret}
+    confidence: 0.8
   # --- whole ranged weapons, most specific first ---
   # a rocket/grenade LAUNCHER must precede the grenade rule: Grenade_Launcher carries both tokens
   - {name: launcher, match: {tokens_any: [rpg, launcher]}, set: {role: whole, archetype: launcher}, confidence: 0.93}
@@ -376,6 +414,17 @@ id_flags:
 
 # Family = lower-cased id minus trailing _NN and these suffix tokens (spec 3.4.4).
 family_strip_tokens: [clean, rigged, unrigged, alt, optimised, separate, covered, preset]
+
+# W7 (spec 3.5.2 PATCH R-H2): tool tokens whose HEAD leads (the blade, not the handle, is the working end), so the head
+# sign replaces the pivot sign of a melee `tool` that carries one of them. Canonical (post-alias) lower-case tokens.
+head_lead_tokens: [spade, shovel, pitchfork]
+
+# W7 (spec 3.8 PATCH, read by the icon renderer): GLBs whose embedded texture is the wrong one; the albedo is taken from
+# the Unity material instead. Each entry: name (unique), optional packs_any (pack-id globs), id_regex.
+icon_albedo_from_material:
+  - name: viking_shield_sets
+    packs_any: ['POLYGON_Viking_Realm']
+    id_regex: '^SM_Wep_Shield_Set_'
 
 # --- tables below are read by later slices (W2 geometry/hints). Minimal stubs, tuned on the first review round ---
 # plausible measured length range in metres per archetype (confidence -0.25 outside it, W2)

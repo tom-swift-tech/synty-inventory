@@ -76,6 +76,11 @@ _HEAD_FORWARD = ("axe", "mace", "hammer", "club", "staff", "tool", "polearm")
 _HEAD_FRAC = 0.25  # outer share of the length whose largest lateral extent is the end's head size
 _HEAD_RATIO = 1.15  # the larger end must exceed the smaller by 15 %, else the end-section rule decides (agreement is flat
 # for ratios 1.1-1.3; the upper bound is set by the double-headed staff that must still flip, ratio about 1.22)
+# W7 (R-H1): for these archetypes a PIVOT-decided sign is replaced by the head sign when the ends differ clearly: the pivot
+# rule assumes the origin is in the grip, and Halberd_06 / Farm Scythe_01 / the AncientEmpire Axe_02 have it at the head.
+# club and tool are left out on purpose (side-handle batons, PipeWrench_01 and the motor-heavy Chainsaw_01 have a bigger
+# end that is not the working end); tools whose head leads opt in through `head_lead` (R-H2, rules.head_lead_tokens).
+_HEAD_PIVOT = ("axe", "mace", "hammer", "polearm", "staff")
 # shield front face (spec 3.5.2 item 4): which side of the face normal is the outer face
 _WELD_M = 1e-4  # vertices closer than this share a component (the GLB splits vertices at UV / normal seams)
 _STRAP_MAX_AREA = 0.10  # a strap / handle is a small piece: at most 10 % of the surface area
@@ -272,7 +277,8 @@ def _head_sign(v: np.ndarray, axis: int, lo: float, size: float) -> int:
     """Forward sign (+1 / -1) of the end with the clearly larger head, or 0 when the two ends are within ``_HEAD_RATIO``.
 
     Head size = the largest lateral AABB extent of the vertices in the outer ``_HEAD_FRAC`` of the length at each end.
-    The caller applies it to the ``_HEAD_FORWARD`` archetypes only and falls back to ``_section_sign`` on 0.
+    The caller applies it to the ``_HEAD_FORWARD`` archetypes (mid-origin items, falling back to ``_section_sign`` on 0) and,
+    since W7, to the ``_HEAD_PIVOT`` archetypes and head-lead tools (pivot-decided items, keeping the pivot sign on 0).
     """
     win = _HEAD_FRAC * size
     lat = [i for i in range(3) if i != axis]
@@ -588,6 +594,7 @@ def _fail(reasons: list[str], warning: str | None = None) -> dict:
 def measure_weapon_detail(
     glb: Path, glb_node: NodeSel, scale: float, archetype: str, kind: str | None, role: str, rules: dict,
     *, hold_class: str | None = None, genre: str | None = None, forward_override: str | None = None,
+    head_lead: bool = False,
 ) -> dict:
     """``{'geometry': block | None, 'flags': [...], 'reasons': [...], 'warning': str | None}`` (spec 3.5).
 
@@ -601,6 +608,9 @@ def measure_weapon_detail(
     becomes ``override`` and every sign-derived value follows as if the mesh had decided that sign natively. The
     fallback flag the natural sign may have carried goes (the sign is no longer a guess); ``axes_unexpected`` is still
     judged from the final sign. A different axis is not applied: the measurement stays natural and ``warning`` says so.
+
+    ``head_lead`` (W7 R-H2: the record carries one of ``rules.head_lead_tokens``) lets a melee ``tool`` take the head sign
+    over a pivot-decided sign, as the ``_HEAD_PIVOT`` archetypes do.
     """
     if hold_class is None:
         hold_class = (rules.get("hold_by_archetype") or {}).get(archetype, "none") if role == "whole" else "none"
@@ -663,6 +673,12 @@ def measure_weapon_detail(
             f = _frac(0.0, mn[fa], size[fa])
             if abs(f - 0.5) >= _PIVOT_BAND - 1e-9:
                 fs, f_src = (1 if f < 0.5 else -1), "pivot"
+                if kind == "melee" and (archetype in _HEAD_PIVOT or (archetype == "tool" and head_lead)):
+                    # W7: the clearly larger head decides over a pivot sign that disagrees; `forward_by_fallback`
+                    # stays unset, this is a measured rule (like the bow belly), not a guess
+                    hs = _head_sign(verts, fa, mn[fa], size[fa])
+                    if hs and hs != fs:
+                        fs, f_src = hs, "head"
             else:
                 fs = _section_sign(verts, fa, mn[fa], size[fa], archetype in _HEADED)
                 f_src = "section"
@@ -851,7 +867,8 @@ def code_digest(data: bytes) -> str:
 _CODE_DIGEST = code_digest(Path(__file__).read_bytes())
 
 
-def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, forward_override=None) -> str:
+def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, forward_override=None,
+                        *, head_lead: bool = False) -> str:
     # the measurement depends on the classification context, not only on the file (spec 3.5 says file + versions;
     # deviation reported): a rules or override change that flips archetype/kind/hold must not serve stale geometry
     fp = {
@@ -862,17 +879,21 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
         # the key exists only for an override, so every natural fingerprint (and every cache already on disk) is
         # unchanged, while a natural result is never served for an override or the other way round
         fp["fo"] = forward_override
+    if head_lead:
+        # same idea for the W7 head-lead tool flag: absent when false, so an unrelated fingerprint is unchanged, and a
+        # head-lead result is never served for a record that does not lead with its head (or the other way round)
+        fp["hl"] = True
     return digest(fp)
 
 
 def measure_cached(
     threejs_v2_dir: Path, glb_rel: str, glb_node: NodeSel, scale: float, archetype: str, kind: str | None,
     role: str, rules: dict, cache: dict, *, hold_class: str | None = None, genre: str | None = None,
-    forward_override: str | None = None,
+    forward_override: str | None = None, head_lead: bool = False,
 ) -> tuple[dict, bool]:
     """``(detail, was_cached)``. Entry id = relative GLB path + node tag + scale tag (as ``glb_measure``); the
     entry is valid while ``mtime:size`` and its version (``WEAPON_GEOMETRY_VERSION`` + the digest of this file) match, and holds one result per
-    classification-context fingerprint (which includes ``forward_override``). Failures are cached too (an undecodable mesh stays undecodable); a missing
+    classification-context fingerprint (which includes ``forward_override`` and ``head_lead``). Failures are cached too (an undecodable mesh stays undecodable); a missing
     file is not. The returned dict is a private copy.
     """
     abs_path = threejs_v2_dir / glb_rel
@@ -884,7 +905,7 @@ def measure_cached(
     cache_id = f"{glb_rel}#{node_cache_tag(glb_node)}" if glb_node else glb_rel
     cache_id += scale_cache_tag(scale)
     version = f"{_pkg.WEAPON_GEOMETRY_VERSION}+{_CODE_DIGEST}"
-    fp = _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules, forward_override)
+    fp = _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules, forward_override, head_lead=head_lead)
     entry = cache.get(cache_id)
     if not entry or entry.get("key") != key or entry.get("version") != version:
         entry = {"key": key, "version": version, "by_inputs": {}}
@@ -894,7 +915,7 @@ def measure_cached(
         return deepcopy(hit), True
     detail = measure_weapon_detail(
         abs_path, glb_node, scale, archetype, kind, role, rules, hold_class=hold_class, genre=genre,
-        forward_override=forward_override,
+        forward_override=forward_override, head_lead=head_lead,
     )
     entry["by_inputs"][fp] = deepcopy(detail)
     return detail, False

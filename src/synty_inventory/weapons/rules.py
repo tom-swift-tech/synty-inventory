@@ -46,7 +46,11 @@ REQUIRED_TOP = (
     "tier_base", "ammo_by_archetype", "pack_flags", "family_strip_tokens",
 )
 # keys beyond spec 4.4 (judgment calls, reported): see weapon_rules.yaml for each.
-OPTIONAL_TOP = ("hold_exceptions", "id_flags", "tier_tokens", "unknown_confidence", "ammo_token_overrides")
+OPTIONAL_TOP = (
+    "hold_exceptions", "id_flags", "tier_tokens", "unknown_confidence", "ammo_token_overrides",
+    "head_lead_tokens", "icon_albedo_from_material",  # W7: both default to empty (spec 4.4)
+)
+_ALBEDO_KEYS = ("name", "packs_any", "id_regex")
 
 _AXIS_RE = re.compile(r"^[+-][xyz]$")
 
@@ -237,6 +241,59 @@ def _check_enum_map(m, where: str, keys: tuple[str, ...], values: tuple[str, ...
                 errors.append(f"{where}: missing {k}")
 
 
+def _check_head_lead_tokens(val) -> list[str]:
+    """``head_lead_tokens`` (W7, spec 3.5.2 R-H2): a list of lower-case canonical tokens; empty is allowed."""
+    if not isinstance(val, list):
+        return ["head_lead_tokens: must be a list of lower-case strings"]
+    if not all(isinstance(s, str) and s and s == s.lower() for s in val):
+        return ["head_lead_tokens: every entry must be a non-empty lower-case string"]
+    return []
+
+
+def _check_icon_albedo(val) -> list[str]:
+    """``icon_albedo_from_material`` (W7, spec 3.8): ``[{name, packs_any?, id_regex}]``, names unique."""
+    if not isinstance(val, list):
+        return ["icon_albedo_from_material: must be a list of mappings"]
+    errors: list[str] = []
+    seen: set[str] = set()
+    for i, row in enumerate(val):
+        here = f"icon_albedo_from_material[{i}]"
+        if not isinstance(row, dict):
+            errors.append(f"{here}: must be a mapping with name, packs_any (optional) and id_regex")
+            continue
+        for key in row:
+            if key not in _ALBEDO_KEYS:
+                errors.append(f"{here}.{key}: unknown key (allowed: {', '.join(_ALBEDO_KEYS)})")
+        name = row.get("name")
+        if not isinstance(name, str) or not name:
+            errors.append(f"{here}.name: must be a non-empty string")
+        elif name in seen:
+            errors.append(f"{here}.name: duplicate name {name!r}")
+        else:
+            seen.add(name)
+        if "packs_any" in row:
+            _check_str_list(row["packs_any"], f"{here}.packs_any", errors)
+        pattern = row.get("id_regex")
+        if not isinstance(pattern, str) or not pattern:
+            errors.append(f"{here}.id_regex: must be a non-empty regex string")
+        else:
+            try:
+                compile_regex(pattern)
+            except re.error as exc:
+                errors.append(f"{here}.id_regex: invalid regex ({exc})")
+    return errors
+
+
+def head_lead_tokens(rules: dict) -> frozenset[str]:
+    """The tool tokens whose head leads (W7 R-H2); empty when the key is absent."""
+    return frozenset(rules.get("head_lead_tokens") or ())
+
+
+def icon_albedo_entries(rules: dict) -> list[dict]:
+    """The ``icon_albedo_from_material`` entries (W7), in file order; empty when the key is absent."""
+    return list(rules.get("icon_albedo_from_material") or ())
+
+
 def validate_rules(rules) -> list[str]:
     """Every violation of the weapon_rules.yaml schema (spec 4.4), as readable messages naming the key."""
     errors: list[str] = []
@@ -424,6 +481,8 @@ def validate_rules(rules) -> list[str]:
                 errors.append(f"ammo_token_overrides.{family}: not an ammo family in {list(AMMO_FAMILIES)}")
             else:
                 _check_str_list(words, f"ammo_token_overrides.{family}", errors, lower=True)
+    errors.extend(_check_head_lead_tokens(rules.get("head_lead_tokens", [])))
+    errors.extend(_check_icon_albedo(rules.get("icon_albedo_from_material", [])))
     uc = rules.get("unknown_confidence", 0.2)
     if not _is_num(uc) or not (0.05 <= uc <= 0.99):
         errors.append("unknown_confidence: must be a number in [0.05, 0.99]")

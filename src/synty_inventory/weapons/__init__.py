@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 WEAPON_VERSION = 1  # classification + hints; bump invalidates directory.json
-WEAPON_GEOMETRY_VERSION = 4  # geometry algorithm; bump invalidates _geometry_cache.json entries (2: bow belly rule, ranged section-sign convention, shield front; 3: melee grip anchored on the pivot, checked against a surface width profile; 4: melee grip kept 0.045 m off the butt end (W2f), melee forward sign of a mid-origin item from the larger end head over the outer 25 % for the head-forward archetypes (W2f))
+WEAPON_GEOMETRY_VERSION = 5  # geometry algorithm; bump invalidates _geometry_cache.json entries (2: bow belly rule, ranged section-sign convention, shield front; 3: melee grip anchored on the pivot, checked against a surface width profile; 4: melee grip kept 0.045 m off the butt end (W2f), melee forward sign of a mid-origin item from the larger end head over the outer 25 % for the head-forward archetypes (W2f); 5: the head sign decides over a differing pivot sign for the pivot-sourced headed melee archetypes and for head-lead tools (W7))
 
 ROLES = ("whole", "part", "ammo", "carrier", "emplaced")
 NON_WEAPON_ROLES = ("part", "ammo", "carrier")  # kind is null for these (spec 4.1)

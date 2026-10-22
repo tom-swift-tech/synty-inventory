@@ -20,11 +20,11 @@ from ..paths import is_pack_catalog_file
 from ..schema import migrate_catalog
 from . import InputError, SchemaError, digest, to_text, write_text_lf
 from .candidates import evaluate_candidate
-from .classify import classify
+from .classify import classify, tokenize_id
 from .geometry import measure_cached, pass2_inputs
 from .hints import build_group_stats, derive_hints
 from .overrides import effective_override, load_overrides
-from .rules import load_rules
+from .rules import head_lead_tokens, load_rules
 from .schema import validate_directory
 from .variants import discover_variants, has_colourway_info, variant_link_paths
 
@@ -133,16 +133,19 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
     Pass 2 can change archetype/hold (a length rule filling an unknown archetype, the long-blade exception); the
     measurement depends on both, so a changed context is measured once more (the decode is memoised, so this
     costs no second read). ``forward_override`` is the id override's ``forward`` (spec 4.5), passed to every
-    measurement. Returns ``(final classification, last measurement detail)``.
+    measurement, and so is ``head_lead`` (W7 R-H2: one of the id's tokens is in ``rules.head_lead_tokens``; the id decides
+    it, so it does not change between the pass-1 and pass-2 classifications). Returns ``(final classification, last measurement detail)``.
     """
     files = asset.get("files") or {}
     node = files.get("glb_node") or None
     scale = float(files.get("glb_scale") or 1.0)
     detail = None
+    head_lead = bool(head_lead_tokens(rules) & set(tokenize_id(asset["id"], rules)))
     for _ in range(3):
         detail, cached = measure_cached(
             threejs_v2_dir, files["glb"], node, scale, cls["archetype"], cls["kind"], cls["role"], rules, cache,
             hold_class=cls["hold_class"], genre=cls["genre"], forward_override=forward_override,
+            head_lead=head_lead,
         )
         stats["cached" if cached else "decoded"] += 1
         measured = pass2_inputs(detail)

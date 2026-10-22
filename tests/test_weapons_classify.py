@@ -24,6 +24,10 @@ from synty_inventory.weapons.classify import classify, family_of, genre_for_pack
 from synty_inventory.weapons.overrides import empty_overrides  # noqa: E402
 from synty_inventory.weapons.rules import load_rules, shadowed_rules, validate_rules  # noqa: E402
 
+_w7 = importlib.util.spec_from_file_location("w7_cases", Path(__file__).parent / "fixtures" / "weapons" / "w7_cases.py")
+W7 = importlib.util.module_from_spec(_w7)
+_w7.loader.exec_module(W7)
+
 HOLD = {
     "pistol": "one_hand", "revolver": "one_hand", "utility_gun": "one_hand",
     "smg": "long_gun", "rifle": "long_gun", "shotgun": "long_gun", "sniper": "long_gun", "lmg": "long_gun",
@@ -285,6 +289,9 @@ def test_ac9_every_rule_is_the_first_match_of_a_fixture_id(built, rules):
     names = [r["name"] for r in rules["rules"]]
     assert len(names) >= 50 and len(set(names)) == len(names)
     hit = {w["review"]["matched_rule"] for w in directory["weapons"]}
+    # W7 rules (part_attach, emplaced_vehicle): the shared fixture catalogs are pinned, so their first-match ids are the
+    # synthetic ones of fixtures/weapons/w7_cases.py (mutation proof in tests/test_weapons_w7_rules.py)
+    hit |= {_cls(rules, {"id": aid, "type": "weapon"})["matched_rule"] for _, aid, _, _, _ in W7.RULE_CASES}
     assert [n for n in names if n not in hit] == []
 
 

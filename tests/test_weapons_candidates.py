@@ -18,6 +18,10 @@ _spec.loader.exec_module(wfx)
 from synty_inventory.weapons.candidates import catalog_signals, evaluate_candidate, select_candidates  # noqa: E402
 from synty_inventory.weapons.rules import load_rules  # noqa: E402
 
+_w7 = importlib.util.spec_from_file_location("w7_cases", Path(__file__).parent / "fixtures" / "weapons" / "w7_cases.py")
+W7 = importlib.util.module_from_spec(_w7)
+_w7.loader.exec_module(W7)
+
 EXCLUDE_REASONS = ("nonplaceable", "ui", "fx", "character_attachment", "mech_attachment", "scenery", "tool_prop",
                    "override")
 
@@ -27,6 +31,9 @@ FAMILIES = (
     "road_arrow", "mine_tunnel", "club_awning", "windshield", "face_shield", "weapon_rack_sign", "grass_blade",
     "torch", "nonwep_tool_prop",
 )
+# W7 entries (spec 3.4.1 PATCH): their fixture ids are synthetic and live in fixtures/weapons/w7_cases.py, because the
+# shared fixture catalogs are generated and pinned; tests/test_weapons_w7_rules.py also proves each by mutation
+W7_EXCLUDES = ("strip_club", "bld_env_prefix", "chr_prefix", "sign_prop", "container_furniture", "pestle")
 INCLUDES = ("veh_cannon", "prop_item_noun", "nonmesh_noun", "compound_substring")
 
 
@@ -119,9 +126,12 @@ def test_every_include_entry_is_the_first_match_of_a_fixture_asset(rules):
 
 def test_every_exclude_entry_is_the_first_match_of_a_fixture_asset(built, rules):
     _, excluded = built
-    assert [r["name"] for r in rules["candidates"]["exclude"]] == list(FAMILIES)
+    assert [r["name"] for r in rules["candidates"]["exclude"]] == list(FAMILIES) + list(W7_EXCLUDES)
     hit = {e["matched"] for e in excluded["excluded"]}
     assert set(FAMILIES) <= hit
+    # the W7 entries: a synthetic id whose FIRST matching exclude entry is that entry
+    w7_hit = {evaluate_candidate({"id": aid}, "FAKE_Pack", rules)["matched"] for _, aid, _, _ in W7.EXCLUDE_CASES}
+    assert set(W7_EXCLUDES) <= w7_hit
 
 
 @pytest.mark.parametrize("signal_field", ["type", "semantic_role"])
