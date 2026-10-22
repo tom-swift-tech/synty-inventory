@@ -20,6 +20,10 @@ cutoff discards every fragment. The render is then tried once more with MASK mat
 (``visuals.icon_mode = "blend_retry"``); a second blank result fails the asset with the error ``blank_render``.
 Every colourway icon is also compared with the default icon (``icon_difference``) and flagged ``visually_identical``
 when they look the same, so a shop does not list duplicates.
+
+A converter fault is corrected at render time (spec 3.8 PATCH W7): a record that matches an ``icon_albedo_from_material``
+entry (``albedo_entry_for``) is drawn with the albedo of its first Unity material instead of the GLB's embedded texture
+(``resolve_albedo_texture``), and that texture's sha256 joins ``icon_input_sha`` under ``albedo`` for such records only.
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ import math
 import struct
 import threading
 import zlib
+from fnmatch import fnmatchcase
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -38,7 +43,8 @@ import numpy as np
 
 from . import EXIT_OK, EXIT_RENDERER, InputError, WeaponsError, digest, to_text, write_text_lf
 from .guards import ensure_sole_runner
-from .variants import TextureNotFound, resolve_variant_texture, variant_link_paths
+from .rules import compile_regex
+from .variants import MATERIAL_ALBEDO_SLOTS, TextureNotFound, resolve_variant_texture, variant_link_paths
 
 ICON_HARNESS_VERSION = 1  # bump when the harness, framing or encoding changes what a render looks like
 ICONS_DIRNAME = "icons"
@@ -102,21 +108,56 @@ def node_tag(glb_node) -> str | None:
     return "+".join(glb_node)
 
 
-def icon_input_sha(glb_sha256: str, glb_node, scale: float, item_basis) -> str:
+def icon_input_sha(glb_sha256: str, glb_node, scale: float, item_basis, albedo_sha256: str | None = None) -> str:
     """16 hex over everything that changes the picture: the GLB bytes, the node selection, ``glb_scale``, the
     orientation (``item_basis``: a corrected axis must not keep a stale icon) and the harness version.
+
+    ``albedo_sha256`` (W7) is the sha256 of the texture substituted for the embedded one. It is hashed under the key
+    ``albedo`` ONLY when given, so every record without a substitute keeps the hash it had before W7.
 
     The spec lists the GLB sha, node, scale and harness version; ``item_basis`` is added because the render depends
     on it, and a record whose axes were corrected after an icon was made would otherwise keep the wrong picture.
     The output size is not hashed: a PNG of the wrong size is detected from its header (``png_ok``).
     """
-    return digest({
+    parts = {
         "glb": glb_sha256,
         "node": node_tag(glb_node),
         "scale": float(scale),
         "basis": [[int(c) for c in row] for row in item_basis],
         "harness": ICON_HARNESS_VERSION,
-    })
+    }
+    if albedo_sha256 is not None:
+        parts["albedo"] = albedo_sha256
+    return digest(parts)
+
+
+def albedo_entry_for(rec: dict, entries) -> dict | None:
+    """The first ``icon_albedo_from_material`` entry (rules.icon_albedo_entries) that ``rec`` matches, else None.
+
+    An entry matches when the record's pack fits one of its ``packs_any`` globs (absent = any pack) and its
+    ``id_regex`` is found in the bare ``asset_id`` (the same id the classification rules see, not ``pack/asset_id``).
+    """
+    for entry in entries or ():
+        packs = entry.get("packs_any")
+        if packs is not None and not any(fnmatchcase(rec["pack"], p) for p in packs):
+            continue
+        if compile_regex(entry["id_regex"]).search(rec["asset_id"]):
+            return entry
+    return None
+
+
+def resolve_albedo_texture(rec: dict, extracted_root, listing_cache: dict | None = None) -> Path:
+    """The image of the first Unity material of ``rec`` (``files.unity_materials[0]``) under ``extracted_root`` (the
+    folder with one extracted tree per pack, so the material path is prefixed with the pack). Raises ``TextureNotFound``
+    with the reason when there is no ``extracted_root``, no listed material, or no loadable texture; the material's
+    ``_Base_Texture`` slot is tried after the colourway slots (``variants.MATERIAL_ALBEDO_SLOTS``)."""
+    if extracted_root is None:
+        raise TextureNotFound("extracted_root is not configured")
+    materials = [m for m in (rec.get("files") or {}).get("unity_materials") or [] if isinstance(m, str) and m]
+    if not materials:
+        raise TextureNotFound("the catalog lists no Unity material")
+    return resolve_variant_texture(Path(extracted_root), f"{rec['pack']}/{materials[0]}", listing_cache,
+                                   slots=MATERIAL_ALBEDO_SLOTS)
 
 
 def camera_direction(shield: bool) -> tuple[float, float, float]:
@@ -662,7 +703,8 @@ def _write_atomic(path: Path, data: bytes) -> None:
 
 def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variants: bool = False,
                  threejs_v2_dir: Path, synty_glb_root: Path, rebuild: bool = False, gpu: bool = False,
-                 report: dict | None = None, extracted_root: Path | None = None) -> dict[str, dict]:
+                 report: dict | None = None, extracted_root: Path | None = None,
+                 albedo_entries: list[dict] | None = None) -> dict[str, dict]:
     """``id -> {icon, thumb, sha256}`` for every record that has an icon after the call (rendered or still valid).
 
     ``icon``/``thumb`` are relative to ``out_dir``'s parent (the directory.json folder); ``sha256`` is the input hash
@@ -678,6 +720,10 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
     sha256[, icon_mode][, visually_identical]}}}}``; ``visually_identical`` is set on every link whose default icon
     and colourway icon both exist (``icon_difference`` under ``VISUALLY_IDENTICAL_MAX_SHARE``); the return value
     stays the default icons only. Records without ``geometry`` or ``files.glb`` get no icon and are not mentioned.
+    ``albedo_entries`` (``rules.icon_albedo_entries(rules)``; none by default) lists the records whose albedo comes
+    from their Unity material (W7). Such a record needs ``extracted_root`` (also without ``variants``); its resolved
+    texture is passed to the renderer and hashed into its input sha. One that cannot be resolved is drawn with the
+    embedded texture as before and named in ``report["warnings"]`` (a sorted list of messages, always present).
     """
     _check_size(size)
     root = check_renderer(synty_glb_root)
@@ -698,6 +744,8 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
     blend: list[str] = []
     listing_cache: dict = {}
     tex_sha: dict[Path, str] = {}
+    albedo_tex: dict[str, Path] = {}  # record id -> the texture that replaces its embedded one (W7)
+    warnings: list[str] = []
 
     for rec in sorted(records, key=lambda r: r["id"]):
         geo, rel = rec.get("geometry"), (rec.get("files") or {}).get("glb")
@@ -711,7 +759,18 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
             failed.append({"id": rec["id"], "error": f"glb not readable: {exc.strerror or exc}"})
             continue
         scale = float((rec["files"].get("glb_scale")) or 1.0)
-        sha = icon_input_sha(sha_cache[glb], rec["files"].get("glb_node"), scale, geo["item_basis"])
+        albedo_sha = None
+        entry = albedo_entry_for(rec, albedo_entries)
+        if entry is not None:
+            try:
+                texture = resolve_albedo_texture(rec, extracted_root, listing_cache)
+                if texture not in tex_sha:
+                    tex_sha[texture] = file_sha256(texture)
+                albedo_sha, albedo_tex[rec["id"]] = tex_sha[texture], texture
+            except (TextureNotFound, OSError) as exc:  # reported, never silent; the embedded texture is drawn
+                warnings.append(f"{rec['id']}: albedo from material ({entry['name']}) not resolved, "
+                                f"the embedded texture is used: {exc}")
+        sha = icon_input_sha(sha_cache[glb], rec["files"].get("glb_node"), scale, geo["item_basis"], albedo_sha)
         icon_rel, thumb_rel = link_paths(out_dir, rec["pack"], rec["asset_id"])
         if needs_render(rec.get("visuals") or {}, sha, icon_rel, thumb_rel, base_dir, size, rebuild):
             todo.append((rec, glb, sha, icon_rel, thumb_rel))
@@ -732,7 +791,8 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
                 shield = rec.get("kind") == "shield" or rec.get("archetype") == "shield"
                 try:
                     big, small, mode = _render_icon_pair(renderer, glb, _selection(files.get("glb_node")), scale,
-                                                         rec["geometry"]["item_basis"], shield, size)
+                                                         rec["geometry"]["item_basis"], shield, size,
+                                                         texture=albedo_tex.get(rec["id"]))
                 except RenderError as exc:
                     failed.append({"id": rec["id"], "error": str(exc)})
                     for rel in (icon_rel, thumb_rel):  # no stale picture is left as if current (INV-8)
@@ -768,7 +828,8 @@ def render_icons(records: list[dict], out_dir: Path, *, size: int = 256, variant
 
     identical = _flag_identical(base_dir, results, vlinks) if variants else []
     if report is not None:
-        report.update(rendered=sorted(rendered), skipped=sorted(skipped), failed=failed, blend_retry=sorted(blend))
+        report.update(rendered=sorted(rendered), skipped=sorted(skipped), failed=failed, blend_retry=sorted(blend),
+                      warnings=sorted(warnings))
         if variants:
             report["variants"] = {"rendered": sorted(vrendered), "skipped": sorted(vskipped),
                                   "failed": sorted(vfailed, key=lambda f: (f["id"], f["variant"])),
@@ -853,6 +914,9 @@ def _run(args, cfg) -> int:
     size = getattr(args, "size", 256)
     _check_size(size)
     root = check_renderer(cfg.get("synty_glb_root"))  # exit 5 before anything is read or written
+    from .rules import icon_albedo_entries, load_rules
+
+    albedo_entries = icon_albedo_entries(load_rules())  # SchemaError -> exit 6
     want_variants = bool(getattr(args, "variants", False))
     extracted = cfg.get("extracted_root")
     if want_variants and not extracted:
@@ -883,7 +947,7 @@ def _run(args, cfg) -> int:
         wanted, wdir / ICONS_DIRNAME, size=size, variants=want_variants,
         threejs_v2_dir=threejs, synty_glb_root=root, rebuild=bool(getattr(args, "rebuild", False)),
         gpu=bool(getattr(args, "gpu", False)), report=report,
-        extracted_root=Path(extracted) if want_variants else None,
+        extracted_root=Path(extracted) if extracted else None, albedo_entries=albedo_entries,
     )
     failed_ids = {f["id"] for f in report["failed"]}
     changed = apply_links(directory, results, failed_ids)
@@ -913,6 +977,8 @@ def _run(args, cfg) -> int:
         "blend_retry": len(report["blend_retry"]),
         "directory": dpath.name, "directory_written": written,
     }
+    if report.get("warnings"):  # only when there are some, so a run without W7 records prints what it always did
+        summary["warnings"] = report["warnings"]
     if vreport is not None:
         summary["variants"] = {"rendered": vreport["rendered"], "skipped": vreport["skipped"],
                                "failed": vreport["failed"], "visually_identical": len(vreport["visually_identical"])}

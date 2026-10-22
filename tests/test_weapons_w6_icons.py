@@ -629,6 +629,8 @@ def test_a_mask_material_under_its_cutoff_is_drawn_after_the_blend_retry(tmp_pat
     img = icons.decode_png((out_dir / "P" / "mask.png").read_bytes())
     alpha = img[..., 3][img[..., 3] > 0]
     assert len(alpha) > 500  # a real picture, not a stray pixel
-    assert 100 <= int(np.median(alpha)) <= 140  # 0.4745 * 255 = 121: the material was blended, not forced opaque
+    # W7 (AC57): the retry sets the material's opacity to 1, so the 0.4745 base-colour factor alpha no longer washes the
+    # picture out (before W7 this was a median of about 121). The blended picture is opaque where the texture is.
+    assert int(np.median(alpha)) == 255
     solid = icons.decode_png((out_dir / "P" / "solid.png").read_bytes())
     assert int(np.median(solid[..., 3][solid[..., 3] > 0])) == 255
