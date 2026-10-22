@@ -223,7 +223,7 @@ Rule order for exclusion is data (`weapon_rules.yaml`), not code; a test asserts
 >    `unknown`):
 >    a. *Vocabulary and rules* (data): `flamethrower` and `chainsaw` alias themselves (the joined `FlameThrower`,
 >       `Flame_Thrower`, `ChainSaw` reach the token); `blunderbuss` -> shotgun; `stungun` -> utilgun; `gunstock` -> stock;
->       `cleaver` -> knife; `battery` joins `part_misc`. New rules before `generic_gun`: `assault_rifle` (token `assault`
+>       `cleaver` -> knife; `battery` and `tanks` join `part_misc` (a `FlameThrower_Tanks` fuel pack is a part, not a flamethrower). New rules before `generic_gun`: `assault_rifle` (token `assault`
 >       -> `rifle`, 0.8), `heavy_gun_worlds` (token `heavy`, not `preset`, pack `*SciFi_Worlds*` -> `heavy_gun`, 0.75),
 >       `alien_gun` (token `alien`, pack `*SciFi_Worlds*` -> `rifle`, 0.7), `preset_gun` (token `preset` -> `whole`,
 >       `ranged`, `unknown`, 0.5: every prefab preset in the survey lives under `Prefabs/Weapons/Guns/`).
@@ -238,6 +238,8 @@ Rule order for exclusion is data (`weapon_rules.yaml`), not code; a test asserts
 >    The record is then measured with its final kind (the measurement depends on it, as for archetype).
 > 3. A per-id override of `kind` (§4.5) clears `kind_guessed`. Hint tokens are a vocabulary table, not an asset list: one
 >    entry names a family of ids (Sceptre, Shock_Stick), never one id.
+> W7b hand-check (2026-10-22): on the live set about a third of the measured `ranged` guesses were wrong (saws, tongs, horns,
+> rams, throwing stars, a crutch); the shipped hint lists were extended with those families so they never reach the guess.
 > Gate: the build report lists, per `kind_guessed` record, id and kind; the lead hand-checks the BONDED subset (24 ids) and a
 > sample of the rest from icons.
 
@@ -1235,8 +1237,8 @@ Determinism, additivity, live gates
 - AC59. Kind inference (PATCH W7b). Synthetic ids: `SM_Wep_Assault_01` -> `rifle`, `SM_Wep_Heavy_01` -> `heavy_gun` and
   `SM_Wep_Alien_01` -> `rifle` in a `*SciFi_Worlds*` pack (and unchanged outside it), `SM_Wep_FlameThrower_01` ->
   `flamethrower`, `SM_Wep_Blunderbuss_01` -> `shotgun`, `SM_Wep_Stungun_01` -> `utility_gun`, `SM_Wep_Gunstock_01` -> `part`
-  (stock), `SM_Wep_Mining_Laser_Battery_01` -> `part`; a `*_Preset_*` prefab -> `ranged`/`unknown`; kind hints:
-  `Shock_Stick`, `Sickle` -> `melee`, a laser id -> `ranged`, `Rock` -> `thrown`, each `kind` provenance `rule` and
+  (stock), `SM_Wep_Mining_Laser_Battery_01` and `SM_Wep_FlameThrower_Tanks_01` -> `part`; a `*_Preset_*` prefab -> `ranged`/`unknown`; kind hints:
+  `Shock_Stick`, `Sickle`, `Butcher`, `Crutch`, `Tongs`, `Rammer`, `Saw`, `Pipe`, `Horn` -> `melee`, a laser id -> `ranged`, `Rock`, `Star`, `Potato` -> `thrown`, each `kind` provenance `rule` and
   archetype `unknown`. A synthetic measured unknown with long axis `z` -> `ranged`, with `y` -> `melee`, provenance
   `measured`, reason `kind_guessed`, and its geometry is the one measured for that kind (a ranged one has a muzzle and no
   tip); an unmeasured unknown without a hint -> `melee` with `kind_guessed`; an id override of `kind` has no
