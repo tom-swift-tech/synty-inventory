@@ -394,3 +394,26 @@ def test_cli_validate_exits_6_on_a_malformed_override_file(tmp_path, monkeypatch
     assert code == 6
     assert out["ok"] is False
     assert "laser_sword" in out["error"]
+
+# --- the shipped table -------------------------------------------------------------------------------------
+
+def test_no_shipped_exclude_override_is_already_caught_by_an_exclude_rule():
+    """W7 slice 2c: an `exclude: true` id override only works when the exclude rules let the id through to it.
+
+    The live gauntlet gate expects reason `override` on such a row; an id that a rule (bld_env_prefix, ...) rejects first
+    would come out as `scenery` and fail it. The data under test is the shipped weapon_overrides.json itself; the
+    classification is a bare `type: weapon` asset in the id's pack, through the real candidates logic.
+    """
+    from synty_inventory.weapons.candidates import evaluate_candidate
+    from synty_inventory.weapons.rules import load_rules
+
+    rules = load_rules()
+    # by path: the conftest autouse fixture points default_overrides_path at an empty table
+    shipped = Path(__file__).resolve().parents[1] / "src" / "synty_inventory" / "data" / "weapon_overrides.json"
+    doc = ovr.load_overrides(shipped)
+    excluded = {k: v for k, v in doc["ids"].items() if v.get("exclude")}
+    # (an empty set is fine: the table may hold no excludes at all; the loop is then vacuous by design)
+    for key in excluded:
+        pack, aid = key.split("/", 1)
+        out = evaluate_candidate({"id": aid, "type": "weapon"}, pack, rules)
+        assert out["accepted"], f"{key}: already rejected by {out['matched']} ({out['reason']}); drop the override"
