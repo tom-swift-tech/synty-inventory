@@ -225,7 +225,7 @@ algorithm uses that as a prior and verifies it.
 - **`child_node`.** The host GLB's mesh nodes (collision hulls dropped with `SKIP_STEM_RE`; limited to the descendants
   of the selected `glb_node` when set) are matched by name token against `attachment_rules.child_tokens`:
   `optic` <- scope, sight, reddot, redot, holo; `magazine` <- mag, magazine, drummag, cell, battery;
-  `underbarrel` <- foregrip, bipod; `laser_light` <- laser, flashlight; `muzzle` <- silencer, suppressor. Tokens that
+  `underbarrel` <- foregrip, bipod; `laser_light` <- laser, flashlight; `muzzle` <- silencer, suppressor, brake, compensator, flashhider (for the muzzle slot these children only fill `occupied_by`; the seat always comes from the probe below). Tokens that
   *never* match (trigger, slide, hammer, cylinder, pump, charge, handle, forestock, barrel, stock, switch, pin, clip)
   are a not-list. The child is measured with the **same anchor function** as a part (§3.4), giving its `point`;
   `up` is the slot's contact direction expressed in host axes (optic `+host up`, underbarrel and magazine
@@ -234,12 +234,16 @@ algorithm uses that as a prior and verifies it.
   a drum and a box magazine, a shotgun two cells: all of them are hidden when something else is mounted). When there is
   more than one, the seat (`child_node`, `point`, `span_m`) comes from the larger by AABB volume and the record gets
   review reason `mount_ambiguous`.
-- **`probe` (muzzle).** `point = geometry.muzzle` (the A0 probe; no second algorithm, AC67), `up = host axes.forward`,
-  `forward = host axes.up`. `bore_d_m` comes from a ring estimator on the muzzle-face points: radial histogram of the
+- **`probe` (muzzle).** `point` is the **seat**: the barrel end, measured by the A0 probe (no second algorithm, AC67) run on the
+  host mesh **minus the nodes listed in this slot's `occupied_by`** (vertices and bounds of the reduced mesh). It is not the face of
+  a baked brake or suppressor: with a baked device the seat sits behind the device face by the device length (AC84). With an
+  empty `occupied_by` the seat equals `geometry.muzzle` exactly. W7's bare-gun `geometry.muzzle` is unchanged, so firing a gun
+  with nothing mounted does not change. If removing the nodes leaves no mesh the slot is `none` (`probe_unavailable`).
+  `up = host axes.forward`, `forward = host axes.up`. `bore_d_m` comes from a ring estimator on the muzzle-face points: radial histogram of the
   points around the face centre (1 mm bins); the innermost ring holding at least 6 points gives `bore_d_m`,
   `bore_source = "ring"`; no such ring -> `bore_d_m = face extent`, `bore_source = "face_extent"` and the muzzle mount
   confidence is 0.5. `muzzle_source == "bounds_fallback"` -> confidence 0.4 and review reason `muzzle_fallback`
-  (existing). `occupied_by` is `[]` unless a muzzle-device child exists.
+  (existing). `occupied_by` is `[]` unless a muzzle-device child exists; the ring estimator also runs on the reduced mesh.
 - **`override` (categorical, §6.1).** Selects the child node to use (`child_node` name), or forces `none`
   (`slot_disabled`). It cannot supply coordinates.
 - **`none`.** All of `point`, `forward`, `up`, `span_m` are null; `reason` says why. D-8 applies: consumers treat the
@@ -362,7 +366,7 @@ Any other key (`point`, `up`, `span_m`, `offset`, a number...) is rejected with 
   `compatible_hosts`. Entries whose host is not in the exported set are dropped unless `--keep-foreign-hosts`.
 - `--frame item` bakes every point and vector of `anchor` and `mounts` through the record's own `item_basis`
   (points: rotated; vectors: rotated; `span_m`, `footprint`, `bore_d_m` unchanged). `node_offset` keeps its rule (DS§4.1).
-  `generated_from` gains `attach_version` and `filter.attachments`.
+  `generated_from` gains `attach_version` and `filter.attachments` (boolean, `true`, present only with `--attachments`).
 - Exit 6 on a contract violation: `attachment` on a non-part, `compatible_hosts` naming an id absent from the
   directory, a mount with `source == "none"` that has coordinates, or non-orthonormal frames (INV-14 to INV-18).
 - New verbs: `weapons attach-eval` (precision/recall against a labels file and the twin truth; JSON on stdout, exit 4
@@ -405,15 +409,15 @@ Continues the table in DS§10.
 | # | field / rule | definition |
 |---|---|---|
 | C-18 | `geometry.mounts` | object or null (null iff the host is not eligible, D-9). Keys exactly `optic`, `muzzle`, `underbarrel`, `laser_light`, `magazine`, each an object as in §4.1. Present only when the export is made with `--attachments`. |
-| C-19 | `attachment` | object or null on part records: `slot`, `kind`, `anchor`, `footprint`, `compatible_hosts`, `pending_hosts` (§3.2). Present only with `--attachments`. Part records keep `kind: null`, `hold_class: "none"`. |
-| C-20 | frame and units | §3.1: `{point, forward, up}`, metres, 1e-4, unit vectors 4 dp, right-handed with `right = up x forward`. Asset frame: asset-local GLB scene space after `glb_scale`. Item frame: each record baked through **its own** `item_basis`; consumer applies each record's own `item_basis` to its own mesh. `span_m`, `footprint.*`, `bore_d_m`, `mate_d_m` are scalars in metres, never baked. |
-| C-21 | placement | `part_T = T(mount) * T(anchor)^-1` where `T(F)` has rotation columns `[right | up | forward]` and translation `point`. After placement `anchor.point -> mount.point` exactly and the two `up` and `forward` vectors coincide. Reference implementation: `weapons.attach.place(anchor, mount)` plus a GDScript port to be written by DM-B against the shared fixtures (AC69). |
-| C-22 | occupancy | `mounts.<slot>.occupied_by`: sorted list of GLB node names to hide when a separate attachment is mounted; `[]` = free. A mount with `source: "none"` is unavailable: a consumer must not synthesise a position (D-8). |
-| C-23 | compatibility | `compatible_hosts[]`: `{host, tier, score, signals[], replaces[]}`; `tier` in `COMPAT_TIERS`; sorted by `(tier rank, -score, host)`. `pending_hosts[]` are ids only. Relation stored on the part only (INV-14). Default export keeps tiers up to `same_pack_fit`. |
-| C-24 | export surface | `--attachments`, `--roles attachment`, `--min-compat-tier`, `--keep-foreign-hosts`; default output byte-identical to W7. `sit_armory` ignores unknown keys (it already ignores `component`) and keeps the `whole`-only default. |
+| C-19 | `attachment` | object or null on part records: `slot`, `kind`, `anchor`, `footprint`, `compatible_hosts`, `pending_hosts` (§3.2). Present only with `--attachments`. Part records keep `kind: null`, `hold_class: "none"`, and carry `geometry.item_basis` like whole records; a part inside a shared GLB also carries `geometry.node_offset` and, when its node has rotation or scale, the `node_transform` reason (exactly as DS§4.1 for whole records), so `anchor` and the footprint are interpreted in the same frame. |
+| C-20 | frame and units | §3.1: `{point, forward, up}`, metres, 1e-4, unit vectors 4 dp, right-handed with `right = up x forward`. Asset frame: asset-local GLB scene space after `glb_scale`. Item frame: each record baked through **its own** `item_basis`; consumer applies each record's own `item_basis` to its own mesh. `span_m`, `footprint.*`, `bore_d_m`, `mate_d_m` are scalars in metres, never baked. Part records always carry `geometry.item_basis` (and `geometry.node_offset` for shared-GLB nodes, unrotated and not item-baked, DS C-17), so a consumer can orient the part mesh before using item-frame fields. |
+| C-21 | placement | `part_T = T(mount) * T(anchor)^-1` where `T(F)` has rotation columns `[right | up | forward]` and translation `point`. After placement `anchor.point -> mount.point` exactly and the two `up` and `forward` vectors coincide. Reference implementation: `weapons.attach.place(anchor, mount)` plus a GDScript port written by DM-B against the shared oracle `sit_mount_place/1` (AC69). The three literal cases of that oracle (muzzle identity, optic authored on its side, underbarrel hanging down) were checked by hand against this formula and agree. |
+| C-22 | occupancy | `mounts.<slot>.occupied_by`: sorted list of GLB node names to hide when a separate attachment is mounted; `[]` = free. `occupied_by` and `child_node` are **raw GLB node names, unsanitised**; the engine importer's renaming (Godot replaces `. : @ / " %` with `_` and renames duplicates) is the consumer's job (sit_weapons M15). For the muzzle slot the mount `point` is the seat measured with these nodes excluded, not the face of a baked device (R1, AC84). A mount with `source: "none"` is unavailable: a consumer must not synthesise a position (D-8). |
+| C-23 | compatibility | `compatible_hosts[]`: `{host, tier, score, signals[], replaces[]}`; `tier` in `COMPAT_TIERS`; sorted by `(tier rank, -score, host)`. `pending_hosts[]` are ids only. Relation stored on the part only (INV-14). Default export keeps tiers up to `same_pack_fit`. An **empty `compatible_hosts` means the part fits nothing**: only `pending_hosts` and a game overlay's own `fits` add can extend it. |
+| C-24 | export surface | `--attachments`, `--roles attachment`, `--min-compat-tier`, `--keep-foreign-hosts`; default output byte-identical to W7. `sit_armory` ignores unknown keys (it already ignores `component`) and keeps the `whole`-only default. `generated_from.filter.attachments` is a boolean, present and `true` only when the export was made with `--attachments` (absent otherwise, so the default output stays byte-identical). |
 | C-25 | vocabulary | `ATTACH_SLOTS` / `ATTACH_KINDS` may grow in minor versions; consumers ignore unknown slots/kinds. `compatible_hosts` and `mounts` may later gain keys. |
 | C-26 | stats | The directory carries no attachment stats. `sit_armory` overlays key stat modifiers by the part's `<pack>/<asset_id>` (or `renamed_from`, C-13) and read the slot from `attachment.slot`. |
-| C-27 | numeric corrections | There are none in the directory. A game that needs a nudge carries it in its own overlay, relative to the exported `mounts.<slot>.point` (D-5). |
+| C-27 | numeric corrections | There are none in the directory. A game that needs a nudge carries it in its own overlay, relative to the exported `mounts.<slot>.point` (D-5). `seat_depth_m` (how far a part may sink into the host) is overlay-owned on the game side; the directory adds nothing for it. |
 
 ## 11. Acceptance criteria
 
@@ -422,7 +426,7 @@ Synthetic fixtures (committed, `tests/fixtures/weapons/`): a catalog `FAKE_Attac
 trigger child and a muzzle ring of known radius; (b) a standalone optic that is an exact dimensional twin of the child
 optic, a larger non-twin optic, a tube-with-flare scope, a symmetric box optic, a suppressor tube (wide free end,
 26 mm-class mating end), a foregrip hanging from a top foot, a drum magazine; (c) a host without any child; (d) a
-grenade-like host; (e) a host in a second pack; (f) a part with a vehicle-pack name. Mutation proofs name the change
+grenade-like host; (e) a host in a second pack; (f) a part with a vehicle-pack name; (g) a host whose muzzle carries a baked brake child of known length (0.08 m class). Mutation proofs name the change
 that must make the test fail.
 
 | AC | statement | mutation proof |
@@ -433,9 +437,9 @@ that must make the test fail.
 | AC64 | Forward sign: tube-with-flare faces the flare (`forward_source "section"`); symmetric box -> `symmetric true`, `forward_source "authored"`, confidence <= 0.59, reason `anchor_forward_unsure`; a `forward` override flips it and sets `override` | set the ratio threshold to 1.0 -> the symmetric fixture is "decided" |
 | AC65 | Muzzle device: the mating end is the narrower end, `up` points to the wider end, `mate_d_m` within 1 mm of the fixture's diameter | pick the wider end as mating -> `up` reverses, fails |
 | AC66 | Host mounts from children: `optic.point` within 1 mm of the known child seat, `occupied_by` equals the sorted list of child node names (a two-magazine fixture yields both, seat from the larger), `span_m` equals the child's foot length (`span_source "child_foot"`); precedence `override > child_node > probe > none` (four fixtures, one per rung) | ignore the child (always probe) -> optic becomes `none`, fails |
-| AC67 | Muzzle: `mounts.muzzle.point == geometry.muzzle` exactly (A0 parity), `up == axes.forward`; ring fixture gives `bore_d_m` within 1 mm with `bore_source "ring"`; a ring-less fixture gives `face_extent`, confidence 0.5; `bounds_fallback` gives confidence 0.4 and `muzzle_fallback` | compute the muzzle with a second algorithm that differs by 1 mm -> parity fails |
+| AC67 | Muzzle: with an empty `occupied_by`, `mounts.muzzle.point == geometry.muzzle` exactly (A0 parity), `up == axes.forward`; ring fixture gives `bore_d_m` within 1 mm with `bore_source "ring"`; a ring-less fixture gives `face_extent`, confidence 0.5; `bounds_fallback` gives confidence 0.4 and `muzzle_fallback` | compute the muzzle with a second algorithm that differs by 1 mm -> parity fails |
 | AC68 | `none` behaviour: the childless host has `source none`, null coordinates, reason `no_child_no_probe`, and (with a compatible part present) review reason `mount_missing`; the grenade host has `mounts: null`; no code path defaults a missing mount to bounds | add a bounds default -> the childless host gains a point, fails |
-| AC69 | Placement math: for every slot kind `place(anchor, mount)` maps `anchor.point` to `mount.point` within **0.5 mm** and each of `up`, `forward` within 0.1 degrees. **Twin ground truth:** placing the standalone twin on the fixture host gives an AABB centre within **3 mm** of the child's AABB centre and AABB IoU >= 0.90. The GDScript port passes the same fixture cases (DM-B) | swap `T(mount)*T(anchor)^-1` for `T(anchor)^-1*T(mount)` -> fails |
+| AC69 | Placement math: for every slot kind `place(anchor, mount)` maps `anchor.point` to `mount.point` within **0.5 mm** and each of `up`, `forward` within 0.1 degrees. **Twin ground truth:** placing the standalone twin on the fixture host gives an AABB centre within **3 mm** of the child's AABB centre and AABB IoU >= 0.90. **Shared oracle:** `place` also reproduces, within 0.5 mm / 0.1 degrees, the three cases of sit_weapons' `fixtures/mount_place.json` (schema `sit_mount_place/1`: muzzle_identity, optic_part_authored_on_its_side, underbarrel_hangs_down), copied byte for byte to `tests/fixtures/weapons/mount_place.json` with a provenance note (source repo, commit, copy date), like the A0 muzzle golden (DS§11.4); no case is edited here, and a disagreement is reported to the lead instead of fixed. The directory's own cases stay as well. The GDScript port passes the same cases (DM-B) | swap `T(mount)*T(anchor)^-1` for `T(anchor)^-1*T(mount)` -> fails |
 | AC70 | No intrusion: after placement of each "fit" fixture attachment, penetration depth along `mount.up` into the host body AABB is <= **3 mm**, and the attachment's AABB volume outside its foot slab that overlaps the host body AABB is <= 5 % of its volume | shift the anchor by 10 mm -> fails |
 | AC71 | Twin detection: extents within `max(3 %, 0.8 mm)` per sorted axis are `twin`; a 5 % difference is not; one-to-many is `twin_multi` | widen the tolerance to 6 % -> the 5 % fixture becomes a twin, fails |
 | AC72 | Tiers: `same_pack_fit` requires `family_overlap` AND `affinity`; the other-pack host only reaches `cross_pack_fit` (score <= 0.6, reason `compat_cross_pack`); ordering is `(rank, -score, id)`; two builds give identical output | drop the pack check -> the other-pack host gets rank 3, fails |
@@ -450,6 +454,7 @@ that must make the test fail.
 | AC81 | **Spike gate (W9).** An estimator may set `source: probe` for optic only if, on the child-bearing hosts, the median `|probe - child truth|` <= 10 mm and the maximum <= 25 mm for the seat height and the median forward error <= 15 mm; otherwise it stays disabled and hosts keep `none`. The estimator source never reads a child node | feed it the child -> the "independent" check is violated |
 | AC82 | No regression: on the W7 live directory, role/kind/archetype counts equal the W7 report (the role/kind/archetype count table equals the W7 report, null-kind whole/emplaced count 0, and every pre-existing test keeps its outcome; the pytest totals grow by design and are not compared); every pre-existing field of every record is byte-equal; only `geometry.mounts` and `attachment` are new | n/a (diff test over the fixture directory in CI; live diff reported) |
 | AC83 | Visual checkpoint (look): `attach-preview` renders >= 6 twin pairs and >= 6 non-twin pairs covering every slot; the lead views the captures before W8d closes; the baked node is hidden in each; no capture shows the attachment inside the receiver by more than the AC70 depth | n/a (lead review) |
+| AC84 | Muzzle seat: on fixture (g) `mounts.muzzle.occupied_by` lists the brake node, `source` is `probe`, `point` equals the A0 probe of the mesh minus the brake (the barrel end) within 0.5 mm, and sits behind the device face by the brake length within 1 mm; `geometry.muzzle` is still the face of the brake (W7 bare-gun value, unchanged); a host with no brake gives `point == geometry.muzzle` exactly | include the brake in the probe mesh -> the seat lands on the device face and the behind-by-length check fails |
 
 Gate commands are those of DS§11.1 (`pytest -k weapons`, then the full suite, each judged by exit
 code). W8a/b/c/d add `tests/test_weapons_attach_*.py`; none reads Synty data.
@@ -492,8 +497,8 @@ gates by exit code, synthetic fixtures only). Approval of this spec starts W8a. 
 | slice | depends | parallel-with | ACs | owns (new unless noted) | live data | size |
 |---|---|---|---|---|---|---|
 | W8a attachment records | none | none | AC61-AC65, AC78 (parts) | `weapons/attach.py` (anchor/footprint/place), `weapons/classify.py` hook (edit), `weapon_rules.yaml` tables (edit), `weapons/__init__.py` constants (edit, W8a owns the enum additions), `cli.py` lazy stubs for `attach-eval`/`attach-preview` (edit, W8a only), `schema.py` (edit), fixtures `FAKE_Attach`, tests | no | M: ~900 lines |
-| W8b host mounts | W8a | none | AC66-AC68, AC78 (geometry) | `geometry.py` (edit: mounts, ring estimator, cache version 6), `weapons/mounts.py`, tests | live probe after merge: coverage counts | M: ~800 lines |
-| W8c compatibility, overrides, eval | W8b | W9 | AC69-AC75, AC79 | `weapons/compat.py`, `overrides.py` + `corrections.py` (edit), `weapon_rules.yaml` compat table (edit), `weapons/eval.py`, tests | no | L: ~1,100 lines |
+| W8b host mounts | W8a | none | AC66-AC68, AC84, AC78 (geometry) | `geometry.py` (edit: mounts, ring estimator, cache version 6), `weapons/mounts.py`, tests | live probe after merge: coverage counts | M: ~800 lines |
+| W8c compatibility, overrides, eval | W8b | W9 | AC69-AC75, AC79 | `tests/fixtures/weapons/mount_place.json` (copy of the shared oracle, provenance note), `weapons/compat.py`, `overrides.py` + `corrections.py` (edit), `weapon_rules.yaml` compat table (edit), `weapons/eval.py`, tests | no | L: ~1,100 lines |
 | W8d review page, export, preview | W8c | W9 | AC76, AC77, AC82, AC83 (look) | `review.py` + `review_template.html` (edit), `export.py` (edit), `weapons/preview.py` + harness additions, tests | preview needs the renderer on this machine | L: ~1,200 lines |
 | W9 rail-probe spike | W8b | W8c, W8d | AC81 | `weapons/mount_probe.py`, a report script (not shipped if it fails) | yes (calibration on the child-bearing hosts) | S: ~400 lines |
 | W10 acceptance | W8d | none | AC80, AC82 (live) | none (a report) | yes; Tom's labels | the lead runs it |
