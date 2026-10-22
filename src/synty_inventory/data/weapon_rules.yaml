@@ -260,7 +260,7 @@ rules:
   - {name: part_grip, match: {tokens_any: [grip]}, set: {role: part, component: grip}, confidence: 0.88}
   - {name: part_body, match: {tokens_any: [body, receiver]}, set: {role: part, component: body}, confidence: 0.85}
   # Mod_<anything else>: a part, slot unknown
-  - {name: part_misc, match: {tokens_any: [mod, flashlight, bipod, sling, attachment, muzzle, battery]}, set: {role: part, component: misc}, confidence: 0.8}
+  - {name: part_misc, match: {tokens_any: [mod, flashlight, bipod, sling, attachment, muzzle, battery, tanks]}, set: {role: part, component: misc}, confidence: 0.8}
   # Veh/Heli/Jet/Tug attachments and the SM_Wep_Attach_* set mount on a vehicle or mech (W7); Heli_Attach_Missile and
   # Attach_Bolt are caught as ammo above
   - {name: part_attach, match: {tokens_any: [attach]}, set: {role: part, component: misc}, confidence: 0.85}
@@ -357,9 +357,13 @@ kind_hints:
   ranged: [laser, cutter, mining, slingshot]
   # shock/stick: stun batons (Shock_Stick); sickle/hacksaw/spanner/drill/surgical/scalpel: hand tools and blades;
   # charm/sceptre/scepter: ceremonial held pieces that are swung or pointed, never fired
-  melee: [shock, stick, sickle, hacksaw, spanner, drill, surgical, scalpel, charm, sceptre, scepter]
-  # loose throwables that are not grenades or bombs (those have rules)
-  thrown: [rock, stone]
+  # W7b hand-check: a third of the measured `ranged` guesses on the live set were wrong. Their families are named here so
+  # they never reach the guess: butcher (butcher tools), crutch, tongs, rammer/ram, saw, pipe, horn, golem (a golem arm or
+  # club), pick, plank, trimmer, corkscrew are all held and swung or pressed, never fired
+  melee: [shock, stick, sickle, hacksaw, spanner, drill, surgical, scalpel, charm, sceptre, scepter, butcher, crutch,
+          tongs, rammer, ram, saw, pipe, horn, golem, pick, plank, trimmer, corkscrew]
+  # loose throwables that are not grenades or bombs (those have rules); star = throwing stars, potato = a thrown potato
+  thrown: [rock, stone, star, potato]
 
 # archetype -> hold_class (spec 3.4.2). `none` = not hand-held.
 hold_by_archetype:

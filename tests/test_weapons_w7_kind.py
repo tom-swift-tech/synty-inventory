@@ -221,6 +221,45 @@ def test_ac59_the_named_hint_examples(rules, aid, kind):
     assert "kind_guessed" not in out["reasons"]
 
 
+# ids that carry a hint token AND a rule word: the rule decides role, archetype and kind, the hint never reaches them.
+# (id, role, archetype, kind, matched rule, kind provenance); the last two rows are hint-only ids, no rule matches
+HINT_WORDS_WITH_RULES = [
+    ("SM_Veh_Saw_Launcher_01", "emplaced", "turret", "ranged", "emplaced_vehicle", "rules"),
+    ("SM_Wep_Saw_Launcher_01", "whole", "launcher", "ranged", "launcher", "rules"),
+    ("SM_Wep_Chainsaw_01", "whole", "tool", "melee", "tool", "rules"),
+    ("SM_Wep_Chain_Saw_01", "whole", "tool", "melee", "tool", "rules"),
+    ("SM_Wep_Pickaxe_01", "whole", "tool", "melee", "tool", "rules"),
+    ("SM_Wep_Pickacxe_01", "whole", "tool", "melee", "tool", "rules"),
+    ("SM_Wep_Pick_Axe_01", "whole", "axe", "melee", "axe", "rules"),
+    ("SM_Wep_Saw_Sword_01", "whole", "sword", "melee", "sword", "rules"),
+    ("SM_Wep_Saw_Gun_01", "whole", "unknown", "ranged", "generic_gun", "rules"),
+    ("SM_Wep_Potato_Gun_01", "whole", "unknown", "ranged", "generic_gun", "rules"),
+    ("SM_Wep_Pipe_Bomb_01", "whole", "bomb", "thrown", "bomb", "rules"),
+    ("SM_Wep_Pipe_Rifle_01", "whole", "rifle", "ranged", "rifle", "rules"),
+    ("SM_Wep_Battering_Ram_01", "emplaced", "siege_engine", "ranged", "emplaced_siege", "rules"),
+    ("SM_Wep_Star_Grenade_01", "whole", "grenade", "thrown", "grenade", "rules"),
+    ("SM_Wep_Throwing_Star_01", "whole", "throwing_blade", "thrown", "throwing_blade", "rules"),
+    ("SM_Wep_Horn_Staff_01", "whole", "staff", "melee", "staff", "rules"),
+    ("SM_Wep_Hacksaw_01", "whole", "unknown", "melee", None, "rules"),
+    ("SM_Wep_Pick_Up_Truck_01", "whole", "unknown", "melee", None, "rules"),
+]
+
+
+@pytest.mark.parametrize("aid,role,archetype,kind,rule,prov", HINT_WORDS_WITH_RULES)
+def test_ac59_the_hint_vocabulary_does_not_change_ids_a_rule_classifies(rules, aid, role, archetype, kind, rule, prov):
+    out = cls(rules, aid)
+    assert (out["role"], out["archetype"], out["kind"], out["matched_rule"], out["provenance"]["kind"]) == (
+        role, archetype, kind, rule, prov), aid
+    assert "kind_guessed" not in out["reasons"], aid
+
+
+def test_ac59_a_fuel_tank_pack_is_a_part_and_the_flamethrower_itself_is_not(rules):
+    tanks = cls(rules, "SM_Wep_FlameThrower_Tanks_01")
+    assert (tanks["role"], tanks["kind"], tanks["component"]) == ("part", None, {"slot": "misc", "fits": None})
+    gun = cls(rules, "SM_Wep_FlameThrower_01")
+    assert (gun["role"], gun["archetype"], gun["kind"]) == ("whole", "flamethrower", "ranged")
+
+
 @pytest.mark.parametrize("kind", ["ranged", "melee", "thrown"])
 def test_ac59_every_token_of_a_hint_list_gives_its_kind_without_a_guess(rules, kind):
     for token in W.HINT_TOKENS[kind]:
