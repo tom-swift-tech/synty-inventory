@@ -189,7 +189,8 @@ Rule order for exclusion is data (`weapon_rules.yaml`), not code; a test asserts
 > real token `club` fires the `club` rule, and the narrow `club_awning` exclude (`club_?(awning|sign|door|...)`)
 > never sees a `StripClub` id. The fix is context, not a matcher change. New data, all in `weapon_rules.yaml`, every
 > entry with a synthetic fixture id that first-matches it (AC9, AC50-AC53):
-> - **excludes (reason `scenery` unless stated)**: `strip_club` (`strip_?club`: the building and the 8 props); `bld_env_prefix`
+> - **excludes (reason `scenery` unless stated)**, appended at the END of `candidates.exclude` so every id an older entry
+>   caught keeps its entry, reason and `matched` name (`strip_club` stays before `bld_env_prefix`): `strip_club` (`strip_?club`: the building and the 8 props); `bld_env_prefix`
 >   (`^SM_(Bld|Env)_`: building and environment pieces that carry a weapon noun: mine towers and wheels, vents, ArrowSlit,
 >   Bomb, Planetary_Cannon); `chr_prefix` (`^SM_Chr_`, reason `character_attachment`: whole character meshes such as the
 >   Shieldmaidens); `sign_prop` (`^SM_(Prop|Sign|SignBorder)_` with token `sign`, none of `wep`: arrow signs, nightclub
@@ -202,7 +203,8 @@ Rule order for exclusion is data (`weapon_rules.yaml`), not code; a test asserts
 >   `part_misc` and the emplaced rules: Veh/Heli/Jet/Tug attachments and the `SM_Wep_Attach_*` set are mounting pieces of
 >   a vehicle or mech, not hand-held weapons. `Heli_Attach_Missile` and `Attach_Bolt` stay `ammo` (earlier rules). A new
 >   rule `emplaced_vehicle` (token `veh`, after `emplaced_cannon`) makes vehicle-mounted guns (`Veh_Extra_Gun`,
->   `Wep_Veh_*`) role `emplaced`, archetype `turret`; a vehicle cannon stays `cannon`.
+>   `Wep_Veh_*`) role `emplaced`, archetype `turret`; a vehicle cannon stays `cannon` (the rule says `tokens_none: [cannon]`
+>   so the cannon rule does not count as an ambiguous second match and cost every vehicle cannon a confidence step).
 > - **aliases** (unambiguous compound spellings only): `fireaxe` -> axe; `straightsword`, `zweihander`, `ninjato`,
 >   `odachi`, `machette` -> sword; `pickacxe` -> pickaxe; `cannonballs` -> cannonball (the Pirate `CannonBalls`
 >   were an emplaced cannon, they are loose ammo).
@@ -210,6 +212,34 @@ Rule order for exclusion is data (`weapon_rules.yaml`), not code; a test asserts
 >   record by record (capture a of the W7 report); no `SM_Wep_*` record may be excluded by these entries. Golf clubs
 >   (`Golf_Club`, `Minigolf`) are left as `club`; they are an open question (NB-16). About 100 real weapons whose names
 >   the vocabulary does not know stay `unknown` and are listed in NB-16; they are not aliased wholesale.
+
+> **PATCH (W7b, 2026-10-22): `kind` is never null for `whole` and `emplaced`.** The rule above (required iff role is
+> whole/emplaced) was not enforced when the archetype was `unknown`: `check_record` exempted those records, 229 live
+> `whole` records had `kind: null` and `weapons export` wrote them, so `sit_armory` rejected the snapshot (ARM_E02).
+> 1. **Enforcement.** `kind` is non-null iff `role` in {whole, emplaced} (§4.1). `check_record` (so `weapons validate`
+>    and every directory write) and the export's snapshot check both reject a violation; the exemption for
+>    `archetype == "unknown"` is removed.
+> 2. **Inference**, in this order, only for a `whole`/`emplaced` record whose rules left `kind` null (the archetype may stay
+>    `unknown`):
+>    a. *Vocabulary and rules* (data): `flamethrower` and `chainsaw` alias themselves (the joined `FlameThrower`,
+>       `Flame_Thrower`, `ChainSaw` reach the token); `blunderbuss` -> shotgun; `stungun` -> utilgun; `gunstock` -> stock;
+>       `cleaver` -> knife; `battery` joins `part_misc`. New rules before `generic_gun`: `assault_rifle` (token `assault`
+>       -> `rifle`, 0.8), `heavy_gun_worlds` (token `heavy`, not `preset`, pack `*SciFi_Worlds*` -> `heavy_gun`, 0.75),
+>       `alien_gun` (token `alien`, pack `*SciFi_Worlds*` -> `rifle`, 0.7), `preset_gun` (token `preset` -> `whole`,
+>       `ranged`, `unknown`, 0.5: every prefab preset in the survey lives under `Prefabs/Weapons/Guns/`).
+>    b. *Kind hints* (data, new optional top-level key `kind_hints: {ranged: [...], melee: [...], thrown: [...]}`, canonical
+>       post-alias tokens): the first kind whose list shares a token with the id wins, the archetype stays `unknown`,
+>       provenance `kind = "rule"`.
+>    c. *Measured fallback* (pass 2): when still null and the record is measured, `kind = ranged` if `geometry.long_axis`
+>       is `z`, else `melee` (on the live whole set the long axis predicts kind for 75 % of `z` and 89 % of `y` records:
+>       a guess), provenance `kind = "measured"`, and the review reason `kind_guessed` (new member of `REASONS`, §4.6).
+>    d. *Unmeasured with no hint*: `melee`, reason `kind_guessed`. This does not fail the build: a new pack must still
+>       build, and the reason puts the record on the review page.
+>    The record is then measured with its final kind (the measurement depends on it, as for archetype).
+> 3. A per-id override of `kind` (§4.5) clears `kind_guessed`. Hint tokens are a vocabulary table, not an asset list: one
+>    entry names a family of ids (Sceptre, Shock_Stick), never one id.
+> Gate: the build report lists, per `kind_guessed` record, id and kind; the lead hand-checks the BONDED subset (24 ids) and a
+> sample of the rest from icons.
 
 #### 3.4.2 Role, kind, archetype, hold_class
 
@@ -732,6 +762,12 @@ space of the directory (`geometry.frame = "asset"`) with `axes` + `item_basis` f
 > default is a staging file under the generated sidecar, never committed; a game copies it into its own private repo.
 > An explicit `--out` is refused with exit 3 when it lies inside this checkout or inside any git work tree that tracks
 > `*.synty*` files, so a pack-derived snapshot cannot be written into a public repo by accident (INV-1).
+>
+> **PATCH (W7b, 2026-10-22): explicit `--out` under the default folder.** An explicit `--out` that lies under
+> `<catalogs>/weapons/snapshots/` (the folder the default already writes to) is accepted. Every other refusal stays: an
+> `--out` elsewhere inside the catalogs dir, inside a pack root, inside this checkout, or inside a git work tree that tracks
+> `*.synty*` files exits 3 and writes nothing. The export also refuses (exit 6, nothing written) when any selected record
+> violates the `kind` rule of 3.4.2 PATCH W7b.
 
 **Public profile** (`--profile public`, for an external storefront): emits only `id`, `kind`, `role`, `archetype`,
 `genre`, `family`, `hints`, `geometry.length_m`, `visuals.icon`/`thumb`; no `files`, no bounds, no points, no
@@ -793,7 +829,7 @@ decided by this spec (§8 B-1).
   "review": {
     "status": "auto",                                 // auto | reviewed | overridden
     "confidence": 0.9,
-    "reasons": [],                                    // e.g. low_confidence, no_geometry, axes_unexpected, muzzle_fallback, origin_outside_bounds, colourway_unknown
+    "reasons": [],                                    // e.g. low_confidence, no_geometry, axes_unexpected, muzzle_fallback, origin_outside_bounds, colourway_unknown, kind_guessed
     "matched_rule": "assault_rifle",
     "candidate_source": "catalog"                     // catalog | name_token
   },
@@ -818,7 +854,7 @@ its world transform is not item-baked: it gets reason `node_transform` and is le
 export's `--frame item` rotation applies to these points as to any other record; `item_basis` is computed from the
 scene-space axes. `shared_glb_node` is set on every record with a non-null `glb_node`.
 
-Types and nullability: strings are non-empty; `kind` null iff `role` in {part, ammo, carrier}; `hold_class` is `none`
+Types and nullability: strings are non-empty; `kind` null iff `role` in {part, ammo, carrier} (and never null for whole/emplaced, PATCH W7b: also for archetype `unknown`); `hold_class` is `none`
 for part/ammo/carrier/emplaced and for `mech_scale`; `geometry` null iff flag `unmeasured`; `tip` null for ranged and
 bow; `muzzle` null unless `kind == ranged` and archetype != `bow`; `support` null unless `hold_class == long_gun`;
 `hints.size_class`/`inventory_cells` null iff `geometry` null; `hints.quality_tier` null iff role in {part, ammo,
@@ -846,7 +882,7 @@ carrier} or archetype `unknown` (§3.6); all float fields rounded to 1e-4 (confi
 `hold_by_archetype`, `genre_by_archetype`, `plausible_length_m`, `axes_expected`, `grip_proportion`,
 `size_class_cuts_m`, `weight_by_archetype`, `tier_base`, `ammo_by_archetype`, `pack_flags`, `family_strip_tokens`;
 PATCH W7: `head_lead_tokens` (list of canonical tokens) and `icon_albedo_from_material` (`[{name, packs_any, id_regex}]`),
-both optional, defaulting to empty.
+PATCH W7b: `kind_hints` (`{ranged|melee|thrown: [canonical tokens]}`); all optional, defaulting to empty.
 
 ### 4.5 `weapon_overrides.json`
 
@@ -1160,7 +1196,8 @@ Determinism, additivity, live gates
   `*.synty*` ignore pattern (`.gitignore` negation); no pack-derived file is.
 - AC50. StripClub (PATCH W7). Synthetic ids `SM_Bld_StripClub_01` and `SM_Prop_StripClub_01` are `excluded` (reason
   `scenery`), while `SM_Wep_Club_01` and `SM_Prop_Club_01` stay `club`; the existing `club_awning` cases still exclude.
-  Removing the `strip_club` entry makes the first pair classify as `club`.
+  Removing the `strip_club` entry makes the Prop id classify as `club`; the Bld id is then still caught by
+  `bld_env_prefix` (its `matched` changes), and only removing both makes it a `club`.
 - AC51. Scenery and furniture excludes (PATCH W7). One synthetic id per entry (`bld_env_prefix`, `chr_prefix`, `sign_prop`,
   `container_furniture`, `pestle`) is excluded with its reason; counter-cases stay: `SM_Wep_Sign_Shield_01` is a `shield`,
   a `Crate_Bullets` id is `ammo`, a `Wep`-prefixed gun with a `case` word in the name is not excluded. Removing any one
@@ -1191,6 +1228,22 @@ Determinism, additivity, live gates
   texture renders blank first, is retried, gets `icon_mode == "blend_retry"` and the covered pixels have alpha 255
   (not about 102); a MASK material with a real texture alpha channel still blends. Removing the opacity line makes the
   alpha assertion fail.
+- AC58. Kind contract (PATCH W7b). `check_record` and `weapons validate` reject a synthetic `whole` record with
+  `kind: null` and `archetype: unknown`, and an `emplaced` record with `kind: null`; accept the same record with a kind;
+  `weapons export` of a directory holding such a record exits 6 and writes no file. Re-adding the old exemption makes the
+  rejection tests fail. A full build of the synthetic fixture catalogs has no whole/emplaced record with a null kind.
+- AC59. Kind inference (PATCH W7b). Synthetic ids: `SM_Wep_Assault_01` -> `rifle`, `SM_Wep_Heavy_01` -> `heavy_gun` and
+  `SM_Wep_Alien_01` -> `rifle` in a `*SciFi_Worlds*` pack (and unchanged outside it), `SM_Wep_FlameThrower_01` ->
+  `flamethrower`, `SM_Wep_Blunderbuss_01` -> `shotgun`, `SM_Wep_Stungun_01` -> `utility_gun`, `SM_Wep_Gunstock_01` -> `part`
+  (stock), `SM_Wep_Mining_Laser_Battery_01` -> `part`; a `*_Preset_*` prefab -> `ranged`/`unknown`; kind hints:
+  `Shock_Stick`, `Sickle` -> `melee`, a laser id -> `ranged`, `Rock` -> `thrown`, each `kind` provenance `rule` and
+  archetype `unknown`. A synthetic measured unknown with long axis `z` -> `ranged`, with `y` -> `melee`, provenance
+  `measured`, reason `kind_guessed`, and its geometry is the one measured for that kind (a ranged one has a muzzle and no
+  tip); an unmeasured unknown without a hint -> `melee` with `kind_guessed`; an id override of `kind` has no
+  `kind_guessed`. Removing each rule, hint list or the measured fallback makes its cases fail (mutation per entry).
+- AC60. Explicit export target (PATCH W7b). `--out <catalogs>/weapons/snapshots/x.json` and a nested path below it are
+  accepted and written; `--out <catalogs>/weapons/x.json`, `--out <catalogs>/x.json` and a path inside a pack root or
+  this checkout still exit 3 and write nothing; a `..` path that resolves out of the snapshots folder exits 3.
 
 ## 7. Failure modes
 
@@ -1292,6 +1345,8 @@ Determinism, additivity, live gates
     material. Both are converter faults outside this repo (a game that loads these GLBs sees them too); the icons are fixed
     at render time (3.8 PATCH W7), the GLBs are not. Three single records (Samurai `Sword`, `Rigged_Bow_01`, Wasteland
     `Superheavy_01`) embed a texture that differs from their material's and were not investigated.
+  - W7b: `kind_guessed` records (kind from the measured long axis, or `melee` when unmeasured) are guesses for the review
+    page; the long axis is right for about 3 in 4 `z` and 9 in 10 `y` records.
 
 **Suggested build slices (non-binding; the plan stage decides):** W1 rules + candidates + classify + overrides +
 directory without geometry (AC1-10, 27-28); W2 geometry + muzzle parity + grip/support (AC11-16, NB-6/NB-7 probes);
