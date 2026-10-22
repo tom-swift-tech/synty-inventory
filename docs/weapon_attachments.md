@@ -128,7 +128,7 @@ formula then holds in the item frame provided the consumer has applied each reco
 
 `ATTACH_KINDS` (closed, per slot): `optic` = scope, sniper_scope, reflex, iron, carry_handle_scope; `muzzle` =
 suppressor, brake, flash_hider (v1 recognises suppressor only); `underbarrel` = foregrip, bipod; `magazine` = standard,
-extended, drum, cell; `laser_light` = laser, light. Unknown kind inside a known slot is `other` with review reason
+extended, drum, cell; `laser_light` = laser, light; every slot also has `other`. An unrecognised kind inside a known slot is `other` with review reason
 `attach_kind_unknown`. Consumers must ignore slots and kinds they do not know (C-25).
 
 `visuals` (icon, thumb, variants) and `kind`/`hold_class`/`hints` follow the existing part conventions unchanged
@@ -374,7 +374,7 @@ Any other key (`point`, `up`, `span_m`, `offset`, a number...) is rejected with 
 
 ## 8. Data shapes and enumerations
 
-- `ATTACH_SLOTS = (optic, muzzle, underbarrel, magazine, laser_light)`; `ATTACH_KINDS` per slot (§3.2);
+- `ATTACH_SLOTS = (optic, muzzle, underbarrel, magazine, laser_light)`; `ATTACH_KINDS` per slot, each including `other` (§3.2);
   `MOUNT_SOURCES = (override, child_node, probe, none)`; `COMPAT_TIERS = (override, twin, same_pack_fit, cross_pack_fit)`;
   `MOUNT_NONE_REASONS = (no_child_no_probe, slot_disabled, probe_unavailable)`; new `REASONS`: `anchor_unmeasured`,
   `anchor_forward_unsure`, `attach_kind_unknown`, `mount_missing`, `mount_ambiguous`, `mount_estimated`,
@@ -387,7 +387,7 @@ Any other key (`point`, `up`, `span_m`, `offset`, a number...) is rejected with 
 
 ## 9. Invariants and failure modes
 
-- **INV-14** `compatible_hosts[].host` and `pending_hosts[]` ids exist in the directory, are `whole`, ranged, and eligible;
+- **INV-14** `compatible_hosts[].host` and `pending_hosts[].host` (directory form `{host, tier}`; only the export form is bare ids) exist in the directory, are `whole`, ranged, and eligible;
   the relation is stored on the part only.
 - **INV-15** `mounts.<slot>.source == "none"` iff `point`, `forward`, `up`, `span_m` are all null, and then `reason` is set.
 - **INV-16** `occupied_by` is non-empty only for `child_node` or `override` sources, **except the muzzle slot**, where a `probe`
@@ -414,7 +414,7 @@ Continues the table in DS§10.
 | C-19 | `attachment` | object or null on part records: `slot`, `kind`, `anchor`, `footprint`, `compatible_hosts`, `pending_hosts` (§3.2). Present only with `--attachments`. Part records keep `kind: null`, `hold_class: "none"`, and carry `geometry.item_basis` like whole records; a part inside a shared GLB also carries `geometry.node_offset` and, when its node has rotation or scale, the `node_transform` reason (exactly as DS§4.1 for whole records), so `anchor` and the footprint are interpreted in the same frame. |
 | C-20 | frame and units | §3.1: `{point, forward, up}`, metres, 1e-4, unit vectors 4 dp, right-handed with `right = up x forward`. Asset frame: asset-local GLB scene space after `glb_scale`. Item frame: each record baked through **its own** `item_basis`; consumer applies each record's own `item_basis` to its own mesh. `span_m`, `footprint.*`, `bore_d_m`, `mate_d_m` are scalars in metres, never baked. Part records always carry `geometry.item_basis` (and `geometry.node_offset` for shared-GLB nodes, unrotated and not item-baked, DS C-17), so a consumer can orient the part mesh before using item-frame fields. |
 | C-21 | placement | `part_T = T(mount) * T(anchor)^-1` where `T(F)` has rotation columns `[right | up | forward]` and translation `point`. After placement `anchor.point -> mount.point` exactly and the two `up` and `forward` vectors coincide. Reference implementation: `weapons.attach.place(anchor, mount)` plus a GDScript port written by DM-B against the shared oracle `sit_mount_place/1` (AC69). The three literal cases of that oracle (muzzle identity, optic authored on its side, underbarrel hanging down) were checked by hand against this formula and agree. |
-| C-22 | occupancy | `mounts.<slot>.occupied_by`: sorted list of GLB node names to hide when a separate attachment is mounted; `[]` = free. `occupied_by` and `child_node` are **raw GLB node names, unsanitised**; the engine importer's renaming (Godot replaces `. : @ / " %` with `_` and renames duplicates) is the consumer's job (sit_weapons M15). For the muzzle slot the mount `point` is the seat measured with these nodes excluded, not the face of a baked device (R1, AC84). A mount with `source: "none"` is unavailable: a consumer must not synthesise a position (D-8). **One exception, muzzle slot only:** a muzzle mount with `source: "none"` may be self-measured by the consumer with the same face-probe rule (sit_weapons' shipped M6 probe, the same measurement as A0, not a guess). A bounds guess is never allowed, and no other slot gets this exception. |
+| C-22 | occupancy | `mounts.<slot>.occupied_by`: sorted list of GLB node names to hide when a separate attachment is mounted; `[]` = free. `occupied_by` and `child_node` are **raw GLB node names, unsanitised**; the engine importer's renaming (Godot replaces `. : @ / " %` with `_` and renames duplicates) is the consumer's job (sit_weapons M15). For the muzzle slot the mount `point` is the seat measured with these nodes excluded, not the face of a baked device (R1, AC84). A mount with `source: "none"` is unavailable, and the consumer never synthesises a position (D-8). |
 | C-23 | compatibility | `compatible_hosts[]`: `{host, tier, score, signals[], replaces[]}`; `tier` in `COMPAT_TIERS`; sorted by `(tier rank, -score, host)`. `pending_hosts[]` are ids only, filtered by the same `--min-compat-tier` rule as `compatible_hosts` (default up to `same_pack_fit`). Relation stored on the part only (INV-14). Default export keeps tiers up to `same_pack_fit`. An **empty `compatible_hosts` means the part fits nothing**: only `pending_hosts` and a game overlay's own `fits` add can extend it. |
 | C-24 | export surface | `--attachments` alone emits host `mounts` plus the attachment part records; `--roles attachment` is only an extra filter to export attachments alone; also `--min-compat-tier`, `--keep-foreign-hosts`. Default output is byte-identical to W7, `generated_from` included (`geometry_version` stays 5; `attach_version` and `filter.attachments` appear only with `--attachments`). `sit_armory` ignores unknown keys (it already ignores `component`) and keeps the `whole`-only default. `generated_from.filter.attachments` is a boolean, present and `true` only when the export was made with `--attachments` (absent otherwise, so the default output stays byte-identical). |
 | C-25 | vocabulary | `ATTACH_SLOTS` / `ATTACH_KINDS` may grow in minor versions; consumers ignore unknown slots/kinds. `compatible_hosts` and `mounts` may later gain keys. |
@@ -433,7 +433,7 @@ that must make the test fail.
 
 | AC | statement | mutation proof |
 |---|---|---|
-| AC61 | Records validate: `attachment` non-null only for `part`; its fields, enums and nullability match §3.2; `compatible_hosts`/`pending_hosts` only name existing eligible hosts; `weapons validate` exit 0 on the fixture directory, exit 6 on each of six hand-broken variants | drop the role check -> the non-part variant validates, test fails |
+| AC61 | Records validate: `attachment` non-null only for `part`; its fields, enums and nullability match §3.2; `compatible_hosts[].host` and the directory form `pending_hosts[] = {host, tier}` (`tier` in `COMPAT_TIERS`; the export form is ids only) only name existing eligible hosts; `weapons validate` exit 0 on the fixture directory, exit 6 on each of six hand-broken variants | drop the role check -> the non-part variant validates, test fails |
 | AC62 | Classification: each token row of §3.3 maps its fixture part to the stated slot/kind; the vehicle-named part gets `attachment: null`; a part with no row stays null | delete the `not` list -> the vehicle part becomes an attachment |
 | AC63 | Anchor accuracy on rotated copies of the fixtures: `point` within 1 mm of the known foot centre, `up` within 0.5 degrees, for every slot kind, with the foot at the top and at the bottom | measure `point` as the AABB centre instead of the foot slab -> fails on the offset-foot fixture |
 | AC64 | Forward sign: tube-with-flare faces the flare (`forward_source "section"`); symmetric box -> `symmetric true`, `forward_source "authored"`, confidence <= 0.59, reason `anchor_forward_unsure`; a `forward` override flips it and sets `override` | set the ratio threshold to 1.0 -> the symmetric fixture is "decided" |
