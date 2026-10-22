@@ -24,11 +24,11 @@ token_aliases:
   hmg: [heavymachinegun, chaingun]
   rpg: [rocketlauncher, bazooka]
   pistol: [handgun, sidearm]
-  utilgun: [nailgun, paintgun, watergun, flaregun, spraygun, dartgun, staplegun, taser, welder, syringegun, gluegun]
+  utilgun: [nailgun, paintgun, watergun, flaregun, spraygun, dartgun, staplegun, taser, welder, syringegun, gluegun, stungun]
   throwblade: [shuriken, kunai, throwingstar, throwingknife, throwingaxe]
   axe: [hatchet, tomahawk, battleaxe, waraxe, handaxe, fireaxe]
   sword: [katana, rapier, cutlass, machete, scimitar, saber, sabre, longsword, shortsword, greatsword, broadsword, straightsword, zweihander, ninjato, odachi, machette]
-  knife: [dagger, shiv, tanto, kukri, razor]
+  knife: [dagger, shiv, tanto, kukri, razor, cleaver]
   mace: [flail, morningstar]
   club: [cudgel, baton, truncheon, nightstick, crowbar]
   hammer: [warhammer, maul, sledgehammer, mallet]
@@ -47,7 +47,11 @@ token_aliases:
   siege: [catapult, trebuchet, ballista, batteringram, mangonel]
   mortar: [flak]
   cannonball: [cannonball, cannonballs]  # lets Cannon_Ball, CannonBall and CannonBalls reach the same token
-  flamethrower: [flamer]
+  # W7b: the joined spellings FlameThrower / Flame_Thrower and ChainSaw / Chain_Saw reach the token (self-alias, as cannonball)
+  flamethrower: [flamer, flamethrower]
+  chainsaw: [chainsaw]
+  shotgun: [blunderbuss]  # W7b
+  stock: [gunstock]  # W7b
   optic: [scope, sight, ironsight, reddot, holo, acog, reflex, optics]
   magazine: [mag, clip, drum, mags]
   silencer: [suppressor]
@@ -256,7 +260,7 @@ rules:
   - {name: part_grip, match: {tokens_any: [grip]}, set: {role: part, component: grip}, confidence: 0.88}
   - {name: part_body, match: {tokens_any: [body, receiver]}, set: {role: part, component: body}, confidence: 0.85}
   # Mod_<anything else>: a part, slot unknown
-  - {name: part_misc, match: {tokens_any: [mod, flashlight, bipod, sling, attachment, muzzle]}, set: {role: part, component: misc}, confidence: 0.8}
+  - {name: part_misc, match: {tokens_any: [mod, flashlight, bipod, sling, attachment, muzzle, battery]}, set: {role: part, component: misc}, confidence: 0.8}
   # Veh/Heli/Jet/Tug attachments and the SM_Wep_Attach_* set mount on a vehicle or mech (W7); Heli_Attach_Missile and
   # Attach_Bolt are caught as ammo above
   - {name: part_attach, match: {tokens_any: [attach]}, set: {role: part, component: misc}, confidence: 0.85}
@@ -322,11 +326,40 @@ rules:
     set: {role: whole, archetype: tool}
     confidence: 0.85
   - {name: shield, match: {tokens_any: [shield]}, set: {role: whole, archetype: shield}, confidence: 0.93}
+  # --- W7b: vocabulary the older rules did not know. They sit after every named archetype (so a Rifle_Preset or an
+  # Assault_Shotgun keeps its own rule) and before generic_gun ---
+  - {name: assault_rifle, match: {tokens_any: [assault]}, set: {role: whole, archetype: rifle}, confidence: 0.8}
+  # Heavy_* in the SciFi_Worlds packs are heavy guns; a Heavy_*_Preset prefab is not told apart from other presets
+  - name: heavy_gun_worlds
+    match: {tokens_any: [heavy], tokens_none: [preset], packs_any: ['*SciFi_Worlds*']}
+    set: {role: whole, archetype: heavy_gun}
+    confidence: 0.75
+  # Alien_* in the SciFi_Worlds packs are rifles; the same token elsewhere says nothing about the weapon
+  - name: alien_gun
+    match: {tokens_any: [alien], packs_any: ['*SciFi_Worlds*']}
+    set: {role: whole, archetype: rifle}
+    confidence: 0.7
+  # every prefab preset in the survey lives under Prefabs/Weapons/Guns/: a preset whose gun the vocabulary does not know
+  # is a ranged weapon of unknown archetype
+  - {name: preset_gun, match: {tokens_any: [preset]}, set: {role: whole, kind: ranged, archetype: unknown}, confidence: 0.5}
   # --- last resort: it is a gun, which gun is unknown (kept for review, never dropped) ---
   - {name: generic_gun, match: {tokens_any: [gun, blaster]}, set: {role: whole, kind: ranged, archetype: unknown}, confidence: 0.5}
 
-# Confidence for an id no rule matched (role whole, archetype unknown, kind null).
+# Confidence for an id no rule matched (role whole, archetype unknown; kind from kind_hints or the measured fallback).
 unknown_confidence: 0.2
+
+# W7b (spec 3.4.2 PATCH W7b): kind for a whole/emplaced record that the rules left without one (archetype stays `unknown`).
+# Canonical post-alias tokens, FAMILY-level vocabulary only (one entry names a family of ids, never one id). The lists are
+# consulted in the order ranged, melee, thrown, and the first list that shares a token with the id wins; the loader rejects
+# a token that sits in two lists. A token that already has a rule never needs an entry here (the rule sets the kind).
+kind_hints:
+  # laser/cutter/mining: sci-fi mining and cutting tools that fire (Laser_*, Plasma_Cutter_*, Mining_*); slingshot fires
+  ranged: [laser, cutter, mining, slingshot]
+  # shock/stick: stun batons (Shock_Stick); sickle/hacksaw/spanner/drill/surgical/scalpel: hand tools and blades;
+  # charm/sceptre/scepter: ceremonial held pieces that are swung or pointed, never fired
+  melee: [shock, stick, sickle, hacksaw, spanner, drill, surgical, scalpel, charm, sceptre, scepter]
+  # loose throwables that are not grenades or bombs (those have rules)
+  thrown: [rock, stone]
 
 # archetype -> hold_class (spec 3.4.2). `none` = not hand-held.
 hold_by_archetype:

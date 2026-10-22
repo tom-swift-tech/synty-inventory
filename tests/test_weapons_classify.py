@@ -27,6 +27,9 @@ from synty_inventory.weapons.rules import load_rules, shadowed_rules, validate_r
 _w7 = importlib.util.spec_from_file_location("w7_cases", Path(__file__).parent / "fixtures" / "weapons" / "w7_cases.py")
 W7 = importlib.util.module_from_spec(_w7)
 _w7.loader.exec_module(W7)
+_w7b = importlib.util.spec_from_file_location("w7b_cases", Path(__file__).parent / "fixtures" / "weapons" / "w7b_cases.py")
+W7B = importlib.util.module_from_spec(_w7b)
+_w7b.loader.exec_module(W7B)
 
 HOLD = {
     "pistol": "one_hand", "revolver": "one_hand", "utility_gun": "one_hand",
@@ -78,7 +81,10 @@ def test_ac1_every_positive_has_a_record_and_accuracy_holds(built):
     assert set(by_id) == set(exp)  # every positive has a record, and no record is unexpected
     n = len(exp)
     arch = sum(1 for i, w in exp.items() if by_id[i]["archetype"] == w["archetype"])
-    kind = sum(1 for i, w in exp.items() if by_id[i]["kind"] == w["kind"])
+    # W7b: expected.json is pinned and records `kind: null` for the whole-but-unknown records; the contract now gives
+    # them a kind (the unmeasured fallback, melee), so a null expectation on a whole/emplaced record means `melee`
+    kind = sum(1 for i, w in exp.items()
+               if by_id[i]["kind"] == (w["kind"] or ("melee" if w["role"] in ("whole", "emplaced") else None)))
     role = sum(1 for i, w in exp.items() if by_id[i]["role"] == w["role"])
     assert arch / n >= 0.95
     assert kind / n == 1.0
@@ -268,10 +274,11 @@ def test_confidence_bounds_and_name_token_cap(built):
 def test_unknown_archetype_is_kept_and_flagged_for_review(rules):
     out = _cls(rules, {"id": "SM_Wep_Zorb_01", "type": "weapon"})
     assert out["archetype"] == "unknown"
-    assert out["kind"] is None
+    assert out["kind"] == "melee"  # W7b: never null for a whole record; unmeasured and unhinted -> melee, flagged
     assert out["role"] == "whole"
     assert out["confidence"] == 0.2
     assert "unknown_archetype" in out["reasons"] and "low_confidence" in out["reasons"]
+    assert "kind_guessed" in out["reasons"]
     assert out["hold_class"] == "none"
 
 
@@ -292,6 +299,9 @@ def test_ac9_every_rule_is_the_first_match_of_a_fixture_id(built, rules):
     # W7 rules (part_attach, emplaced_vehicle): the shared fixture catalogs are pinned, so their first-match ids are the
     # synthetic ones of fixtures/weapons/w7_cases.py (mutation proof in tests/test_weapons_w7_rules.py)
     hit |= {_cls(rules, {"id": aid, "type": "weapon"})["matched_rule"] for _, aid, _, _, _ in W7.RULE_CASES}
+    # W7b rules (assault_rifle, heavy_gun_worlds, alien_gun, preset_gun): the ids of fixtures/weapons/w7b_cases.py
+    # (mutation proof in tests/test_weapons_w7_kind.py)
+    hit |= {_cls(rules, {"id": aid, "type": "weapon"}, pack=pack)["matched_rule"] for _, pack, aid, _, _ in W7B.RULE_CASES}
     assert [n for n in names if n not in hit] == []
 
 

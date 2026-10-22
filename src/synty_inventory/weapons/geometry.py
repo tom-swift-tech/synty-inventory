@@ -832,6 +832,7 @@ def pass2_inputs(detail: dict) -> dict | None:
         return None
     return {
         "length_m": geo["length_m"],
+        "long_axis": geo["long_axis"],  # W7b: the measured fallback for a still-null kind (z -> ranged, else melee)
         "forward_by_fallback": "forward_by_fallback" in detail["flags"],
         "axes_unexpected": "axes_unexpected" in detail["reasons"],
     }

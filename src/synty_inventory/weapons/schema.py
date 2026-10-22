@@ -264,8 +264,9 @@ def check_record(rec: dict, where: str) -> list[str]:
         errs.append(f"{where}.id: must equal pack/asset_id")
     if role in NON_WEAPON_ROLES and kind is not None:
         errs.append(f"{where}.kind: must be null for role {role}")
-    if role in ("whole", "emplaced") and kind is None and arch != "unknown":
-        errs.append(f"{where}.kind: required for role {role} with a known archetype")
+    if role in ("whole", "emplaced") and kind is None:
+        # W7b: no exemption for archetype `unknown`; kind is non-null iff role is whole or emplaced (spec 4.1)
+        errs.append(f"{where}.kind: required (non-null) for role {role}; kind is null only for part, ammo and carrier")
     if (role in NON_WEAPON_ROLES or role == "emplaced" or "mech_scale" in flags) and rec["hold_class"] != "none":
         errs.append(f"{where}.hold_class: must be 'none' for role {role} / mech_scale")
     for field, owner in (("component", "part"), ("carrier", "carrier"), ("ammo", "ammo")):

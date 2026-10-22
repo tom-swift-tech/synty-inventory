@@ -45,8 +45,8 @@ FLAGS = (
     "preset", "prefab_only", "shared_glb_node", "token_candidate", "unmeasured",
 )  # sorted: records carry them sorted (spec 3.4.5)
 REASONS = (
-    "axes_unexpected", "colourway_unknown", "degenerate", "low_confidence", "muzzle_fallback", "no_geometry",
-    "node_transform", "origin_outside_bounds", "unknown_archetype",
+    "axes_unexpected", "colourway_unknown", "degenerate", "kind_guessed", "low_confidence", "muzzle_fallback",
+    "no_geometry", "node_transform", "origin_outside_bounds", "unknown_archetype",
 )
 EXCLUDE_REASONS = (
     "nonplaceable", "ui", "fx", "character_attachment", "mech_attachment", "scenery", "tool_prop", "override",
