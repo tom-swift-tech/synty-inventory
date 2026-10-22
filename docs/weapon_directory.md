@@ -3,6 +3,7 @@
 **Written:** 2026-10-16. **Status:** APPROVED by Tom 2026-10-16 (all stated defaults; B-1 = public icon renders off, so `export --profile public`
 refuses; NB-1 to NB-15 as written). Approved at commit f6bd3bf. No code exists yet; build plan in §11.
 **Branch:** `spec/weapon-directory`, based on `main` at `40f7d3c`.
+**Amendment (2026-10-22, DRAFT, not yet approved):** weapon attachments are specced in [weapon_attachments.md](weapon_attachments.md); `attachment` records, `geometry.mounts`, contract items C-18 to C-27 and slices W8 to W10 live there. Nothing in this document changes meaning.
 **Consumers:** the `sit_armory` overlay addon (sit-capabilities, specced separately), games that vendor it, an
 in-game shop/trading layer, and a possible external storefront later.
 **Workflow:** intent -> **spec** -> plan -> build -> validate.
@@ -862,6 +863,8 @@ bow; `muzzle` null unless `kind == ranged` and archetype != `bow`; `support` nul
 `hints.size_class`/`inventory_cells` null iff `geometry` null; `hints.quality_tier` null iff role in {part, ammo,
 carrier} or archetype `unknown` (§3.6); all float fields rounded to 1e-4 (confidence 2 dp).
 
+> **PATCH (T4 attachments, 2026-10-22, DRAFT): two additive record fields.** A part record may carry a nullable top-level `attachment` block (`slot`, `kind`, `anchor`, `footprint`, `compatible_hosts`, `pending_hosts`) and an eligible ranged `whole` record may carry `geometry.mounts` (one frame per slot: `optic`, `muzzle`, `underbarrel`, `laser_light`, `magazine`, each with `source`, `point`, `forward`, `up`, `span_m`, `occupied_by`). Both are specified in [weapon_attachments.md](weapon_attachments.md) §3 and §4, are absent from the default export (that output stays byte-identical, `--attachments` turns them on), and leave `schema_version` 1 and `component` untouched.
+
 ### 4.2 `weapon-directory/1` (`directory.json`)
 
 ```json
@@ -915,6 +918,8 @@ classification upstream.
 > Low confidence section with reason `low_confidence`); for weapons whose direction is genuinely ambiguous and Tom
 > should look. Neither field sets `review.status`; neither forces confidence to 1.0.
 
+> **PATCH (T4 attachments, 2026-10-22, DRAFT): categorical attachment keys.** `set` gains the enums `attachment_slot` and `attachment_kind`; id entries gain `compatible: {add, remove}` (ids or globs; allowed on glob entries too) and `mounts: {<slot>: {source: child_node|none, child: <GLB node name>}}` (id-only); the W2e `forward` field also applies to a part (it flips the anchor forward sign). No coordinate, offset or other number is ever accepted (exit 6): see [weapon_attachments.md](weapon_attachments.md) §6.1, INV-17.
+
 ### 4.6 Enumerations (single source: `weapons/__init__.py`, mirrored in `weapon_rules.yaml` validation)
 
 `ROLES`, `KINDS`, `ARCHETYPES` (§3.4.2), `HOLD_CLASSES`, `GENRES`, `STATUSES = (auto, reviewed, overridden)`,
@@ -922,6 +927,8 @@ classification upstream.
 (tiny, small, medium, large, huge)`, `WEIGHT_CLASSES = (light, medium, heavy, very_heavy)`,
 `AMMO_FAMILIES = (handgun, rifle, shotgun, heavy, rocket, grenade, arrow, bolt, energy, fuel)`,
 `COMPONENT_SLOTS = (optic, magazine, stock, barrel, body, grip, silencer, bayonet, rail, trigger, handguard, misc)`.
+
+> **PATCH (T4 attachments, 2026-10-22, DRAFT):** `COMPONENT_SLOTS` is unchanged. New enumerations `ATTACH_SLOTS`, `ATTACH_KINDS`, `MOUNT_SOURCES`, `COMPAT_TIERS`, `MOUNT_NONE_REASONS` and the new `REASONS` are listed in [weapon_attachments.md](weapon_attachments.md) §8.
 
 ### 4.7 Relation to existing records
 
@@ -1393,6 +1400,8 @@ GATE RESULT: PASS. Planning for W1-W5 may proceed.
 | C-16 | radii clamped | `grip_r_m` and `support_r_m` are unclamped measured facts; consumers cap them (§3.5.6) | measured facts stay raw |
 | C-17 | `node_offset` frame unspecified | `geometry.node_offset` is always the node's GLB scene-space translation, unrotated and not item-baked, in both export frames; consumers apply `item_basis * node_offset` themselves (§4.1, §3.10, AC34) | it describes the file, not the weapon |
 
+> **C-18 to C-27 (T4 attachments, 2026-10-22, DRAFT)** are defined in [weapon_attachments.md](weapon_attachments.md) §10 (mounts, attachment block, frames and units, placement formula, occupancy, compatibility, export surface, vocabulary growth, stats ownership, no numeric corrections) and are reconciled by the lead with the `sit_armory` / `sit_weapons` drafts.
+
 ## 11. Build plan (slices W1-W5)
 
 Approved with the spec (Tom, 2026-10-16). Nothing is built yet. This section replaces the non-binding slice sketch in §8.
@@ -1531,3 +1540,7 @@ binary named in that repo's AGENTS.md; the **sit_armory side owns that probe**. 
   blocks **only AC12**: every other W2 AC gates normally and W2's other work may merge, but AC12 stays open on the
   board and W2 is not closed until the golden lands and the test passes (a skip never counts). No other slice depends
   on it, and nothing in W1-W5 writes to sit-capabilities.
+
+### 11.5 Later slices (W8 to W10)
+
+Weapon attachments add slices W8a to W8d, W9 (rail-probe spike) and W10 (live acceptance); see [weapon_attachments.md](weapon_attachments.md) §13. They start only after Tom approves that document.
