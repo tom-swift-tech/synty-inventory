@@ -428,7 +428,7 @@ Continues the table in DS§10.
 ## 11. Acceptance criteria
 
 Synthetic fixtures (committed, `tests/fixtures/weapons/`): a catalog `FAKE_Attach` and generated GLBs from
-`tests/fixtures/weapons/w8a_attach.py` (written per test into the test's tmp directory; it is NOT added to `make_catalogs.py` or to the committed `catalogs/`, because a sixth committed pack would shift the literal counts that the W7 suite pins): (a) a box-and-barrel host with a child "optic" mesh at a known transform, a child "magazine" mesh, a
+`tests/fixtures/weapons/w8a_attach.py` (written per test into the test's tmp directory; it is NOT added to `make_catalogs.py`, to the committed `catalogs/` or to `expected.json`, because a sixth committed pack would shift the literal counts that the W7 suite pins): (a) a box-and-barrel host with a child "optic" mesh at a known transform, a child "magazine" mesh, a
 trigger child and a muzzle ring of known radius; (b) a standalone optic that is an exact dimensional twin of the child
 optic, a larger non-twin optic, a tube-with-flare scope, a symmetric box optic, a suppressor tube (wide free end,
 26 mm-class mating end), a foregrip hanging from a top foot, a drum magazine; (c) a host without any child; (d) a
