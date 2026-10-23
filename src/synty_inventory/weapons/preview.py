@@ -39,7 +39,7 @@ from pathlib import Path
 import numpy as np
 
 from . import ATTACH_SLOTS, EXIT_OK, EXIT_RENDERER, InputError, RefusalError, WeaponsError, write_text_lf
-from .attach import place
+from .attach import hidden_nodes, place
 from .compat import tier_rank
 from .icons import (
     Renderer,
@@ -150,7 +150,9 @@ def build_job(pair: dict, part: dict, host: dict, threejs_dir: Path) -> dict:
     has a seat for (``mounts.<slot>.seats``) is placed on that seat, so a twin of the smaller of two magazines lands on ITS child
     and not on the larger one that owns the mount's own seat (``replaces`` chooses the seat only); every other pair is placed on
     the mount as before. A2: an optic whose entry carries ``hides_slots`` (spec 4.3) also hides the nodes of those slots (the rear
-    sight it covers), by the same whole-slot rule.
+    sight it covers), by the same whole-slot rule (``attach.hidden_nodes``, which settle to contact uses too). A5: an entry that carries
+    ``seat_shift_m`` (spec 5.4) places the part ``translate(seat_shift_m * frame.up) @ place(anchor, frame)``, so every picture shows the
+    settled pair; an entry without the key is placed as before.
     """
     slot = pair["slot"]
     anchor = part["attachment"]["anchor"]
@@ -158,18 +160,16 @@ def build_job(pair: dict, part: dict, host: dict, threejs_dir: Path) -> dict:
     mount = mounts[slot]
     entry = next((e for e in part["attachment"].get("compatible_hosts") or [] if e["host"] == pair["host"]), None)
 
-    def slot_nodes(m: dict) -> set[str]:
-        return set(m.get("occupied_by") or []) | ({m["child_node"]} if m.get("child_node") else set())
-
-    hide = set(slot_nodes(mount))
-    for hidden in (entry or {}).get("hides_slots") or []:
-        hide |= slot_nodes(mounts[hidden])
-    hide = sorted(hide)
+    hide = hidden_nodes(mounts, slot, entry)
     frame = mount
     if pair.get("twin"):
         replaces = (entry or {}).get("replaces") or []
         if len(replaces) == 1 and replaces[0] in (mount.get("seats") or {}):
             frame = mount["seats"][replaces[0]]
+    matrix = place(anchor, frame)
+    shift = (entry or {}).get("seat_shift_m")
+    if shift:  # translate(shift * up) on the left moves the placed part along the frame's up, in the host's space
+        matrix[:3, 3] += float(shift) * np.asarray(frame["up"], dtype=np.float64)
     return {
         **pair,
         "host_glb": Path(threejs_dir) / host["files"]["glb"], "host_nodes": _selection(host["files"].get("glb_node")),
@@ -178,7 +178,7 @@ def build_job(pair: dict, part: dict, host: dict, threejs_dir: Path) -> dict:
         "part_glb": Path(threejs_dir) / part["files"]["glb"], "part_nodes": _selection(part["files"].get("glb_node")),
         "part_scale": float(part["files"].get("glb_scale") or 1.0),
         "part_tint": PART_TINT, "host_tint": None,  # None: the host is drawn with its own materials
-        "matrix": [[float(c) for c in row] for row in place(anchor, frame)],
+        "matrix": [[float(c) for c in row] for row in matrix],
     }
 
 
