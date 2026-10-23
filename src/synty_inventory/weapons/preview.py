@@ -6,8 +6,11 @@ transform ``place(anchor, mount) = T(mount) * T(anchor)^-1`` and the baked child
 embeds them (``review.load_previews``); they are never committed.
 
 Which pairs. Every twin pair (an exact dimensional twin of the host's baked child is the ground truth, so these are the
-placements to check first), plus a deterministic sample of the other compatible pairs that covers every slot: one pair per
-attachment (its best host), then round-robin over the slots until ``DEFAULT_OTHERS`` are taken. ``--ids`` renders every
+placements to check first), plus a deterministic sample of the other compatible pairs: one pair per attachment (its
+best-tier non-twin host, ties broken by the directory's order), then ``DEFAULT_OTHERS`` of those taken tier by tier, best tier
+first (``same_pack_fit``, the default export tier, before ``cross_pack_fit``), round-robin over the slots inside a tier and by
+part id inside a slot. A tier is only dipped into when the better ones are used up, so a slot whose only candidates are
+cross-pack shows up after the same-pack ones (the twin pairs already cover every slot). ``--ids`` renders every
 usable pair of the named attachments instead; ``--limit`` cuts the list (twins first). A pair is usable only when the
 attachment has a measured anchor and the host has a measured mount for the slot (a ``none`` mount has nothing to place on)
 and both have a GLB. ``--plan`` prints the pairs and needs no renderer.
@@ -37,6 +40,7 @@ import numpy as np
 
 from . import ATTACH_SLOTS, EXIT_OK, EXIT_RENDERER, InputError, RefusalError, WeaponsError, write_text_lf
 from .attach import place
+from .compat import tier_rank
 from .icons import (
     Renderer,
     RendererUnavailable,
@@ -91,8 +95,8 @@ def plan_pairs(directory: dict, *, packs=None, ids=None, limit: int = 0, others:
     """``(pairs, skipped)``: the pairs to draw and a count of unusable candidates by reason.
 
     A pair is ``{part, host, slot, tier, score, twin}``. Twins come first (sorted by part, host), then the others. With
-    ``ids`` every usable compatible pair of those attachments is kept; without, the others are the round-robin sample
-    described in the module docstring. ``limit > 0`` keeps the first ``limit``.
+    ``ids`` every usable compatible pair of those attachments is kept; without, the others are the tier-first, slot
+    round-robin sample described in the module docstring. ``limit > 0`` keeps the first ``limit``.
     """
     by_id = {w["id"]: w for w in directory["weapons"]}
     parts = sorted((w for w in directory["weapons"]
@@ -100,11 +104,11 @@ def plan_pairs(directory: dict, *, packs=None, ids=None, limit: int = 0, others:
                    key=lambda w: w["id"])
     skipped: dict[str, int] = {}
     twins: list[dict] = []
-    best: list[dict] = []  # per attachment, its best non-twin pair
+    best: list[dict] = []  # per attachment, its best-tier non-twin pair
     every_other: list[dict] = []
     for part in parts:
         slot = part["attachment"]["slot"]
-        first_other = True
+        part_others: list[dict] = []
         for entry in part["attachment"]["compatible_hosts"]:
             why = _unusable(part, by_id.get(entry["host"]), slot)
             if why:
@@ -116,19 +120,21 @@ def plan_pairs(directory: dict, *, packs=None, ids=None, limit: int = 0, others:
                 twins.append(pair)
             else:
                 every_other.append(pair)
-                if first_other:
-                    best.append(pair)
-                    first_other = False
+                part_others.append(pair)
+        if part_others:  # min() keeps the first of equal ranks: the directory lists a part's hosts best tier first, but do not rely on it
+            best.append(min(part_others, key=lambda p: tier_rank(p["tier"])))
     if ids:
         chosen_others = every_other
     else:
         slots = list(ATTACH_SLOTS) + sorted({p["slot"] for p in best} - set(ATTACH_SLOTS))  # a slot a newer directory adds
-        by_slot = {s: [p for p in best if p["slot"] == s] for s in slots}
         chosen_others = []
-        while len(chosen_others) < others and any(by_slot.values()):
-            for slot in slots:
-                if by_slot[slot] and len(chosen_others) < others:
-                    chosen_others.append(by_slot[slot].pop(0))
+        for rank in sorted({tier_rank(p["tier"]) for p in best}):  # best tier first: same_pack_fit before cross_pack_fit
+            by_slot = {s: sorted((p for p in best if p["slot"] == s and tier_rank(p["tier"]) == rank), key=lambda p: p["part"])
+                       for s in slots}
+            while len(chosen_others) < others and any(by_slot.values()):
+                for slot in slots:
+                    if by_slot[slot] and len(chosen_others) < others:
+                        chosen_others.append(by_slot[slot].pop(0))
     pairs = twins + chosen_others
     if limit and limit > 0:
         pairs = pairs[:limit]
