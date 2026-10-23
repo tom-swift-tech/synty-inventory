@@ -311,6 +311,8 @@ def register(sub) -> None:
     pack_opt(rv)
     rv.add_argument("--only-unreviewed", dest="only_unreviewed", action="store_true")
     rv.add_argument("--max-confidence", dest="max_confidence", type=float, default=None)
+    rv.add_argument("--previews", default=None,
+                    help="folder `weapons attach-preview` wrote; its PNGs are embedded (default: <weapons dir>/attach-preview)")
     rv.set_defaults(func=lambda a, c: _not_built(a, c, "review"))
 
     ac = wsub.add_parser("apply-corrections", help="Merge a weapon-corrections/1 file into the overrides (later slice)")
@@ -330,7 +332,8 @@ def register(sub) -> None:
     ex.add_argument("--frame", choices=("item", "asset"), default="item")
     ex.add_argument("--icons-dir", dest="icons_dir", default=None)
     ex.add_argument("--profile", choices=("private", "public"), default="private")
-    # W8a registers the attachment flags (cli.py is W8a's only); the export honours them from W8d, and refuses them until then
+    # W8a registered the attachment flags; the export honours them from W8d (`--min-compat-tier` and `--keep-foreign-hosts`
+    # act only together with `--attachments`)
     ex.add_argument("--attachments", action="store_true",
                     help="also emit host mounts and the attachment part records (default off: the output is the W7 one)")
     ex.add_argument("--min-compat-tier", dest="min_compat_tier", choices=COMPAT_TIERS, default="same_pack_fit",
@@ -349,9 +352,15 @@ def register(sub) -> None:
 
     ap = wsub.add_parser("attach-preview", help="Render attachment placement previews (W8d)")
     pack_opt(ap)
-    ap.add_argument("--out", dest="preview_out", default=None, help="output directory (distinct from the global --out)")
+    ap.add_argument("--out", dest="preview_out", default=None,
+                    help="output directory (distinct from the global --out; default <weapons dir>/attach-preview)")
     ap.add_argument("--ids", default=None, help="comma list of <pack>/<asset_id> attachments")
     ap.add_argument("--limit", type=int, default=0, help="max pairs rendered (0 = the default sample)")
+    ap.add_argument("--size", type=int, default=384, help="PNG edge in px, a multiple of 64 (default 384)")
+    ap.add_argument("--gpu", action="store_true", help="use the GPU instead of the software rasteriser")
+    ap.add_argument("--sheet", action="store_true", help="also write sheet.png, a contact sheet of the rendered pairs")
+    ap.add_argument("--plan", action="store_true",
+                    help="print the pairs that would render and write nothing; needs no renderer")
     ap.set_defaults(func=lambda a, c: _not_built(a, c, "attach-preview"))
 
     v = wsub.add_parser("validate", help="Validate rules, overrides and a directory (exit 6 on violations)")

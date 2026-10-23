@@ -102,6 +102,13 @@ ATTACHMENT_SCHEMA = {
         }},
     },
 }
+# The export form (docs/weapon_attachments.md 7, C-23): the same block, but pending_hosts are bare host ids (sorted by
+# (tier rank, host) when the export wrote them; the tiers are gone, so only uniqueness can be re-checked).
+EXPORT_ATTACHMENT_SCHEMA = {
+    **ATTACHMENT_SCHEMA,
+    "properties": {**ATTACHMENT_SCHEMA["properties"],
+                   "pending_hosts": {"type": "array", "items": {"type": "string", "pattern": _ID_PATTERN}}},
+}
 _HOST_HOLDS = ("one_hand", "long_gun")  # hosts that carry mounts (docs/weapon_attachments.md 4.1)
 _FRAME_TOL = 1e-3  # INV-18: unit length and mutual orthogonality
 
@@ -384,6 +391,36 @@ def _check_attachment(att: dict, role: str, where: str) -> list[str]:
     return errs
 
 
+def check_export_attachment(att: dict, role: str, where: str, host_ids: set[str] | None) -> list[str]:
+    """INV-14 and INV-18 for one non-null ``attachment`` block of a SNAPSHOT record (export form: ``pending_hosts`` are ids).
+
+    ``host_ids`` is the id set of the snapshot: every ``compatible_hosts`` / ``pending_hosts`` entry must be in it (the
+    exporter drops the others unless ``--keep-foreign-hosts``). ``None`` skips that membership check (foreign hosts kept).
+    """
+    errs = _schema_errors(EXPORT_ATTACHMENT_SCHEMA, att, f"{where}.attachment")
+    if errs:
+        return errs
+    here = f"{where}.attachment"
+    if role != "part":
+        errs.append(f"{here}: non-null only for role part (INV-14)")
+    if att["kind"] not in ATTACH_KINDS[att["slot"]]:
+        errs.append(f"{here}.kind: {att['kind']!r} is not a kind of slot {att['slot']} ({list(ATTACH_KINDS[att['slot']])})")
+    if (att["anchor"] is None) != (att["footprint"] is None):
+        errs.append(f"{here}: anchor and footprint are null together")
+    if att["anchor"] is not None:
+        errs += _frame_errors(att["anchor"], f"{here}.anchor")
+    keys = [(COMPAT_TIERS.index(h["tier"]), -h["score"], h["host"]) for h in att["compatible_hosts"]]
+    if keys != sorted(keys):
+        errs.append(f"{here}.compatible_hosts: must be sorted by (tier rank, -score, host)")
+    listed = [h["host"] for h in att["compatible_hosts"]] + list(att["pending_hosts"])
+    if len(set(listed)) != len(listed):
+        errs.append(f"{here}: a host is listed twice across compatible_hosts and pending_hosts (INV-14)")
+    if host_ids is not None:
+        for host in sorted(set(listed) - host_ids):
+            errs.append(f"{here}: host {host} is not in the exported set (INV-14)")
+    return errs
+
+
 def _check_mount(slot: str, m: dict, geom: dict, where: str) -> list[str]:
     """INV-15 to INV-18 for one slot of ``geometry.mounts``."""
     errs: list[str] = []
@@ -425,6 +462,8 @@ def _check_mount(slot: str, m: dict, geom: dict, where: str) -> list[str]:
         for key, want in (("up", axes["forward"]), ("forward", axes["up"])):
             vec = [0.0, 0.0, 0.0]
             vec["xyz".index(want[1])] = 1.0 if want[0] == "+" else -1.0
+            if geom.get("frame") == "item":  # an export bakes mount vectors through item_basis; `axes` stays as measured
+                vec = [sum(int(c) * v for c, v in zip(row, vec)) + 0.0 for row in geom["item_basis"]]
             if m[key] != vec:
                 errs.append(f"{here}.{key}: must be the host's axes.{'forward' if key == 'up' else 'up'} {want}")
     return errs

@@ -557,7 +557,14 @@ class _Server(ThreadingHTTPServer):
 
 
 class Renderer:
-    """One headless Chromium page kept open for a whole batch. Use as a context manager."""
+    """One headless Chromium page kept open for a whole batch. Use as a context manager.
+
+    ``PAGE`` is the harness page it opens and ``READY`` the window global that page sets (``.ready``) when it can render;
+    a subclass swaps both to reuse the server, the browser and the frame/decode path (``weapons attach-preview`` does).
+    """
+
+    PAGE = "icon.html"
+    READY = "__ICON__"
 
     def __init__(self, synty_glb_root: Path, *, gpu: bool = False, timeout_ms: int = 120_000):
         self.root = synty_glb_root
@@ -600,9 +607,9 @@ class Renderer:
         self._page.on("console", lambda m: self._log.append(f"{m.type}: {m.text}") if m.type in ("error", "warning") else None)
         self._page.on("pageerror", lambda e: self._log.append(f"pageerror: {e}"))
         port = self._server.server_address[1]
-        self._page.goto(f"http://127.0.0.1:{port}/harness/icon.html", wait_until="domcontentloaded")
+        self._page.goto(f"http://127.0.0.1:{port}/harness/{self.PAGE}", wait_until="domcontentloaded")
         try:
-            self._page.wait_for_function("() => window.__ICON__ && window.__ICON__.ready", timeout=60_000)
+            self._page.wait_for_function(f"() => window.{self.READY} && window.{self.READY}.ready", timeout=60_000)
         except Exception as exc:  # noqa: BLE001
             detail = "; ".join(self._log[-3:]) or str(exc).splitlines()[0]
             raise RendererUnavailable(f"the icon harness did not start: {detail}") from exc
@@ -640,14 +647,18 @@ class Renderer:
         ``force_blend`` (the blank-render retry) draws every MASK material (alphaTest > 0) as BLEND; false leaves the
         render exactly as it was before the option existed.
         """
+        return self._draw("window.iconPrepare", {
+            "glb": self._glb_url(glb), "nodes": nodes, "scale": float(scale),
+            "itemBasis": [[int(c) for c in row] for row in item_basis],
+            "camDir": list(camera_direction(shield)),
+            "texture": self._tex_url(texture) if texture is not None else None,
+            "forceBlend": bool(force_blend),
+        }, size)
+
+    def _draw(self, prepare: str, payload: dict, size: int) -> np.ndarray:
+        """Load with the page function ``prepare``, fit the frustum to the view-space bounds it returns, draw and decode."""
         try:
-            bounds = self._page.evaluate("p => window.iconPrepare(p)", {
-                "glb": self._glb_url(glb), "nodes": nodes, "scale": float(scale),
-                "itemBasis": [[int(c) for c in row] for row in item_basis],
-                "camDir": list(camera_direction(shield)),
-                "texture": self._tex_url(texture) if texture is not None else None,
-                "forceBlend": bool(force_blend),
-            })
+            bounds = self._page.evaluate(f"p => {prepare}(p)", payload)
             frustum = fit_frustum(bounds["min"], bounds["max"])
             out = self._page.evaluate("p => window.iconRender(p)", {"frustum": frustum, "size": size})
             raw = base64.b64decode(out["pixels"])

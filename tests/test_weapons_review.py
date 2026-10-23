@@ -24,6 +24,7 @@ H = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(H)
 wfx = H.wfx
 
+from synty_inventory.weapons import ATTACH_SLOTS  # noqa: E402
 from synty_inventory.weapons.review import write_review_page  # noqa: E402
 
 VOID = {"meta", "link", "br", "hr", "img", "input", "area", "base", "col", "embed", "source", "track", "wbr"}
@@ -141,7 +142,7 @@ def test_ac20_the_page_is_valid_html5_that_the_stdlib_parser_accepts(world):
     assert re.search(r"<title>[^<]+</title>", text)
     ids = re.findall(r'\sid="([^"]*)"', text)
     assert len(ids) == len(set(ids))  # element ids are unique
-    assert text.count("<script") == text.count("</script>") == 2
+    assert text.count("<script") == text.count("</script>") == 3  # enums, attach-data (W8d) and the page script
     assert "\r" not in text and text.endswith("\n")
 
 
@@ -162,10 +163,10 @@ def test_ac20_sections_come_in_the_spec_order(world):
                          if w["review"]["confidence"] >= 0.6 and w["archetype"] != "unknown"
                          and w["role"] not in ("part", "ammo", "carrier")})
     assert world.page.sections == ["sec-low", "sec-unknown", *[f"sec-archetype-{a}" for a in archetypes],
-                                   "sec-role-part", "sec-role-ammo", "sec-role-carrier", "sec-excluded"]
+                                   "sec-attachments", "sec-role-part", "sec-role-ammo", "sec-role-carrier", "sec-excluded"]
     assert len(archetypes) >= 30
     titles = re.findall(r"<h2>([^<]+?) <span", world.text)
-    assert titles[:2] == ["Low confidence", "Unknown"] and titles[-4:] == ["Parts", "Ammo", "Carriers", "Excluded"]
+    assert titles[:2] == ["Low confidence", "Unknown"] and titles[-5:] == ["Attachments", "Parts", "Ammo", "Carriers", "Excluded"]
 
 
 def test_ac20_the_low_confidence_section_holds_exactly_the_records_below_0_6(world):
@@ -190,7 +191,8 @@ def test_ac20_unknown_holds_only_whole_or_emplaced_weapons_of_archetype_unknown(
 def test_a_part_ammo_or_carrier_of_archetype_unknown_lands_in_its_role_section_not_in_unknown(world):
     by_id = {w["id"]: w for w in world.directory["weapons"]}
     sections = {"part": "sec-role-part", "ammo": "sec-role-ammo", "carrier": "sec-role-carrier"}
-    counts = {"part": 14, "ammo": 7, "carrier": 4}  # literals about the fixture packs (all at confidence >= 0.6)
+    # literals about the fixture packs (all at confidence >= 0.6); W8d: the 5 attachment parts sit in Attachments, not in Parts
+    counts = {"part": 9, "ammo": 7, "carrier": 4}
     for role, sec in sections.items():
         ids = tile_ids(world.page, sec)
         assert len(ids) == counts[role], role
@@ -213,8 +215,8 @@ def test_the_jump_nav_counts_every_section_including_the_role_sections(world):
     for sid in world.page.sections:
         assert counts[sid] == len(tile_ids(world.page, sid)), sid
     assert (counts["sec-low"], counts["sec-unknown"], counts["sec-role-part"], counts["sec-role-ammo"],
-            counts["sec-role-carrier"], counts["sec-excluded"]) == (7, 2, 14, 7, 4, 22)
-    assert ("Parts", "14") in [(t, n) for _, t, n in links]
+            counts["sec-role-carrier"], counts["sec-excluded"]) == (7, 2, 9, 7, 4, 22)
+    assert ("Parts", "9") in [(t, n) for _, t, n in links] and counts["sec-attachments"] == 5
 
 
 def test_every_record_tile_shows_its_role_as_a_chip(world):
@@ -242,6 +244,12 @@ def test_ac20_tiles_are_sorted_by_genre_family_id_within_a_section(world):
         if sec == "sec-excluded":
             continue
         ids = tile_ids(world.page, sec)
+        if sec == "sec-attachments":  # grouped by slot first (W8d), then pack / family / id
+            slot = {w["id"]: w["attachment"]["slot"] for w in world.directory["weapons"] if w.get("attachment")}
+            order = {s: i for i, s in enumerate(ATTACH_SLOTS)}
+            by_pack = {w["id"]: (w["pack"], w["family"]) for w in world.directory["weapons"]}
+            assert ids == sorted(ids, key=lambda i: (order[slot[i]], by_pack[i], i)), sec
+            continue
         assert ids == sorted(ids, key=lambda i: key[i]), sec
 
 

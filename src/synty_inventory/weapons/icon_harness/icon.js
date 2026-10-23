@@ -60,10 +60,11 @@ function nodeName(obj) {
   return (obj.userData && obj.userData.name) || obj.name || "";
 }
 
-function collectMeshes(root, wanted) {
+function collectMeshes(root, wanted, hide = null) {
   const kept = [];
   const walk = (obj, active) => {
     if (obj !== root && SKIP_NODE.test(nodeName(obj))) return; // the whole subtree is dropped
+    if (hide && obj !== root && hide.has(nodeName(obj))) return; // attach-preview: a baked child the attachment replaces
     const on = active || wanted === null || wanted.has(nodeName(obj));
     if (on && obj.isMesh) kept.push(obj);
     for (const child of obj.children) walk(child, on);
@@ -174,12 +175,20 @@ window.iconPrepare = async function iconPrepare(p) {
     .set(b[0][0], b[0][1], b[0][2], 0, b[1][0], b[1][1], b[1][2], 0, b[2][0], b[2][1], b[2][2], 0, 0, 0, 0, 1)
     .multiply(new THREE.Matrix4().makeScale(p.scale, p.scale, p.scale));
   holder.add(gltf.scene);
+  adopt(holder);
+  aimRig(new THREE.Vector3(...p.camDir).normalize());
+  return viewBounds(kept);
+};
+
+// Shared with preview.js (attach-preview): the same scene, rig and framing, so a placement preview is lit and framed like an icon.
+function adopt(holder) {
   scene.add(holder);
   current = { holder };
+}
 
-  // Camera at the origin looking along -camDir (camDir points from the model towards the camera). Only its
-  // orientation matters for an orthographic fit; the frustum offsets Python sends are relative to this pose.
-  const dir = new THREE.Vector3(...p.camDir).normalize();
+// Camera at the origin looking along -camDir (camDir points from the model towards the camera). Only its
+// orientation matters for an orthographic fit; the frustum offsets Python sends are relative to this pose.
+function aimRig(dir) {
   camera.position.set(0, 0, 0);
   camera.up.set(0, 1, 0);
   camera.lookAt(dir.clone().negate());
@@ -189,7 +198,10 @@ window.iconPrepare = async function iconPrepare(p) {
   const q = lookRotation(dir).multiply(lookRotation(QUARTER_DIR).transpose());
   key.position.copy(KEY_POS).applyMatrix4(q);
   fill.position.copy(FILL_POS).applyMatrix4(q);
+}
 
+// View-space bounds of the drawn meshes of the current scene (what Python fits the frustum to).
+function viewBounds(kept) {
   scene.updateMatrixWorld(true);
   const view = camera.matrixWorldInverse;
   const lo = [Infinity, Infinity, Infinity];
@@ -214,7 +226,7 @@ window.iconPrepare = async function iconPrepare(p) {
     vertices += n;
   }
   return { min: lo, max: hi, meshes: kept.length, vertices };
-};
+}
 
 window.iconRender = async function iconRender(p) {
   if (!current) throw new Error("iconRender before iconPrepare");
@@ -237,3 +249,5 @@ window.iconRender = async function iconRender(p) {
 };
 
 window.__ICON__.ready = true;
+
+export { THREE, loader, collectMeshes, disposeCurrent, adopt, aimRig, viewBounds };

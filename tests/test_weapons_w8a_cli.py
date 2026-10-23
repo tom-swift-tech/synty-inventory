@@ -1,8 +1,8 @@
-"""W8a: the CLI surface and the export, which stay W7 until slice W8d (docs/weapon_attachments.md 3.6, 3.7, D-10).
+"""W8a: the CLI surface and the default export (docs/weapon_attachments.md 3.6, 3.7, D-10).
 
-``attach-preview`` is registered and answers exit 2 with a hint naming its slice (``attach-eval`` was built in W8c and is tested in
-test_weapons_w8c_eval.py). The export flags are
-registered and ``--attachments`` is refused (exit 2). A default export of part records carries no ``attachment`` key.
+``attach-preview`` is registered (built in W8d, tested in test_weapons_w8d_preview.py; ``attach-eval`` was built in W8c and is
+tested in test_weapons_w8c_eval.py). The export flags are registered, and ``--attachments`` is honoured from W8d (see
+test_weapons_w8d_export.py). A default export of part records carries no ``attachment`` key.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ H = importlib.util.module_from_spec(_spec2)
 _spec2.loader.exec_module(H)
 
 from synty_inventory.cli import build_parser  # noqa: E402
+from synty_inventory.weapons import export as export_mod  # noqa: E402
 from synty_inventory.weapons import guards  # noqa: E402
 from synty_inventory.weapons.export import check_snapshot, export_snapshot  # noqa: E402
 
@@ -40,14 +41,15 @@ def cfg(tmp_path):
     return H.write_config(tmp_path, tmp_path / "catalogs")
 
 
-@pytest.mark.parametrize(("argv", "slice_name"), [
-    (["weapons", "attach-preview"], "W8d"),
-    (["weapons", "attach-preview", "--out", "o", "--ids", "A/b", "--limit", "5"], "W8d"),
+@pytest.mark.parametrize("argv", [
+    ["weapons", "attach-preview"],
+    ["weapons", "attach-preview", "--out", "o", "--ids", "A/b", "--limit", "5", "--plan"],
 ])
-def test_the_attachment_verbs_are_registered_and_say_which_slice_builds_them(cfg, capsys, argv, slice_name):
+def test_attach_preview_is_registered_and_wants_a_built_directory(cfg, capsys, monkeypatch, argv):
+    monkeypatch.setattr(export_mod, "_repo_root", lambda: None)  # pytest's tmp dirs sit inside this checkout
     code, out = H.run(cfg, capsys, argv)
-    assert code == 2 and out["ok"] is False  # exit 2 (bad input / not built), not the argparse usage error
-    assert slice_name in out["hint"] and "not implemented" in out["hint"]
+    assert code == 2 and out["ok"] is False  # exit 2 (bad input), not the argparse usage error
+    assert "no weapon directory" in out["error"] and "hint" not in out  # a real verb now, not the "not built" stub
 
 
 def test_the_export_attachment_flags_parse_with_their_defaults():
@@ -58,13 +60,6 @@ def test_the_export_attachment_flags_parse_with_their_defaults():
     assert args.attachments is True and args.min_compat_tier == "twin" and args.keep_foreign_hosts is True
     with pytest.raises(SystemExit):
         build_parser().parse_args(base + ["--min-compat-tier", "bogus"])
-
-
-def test_export_attachments_is_refused_until_w8d_and_writes_nothing(tmp_path, cfg, capsys):
-    out_file = tmp_path / "snap.json"
-    code, out = H.run(cfg, capsys, ["weapons", "export", "--game", "g", "--packs", "A", "--attachments", "--out", str(out_file)])
-    assert code == 2 and "W8d" in out["error"]
-    assert not out_file.exists()
 
 
 def test_a_default_export_of_part_records_has_no_attachment_key_and_passes_the_snapshot_check(tmp_path):
