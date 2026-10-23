@@ -7,6 +7,8 @@ Decisions D-1 to D-12 came from Tom's three 2026-10-22 decisions; Q-1 to Q-10 (�
 The approved base for the build slices is the commit that records this approval.
 **Amendment A1 (W8f, approved by Tom 2026-10-23):** twin evidence seats a twin pair on the baked child it matches and corrects the part's
 forward (§3.4 step 3a, §4.2 `seats`, §4.3, §5.1). `WEAPON_ATTACH_VERSION` goes 1 to 2; nothing else about the contract moves (D-12).
+**Erratum E1 (2026-10-23, from the lead):** on a `twin` entry `replaces` names the seat child, and hiding always follows the slot's `occupied_by`, as the
+runtime does (sit_weapons §3.9.5): a game mounting a part in a slot hides every node of that slot's `occupied_by`, whichever child the part is seated on. Previews do the same.
 **Branch:** `spec/attachments`, based on `main` at `e6e82b6` (W7 merged).
 **Parent:** [weapon_directory.md](weapon_directory.md) (called "the directory spec" below). Everything there still
 holds; this document adds fields and verbs and amends nothing it does not name. `DS§N` points into the directory spec;
@@ -282,8 +284,8 @@ algorithm uses that as a prior and verifies it.
 `occupied_by` is a sorted list of GLB node names exactly as in the file (empty = the slot is free). A game that mounts a
 separate attachment in that slot hides every listed node (sit_weapons, DM-B) and restores them when it is removed. Each
 `compatible_hosts[]` entry carries `replaces`, so the part-side view shows what it displaces: for a non-twin entry a copy of that host slot's
-`occupied_by`; for a `twin` entry (A1) the single baked child the part twins (a one-element list), so a game hides only that child and seats
-the part on `seats[<that child>]` when the mount has `seats`, else on the mount itself. Open assumption (Q-9): node names survive into the engine scene
+`occupied_by`; for a `twin` entry (A1) the single baked child the part twins (a one-element list), so a game seats
+the part on `seats[<that child>]` when the mount has `seats`, else on the mount itself; hiding still follows the slot's whole `occupied_by` (erratum E1). Open assumption (Q-9): node names survive into the engine scene
 (true for Synty names, which are alphanumeric plus `_`); DM-B confirms.
 
 ### 4.4 Bore and diameter fit
