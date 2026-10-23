@@ -61,12 +61,16 @@ def test_ac92_i_box_rifle_front_seat_is_the_handguard_front_end_minus_8_mm_on_th
     assert abs(front["point"][1] - 0.075) <= 0.001  # the handguard is 25 mm lower than the receiver, not the barrel
 
 
-def test_ac92_ii_a_baked_scope_child_on_the_receiver_leaves_the_seats_unchanged(built):
-    kidded, plain = mounts(built, KIDDED), mounts(built, BOX)
+def test_ac92_ii_a_baked_scope_child_on_the_receiver_keeps_the_optic_and_since_w8j_refuses_both_sight_seats(built):
+    # A3 addendum 3 (W8j, item 8 A): the Scope child is a BODY child (a separate optic node), so the optic keeps its child_node seat and
+    # both sight slots, which the probe would have seated where the bare box rifle's are, are slot_disabled. (Until W8i the seats were
+    # equal to the bare host's; that "the baked child is out of the probe mesh" property is still pinned by the laser and underbarrel
+    # cases of w8i_probe and by w8j_baked.)
+    kidded = mounts(built, KIDDED)
     assert kidded["optic"]["source"] == "child_node"
     for slot in ("sight_rear", "sight_front"):
-        assert kidded[slot]["source"] == "probe"
-        assert all(abs(a - b) <= 1e-6 for a, b in zip(kidded[slot]["point"], plain[slot]["point"])), slot
+        assert (kidded[slot]["source"], kidded[slot]["reason"]) == ("none", "slot_disabled"), slot
+        assert kidded[slot]["point"] is None and kidded[slot]["occupied_by"] == []
 
 
 def test_ac92_iii_a_slide_only_pistol_gets_both_seats_or_none_and_never_the_front_behind_the_rear(built):
@@ -161,7 +165,7 @@ def gate_violations(rec, root, optic_entries=()):
 def test_ac92_gates_pass_on_every_fixture_host_where_the_probe_seated_both(built):
     seated = [r for r in built[0].values() if r["geometry"]["mounts"]["sight_rear"]["source"] == "probe"
               and r["geometry"]["mounts"]["sight_front"]["source"] == "probe"]
-    assert {r["asset_id"] for r in seated} == {BOX, KIDDED, SLIDE}
+    assert {r["asset_id"] for r in seated} == {BOX, SLIDE}  # W8j: the scope-kidded box is a body-child host, its seats are refused
     for rec in seated:
         assert gate_violations(rec, built[1]) == [], rec["id"]
 
@@ -179,8 +183,8 @@ def test_ac92_gate_b_fails_when_the_front_seat_is_not_60_mm_ahead(built):
 
 
 def test_ac92_gate_c_fails_when_a_seat_is_inside_the_optic_span_unless_hides_slots_covers_the_rear(built):
-    rec = copy.deepcopy(built[0][f"{PACK}/{KIDDED}"])
-    opt = rec["geometry"]["mounts"]["optic"]
+    rec = copy.deepcopy(built[0][f"{PACK}/{BOX}"])  # a seated host (W8j: the scope-kidded box is refused) given the scope child's optic mount
+    opt = rec["geometry"]["mounts"]["optic"] = copy.deepcopy(mounts(built, KIDDED)["optic"])
     assert opt["span_m"]
     opt["point"][2] = rec["geometry"]["mounts"]["sight_rear"]["point"][2]  # as if the scope sat over the rear seat
     assert gate_violations(rec, built[1]) == [("c", "sight_rear")]

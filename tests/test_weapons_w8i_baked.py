@@ -36,7 +36,7 @@ HOSTS = {
     "SM_Wep_Rifle_Carry_01": [("Fake_CarryHandle_01", carry(), MID_REAR_AT)],  # (iii)
     "SM_Wep_Rifle_CarryFront_01": [("Fake_CarryHandle_01", carry(), (0.0, 0.12, 0.45))],  # a carry handle is rear whatever its position
     "SM_Wep_Rifle_Charge_01": [("Fake_ChargeHandle_01", X.block(0.004, 0.010, 0.020), (0.03, 0.06, REAR_AT[2]))],  # (iv)
-    "SM_Wep_Rifle_Hdl_01": [("Fake_Handle_01", X.block(0.004, 0.010, 0.020), (0.03, 0.06, REAR_AT[2]))],  # a bare Handle is no carry handle
+    "SM_Wep_Rifle_Hdl_01": [("Fake_Handle_01", X.block(0.004, 0.010, 0.020), (0.03, 0.03, REAR_AT[2]))],  # a bare Handle low on the gun is a grip, no carry handle (W8j: y 0.03 is under 0.55 of the host height 0.10; at 0.06 it would be one)
     "SM_Wep_Rifle_Glass_01": [("Fake_Sight_Glass_01", post(), (0.0, 0.102, 0.10))],
     "SM_Wep_Rifle_Scoped_01": [("Fake_Scope_01", post(), (0.0, 0.102, 0.10))],
     "SM_Wep_Rifle_Named_01": [("Fake_RearSight_01", post(), REAR_AT), ("Fake_Sights", post(), (0.0, 0.102, 0.0))],  # a sided child beside an unsided one
@@ -107,23 +107,23 @@ def test_ac98_i_no_sight_candidate_listed_or_pending_exists_for_it(built):
 # -- (ii) -------------------------------------------------------------------------------------------------------
 
 
-def test_ac98_ii_one_unsided_sights_child_on_the_rear_half_refuses_the_rear_slot_only(built):
+def test_ac98_ii_one_unsided_sights_child_on_the_rear_half_refuses_both_slots_since_w8j(built):
+    # A3 addendum 3 (W8j, item 8 C): half a pair is never offered, so the front slot, which the probe would have seated and which W8i left
+    # alone, is refused with the rear one (the W8i expectation was: rear refused, front a probe seat listed same_pack_fit)
     m = mounts(built, "SM_Wep_Rifle_Single_01")
-    assert refused(m["sight_rear"])
-    assert m["sight_front"]["source"] == "probe" and m["sight_front"]["point"] is not None
+    assert refused(m["sight_rear"]) and refused(m["sight_front"])
     assert candidates(built, X.SIGHT_REAR, "SM_Wep_Rifle_Single_01") == (None, None)
-    listed, pending = candidates(built, X.SIGHT_FRONT, "SM_Wep_Rifle_Single_01")
-    assert listed["tier"] == "same_pack_fit" and pending is None
+    assert candidates(built, X.SIGHT_FRONT, "SM_Wep_Rifle_Single_01") == (None, None)
 
 
 # -- (iii) ------------------------------------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("name", ["SM_Wep_Rifle_Carry_01", "SM_Wep_Rifle_CarryFront_01"])
-def test_ac98_iii_a_carry_handle_child_refuses_the_rear_slot_wherever_it_stands(built, name):
+def test_ac98_iii_a_carry_handle_child_refuses_both_slots_wherever_it_stands(built, name):
     m = mounts(built, name)
     assert refused(m["sight_rear"])
-    assert m["sight_front"]["source"] == "probe"
+    assert refused(m["sight_front"])  # W8j (item 8 C): the pair goes with it (W8i left the front slot a probe seat)
 
 
 def test_ac98_iii_the_carry_handle_does_not_become_an_optic_child(built):
@@ -133,10 +133,18 @@ def test_ac98_iii_the_carry_handle_does_not_become_an_optic_child(built):
 # -- (iv) -------------------------------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("name", ["SM_Wep_Rifle_Charge_01", "SM_Wep_Rifle_Hdl_01", "SM_Wep_Rifle_Glass_01", "SM_Wep_Rifle_Scoped_01"])
-def test_ac98_iv_a_charge_handle_a_bare_handle_a_sight_glass_or_a_scope_is_no_baked_sight(built, name):
+@pytest.mark.parametrize("name", ["SM_Wep_Rifle_Charge_01", "SM_Wep_Rifle_Hdl_01"])
+def test_ac98_iv_a_charge_handle_or_a_low_bare_handle_is_no_baked_sight(built, name):
     m = mounts(built, name)
     assert m["sight_front"]["source"] == m["sight_rear"]["source"] == "probe", name
+
+
+@pytest.mark.parametrize("name", ["SM_Wep_Rifle_Glass_01", "SM_Wep_Rifle_Scoped_01"])
+def test_ac98_iv_a_sight_glass_or_a_scope_is_no_baked_iron_sight_but_since_w8j_it_refuses_the_pair_as_an_optic(built, name):
+    # W8i: neither is an iron sight child, the seats stayed probe seats. W8j (item 8 A, B): a glass-only host and a body-child host
+    # refuse both sight slots as optics (and the glass-only host its optic slot too; see w8j_baked for the full cases)
+    m = mounts(built, name)
+    assert refused(m["sight_front"]) and refused(m["sight_rear"]), name
 
 
 # -- (v) --------------------------------------------------------------------------------------------------------
@@ -159,7 +167,7 @@ def test_ac98_v_a_slot_that_was_never_probed_keeps_its_reason(tmp_path):
 def test_ac98_v_a_sided_child_and_an_override_are_not_touched(built):
     named = mounts(built, "SM_Wep_Rifle_Named_01")
     assert named["sight_rear"]["source"] == "child_node" and named["sight_rear"]["occupied_by"] == ["SM_Wep_Rifle_Named_01_Fake_RearSight_01"]
-    assert named["sight_front"]["source"] == "probe"
+    assert refused(named["sight_front"])  # W8j (item 8 C): the unsided Fake_Sights child refuses the slot the probe would have seated
     forced = mounts(built, "SM_Wep_Rifle_Forced_01")["sight_rear"]
     assert forced["source"] == "override" and forced["child_node"] == "SM_Wep_Rifle_Forced_01_Fake_Sights"
 
@@ -185,5 +193,12 @@ def test_ac98_the_shipped_table_is_the_one_of_the_spec():
     table = W.sight_rules()["attachment_rules"]["baked_sights"]
     assert table == {"tokens": ["sight", "sights", "ironsight", "ironsights"],
                      "not_tokens": ["glass", "scope", "lens", "reticle", "laser", "red", "dot"],
-                     "rear_tokens": ["carryhandle", "carry"]}
+                     "rear_tokens": ["carryhandle", "carry"],
+                     # A3 addendum 3 (W8j, item 8)
+                     "glass_tokens": ["glass", "lens", "reticle"],
+                     "body_tokens": ["scope", "optic", "optics", "acog", "telescope", "reddot", "reflex", "holo", "holosight"],
+                     "handle_tokens": ["handle"],
+                     "handle_not_tokens": ["charge", "pump", "bolt", "cocking", "trigger"],
+                     "handle_min_height_frac": 0.55,
+                     "fused_post": {"bin_m": 0.005, "half_bins": 8, "rise_m": 0.008, "width_min_m": 0.010, "width_max_m": 0.030, "min_pos": 0.6}}
     assert validate_rules(W.sight_rules()) == []

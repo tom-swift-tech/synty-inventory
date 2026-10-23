@@ -81,9 +81,12 @@ def test_ac89_a_host_with_sided_children_gets_child_node_seats(built):
     assert rear["occupied_by"] == ["SM_Wep_Rifle_Sided_01_RearSight_01"] and rear["child_node"] == rear["occupied_by"][0]
 
 
-def test_ac89_a_sight_glass_child_still_fills_optic_and_neither_sight_slot(built):
+def test_ac89_a_sight_glass_child_fills_neither_sight_slot_and_since_w8j_refuses_optic(built):
     m = mounts(built, "SM_Wep_Rifle_Sided_01")
-    assert m["optic"]["source"] == "child_node" and m["optic"]["occupied_by"] == ["SM_Wep_Rifle_Sided_01_Sight_Glass_01"]
+    # A3 addendum 3 (W8j, item 8 B): Sight_Glass_01 is a glass sheet and the host has no body child, so the optic body is fused into the host
+    # and its optic slot is slot_disabled (it used to be this child's child_node seat). The sided sight children keep their seats (item 8 C
+    # only changes a slot the probe seated).
+    assert (m["optic"]["source"], m["optic"]["reason"]) == ("none", "slot_disabled") and m["optic"]["occupied_by"] == []
     assert "SM_Wep_Rifle_Sided_01_Sight_Glass_01" not in m["sight_front"]["occupied_by"] + m["sight_rear"]["occupied_by"]
 
 
@@ -110,7 +113,9 @@ def test_ac89_a_host_override_names_a_child_for_sight_rear(built):
     rear = m["sight_rear"]
     assert rear["source"] == "override" and rear["child_node"] == "SM_Wep_Rifle_Over_01_Sights_01"
     close(rear["point"], seat((0.0, 0.10, 0.0)))
-    assert m["sight_front"]["source"] == "probe"  # the other sight slot still falls through to the probe
+    # W8j (item 8 C): the unsided Sights_01 child is a baked iron sight, so the OTHER sight slot, which the probe would have seated, is
+    # slot_disabled; the override mount is never touched
+    assert (m["sight_front"]["source"], m["sight_front"]["reason"]) == ("none", "slot_disabled")
 
 
 def test_ac89_a_child_seat_is_never_replaced_by_a_probe_seat_and_a_bare_host_gets_the_probe(built):

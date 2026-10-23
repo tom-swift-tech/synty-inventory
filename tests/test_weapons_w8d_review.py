@@ -339,7 +339,7 @@ def test_in_chromium_a_slot_change_resets_the_kind_and_the_mount_picker_writes_c
     open_tile(page, ALPHA)
     assert page.locator("#mnt").is_visible() and page.locator("#att").is_hidden()
     assert page.locator("#mounts tr").count() == 1 + 7  # header plus one row per slot (A2: seven)
-    assert page.locator("#mounts tr.dim").count() == 2  # underbarrel and laser_light have no seat
+    assert page.locator("#mounts tr.dim").count() == 4  # underbarrel and laser_light have no seat; W8j: nor have sight_front and sight_rear (ALPHA's Scope is a body child, item 8 A)
     cells = [c.strip() for c in page.locator("#mounts tr").nth(1).locator("td").all_inner_texts()]
     assert cells[0] == "optic" and "child_node (SM_Wep_Rifle_Alpha_01_Scope)" in cells[1] and cells[3] == "0.90"
     page.select_option('select[aria-label="mount optic"]', "none")

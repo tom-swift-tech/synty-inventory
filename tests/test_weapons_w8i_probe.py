@@ -61,12 +61,21 @@ def test_ac97_a_baked_suppressor_in_front_of_the_slide_does_not_lift_the_front_s
     assert [round(c, 4) for c in front["point"]] == [round(c, 4) for c in seats(built, BARE)[1]["point"]]
 
 
-@pytest.mark.parametrize("name,slot", [(LASER, "laser_light"), (UNDER, "underbarrel"), (SCOPE, "optic")])
-def test_ac97_a_baked_laser_underbarrel_or_scope_standing_proud_leaves_both_seats_unchanged(built, name, slot):
+@pytest.mark.parametrize("name,slot", [(LASER, "laser_light"), (UNDER, "underbarrel")])
+def test_ac97_a_baked_laser_or_underbarrel_standing_proud_leaves_both_seats_unchanged(built, name, slot):
     m = built[f"{PACK}/{name}"]["geometry"]["mounts"]
     assert m[slot]["occupied_by"], slot  # the child is listed in its slot ...
     for got, want in zip(seats(built, name), seats(built, BARE)):  # ... and so is out of the probe mesh
         assert got["source"] == "probe" and got["point"] == want["point"], slot
+
+
+def test_ac97_a_baked_scope_standing_proud_keeps_the_optic_and_since_w8j_refuses_both_sight_seats(built):
+    # A3 addendum 3 (W8j, item 8 A): the Scope child is a body child, so its host's sight slots are slot_disabled instead of probe seats
+    # that equal the bare host's (the A2 rule "a baked scope is out of the probe mesh" can no longer be seen in the mounts of such a host)
+    m = built[f"{PACK}/{SCOPE}"]["geometry"]["mounts"]
+    assert m["optic"]["occupied_by"] == [f"{SCOPE}_Scope"] and m["optic"]["source"] == "child_node"
+    for slot in ("sight_front", "sight_rear"):
+        assert (m[slot]["source"], m[slot]["reason"]) == ("none", "slot_disabled"), slot
 
 
 def test_ac97_the_a2_fixture_with_a_laser_child_over_the_receiver_is_now_seated_not_refused(tmp_path):
