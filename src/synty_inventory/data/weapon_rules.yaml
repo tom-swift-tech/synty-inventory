@@ -584,10 +584,6 @@ attachment_rules:
   # Slots whose same_pack_fit candidate needs no family_overlap (A4, spec 5.1): the part names no gun. laser_light (no labelled pair yet), magazine
   # and optic (their names carry the family) are left out on purpose. Inside attachment_rules: moves attach_rules_digest, never rules_digest.
   family_free_slots: [sight_front, sight_rear, muzzle, underbarrel]
-  # Optic seat lift (A4, spec 4.2): a child_node optic mount is lifted to the host surface under the baked scope's footprint when that surface
-  # is above the scope's underside by 0 .. lift_cap_m (a bigger lift means a hump or a handle was hit, not a receiver top: the seat stays).
-  optic_seat:
-    lift_cap_m: 0.030
 
 # archetype -> hold_class (spec 3.4.2). `none` = not hand-held.
 hold_by_archetype:

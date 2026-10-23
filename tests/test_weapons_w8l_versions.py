@@ -37,9 +37,6 @@ def test_ac110_the_versions_and_the_rules_digest():
 
 def test_ac110_the_new_tables_move_the_attach_digest_and_never_the_rules_digest():
     base, rules = load_rules(), deepcopy(load_rules())
-    rules["attachment_rules"]["optic_seat"]["lift_cap_m"] = 0.02
-    assert weapon_rules_digest(rules) == weapon_rules_digest(base) and attach_rules_digest(rules) != attach_rules_digest(base)
-    rules = deepcopy(base)
     rules["attachment_rules"]["family_free_slots"] = ["muzzle"]
     assert weapon_rules_digest(rules) == weapon_rules_digest(base) and attach_rules_digest(rules) != attach_rules_digest(base)
     rules = deepcopy(base)
@@ -73,17 +70,11 @@ def test_ac110_a_part_fingerprint_follows_its_kind_and_the_anchor_table():
     rules = W.sight_rules()
     rules["attachment_rules"]["anchor"]["foot_depths_m"] = [0.004, 0.008]
     assert part_fp(rules) != base
-    rules = W.sight_rules()
-    rules["attachment_rules"]["optic_seat"]["lift_cap_m"] = 0.02  # a part never reads the lift cap
-    assert part_fp(rules) == base
 
 
-def test_ac110_a_host_fingerprint_follows_the_anchor_table_and_the_optic_cap():
+def test_ac110_a_host_fingerprint_follows_the_anchor_table():
     base = host_fp()
     assert host_fp() == base
-    rules = W.sight_rules()
-    rules["attachment_rules"]["optic_seat"]["lift_cap_m"] = 0.02
-    assert host_fp(rules) != base
     rules = W.sight_rules()
     rules["attachment_rules"]["anchor"]["lip_growth"] = 3.0
     assert host_fp(rules) != base
@@ -98,7 +89,7 @@ def test_ac110_the_cache_misses_when_the_anchor_or_mounts_code_changes(tmp_path,
 
     cache: dict = {}
     assert measure(cache) is False and measure(cache) is True
-    monkeypatch.setattr(geo, "_MOUNTS_CODE_DIGEST", "0" * 16)  # as if mounts.py had changed (the lift and the mirrored pair live there)
+    monkeypatch.setattr(geo, "_MOUNTS_CODE_DIGEST", "0" * 16)  # as if mounts.py had changed (the mirrored pair lives there)
     assert measure(cache) is False
     monkeypatch.undo()
     assert measure(cache) is True
@@ -147,9 +138,7 @@ def test_the_shipped_rules_validate_with_the_three_tables():
     (lambda t: t.update(family_free_slots=["muzzle", "muzzle"]), "distinct"),
     (lambda t: t.update(family_free_slots=["barrel"]), "family_free_slots"),
     (lambda t: t.update(family_free_slots="muzzle"), "family_free_slots"),
-    (lambda t: t["optic_seat"].update(lift_cap_m=-0.01), "lift_cap_m"),
-    (lambda t: t["optic_seat"].update(extra=1), "extra"),
-    (lambda t: t.update(optic_seat=[]), "optic_seat"),
+    (lambda t: t.update(optic_seat={"lift_cap_m": 0.04}), "optic_seat"),  # A5 retired the table: a leftover key is an unknown key
 ])
 def test_the_new_tables_reject_a_malformed_value(mutate, needle):
     errors = broken(mutate)

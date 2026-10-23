@@ -951,9 +951,9 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
             # whole baked_sights table, so the glass / body / handle lists, the handle height fraction and every fused_post parameter move the
             # key; the fused front post detector itself lives in mount_probe.py (pd) and its caller in mounts.py (md)
             "hn": tables.get("attach_host_never"), "bs": tables.get("baked_sights"), "hi": host_id,
-            # A4 (W8l): a child's anchor follows the foot ladder (`ap`, the anchor table), and the optic seat lift and the mirrored pair live in
-            # mounts.py (`md`): the cap of the lift (`os`) is an input
-            "ap": tables.get("anchor"), "os": tables.get("optic_seat"),
+            # A4 (W8l): a child's anchor follows the foot ladder (`ap`, the anchor table), and the mirrored pair lives in mounts.py (`md`).
+            # A5 (W8m, item 2) retired the optic seat lift and its `os` input: the mounts source changed, so `md` moves the key
+            "ap": tables.get("anchor"),
         }
         if mount_overrides:
             fp["mv"]["mo"] = mount_overrides

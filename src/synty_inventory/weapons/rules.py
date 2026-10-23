@@ -50,7 +50,7 @@ ATTACH_NEVER_KEYS = ("tokens_any", "packs_any")
 ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affinity", "attach_compat",
                    "attach_genre_by_pack", "sight_probe",  # A2: the setting-gate map and the sight seat probe parameters
                    "attach_host_never", "baked_sights",  # A3 (W8i): hosts that get no seat for a slot, and the baked-sight child tokens
-                   "anchor", "family_free_slots", "optic_seat")  # A4 (W8l): the foot ladder and free-end forward, the name-generic slots, the optic seat lift
+                   "anchor", "family_free_slots")  # A4 (W8l): the foot ladder and free-end forward, the name-generic slots
 BAKED_SIGHT_KEYS = ("tokens", "not_tokens", "rear_tokens")  # attachment_rules.baked_sights (docs/weapon_attachments.md 4.6 item 7): required
 # A3 addendum 3 (W8j, item 8): optional name-token lists (empty allowed, an absent list switches that part of the rule off), the carry-handle
 # height fraction and the fused front post parameters (name -> (type, minimum, maximum); metres unless a count or a fraction)
@@ -73,7 +73,6 @@ SIGHT_PROBE_PARAMS = {
 ANCHOR_PARAMS = {"lip_min_m": (0.0, 0.05), "lip_max_m": (0.0, 0.05), "lip_growth": (1.0, 100.0)}
 ANCHOR_FREE_END_KEYS = ("min_displacement_m", "kinds")
 ANCHOR_MAX_RUNGS = 8  # foot_depths_m is a short ladder, not a profile
-OPTIC_SEAT_PARAMS = {"lift_cap_m": (0.0, 0.2)}
 # W8c compatibility tables (docs/weapon_attachments.md 5.1). The score bands per tier are the spec's; the tunable base and
 # bonus values must keep every reachable score inside the band of their tier (checked at load).
 COMPAT_SCORE_BANDS = {"same_pack_fit": (0.6, 0.9), "cross_pack_fit": (0.3, 0.6)}
@@ -443,8 +442,6 @@ def _check_attachment_rules(val) -> list[str]:
         errors.extend(_check_anchor(val["anchor"]))
     if val.get("family_free_slots") is not None:
         errors.extend(_check_family_free_slots(val["family_free_slots"]))
-    if val.get("optic_seat") is not None:
-        errors.extend(_check_optic_seat(val["optic_seat"]))
     return errors
 
 
@@ -500,19 +497,6 @@ def _check_family_free_slots(val) -> list[str]:
     if not isinstance(val, list) or not all(isinstance(s, str) and s in ATTACH_SLOTS for s in val):
         return [f"{where}: must be a list of slots from {list(ATTACH_SLOTS)}"]
     return [f"{where}: slots must be distinct"] if len(set(val)) != len(val) else []
-
-
-def _check_optic_seat(val) -> list[str]:
-    """``optic_seat``: the cap of the optic seat lift (A4, spec 4.2); every parameter is required."""
-    where = "attachment_rules.optic_seat"
-    if not isinstance(val, dict):
-        return [f"{where}: must be a mapping"]
-    errors = [f"{where}.{k}: unknown key (allowed: {', '.join(OPTIC_SEAT_PARAMS)})" for k in val if k not in OPTIC_SEAT_PARAMS]
-    for key, (lo, hi) in OPTIC_SEAT_PARAMS.items():
-        v = val.get(key)
-        if not _is_num(v) or not (lo <= v <= hi):
-            errors.append(f"{where}.{key}: must be a number from {lo} to {hi}")
-    return errors
 
 
 def _check_host_never(val) -> list[str]:
