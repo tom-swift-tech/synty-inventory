@@ -14,6 +14,11 @@ Per slot the sources are tried in the order ``override > child_node > probe > no
   brake or suppressor is not the seat (AC84). With nothing to remove it is the very computation behind
   ``geometry.muzzle``, so the two are equal bit for bit (AC67). The bore diameter comes from a ring estimator over the
   probe's own face points. The rail probe for the other slots is spike W9 and does not exist here.
+* ``probe`` (``sight_front`` / ``sight_rear``, A2 / W8h-B): no host names its iron-sight children by side, so a sight slot with
+  no child and no override takes the seat of ``mount_probe.sight_seats`` (spec 4.6), run on the host minus the ``occupied_by`` of
+  ``optic``, ``sight_front`` and ``sight_rear``. Confidence 0.5 (0.4 on a transformed node), ``span_m`` null, review reason
+  ``mount_estimated``; a host the probe refuses has both slots ``none`` / ``probe_unavailable``. Rules without a ``sight_probe``
+  table run no probe (the slots stay ``no_child_no_probe``).
 * ``override``: categorical (D-5). ``{"source": "child_node", "child": <node name>}`` seats the slot on that node,
   ``{"source": "none"}`` disables it. The mapping is passed in by the caller (W8c loads it from the committed file); a
   named node that is not a mesh node of the host is reported in ``problems`` (``child_not_found``) and the ladder goes on.
@@ -51,9 +56,10 @@ import numpy as np
 from ..naming import SKIP_STEM_RE
 from ..sources.glb_geometry import load_triangles, node_world_matrices
 from ..sources.glb_measure import NodeSel, node_selected, read_glb_json
-from . import ATTACH_SLOTS
+from . import ATTACH_SLOTS, SIGHT_SLOTS
 from .attach import measure_anchor
 from .classify import raw_tokens
+from .mount_probe import sight_seats
 from .rules import attachment_rules
 
 HOST_HOLDS = ("one_hand", "long_gun")  # with role whole and kind ranged: the hosts that carry mounts (4.1)
@@ -63,6 +69,7 @@ CONF_CHILD_AMBIGUOUS = 0.6
 CONF_OVERRIDE = 1.0
 CONF_RING = 0.8
 CONF_FACE_EXTENT = 0.5  # spec 4.2
+CONF_SIGHT_PROBE = 0.5  # spec 4.6
 CONF_FALLBACK = 0.4  # spec 4.2 (bounds_fallback)
 CONF_TRANSFORMED = 0.4  # spec 9 (a node with rotation or scale)
 CONF_NONE = 0.0
@@ -72,7 +79,7 @@ _RING_BIN_M = 0.001  # radial histogram bin of the bore estimator (spec 4.2)
 _RING_MIN_POINTS = 6
 _EPS = 1e-9
 # slot -> sign of the host's up axis that the mount's `up` takes (spec 4.2): optic out of the receiver, the others hang below
-_UP_SIGN = {"optic": 1, "underbarrel": -1, "magazine": -1, "laser_light": -1}
+_UP_SIGN = {"optic": 1, "sight_front": 1, "sight_rear": 1, "underbarrel": -1, "magazine": -1, "laser_light": -1}
 
 Rung = dict | None
 
@@ -155,12 +162,21 @@ def mesh_nodes(doc: dict | None, glb_node: NodeSel) -> dict[str, bool]:
 
 
 def matching_slots(name: str, tables: dict) -> list[str]:
-    """The slots whose ``child_tokens`` the node name hits (``child_never`` vetoes all of them), in ATTACH_SLOTS order."""
+    """The slots whose ``child_tokens`` the node name hits (``child_never`` vetoes all of them), in ATTACH_SLOTS order.
+
+    A2: a node that hits a sight slot is not also an optic child unless an optic token OTHER than the bare ``sight`` hits
+    (``Front_Sight`` hits ``sight`` for the optic and ``frontsight`` for the sight slot, and is an iron sight; a
+    ``Sight_Glass`` hits only the optic).
+    """
     tokens = raw_tokens(name)
     if tokens & set(tables.get("child_never") or ()):
         return []
     child_tokens = tables.get("child_tokens") or {}
-    return [s for s in ATTACH_SLOTS if tokens & set(child_tokens.get(s) or ())]
+    slots = [s for s in ATTACH_SLOTS if tokens & set(child_tokens.get(s) or ())]
+    if "optic" in slots and any(s in slots for s in SIGHT_SLOTS) \
+            and not (tokens & set(child_tokens.get("optic") or ())) - {"sight"}:
+        slots.remove("optic")
+    return slots
 
 
 def _load(path, selection, glb_node, scale, drop: frozenset[str] = frozenset()) -> np.ndarray | None:
@@ -281,6 +297,47 @@ def _muzzle_mount(path, glb_node, scale, verts, axes: dict, occupied: list[str],
     }
 
 
+# -- the sight probe rung ---------------------------------------------------------------------------------
+
+
+def _load_mesh(path, glb_node, scale, drop: frozenset[str]):
+    """``(vertices, triangles)`` of the host minus the nodes in ``drop`` (collision hulls dropped), or None when nothing is left."""
+    got = load_triangles(path, glb_node, exclude=lambda n: _collision(n) or n in drop, scale=scale)
+    if got is None:
+        return None
+    v = np.asarray(got[0], dtype=np.float64)
+    t = np.asarray(got[1])
+    return (v, t) if len(v) and len(t) and np.isfinite(v).all() else None
+
+
+def _sight_probe_mount(point, axes: dict, slot: str, cap: float | None) -> dict:
+    """The mount a probe seat gives: host forward and host up, no span (spec 4.6), confidence 0.5."""
+    conf = CONF_SIGHT_PROBE if cap is None else min(CONF_SIGHT_PROBE, cap)
+    return {
+        **_frame(point, _axis_vec(axes["forward"]), _axis_vec(axes["up"]) * _UP_SIGN[slot]), "source": "probe",
+        "span_m": None, "span_source": None, "occupied_by": [], "child_node": None, "bore_d_m": None,
+        "bore_source": None, "confidence": conf, "reason": None,
+    }
+
+
+def _probe_sights(mounts: dict, path, glb_node, scale, axes: dict, tables: dict, cap: float | None) -> None:
+    """Fill the sight slots that have neither a child nor an override from the seat probe (spec 4.6), in place.
+
+    A slot disabled by an override stays disabled. The probe sees the host without the nodes already listed by
+    ``optic``, ``sight_front`` and ``sight_rear`` (a baked scope is not the rail). When it refuses, every slot it was to
+    fill becomes ``none`` / ``probe_unavailable``.
+    """
+    params = tables.get("sight_probe")
+    open_slots = [s for s in SIGHT_SLOTS if mounts[s]["source"] == "none" and mounts[s]["reason"] == "no_child_no_probe"]
+    if not params or not open_slots:
+        return
+    drop = frozenset(n for s in ("optic", *SIGHT_SLOTS) for n in mounts[s]["occupied_by"])
+    mesh = _load_mesh(path, glb_node, scale, drop)
+    seats = sight_seats(mesh[0], mesh[1], axes, params) if mesh is not None else None
+    for slot in open_slots:
+        mounts[slot] = none_mount("probe_unavailable") if seats is None else _sight_probe_mount(seats[slot], axes, slot, cap)
+
+
 # -- the block --------------------------------------------------------------------------------------------
 
 
@@ -350,6 +407,7 @@ def build_mounts(
             child_rung = _child_mount(slot, seat, listed, measured, axes, _child_cap(cap, candidates, seat),
                                       "child_node", len(listed) > 1)
         mounts[slot] = resolve_slot(override_rung, child_rung, None)
+    _probe_sights(mounts, path, glb_node, scale, axes, tables, cap)
     return {"mounts": mounts, "problems": problems,
             "child_extents": _child_extents(mounts, vertices, measured_by_slot, axes)}
 
@@ -393,7 +451,7 @@ def mount_reasons(mounts: dict | None, compatible_slots=frozenset()) -> set[str]
     """The review reasons a mounts block implies (spec 4.2).
 
     ``mount_ambiguous``: a ``child_node`` slot (not the muzzle, whose children only fill ``occupied_by``) with several
-    matching children. ``mount_missing``: a ``none`` slot that is in ``compatible_slots``, the slots with at least one
+    matching children. ``mount_estimated`` (A2): a sight slot seated by the probe (the muzzle probe is a measurement, not an estimate). ``mount_missing``: a ``none`` slot that is in ``compatible_slots``, the slots with at least one
     inferred-compatible attachment. Compatibility inference is W8c, so the directory passes the empty default until
     then and the reason cannot fire from a build yet.
     """
@@ -401,6 +459,8 @@ def mount_reasons(mounts: dict | None, compatible_slots=frozenset()) -> set[str]
     for slot, m in (mounts or {}).items():
         if slot != "muzzle" and m["source"] == "child_node" and len(m["occupied_by"]) > 1:
             reasons.add("mount_ambiguous")
+        if slot in SIGHT_SLOTS and m["source"] == "probe":
+            reasons.add("mount_estimated")
         if m["source"] == "none" and slot in compatible_slots:
             reasons.add("mount_missing")
     return reasons
