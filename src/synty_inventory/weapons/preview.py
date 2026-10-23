@@ -18,7 +18,7 @@ and both have a GLB. ``--plan`` prints the pairs and needs no renderer.
 Rendering. ``PreviewRenderer`` is the icon harness ``Renderer`` (same loopback server, browser and frame/decode path) opening
 ``icon_harness/preview.html``; ``render_pairs`` takes any object with ``render_pair(job, size)``, so the file handling and the
 index are tested without a GPU. The placed attachment is drawn in one flat orange (``PART_TINT``, a field of every job) and the host with its own
-materials, so a white part on a white host cannot hide a muzzle brake. A preview is flattened onto a plain background: it is a picture to look at, not an icon, and a
+materials made opaque (a translucent host would show the part through its body; glTF MASK cut-outs stay), so a white part on a white host cannot hide a muzzle brake. A preview is flattened onto a plain background: it is a picture to look at, not an icon, and a
 dark model on a transparent PNG disappears in most viewers. Outputs: ``<name>.png`` per pair, ``index.json``
 (``weapon-attach-preview/1``, merged with what an earlier run left), and with ``--sheet`` ``sheet.png``, a contact sheet in
 index order. A failed pair is listed and the rest go on; a renderer that cannot start is exit 5 with nothing written.

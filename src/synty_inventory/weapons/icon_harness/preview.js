@@ -45,6 +45,27 @@ function tint(meshes, hex) {
   }
 }
 
+// The host is drawn opaque (W8e): a translucent host (a glTF BLEND material, e.g. the Military preset rifles) shows the placed
+// attachment and ghosting along its body through it, and Tom judges placements by eye. Every drawn host material gets
+// transparent = false, opacity = 1, depthWrite = true. An alphaTest material (glTF MASK) is a genuine cut-out (grille, glass
+// frame) and keeps cutting out, so it is left alone. The GLB was parsed for this call only and nothing else holds its
+// materials, so they are changed in place; icon.js (shared with `weapons icons`) is untouched.
+function opaque(meshes) {
+  const seen = new Set();
+  for (const mesh of meshes) {
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const mat of mats) {
+      if (!mat || seen.has(mat)) continue;
+      seen.add(mat);
+      if (mat.alphaTest > 0) continue;
+      mat.transparent = false;
+      mat.opacity = 1;
+      mat.depthWrite = true;
+      mat.needsUpdate = true;
+    }
+  }
+}
+
 function scaled(s) {
   return new THREE.Matrix4().makeScale(s, s, s);
 }
@@ -56,6 +77,7 @@ window.previewPrepare = async function previewPrepare(p) {
   const partGltf = await load(p.part.glb);
   const hostKept = select(hostGltf, p.host.nodes, p.host.hide, "host");
   const partKept = select(partGltf, p.part.nodes, null, "attachment");
+  opaque(hostKept);
   if (p.part.tint) tint(partKept, p.part.tint);
 
   // item_basis rows are the item-frame axes expressed in asset space: item = B * asset (as in icon.js)
