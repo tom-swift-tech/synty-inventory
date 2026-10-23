@@ -27,6 +27,7 @@ from ..sources.glb_geometry import load_triangles, node_world_matrices
 from ..sources.glb_measure import NodeSel, _cache_key, node_cache_tag, node_selected, read_glb_json
 from ..sources.glb_scale import scale_cache_tag
 from . import digest, write_text_lf
+from .attach import measure_anchor
 
 CACHE_NAME = "_geometry_cache.json"
 
@@ -594,9 +595,13 @@ def _fail(reasons: list[str], warning: str | None = None) -> dict:
 def measure_weapon_detail(
     glb: Path, glb_node: NodeSel, scale: float, archetype: str, kind: str | None, role: str, rules: dict,
     *, hold_class: str | None = None, genre: str | None = None, forward_override: str | None = None,
-    head_lead: bool = False,
+    head_lead: bool = False, attach_slot: str | None = None,
 ) -> dict:
     """``{'geometry': block | None, 'flags': [...], 'reasons': [...], 'warning': str | None}`` (spec 3.5).
+
+    ``attach_slot`` (W8a: the part is an attachment seated in this slot) adds the key ``attach`` = ``attach.measure_anchor``
+    of the same decoded vertices (the anchor, the footprint and the reasons they imply); ``forward_override`` then also
+    fixes the anchor's forward sign. Without a slot the result has no such key.
 
     ``flags``/``reasons`` hold only what the measurement adds (``forward_by_fallback``, ``origin_outside_bounds``;
     ``axes_unexpected``, ``muzzle_fallback``, ``origin_outside_bounds``, ``node_transform``) -- or, when the mesh
@@ -811,7 +816,10 @@ def measure_weapon_detail(
         "support_source": support_source,
         "triangles": int(n_tris),
     }
-    return {"geometry": geometry, "flags": sorted(flags), "reasons": sorted(reasons), "warning": warning}
+    out = {"geometry": geometry, "flags": sorted(flags), "reasons": sorted(reasons), "warning": warning}
+    if attach_slot is not None:
+        out["attach"] = measure_anchor(verts, attach_slot, forward_override)
+    return out
 
 
 def measure_weapon(
@@ -866,10 +874,11 @@ def code_digest(data: bytes) -> str:
 # plain integer (the schema says integer), because the directory must stay byte-identical across machines and a
 # digest of the local checkout would not be.
 _CODE_DIGEST = code_digest(Path(__file__).read_bytes())
+_ATTACH_CODE_DIGEST = code_digest((Path(__file__).parent / "attach.py").read_bytes())  # the anchor algorithm's own digest
 
 
 def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, forward_override=None,
-                        *, head_lead: bool = False) -> str:
+                        *, head_lead: bool = False, attach_slot: str | None = None) -> str:
     # the measurement depends on the classification context, not only on the file (spec 3.5 says file + versions;
     # deviation reported): a rules or override change that flips archetype/kind/hold must not serve stale geometry
     fp = {
@@ -884,17 +893,21 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
         # same idea for the W7 head-lead tool flag: absent when false, so an unrelated fingerprint is unchanged, and a
         # head-lead result is never served for a record that does not lead with its head (or the other way round)
         fp["hl"] = True
+    if attach_slot is not None:
+        # same idea for an attachment part (W8a): absent for every other record, so no existing fingerprint changes. The
+        # attachment version and the digest of attach.py keep a stale anchor from surviving an algorithm change or a bump
+        fp["as"], fp["av"], fp["ad"] = attach_slot, _pkg.WEAPON_ATTACH_VERSION, _ATTACH_CODE_DIGEST
     return digest(fp)
 
 
 def measure_cached(
     threejs_v2_dir: Path, glb_rel: str, glb_node: NodeSel, scale: float, archetype: str, kind: str | None,
     role: str, rules: dict, cache: dict, *, hold_class: str | None = None, genre: str | None = None,
-    forward_override: str | None = None, head_lead: bool = False,
+    forward_override: str | None = None, head_lead: bool = False, attach_slot: str | None = None,
 ) -> tuple[dict, bool]:
     """``(detail, was_cached)``. Entry id = relative GLB path + node tag + scale tag (as ``glb_measure``); the
     entry is valid while ``mtime:size`` and its version (``WEAPON_GEOMETRY_VERSION`` + the digest of this file) match, and holds one result per
-    classification-context fingerprint (which includes ``forward_override`` and ``head_lead``). Failures are cached too (an undecodable mesh stays undecodable); a missing
+    classification-context fingerprint (which includes ``forward_override``, ``head_lead`` and, for an attachment part, its slot). Failures are cached too (an undecodable mesh stays undecodable); a missing
     file is not. The returned dict is a private copy.
     """
     abs_path = threejs_v2_dir / glb_rel
@@ -906,7 +919,8 @@ def measure_cached(
     cache_id = f"{glb_rel}#{node_cache_tag(glb_node)}" if glb_node else glb_rel
     cache_id += scale_cache_tag(scale)
     version = f"{_pkg.WEAPON_GEOMETRY_VERSION}+{_CODE_DIGEST}"
-    fp = _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules, forward_override, head_lead=head_lead)
+    fp = _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules, forward_override, head_lead=head_lead,
+                             attach_slot=attach_slot)
     entry = cache.get(cache_id)
     if not entry or entry.get("key") != key or entry.get("version") != version:
         entry = {"key": key, "version": version, "by_inputs": {}}
@@ -916,7 +930,7 @@ def measure_cached(
         return deepcopy(hit), True
     detail = measure_weapon_detail(
         abs_path, glb_node, scale, archetype, kind, role, rules, hold_class=hold_class, genre=genre,
-        forward_override=forward_override, head_lead=head_lead,
+        forward_override=forward_override, head_lead=head_lead, attach_slot=attach_slot,
     )
     entry["by_inputs"][fp] = deepcopy(detail)
     return detail, False

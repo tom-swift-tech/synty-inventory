@@ -31,6 +31,7 @@ from . import (
     ROLES,
     SchemaError,
     WEIGHT_CLASSES,
+    digest,
 )
 
 # match keys valid in a classification rule / a candidate pattern (spec 3.4.2)
@@ -398,6 +399,18 @@ def _check_attachment_rules(val) -> list[str]:
 def attachment_rules(rules: dict) -> dict:
     """The ``attachment_rules`` mapping; an empty table (nothing is an attachment) when the key is absent."""
     return rules.get("attachment_rules") or {"never": [], "rows": []}
+
+
+def weapon_rules_digest(rules: dict) -> str:
+    """``rules_digest`` of the directory header and of an export's ``generated_from``: the digest of every rule section
+    W7 hashed, i.e. everything except ``attachment_rules``. The attachment table has its own ``attach_rules_digest``, so
+    adding it to the shipped YAML leaves the default export byte-identical to W7's (docs/weapon_attachments.md D-10)."""
+    return digest({k: v for k, v in rules.items() if k != "attachment_rules"})
+
+
+def attach_rules_digest(rules: dict) -> str:
+    """Digest of the ``attachment_rules`` table alone (rows, never, child_tokens, child_never); an absent table hashes as empty."""
+    return digest(attachment_rules(rules))
 
 
 def kind_hints(rules: dict) -> list[tuple[str, frozenset[str]]]:

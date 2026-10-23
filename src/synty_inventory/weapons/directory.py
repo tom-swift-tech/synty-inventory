@@ -20,11 +20,11 @@ from ..paths import is_pack_catalog_file
 from ..schema import migrate_catalog
 from . import InputError, SchemaError, digest, to_text, write_text_lf
 from .candidates import evaluate_candidate
-from .classify import classify, tokenize_id
+from .classify import classify, classify_attachment, tokenize_id
 from .geometry import measure_cached, pass2_inputs
 from .hints import build_group_stats, derive_hints
 from .overrides import effective_override, load_overrides
-from .rules import head_lead_tokens, load_rules
+from .rules import attach_rules_digest, head_lead_tokens, load_rules, weapon_rules_digest
 from .schema import validate_directory
 from .variants import discover_variants, has_colourway_info, variant_link_paths
 
@@ -121,6 +121,48 @@ def _record(asset: dict, pack_id: str, cls: dict, source: str, renamed_from: lis
     }
 
 
+def _attach_class(asset: dict, pack_id: str, cls: dict, rules: dict) -> dict | None:
+    """The attachment {slot, kind, rule} of the final classification of a part, or None (docs/weapon_attachments.md 3.3)."""
+    return classify_attachment(asset["id"], pack_id, cls["role"], cls["component"], rules)
+
+
+def _attachment_block(attach_class: dict | None, detail: dict | None) -> dict | None:
+    """The record's ``attachment`` block. ``anchor`` and ``footprint`` are null together: with no measurement at all
+    (no geometry) and when the foot cannot be measured (the latter adds the review reason ``anchor_unmeasured``)."""
+    if attach_class is None:
+        return None
+    got = (detail or {}).get("attach") or {}
+    return {
+        "slot": attach_class["slot"], "kind": attach_class["kind"],
+        "anchor": got.get("anchor"), "footprint": got.get("footprint"),
+        "compatible_hosts": [], "pending_hosts": [],
+    }
+
+
+def _apply_attachment(rec: dict, block: dict | None, detail: dict | None) -> None:
+    """Attach the block to a part record and fold the anchor's consequences into its review (spec 3.4 step 6).
+
+    Only a record whose mesh decoded is judged: a null anchor multiplies the confidence by 0.9, a symmetric (coin-flip)
+    forward caps it at 0.59, so both land on the review page. A record without geometry already carries ``no_geometry``.
+    """
+    if rec["role"] != "part":
+        return
+    rec["attachment"] = block
+    got = (detail or {}).get("attach")
+    if block is None or got is None:
+        return
+    review = rec["review"]
+    review["reasons"] = sorted(set(review["reasons"]) | set(got["reasons"]))
+    conf = review["confidence"]
+    if block["anchor"] is None:
+        conf *= 0.9
+    elif block["anchor"]["symmetric"]:
+        conf = min(conf, 0.59)
+    review["confidence"] = round(conf, 2)
+    if review["confidence"] < 0.6:
+        review["reasons"] = sorted(set(review["reasons"]) | {"low_confidence"})
+
+
 def _context(cls: dict) -> tuple:
     """The classification fields a measurement depends on (spec 3.5: archetype, kind, role, hold)."""
     return cls["archetype"], cls["kind"], cls["role"], cls["hold_class"]
@@ -151,10 +193,11 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
     detail = None
     head_lead = bool(head_lead_tokens(rules) & set(tokenize_id(asset["id"], rules)))
     for _ in range(3):
+        attach = _attach_class(asset, pack_id, cls, rules)
         detail, cached = measure_cached(
             threejs_v2_dir, files["glb"], node, scale, cls["archetype"], cls["kind"], cls["role"], rules, cache,
             hold_class=cls["hold_class"], genre=cls["genre"], forward_override=forward_override,
-            head_lead=head_lead,
+            head_lead=head_lead, attach_slot=attach["slot"] if attach else None,
         )
         stats["cached" if cached else "decoded"] += 1
         measured = pass2_inputs(detail)
@@ -284,7 +327,8 @@ def build_directory_report(
         selected = sorted(docs)
     partial = bool(packs) and set(selected) != set(docs)
 
-    rules_digest, overrides_digest = digest(rules), digest(overrides)
+    rules_digest, overrides_digest = weapon_rules_digest(rules), digest(overrides)
+    attach_digest = attach_rules_digest(rules)
     records: list[dict] = []
     excluded: list[dict] = []
     pack_rows: list[dict] = []
@@ -303,6 +347,8 @@ def build_directory_report(
         base_dir, base_excl = base
         if (base_dir.get("weapon_version") != _pkg.WEAPON_VERSION
                 or base_dir.get("rules_digest") != rules_digest
+                or base_dir.get("attach_rules_digest") != attach_digest
+                or base_dir.get("attach_version") != _pkg.WEAPON_ATTACH_VERSION
                 or base_dir.get("overrides_digest") != overrides_digest):
             raise InputError("the existing directory was built with other rules/overrides/version; run a full build")
         keep = set(selected)
@@ -372,6 +418,7 @@ def build_directory_report(
                 _apply_measurement(rec, detail)
                 if detail.get("warning"):
                     warnings.append(f"{full_id}: {detail['warning']}")
+            _apply_attachment(rec, _attachment_block(_attach_class(asset, pack_id, cls, rules), detail), detail)
             records.append(rec)
             n_records += 1
         pack_rows.append({
@@ -406,6 +453,8 @@ def build_directory_report(
         "geometry_version": _pkg.WEAPON_GEOMETRY_VERSION,
         "rules_digest": rules_digest,
         "overrides_digest": overrides_digest,
+        "attach_version": _pkg.WEAPON_ATTACH_VERSION,
+        "attach_rules_digest": attach_digest,
         "packs": pack_rows,
         "counts": _counts(records),
         "weapons": records,

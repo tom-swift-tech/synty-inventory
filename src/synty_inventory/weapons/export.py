@@ -133,6 +133,7 @@ def _public_record(rec: dict) -> dict:
 
 def _private_record(rec: dict, engines: set[str], frame: str) -> dict:
     out = deepcopy(rec)
+    out.pop("attachment", None)  # W8d adds it back behind --attachments; the default output stays the W7 one (D-10)
     out["files"] = _filter_files(rec["files"], engines)
     if frame == "item" and rec["geometry"] is not None:
         out["geometry"] = bake_item_frame(rec["geometry"])
@@ -438,6 +439,8 @@ def _relocate_icons(snapshot: dict, src_base: Path, icons_dir: Path, out_file: P
 def cmd(args, cfg) -> int:
     from .directory import load_directory, weapons_dir
 
+    if getattr(args, "attachments", False):
+        raise InputError("--attachments is not implemented until slice W8d")
     engine = args.engine
     engines = {engine}
     frame, profile = args.frame, args.profile

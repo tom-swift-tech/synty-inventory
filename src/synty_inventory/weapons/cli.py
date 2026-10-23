@@ -21,6 +21,7 @@ from . import (
     EXIT_OK,
     EXIT_REFUSED,
     EXIT_SCHEMA,
+    COMPAT_TIERS,
     GENRES,
     KINDS,
     ROLES,
@@ -35,7 +36,11 @@ _LATER_MODULES = {
     "review": "review",
     "apply-corrections": "corrections",
     "export": "export",
+    "attach-eval": "eval",  # W8c
+    "attach-preview": "preview",  # W8d
 }
+# the slice that provides each later verb that has no module yet, named in the "not built" answer
+_BUILT_BY = {"attach-eval": "W8c", "attach-preview": "W8d"}
 
 
 def _emit(obj) -> None:
@@ -69,7 +74,8 @@ def _not_built(args, cfg, verb: str) -> int:
     except ModuleNotFoundError as exc:
         if exc.name != full:
             raise  # a real import failure inside an existing module
-        return _error("not built in this checkout", EXIT_BAD_INPUT, verb=verb)
+        extra = {"hint": f"not implemented until slice {_BUILT_BY[verb]}"} if verb in _BUILT_BY else {}
+        return _error("not built in this checkout", EXIT_BAD_INPUT, verb=verb, **extra)
     return mod.cmd(args, cfg)
 
 
@@ -324,7 +330,29 @@ def register(sub) -> None:
     ex.add_argument("--frame", choices=("item", "asset"), default="item")
     ex.add_argument("--icons-dir", dest="icons_dir", default=None)
     ex.add_argument("--profile", choices=("private", "public"), default="private")
+    # W8a registers the attachment flags (cli.py is W8a's only); the export honours them from W8d, and refuses them until then
+    ex.add_argument("--attachments", action="store_true",
+                    help="also emit host mounts and the attachment part records (default off: the output is the W7 one)")
+    ex.add_argument("--min-compat-tier", dest="min_compat_tier", choices=COMPAT_TIERS, default="same_pack_fit",
+                    help="drop compatible_hosts / pending_hosts below this tier (with --attachments)")
+    ex.add_argument("--keep-foreign-hosts", dest="keep_foreign_hosts", action="store_true",
+                    help="keep hosts that are not in the exported set (with --attachments)")
     ex.set_defaults(func=lambda a, c: _not_built(a, c, "export"))
+
+    ae = wsub.add_parser("attach-eval", help="Precision/recall of the attachment compatibility against a labels file (W8c)")
+    pack_opt(ae)
+    ae.add_argument("--labels", default=None, help="weapon-attach-labels/1 file")
+    ae.add_argument("--min-precision", dest="min_precision", type=float, default=None,
+                    help="exit 4 when the precision is below this")
+    ae.add_argument("--min-recall", dest="min_recall", type=float, default=None, help="exit 4 when the recall is below this")
+    ae.set_defaults(func=lambda a, c: _not_built(a, c, "attach-eval"))
+
+    ap = wsub.add_parser("attach-preview", help="Render attachment placement previews (W8d)")
+    pack_opt(ap)
+    ap.add_argument("--out", dest="preview_out", default=None, help="output directory (distinct from the global --out)")
+    ap.add_argument("--ids", default=None, help="comma list of <pack>/<asset_id> attachments")
+    ap.add_argument("--limit", type=int, default=0, help="max pairs rendered (0 = the default sample)")
+    ap.set_defaults(func=lambda a, c: _not_built(a, c, "attach-preview"))
 
     v = wsub.add_parser("validate", help="Validate rules, overrides and a directory (exit 6 on violations)")
     v.add_argument("--directory", default=None, help="directory.json to check (default: the catalogs one)")

@@ -47,7 +47,7 @@ from .directory import (
     weapons_dir,
 )
 from .overrides import load_overrides
-from .rules import load_rules
+from .rules import attach_rules_digest, load_rules, weapon_rules_digest
 from .schema import validate_directory
 
 GEOMETRY_FLOOR = 0.97  # AC30: geometry non-null for at least 97 % of the records whose catalog has a GLB
@@ -190,7 +190,9 @@ def check_weapons_directory(catalogs_dir: Path, *, strict: bool = False, rules: 
         return _finish([_check("inputs", False, str(exc).splitlines()[0])], [], strict)
 
     current = (directory.get("weapon_version") == _pkg.WEAPON_VERSION
-               and directory.get("rules_digest") == digest(rules)
+               and directory.get("rules_digest") == weapon_rules_digest(rules)
+               and directory.get("attach_rules_digest") == attach_rules_digest(rules)
+               and directory.get("attach_version") == _pkg.WEAPON_ATTACH_VERSION
                and directory.get("overrides_digest") == digest(overrides))
     checks.append(_check(
         "directory_current", current,
