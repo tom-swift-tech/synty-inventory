@@ -71,9 +71,7 @@ def placed(directory, slot, anchor_shift_m: float = 0.0):
 
 
 def test_the_oracle_copy_is_byte_for_byte_the_committed_file():
-    assert hashlib.sha256(ORACLE_PATH.read_bytes().replace(b"
-", b"
-")).hexdigest() == ORACLE_SHA256  # autocrlf-proof
+    assert hashlib.sha256(ORACLE_PATH.read_bytes().replace(b"\r\n", b"\n")).hexdigest() == ORACLE_SHA256  # autocrlf-proof
     assert ORACLE["schema"] == "sit_mount_place/1"
     assert (ORACLE["tolerance_m"], ORACLE["tolerance_deg"]) == (TOL_M, TOL_DEG)
 
