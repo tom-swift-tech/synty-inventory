@@ -43,7 +43,7 @@ def test_the_compatibility_tables_live_inside_attachment_rules_and_not_beside_it
     rules = load_rules()
     assert "attach_affinity" not in rules and "attach_compat" not in rules
     tables = attachment_rules(rules)
-    assert set(tables["attach_affinity"]) == {"optic", "muzzle", "underbarrel", "laser_light", "magazine"}
+    assert set(tables["attach_affinity"]) == {"optic", "muzzle", "underbarrel", "laser_light", "magazine", "sight_front", "sight_rear"}
     assert tables["attach_compat"]["base"] == {"same_pack_fit": 0.7, "cross_pack_fit": 0.4}
     assert tables["attach_compat"]["tier_score"] == {"override": 1.0, "twin": 0.95}
 
@@ -113,7 +113,7 @@ def test_a_partial_build_of_one_pack_keeps_the_twins_of_the_carried_hosts(tmp_pa
     cat, root = W.write_world(tmp_path / "part")
     part, part_ex, _ = build_directory_report(
         cat, packs=[W.PACK_B], base=(full, full_ex), overrides=empty_overrides(), pack_settings=W.PACK_SETTINGS,
-        threejs_v2_dir=root, geometry_cache={})
+        rules=W.compat_rules(), threejs_v2_dir=root, geometry_cache={})
     alt = W.by_id(part)[W.P[W.ALT_SCOPE]]
     # the hosts of FAKE_CompA are carried over (no child extents in this run): the twin relations come from the stored lists
     assert W.hosts_of(alt) == [(W.H[W.ALPHA], "twin", 0.95), (W.H[W.EPSILON], "twin", 0.95)]

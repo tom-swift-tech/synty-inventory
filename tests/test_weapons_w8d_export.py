@@ -38,6 +38,7 @@ MAG = "FAKE_CompA/SM_Wep_Rifle_Mag_01"
 ATTACH_REASONS = {  # spec 8: the only review reasons W8 adds
     "anchor_unmeasured", "anchor_forward_unsure", "attach_kind_unknown", "mount_missing", "mount_ambiguous",
     "mount_estimated", "twin_multi", "compat_cross_pack",
+    "sight_side_unsure",  # A2: an iron sight whose name decides no side
 }
 
 
@@ -104,7 +105,9 @@ def test_roles_all_without_attachments_differs_from_w7_only_in_confidence_and_re
     assert got["generated_from"] == ref["generated_from"] and got["schema_version"] == ref["schema_version"]
     assert [w["id"] for w in got["weapons"]] == [w["id"] for w in ref["weapons"]]
     ref_by = by_id(ref)
-    attachment_parts = {i for i, w in world["by_id"].items() if w.get("attachment")}
+    # A2: a part held back as `sight_side_unsure` has no attachment block but is a W8 part all the same
+    attachment_parts = {i for i, w in world["by_id"].items()
+                        if w.get("attachment") or "sight_side_unsure" in w["review"]["reasons"]}
     changed = []
     for w in got["weapons"]:
         old = ref_by[w["id"]]
@@ -121,12 +124,14 @@ def test_roles_all_without_attachments_differs_from_w7_only_in_confidence_and_re
         assert added <= ATTACH_REASONS | {"low_confidence"}, (w["id"], added)
         assert set(old["review"]["reasons"]) <= set(w["review"]["reasons"]), w["id"]  # reasons are only ever added
         assert w["review"]["confidence"] <= old["review"]["confidence"]
-    # not vacuous: six attachment parts carry a reason W7 does not know (anchor_unmeasured, anchor_forward_unsure, twin_multi ...)
+    # not vacuous: seven attachment parts carry a reason W7 does not know (anchor_unmeasured, anchor_forward_unsure, twin_multi ...)
     assert sorted(changed) == [
-        "FAKE_Attach/SM_Wep_Footless_Scope_01", "FAKE_Attach/SM_Wep_Symmetric_Scope_01", "FAKE_Attach/SM_Wep_Upside_Scope_01",
+        "FAKE_Attach/SM_Wep_Footless_Scope_01",
+        "FAKE_Attach/SM_Wep_IronSight_01",  # A2: sight_side_unsure + low_confidence
+        "FAKE_Attach/SM_Wep_Symmetric_Scope_01", "FAKE_Attach/SM_Wep_Upside_Scope_01",
         "FAKE_CompA/SM_Wep_Mod_Gamma_Laser_01", "FAKE_CompA/SM_Wep_Rifle_Mag_01", "FAKE_CompA/SM_Wep_Rifle_Silencer_Brake_01",
     ]
-    assert len([i for i in attachment_parts if i.split("/")[0] in PACKS.split(",")]) == 35
+    assert len([i for i in attachment_parts if i.split("/")[0] in PACKS.split(",")]) == 35  # 34 with a block + the unsure one
     assert "attach_version" not in text_of(out) and '"mounts"' not in text_of(out) and '"attachment"' not in text_of(out)
 
 
@@ -153,29 +158,29 @@ def test_with_attachments_the_same_snapshot_differs_only_by_the_added_keys(world
     assert strip_added(doc_of(att)) == doc_of(plain)
     got = doc_of(att)
     gf = got["generated_from"]
-    assert gf["attach_version"] == 2 and len(gf["attach_rules_digest"]) == 16
+    assert gf["attach_version"] == 3 and len(gf["attach_rules_digest"]) == 16
     assert gf["attach_rules_digest"] != gf["rules_digest"] == "7b9829af37328fe7" and gf["geometry_version"] == 5
     assert gf["filter"]["attachments"] is True
     assert sorted(gf) == ["attach_rules_digest", "attach_version", "filter", "geometry_version", "overrides_digest", "packs",
                           "rules_digest", "tool", "weapon_version"]
     assert sorted(gf["filter"]) == ["attachments", "engines", "frame", "game", "roles"]
-    # the new keys are really there: 35 attachment blocks (every part of the fixture packs that the rules recognise) and mounts
-    assert sum(1 for w in got["weapons"] if w.get("attachment")) == 35
+    # the new keys are really there: 34 attachment blocks (every part of the fixture packs that the rules recognise) and mounts
+    assert sum(1 for w in got["weapons"] if w.get("attachment")) == 34
     hosts = [w for w in got["weapons"] if (w["geometry"] or {}).get("mounts")]
-    assert len(hosts) >= 10 and all(sorted(w["geometry"]["mounts"]) == ["laser_light", "magazine", "muzzle", "optic", "underbarrel"]
+    assert len(hosts) >= 10 and all(sorted(w["geometry"]["mounts"]) == ["laser_light", "magazine", "muzzle", "optic", "sight_front", "sight_rear", "underbarrel"]
                                     for w in hosts)
 
 
 def test_the_flag_alone_adds_the_attachment_parts_and_roles_attachment_is_an_extra_filter(world, capsys):
     code, res, out = export(world, capsys, "--attachments", name="flag.json")
-    assert code == 0 and res["weapons"] == 54 and res["attachments"] == 35
+    assert code == 0 and res["weapons"] == 53 and res["attachments"] == 34
     doc = doc_of(out)
     assert {w["role"] for w in doc["weapons"]} == {"whole", "part"}
-    assert sum(1 for w in doc["weapons"] if w["role"] == "part") == 35  # the 7 parts without an attachment block stay out
+    assert sum(1 for w in doc["weapons"] if w["role"] == "part") == 34  # the 8 parts without an attachment block stay out
     assert all(w.get("attachment") for w in doc["weapons"] if w["role"] == "part")
     assert doc["generated_from"]["filter"]["roles"] == ["whole"]
     code, res, only = export(world, capsys, "--attachments", "--roles", "attachment", name="only.json")
-    assert code == 0 and res["weapons"] == 35
+    assert code == 0 and res["weapons"] == 34
     assert {w["role"] for w in doc_of(only)["weapons"]} == {"part"}
     assert all(w.get("attachment") for w in doc_of(only)["weapons"])
     code, res, _ = export(world, capsys, "--roles", "attachment", name="refused.json")  # needs the flag

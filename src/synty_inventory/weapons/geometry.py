@@ -905,6 +905,7 @@ def code_digest(data: bytes) -> str:
 _CODE_DIGEST = code_digest(Path(__file__).read_bytes())
 _ATTACH_CODE_DIGEST = code_digest((Path(__file__).parent / "attach.py").read_bytes())  # the anchor algorithm's own digest
 _MOUNTS_CODE_DIGEST = code_digest((Path(__file__).parent / "mounts.py").read_bytes())  # and the mount builder's
+_PROBE_CODE_DIGEST = code_digest((Path(__file__).parent / "mount_probe.py").read_bytes())  # and the sight seat probe's (A2)
 
 
 def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, forward_override=None,
@@ -937,6 +938,8 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
         fp["mv"] = {
             "v": _pkg.WEAPON_ATTACH_VERSION, "ad": _ATTACH_CODE_DIGEST, "md": _MOUNTS_CODE_DIGEST,
             "ct": tables.get("child_tokens"), "cn": tables.get("child_never"),
+            # A2: the sight seat probe is an input too, its code (pd) and its parameters (sp)
+            "pd": _PROBE_CODE_DIGEST, "sp": tables.get("sight_probe"),
         }
         if mount_overrides:
             fp["mv"]["mo"] = mount_overrides

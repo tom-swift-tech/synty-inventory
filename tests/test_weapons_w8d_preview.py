@@ -94,11 +94,11 @@ def test_the_plan_covers_every_twin_pair_and_all_five_slots_with_a_non_twin_samp
     assert skipped == {}
     twins = [p for p in pairs if p["twin"]]
     others = [p for p in pairs if not p["twin"]]
-    assert (len(pairs), len(twins), len(others)) == (77, 65, 12)
-    assert [p["twin"] for p in pairs] == [True] * 65 + [False] * 12  # twins first
+    assert (len(pairs), len(twins), len(others)) == (67, 55, 12)  # A2: the 10 twin pairs of the two iron-sight parts (optic/iron) are gone with the kind
+    assert [p["twin"] for p in pairs] == [True] * 55 + [False] * 12  # twins first
     assert {p["slot"] for p in pairs} == set(SLOTS)
     assert {p["slot"] for p in twins} == set(SLOTS)  # the twin pairs alone cover every slot
-    assert len({(p["part"], p["host"]) for p in pairs}) == 77  # no pair twice
+    assert len({(p["part"], p["host"]) for p in pairs}) == 67  # no pair twice
     # every compatible twin pair of the directory is in the plan
     want = {(w["id"], e["host"]) for w in world.directory["weapons"] if w.get("attachment")
             for e in w["attachment"]["compatible_hosts"] if e["tier"] == "twin"}
@@ -328,7 +328,7 @@ def with_stub(monkeypatch, renderer):
 def test_plan_prints_the_pairs_writes_nothing_and_needs_no_renderer(world, capsys, tmp_path):
     out = tmp_path / "pv"
     code, res = verb(world, capsys, "--plan", "--out", str(out))
-    assert code == 0 and (res["pairs"], res["twins"], len(res["plan"])) == (77, 65, 77)
+    assert code == 0 and (res["pairs"], res["twins"], len(res["plan"])) == (67, 55, 67)
     assert not out.exists()
     wdir_default = Path(world.cat) / "weapons" / preview.DEFAULT_DIRNAME
     assert not wdir_default.exists()

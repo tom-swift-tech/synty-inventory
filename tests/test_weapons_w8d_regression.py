@@ -34,9 +34,10 @@ _spec.loader.exec_module(X)
 ATTACH_REASONS = {  # spec 8
     "anchor_unmeasured", "anchor_forward_unsure", "attach_kind_unknown", "mount_missing", "mount_ambiguous",
     "mount_estimated", "twin_multi", "compat_cross_pack",
+    "sight_side_unsure",  # A2
 }
 CAUSED = {"low_confidence"}  # the cap a reason causes
-CONFIDENCE_MOVERS = {"anchor_unmeasured", "anchor_forward_unsure"}  # the only reasons that cap or scale confidence
+CONFIDENCE_MOVERS = {"anchor_unmeasured", "anchor_forward_unsure", "sight_side_unsure"}  # the only reasons that cap or scale confidence
 NEW_HEADER = {"attach_version", "attach_rules_digest"}
 NEW_RECORD = {"attachment"}  # plus geometry.mounts
 
@@ -108,7 +109,7 @@ def regressions(ref: dict, new: dict) -> list[str]:
         if c_rev["confidence"] != o_rev["confidence"]:
             if c_rev["confidence"] > o_rev["confidence"]:
                 problems.append(f"{rid}: confidence rose {o_rev['confidence']} -> {c_rev['confidence']}")
-            if not cur.get("attachment") or not (c_reasons - o_reasons) & CONFIDENCE_MOVERS:
+            if not (cur.get("attachment") or "sight_side_unsure" in c_reasons) or not (c_reasons - o_reasons) & CONFIDENCE_MOVERS:
                 problems.append(f"{rid}: confidence moved without an anchor reason on an attachment part")
     return problems
 
@@ -121,7 +122,7 @@ def test_counts_and_digests_equal_the_w7_report(built, reference):
     assert (built["rules_digest"], built["geometry_version"]) == ("7b9829af37328fe7", 5)
     assert built["overrides_digest"] == reference["overrides_digest"]
     assert set(built) - set(reference) == NEW_HEADER and not set(reference) - set(built)
-    assert built["attach_version"] == 2 and len(built["attach_rules_digest"]) == 16
+    assert built["attach_version"] == 3 and len(built["attach_rules_digest"]) == 16
 
 
 def test_every_pre_existing_field_is_equal_and_review_moves_only_by_the_attachment_reasons(built, reference):
@@ -132,17 +133,19 @@ def test_every_pre_existing_field_is_equal_and_review_moves_only_by_the_attachme
 def test_the_diff_is_not_vacuous_and_the_new_fields_are_present(built, reference):
     ref_by = {w["id"]: w for w in reference["weapons"]}
     moved = [w["id"] for w in built["weapons"] if w["review"] != ref_by[w["id"]]["review"]]
-    assert len(moved) == 47  # records whose reasons gained an attachment reason (11 of them also move in confidence)
-    assert sum(1 for w in built["weapons"] if w["review"]["confidence"] != ref_by[w["id"]]["review"]["confidence"]) == 11
+    assert len(moved) == 86  # records whose reasons gained an attachment reason (12 of them also move in confidence); A2: +39 hosts with a sight probe seat (mount_estimated); Pistol_Mount is refused (its laser child stands 20 mm over the receiver top)
+    assert sum(1 for w in built["weapons"] if w["review"]["confidence"] != ref_by[w["id"]]["review"]["confidence"]) == 12
     assert sum(1 for w in built["weapons"] if "attachment" in w) == 56  # every part record carries the key
-    assert sum(1 for w in built["weapons"] if w.get("attachment")) == 40  # 40 non-null blocks
+    assert sum(1 for w in built["weapons"] if w.get("attachment")) == 39  # 39 non-null blocks (A2: the iron-sight part is sight_side_unsure, no block)
     assert sum(1 for w in built["weapons"] if (w["geometry"] or {}).get("mounts")) >= 20
     assert all("attachment" not in w for w in reference["weapons"])
     assert all("mounts" not in (w["geometry"] or {}) for w in reference["weapons"])
     # a part without an attachment block (a W7 part the rules do not recognise) is unchanged from W7 in every field
     plain = [w for w in built["weapons"] if w["role"] == "part" and not w.get("attachment")]
-    assert len(plain) == 16
-    assert all(w["review"] == ref_by[w["id"]]["review"] for w in plain)
+    assert len(plain) == 17
+    # A2: all of them but the sight_side_unsure part (it moved to low_confidence)
+    assert all(w["review"] == ref_by[w["id"]]["review"] for w in plain if "sight_side_unsure" not in w["review"]["reasons"])
+    assert sum(1 for w in plain if "sight_side_unsure" in w["review"]["reasons"]) == 1
 
 
 def test_the_check_reports_a_perturbed_record_and_names_it(built, reference):

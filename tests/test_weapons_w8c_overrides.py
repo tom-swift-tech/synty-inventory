@@ -227,9 +227,9 @@ def test_ac74_the_mount_override_reaches_the_geometry_cache_key(tmp_path):
 def test_ac74_set_attachment_slot_and_kind_replace_the_rule_answer(tmp_path):
     giant = W.P[W.SCOPE_GIANT]
     base, _ = run(tmp_path / "0", O())
-    recs, _ = run(tmp_path / "a", O(ids={giant: {"set": {"attachment_slot": "optic", "attachment_kind": "iron"}}}))
+    recs, _ = run(tmp_path / "a", O(ids={giant: {"set": {"attachment_slot": "sight_front", "attachment_kind": "post"}}}))
     assert (base[giant]["attachment"]["slot"], base[giant]["attachment"]["kind"]) == ("optic", "scope")
-    assert (recs[giant]["attachment"]["slot"], recs[giant]["attachment"]["kind"]) == ("optic", "iron")
+    assert (recs[giant]["attachment"]["slot"], recs[giant]["attachment"]["kind"]) == ("sight_front", "post")  # A2: `iron` left optic
     assert recs[giant]["component"] == base[giant]["component"]  # the attachment override never changes `component` (3.3)
     recs, _ = run(tmp_path / "b", O(ids={giant: {"set": {"attachment_slot": "magazine", "attachment_kind": "drum"}}}))
     att = recs[giant]["attachment"]
@@ -245,7 +245,7 @@ def test_ac74_an_attachment_kind_that_does_not_fit_the_rule_slot_is_a_schema_err
 
 
 def test_ac74_an_attachment_only_set_does_not_declare_a_new_weapon(tmp_path):
-    recs, _ = run(tmp_path, O(ids={W.P[W.SCOPE_GIANT]: {"set": {"attachment_kind": "iron"}}}))
+    recs, _ = run(tmp_path, O(ids={W.P[W.SCOPE_GIANT]: {"set": {"attachment_kind": "reflex"}}}))
     assert recs[W.P[W.SCOPE_GIANT]]["role"] == "part"
 
 
@@ -256,13 +256,13 @@ CORRECTIONS = {"schema": "weapon-corrections/1", "corrections": [
     {"target": {"id": P_SCOPE}, "compatible": {"add": [G_, B_, G_], "remove": [A_]}},
     {"target": {"id": B_}, "mounts": {"optic": {"source": "child_node", "child": AUX}}},
     {"target": {"glob": "FAKE_CompA/SM_Wep_Rifle_Scope_*"}, "compatible": {"add": ["FAKE_CompA/SM_Wep_Pistol_*"]}},
-    {"target": {"id": W.P[W.SCOPE_GIANT]}, "set": {"attachment_slot": "optic", "attachment_kind": "iron"}},
+    {"target": {"id": W.P[W.SCOPE_GIANT]}, "set": {"attachment_slot": "sight_front", "attachment_kind": "post"}},
 ]}
 MERGED = {
     "schema": "weapon-overrides/1",
     "ids": {P_SCOPE: {"compatible": {"add": [G_, B_], "remove": [A_]}},  # sorted: Pistol_Gamma before Rifle_Beta
             B_: {"mounts": {"optic": {"source": "child_node", "child": AUX}}},
-            W.P[W.SCOPE_GIANT]: {"set": {"attachment_slot": "optic", "attachment_kind": "iron"}}},
+            W.P[W.SCOPE_GIANT]: {"set": {"attachment_slot": "sight_front", "attachment_kind": "post"}}},
     "globs": {"FAKE_CompA/SM_Wep_Rifle_Scope_*": {"compatible": {"add": ["FAKE_CompA/SM_Wep_Pistol_*"]}}},
 }
 

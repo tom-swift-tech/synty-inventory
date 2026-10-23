@@ -64,7 +64,8 @@ def test_ac62_every_row_of_the_table_is_the_first_match_of_a_fixture_part():
         got = classify_attachment(aid, A.PACK, "part", {"slot": "misc", "fits": None}, rules)
         assert (got["slot"], got["kind"]) == expected if expected else got is None
         used.add(got["rule"] if got else None)
-    assert {r["name"] for r in rules["attachment_rules"]["rows"]} <= used
+    # A2: the sight rows (and the sight_side_unsure reason row) are covered by the AC87 table of test_weapons_w8h_classify.py
+    assert {r["name"] for r in rules["attachment_rules"]["rows"] if not r["name"].startswith("sight_")} <= used
 
 
 def test_ac62_the_vehicle_part_is_null_only_because_of_the_never_list():
@@ -181,7 +182,7 @@ def test_editing_a_w7_rule_moves_rules_digest_and_not_the_attach_digest():
 def test_the_directory_header_records_both_digests_and_the_attach_version(built):
     d = built[0]
     assert d["rules_digest"] == W7_RULES_DIGEST
-    assert d["attach_version"] == 2 and d["attach_rules_digest"] == attach_rules_digest(load_rules())
+    assert d["attach_version"] == 3 and d["attach_rules_digest"] == attach_rules_digest(load_rules())
 
 
 def test_a_changed_attachment_row_moves_the_attach_digest_but_not_the_export_digest(tmp_path):

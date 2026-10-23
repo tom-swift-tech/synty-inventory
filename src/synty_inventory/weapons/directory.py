@@ -20,12 +20,13 @@ from ..paths import is_pack_catalog_file
 from ..schema import migrate_catalog
 from . import ATTACH_KINDS, InputError, SchemaError, digest, to_text, write_text_lf
 from .candidates import evaluate_candidate
-from .classify import classify, classify_attachment, tokenize_id
+from .classify import attachment_reason, classify, classify_attachment, tokenize_id
 from .compat import apply_compat
 from .geometry import measure_cached, pass2_inputs
 from .hints import build_group_stats, derive_hints
 from .mounts import mount_reasons
 from .overrides import effective_override, load_overrides
+from .pairs import apply_pairs
 from .rules import attach_rules_digest, head_lead_tokens, load_rules, weapon_rules_digest
 from .schema import validate_directory
 from .variants import discover_variants, has_colourway_info, variant_link_paths
@@ -159,9 +160,24 @@ def _attachment_block(attach_class: dict | None, detail: dict | None) -> dict | 
     got = (detail or {}).get("attach") or {}
     return {
         "slot": attach_class["slot"], "kind": attach_class["kind"],
+        "pair": None,  # filled by pairs.apply_pairs once every record is known (A2, spec 3.5)
         "anchor": got.get("anchor"), "footprint": got.get("footprint"),
         "compatible_hosts": [], "pending_hosts": [],
     }
+
+
+def _apply_side_unsure(rec: dict, reason: str | None) -> None:
+    """Name-only review of an iron-sight part whose side the name does not decide (A2, spec 3.3).
+
+    The part keeps ``attachment: null`` (no slot, no geometry is read to guess one); like a symmetric anchor, the reason caps the
+    confidence at 0.59 and adds ``low_confidence``, so it lands on the review page under Parts. An override that sets the slot
+    gives the part a block, and the caller passes no reason then.
+    """
+    if reason is None:
+        return
+    review = rec["review"]
+    review["reasons"] = sorted(set(review["reasons"]) | {reason, "low_confidence"})
+    review["confidence"] = round(min(review["confidence"], 0.59), 2)
 
 
 def _apply_attachment(rec: dict, block: dict | None, detail: dict | None) -> None:
@@ -487,7 +503,10 @@ def build_directory_report(
                 if detail.get("warning"):
                     warnings.append(f"{full_id}: {detail['warning']}")
                 warnings.extend(f"{full_id}: mount {problem}" for problem in detail.get("mount_problems") or [])
-            _apply_attachment(rec, _attachment_block(_attach_class(asset, pack_id, cls, rules, overrides), detail), detail)
+            attach_class = _attach_class(asset, pack_id, cls, rules, overrides)
+            _apply_attachment(rec, _attachment_block(attach_class, detail), detail)
+            if attach_class is None:  # an iron sight with no decided side is reviewed by name alone (A2)
+                _apply_side_unsure(rec, attachment_reason(asset["id"], pack_id, cls["role"], cls["component"], rules))
             records.append(rec)
             n_records += 1
         pack_rows.append({
@@ -505,6 +524,7 @@ def build_directory_report(
     if partial and can_measure:  # a rebuilt part is judged against carried hosts exactly as in a full build
         child_extents.update(_carried_child_extents(docs, set(selected), records, rules, overrides, settings, threejs_v2_dir, cache))
     # W8c: compatibility needs every host's mounts, so it is a post-pass over ALL records (carried-over ones included)
+    apply_pairs(records, overrides)  # A2: sight sets, before compatibility (a set candidate needs both members' lists)
     warnings.extend(apply_compat(records, rules, overrides, child_extents=child_extents))
     excluded.sort(key=lambda e: e["id"])
     pack_rows.sort(key=lambda p: p["pack"])

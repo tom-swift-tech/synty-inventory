@@ -34,6 +34,7 @@ from . import (
     PROVENANCES,
     REASONS,
     ROLES,
+    SIGHT_SLOTS,
     SIZE_CLASSES_W,
     STATUSES,
     WEIGHT_CLASSES,
@@ -71,10 +72,11 @@ ATTACHMENT_SCHEMA = {
     # docs/weapon_attachments.md 3.2; the directory form of pending_hosts is {host, tier} (the export form is bare ids)
     "type": "object",
     "additionalProperties": False,
-    "required": ["slot", "kind", "anchor", "footprint", "compatible_hosts", "pending_hosts"],
+    "required": ["slot", "kind", "pair", "anchor", "footprint", "compatible_hosts", "pending_hosts"],
     "properties": {
         "slot": _enum(ATTACH_SLOTS),
         "kind": _enum(_ATTACH_KIND_VALUES),
+        "pair": {"anyOf": [{"type": "string", "pattern": _ID_PATTERN}, {"type": "null"}]},  # A2, spec 3.5: the partner sight
         "anchor": {"anyOf": [_FRAME, {"type": "null"}]},
         "footprint": {"anyOf": [{
             "type": "object",
@@ -92,6 +94,8 @@ ATTACHMENT_SCHEMA = {
                 "score": {"type": "number", "minimum": 0, "maximum": 1},
                 "signals": {"type": "array", "items": {"type": "string"}},
                 "replaces": {"type": "array", "items": {"type": "string"}},
+                # A2, spec 4.3: present only on an optic entry that covers the host's rear sight, never an empty list
+                "hides_slots": {"type": "array", "items": {"const": "sight_rear"}, "minItems": 1, "maxItems": 1},
             },
         }},
         "pending_hosts": {"type": "array", "items": {
@@ -369,6 +373,16 @@ def _frame_errors(frame: dict, where: str) -> list[str]:
     return errs
 
 
+def _pair_hides_errors(att: dict, here: str) -> list[str]:
+    """A2: ``pair`` is non-null only in the sight slots (spec 3.5); ``hides_slots`` only on an optic part's entries (spec 4.3)."""
+    errs = []
+    if att["pair"] is not None and att["slot"] not in SIGHT_SLOTS:
+        errs.append(f"{here}.pair: non-null only for the sight slots {list(SIGHT_SLOTS)}, not {att['slot']}")
+    if att["slot"] != "optic" and any("hides_slots" in h for h in att["compatible_hosts"]):
+        errs.append(f"{here}.compatible_hosts: hides_slots is for optic entries only")
+    return errs
+
+
 def _check_attachment(att: dict, role: str, where: str) -> list[str]:
     """Cross-field rules of docs/weapon_attachments.md 3.2 and INV-14/18 for one non-null ``attachment`` block."""
     errs: list[str] = []
@@ -377,6 +391,7 @@ def _check_attachment(att: dict, role: str, where: str) -> list[str]:
         errs.append(f"{here}: non-null only for role part")
     if att["kind"] not in ATTACH_KINDS[att["slot"]]:
         errs.append(f"{here}.kind: {att['kind']!r} is not a kind of slot {att['slot']} ({list(ATTACH_KINDS[att['slot']])})")
+    errs += _pair_hides_errors(att, here)
     if (att["anchor"] is None) != (att["footprint"] is None):
         errs.append(f"{here}: anchor and footprint are null together")
     if att["anchor"] is not None:
@@ -413,6 +428,7 @@ def check_export_attachment(att: dict, role: str, where: str, host_ids: set[str]
         errs.append(f"{here}: non-null only for role part (INV-14)")
     if att["kind"] not in ATTACH_KINDS[att["slot"]]:
         errs.append(f"{here}.kind: {att['kind']!r} is not a kind of slot {att['slot']} ({list(ATTACH_KINDS[att['slot']])})")
+    errs += _pair_hides_errors(att, here)
     if (att["anchor"] is None) != (att["footprint"] is None):
         errs.append(f"{here}: anchor and footprint are null together")
     if att["anchor"] is not None:
@@ -549,6 +565,30 @@ def check_record(rec: dict, where: str) -> list[str]:
     return errs
 
 
+def pair_symmetry_errors(by_id: dict[str, dict], where: str) -> list[str]:
+    """INV-20 over ``{id: record}``: a pair is stored on both members, which are sight parts of opposite slots in one pack.
+
+    A partner id that is not in ``by_id`` is reported by the caller's own membership rule (the directory: always an error;
+    a snapshot: the exporter nulls a pair whose partner it does not export, so a dangling one is an error there too).
+    """
+    errs = []
+    for rid in sorted(by_id):
+        att = by_id[rid].get("attachment")
+        partner = (att or {}).get("pair")
+        if partner is None:
+            continue
+        other = (by_id.get(partner) or {}).get("attachment")
+        if other is None:
+            errs.append(f"{where}[{rid}].attachment.pair: {partner} is not an attachment part of the set (INV-20)")
+        elif other.get("pair") != rid:
+            errs.append(f"{where}[{rid}].attachment.pair: {partner} does not name it back (INV-20)")
+        elif {att["slot"], other["slot"]} != set(SIGHT_SLOTS):
+            errs.append(f"{where}[{rid}].attachment.pair: {partner} is not a sight of the opposite slot (INV-20)")
+        elif by_id[rid]["pack"] != by_id[partner]["pack"]:
+            errs.append(f"{where}[{rid}].attachment.pair: {partner} is in another pack (INV-20)")
+    return errs
+
+
 def validate_directory(doc, excluded_doc=None) -> list[str]:
     """All violations of ``weapon-directory/1`` (structural + INV-2/3/13), as readable messages.
 
@@ -577,6 +617,7 @@ def validate_directory(doc, excluded_doc=None) -> list[str]:
                 elif not (host["role"] == "whole" and host["kind"] == "ranged" and host["hold_class"] in _HOST_HOLDS):
                     errors.append(f"weapons[{i}].attachment.{field}[{j}].host: {entry['host']} is not an eligible host "
                                   "(whole, ranged, one_hand or long_gun)")
+    errors += pair_symmetry_errors(by_id, "weapons")
     if ids != sorted(ids):
         errors.append("weapons: must be sorted by id")
     # INV-13: renamed ids are never live ids and are claimed by at most one record
