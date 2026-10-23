@@ -137,11 +137,11 @@ def test_ac99_ii_the_glass_child_that_was_the_optics_child_node_seat_stops_being
     assert mounts(optics, SHEET)["optic"]["child_node"] is None
 
 
-def test_ac99_a_glass_only_host_whose_sight_slots_the_probe_refused_keeps_that_reason(optics):
+def test_ac99_a_glass_only_host_whose_sight_slots_the_probe_refused_has_them_disabled_too(optics):
     m = mounts(optics, PRISM_GLASS)
     assert refused(m["optic"])  # the optic slot is rewritten whatever its source
     for slot in SIGHTS:
-        assert m[slot]["source"] == "none" and m[slot]["reason"] == "probe_unavailable", slot  # a slot already none keeps its reason
+        assert refused(m[slot]), slot  # W8k (item 9, AC104 ii): the pending reason is rewritten too (W8j kept probe_unavailable)
 
 
 def test_ac99_a_host_with_no_optic_child_is_not_touched(optics):
@@ -154,8 +154,8 @@ def test_ac99_vi_an_optic_override_none_makes_the_optic_none(optics):
     m = mounts(optics, NO_OPTIC)
     assert refused(m["optic"])  # an override `none` is categorical, and the scope child is no seat any more (occupied_by is empty)
     # the scope child is a body child all the same, so no sight slot is a probe seat; here the tube stays in the probe mesh (it is no
-    # longer in a slot) and the probe refuses the host itself, a reason a rule never overwrites
-    assert all(m[s]["source"] == "none" for s in SIGHTS)
+    # longer in a slot) and the probe refuses the host itself: W8k (item 9) turns that pending reason into slot_disabled (A)
+    assert all(refused(m[s]) for s in SIGHTS)
 
 
 def test_ac99_vi_an_override_child_node_on_a_glass_only_host_keeps_that_seat(optics):
@@ -458,7 +458,7 @@ def test_ac103_the_versions_and_digests():
     import synty_inventory.weapons as pkg
     from synty_inventory.weapons.rules import attach_rules_digest, weapon_rules_digest
 
-    assert pkg.WEAPON_ATTACH_VERSION == 5 and pkg.WEAPON_GEOMETRY_VERSION == 5
+    assert pkg.WEAPON_ATTACH_VERSION == 6 and pkg.WEAPON_GEOMETRY_VERSION == 5
     assert weapon_rules_digest(load_rules()) == "7b9829af37328fe7"  # the W7 digest: the attachment tables are not part of it
     base = attach_rules_digest(load_rules())
     assert attach_rules_digest(_rules_with(fused_post={**load_rules()["attachment_rules"]["baked_sights"]["fused_post"], "rise_m": 0.009})) != base

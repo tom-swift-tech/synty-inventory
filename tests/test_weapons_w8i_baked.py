@@ -150,18 +150,23 @@ def test_ac98_iv_a_sight_glass_or_a_scope_is_no_baked_iron_sight_but_since_w8j_i
 # -- (v) --------------------------------------------------------------------------------------------------------
 
 
-def test_ac98_v_a_slot_the_probe_refused_keeps_its_reason(built):
+def test_ac98_v_a_slot_the_probe_refused_is_slot_disabled_on_a_baked_host(built):
+    # W8k (item 9, AC104): the host carries a baked Fake_Sight_01, so the slots the probe could not seat are refused and not pending any more
+    # (W8i left them probe_unavailable). A bare refused host keeps probe_unavailable: see test_weapons_w8k_pending.py.
     m = mounts(built, "SM_Wep_Rifle_Prism_01")
     for slot in ("sight_front", "sight_rear"):
-        assert m[slot]["source"] == "none" and m[slot]["reason"] == "probe_unavailable", slot
+        assert m[slot]["source"] == "none" and m[slot]["reason"] == "slot_disabled", slot
 
 
-def test_ac98_v_a_slot_that_was_never_probed_keeps_its_reason(tmp_path):
+def test_ac98_v_a_slot_that_was_never_probed_keeps_its_reason_unless_the_host_is_baked(tmp_path):
     rules = W.sight_rules()
     del rules["attachment_rules"]["sight_probe"]  # no probe: every free sight slot is no_child_no_probe
-    d = W.by_id(W.build(tmp_path, {PACK: {"hosts": {"SM_Wep_Rifle_Twin_01": hosts()["SM_Wep_Rifle_Twin_01"]}}}, rules=rules)[0])
-    m = d[f"{PACK}/SM_Wep_Rifle_Twin_01"]["geometry"]["mounts"]
+    bare = "SM_Wep_Rifle_Bare_01"
+    d = W.by_id(W.build(tmp_path, {PACK: {"hosts": {bare: X.rifle(bare), "SM_Wep_Rifle_Twin_01": hosts()["SM_Wep_Rifle_Twin_01"]}}}, rules=rules)[0])
+    m = d[f"{PACK}/{bare}"]["geometry"]["mounts"]  # nothing baked: the reason stays
     assert m["sight_front"]["reason"] == m["sight_rear"]["reason"] == "no_child_no_probe"
+    twin = d[f"{PACK}/SM_Wep_Rifle_Twin_01"]["geometry"]["mounts"]  # W8k (item 9, AC104): the baked Twin_01 refuses the pending slots
+    assert twin["sight_front"]["reason"] == twin["sight_rear"]["reason"] == "slot_disabled"
 
 
 def test_ac98_v_a_sided_child_and_an_override_are_not_touched(built):
