@@ -121,7 +121,7 @@ def test_counts_and_digests_equal_the_w7_report(built, reference):
     assert (built["rules_digest"], built["geometry_version"]) == ("7b9829af37328fe7", 5)
     assert built["overrides_digest"] == reference["overrides_digest"]
     assert set(built) - set(reference) == NEW_HEADER and not set(reference) - set(built)
-    assert built["attach_version"] == 1 and len(built["attach_rules_digest"]) == 16
+    assert built["attach_version"] == 2 and len(built["attach_rules_digest"]) == 16
 
 
 def test_every_pre_existing_field_is_equal_and_review_moves_only_by_the_attachment_reasons(built, reference):
