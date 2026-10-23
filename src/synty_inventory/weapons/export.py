@@ -49,7 +49,7 @@ from . import (
 from .cli import _catalogs, _csv, _emit, _guarded
 from .compat import export_compatible, export_pending
 from .guards import refuse_export_target, repo_root
-from .schema import check_export_attachment, validate_directory, validate_record
+from .schema import check_export_attachment, pair_symmetry_errors, validate_directory, validate_record
 
 ENGINES = ("godot", "unity", "threejs", "all")
 FRAMES = ("item", "asset")
@@ -185,6 +185,10 @@ def _export_attachment(att: dict, rows, *, min_tier: str, host_ids: set[str], ke
     pending = [e for e in att["pending_hosts"] if keep_foreign or e["host"] in host_ids]
     out["compatible_hosts"] = export_compatible(listed, min_tier)
     out["pending_hosts"] = export_pending(pending, min_tier)
+    if out.get("pair") is not None and not keep_foreign and out["pair"] not in host_ids:
+        # A2 (judgment call, the spec is silent): a partner that is not in the exported set is cut like a foreign host, so the
+        # snapshot never names a record it does not contain and INV-20 (symmetry) still holds inside it
+        out["pair"] = None
     if rows is not None and out["anchor"] is not None:
         out["anchor"] = _bake_frame(rows, out["anchor"])
     return out
@@ -452,6 +456,8 @@ def check_snapshot(doc) -> list[str]:
     # INV-14: a host an attachment names must be in the exported set (the exporter drops the others), unless the snapshot
     # says it kept foreign hosts on purpose
     host_ids = None if keep_foreign else set(ids)
+    if attachments and host_ids is not None:  # INV-20 inside the snapshot (the exporter cuts a pair whose partner it leaves out)
+        errs += pair_symmetry_errors({w["id"]: w for w in weapons if w.get("attachment")}, "weapons")
     for i, w in enumerate(weapons):
         where = f"weapons[{i}]"
         # with --attachments the attachment parts join the set whatever --roles asked for; a part without an attachment

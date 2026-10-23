@@ -149,15 +149,24 @@ def build_job(pair: dict, part: dict, host: dict, threejs_dir: Path) -> dict:
     is seated on); ``replaces`` never narrows it. A1: a twin pair whose entry's ``replaces`` names exactly one child that the mount
     has a seat for (``mounts.<slot>.seats``) is placed on that seat, so a twin of the smaller of two magazines lands on ITS child
     and not on the larger one that owns the mount's own seat (``replaces`` chooses the seat only); every other pair is placed on
-    the mount as before.
+    the mount as before. A2: an optic whose entry carries ``hides_slots`` (spec 4.3) also hides the nodes of those slots (the rear
+    sight it covers), by the same whole-slot rule.
     """
     slot = pair["slot"]
     anchor = part["attachment"]["anchor"]
-    mount = host["geometry"]["mounts"][slot]
-    hide = sorted(set(mount.get("occupied_by") or []) | ({mount["child_node"]} if mount.get("child_node") else set()))
+    mounts = host["geometry"]["mounts"]
+    mount = mounts[slot]
+    entry = next((e for e in part["attachment"].get("compatible_hosts") or [] if e["host"] == pair["host"]), None)
+
+    def slot_nodes(m: dict) -> set[str]:
+        return set(m.get("occupied_by") or []) | ({m["child_node"]} if m.get("child_node") else set())
+
+    hide = set(slot_nodes(mount))
+    for hidden in (entry or {}).get("hides_slots") or []:
+        hide |= slot_nodes(mounts[hidden])
+    hide = sorted(hide)
     frame = mount
     if pair.get("twin"):
-        entry = next((e for e in part["attachment"].get("compatible_hosts") or [] if e["host"] == pair["host"]), None)
         replaces = (entry or {}).get("replaces") or []
         if len(replaces) == 1 and replaces[0] in (mount.get("seats") or {}):
             frame = mount["seats"][replaces[0]]

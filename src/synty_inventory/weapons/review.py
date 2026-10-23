@@ -208,15 +208,18 @@ def _attach_entry(rec: dict, previews: dict) -> dict:
     att = rec["attachment"]
     hosts = []
     for e in att["compatible_hosts"]:
-        hosts.append({"host": e["host"], "tier": e["tier"], "score": e["score"], "pending": False})
+        row = {"host": e["host"], "tier": e["tier"], "score": e["score"], "pending": False}
+        if e.get("hides_slots"):  # A2: the optic covers the rear sight on this host (spec 4.3); absent otherwise
+            row["hides_slots"] = list(e["hides_slots"])
+        hosts.append(row)
     for e in att["pending_hosts"]:
         hosts.append({"host": e["host"], "tier": e["tier"], "score": None, "pending": True})
     for h in hosts:
         pv = previews.get((rec["id"], h["host"]))
         h["preview"] = pv["src"] if pv else None
     flip = _flip_of(att)
-    return {"slot": att["slot"], "kind": att["kind"], "flip": {"from": flip[0], "to": flip[1]} if flip else None,
-            "hosts": hosts}
+    return {"slot": att["slot"], "kind": att["kind"], "pair": att.get("pair"),
+            "flip": {"from": flip[0], "to": flip[1]} if flip else None, "hosts": hosts}
 
 
 def _host_entry(rec: dict, nodes: list[str] | None) -> dict:

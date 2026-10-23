@@ -7,6 +7,12 @@ randomness. ``apply_compat`` is the post-pass ``directory.py`` runs once every r
 
 Tiers, strongest first (D-7): ``override > twin > same_pack_fit > cross_pack_fit``.
 
+A2 (W8h). The SETTING GATE runs before any tier: a candidate that is not an ``override`` needs the part's pack and the host's pack
+in one setting (``attachment_rules.attach_genre_by_pack``; a pack absent from the map is a setting of its own). It covers twin,
+same_pack_fit, cross_pack_fit and the pending list, which are one candidate list (D-8); only a ``compatible.add`` crosses it
+(INV-21). An ``optic`` entry also carries ``hides_slots: ["sight_rear"]`` when the placed optic covers the host's rear sight seat
+(spec 4.3); the key is absent otherwise.
+
 * ``override``: an ``compatible.add`` of the committed override file names the host (score 1.0).
 * ``twin``: the host has a baked child of the part's slot whose SORTED AABB extents equal the part's within
   ``max(3 %, 0.8 mm)`` per axis (``is_twin``; score 0.95). A part twinning the children of several hosts is a twin of
@@ -64,6 +70,7 @@ FIT_BORE_REL_TOL = 0.35  # |mate_d - bore_d| <= 0.35 * bore_d adds the bore bonu
 SCORE_BANDS = {"same_pack_fit": (0.6, 0.9), "cross_pack_fit": (0.3, 0.6)}  # spec 5.1 table
 DEFAULT_TIERS = ("override", "twin", "same_pack_fit")  # what the default export lists (D-11)
 COMPAT_REASONS = ("compat_cross_pack", "mount_missing", "twin_multi")  # the reasons this pass owns
+HIDES_MARGIN_M = 0.010  # an optic hides the rear sight when its placed extent, widened by 10 mm each way, contains the seat (spec 4.3)
 
 # parameters used when the rules carry no attach_compat table (the shipped YAML always does)
 _DEFAULTS = {
@@ -166,22 +173,61 @@ def _params(tables: dict) -> dict:
     return {k: got.get(k, v) if not isinstance(v, dict) else {**v, **(got.get(k) or {})} for k, v in _DEFAULTS.items()}
 
 
-def _host_view(rec: dict, generic) -> dict:
+def setting_of(genre_by_pack: dict | None, pack: str):
+    """The setting of a pack for the gate (spec 5.1): its word in ``attach_genre_by_pack``, else a setting of its own."""
+    word = (genre_by_pack or {}).get(pack)
+    return ("setting", word) if word else ("pack", pack)
+
+
+def _host_view(rec: dict, generic, genre_by_pack: dict | None = None) -> dict:
     mounts = (rec.get("geometry") or {}).get("mounts") or {}
     return {"id": rec["id"], "pack": rec["pack"], "archetype": rec["archetype"], "flags": set(rec["flags"]),
-            "mounts": mounts, "tokens": name_tokens(rec["asset_id"], generic)}
+            "mounts": mounts, "tokens": name_tokens(rec["asset_id"], generic),
+            "setting": setting_of(genre_by_pack, rec["pack"])}
+
+
+def forward_extent(rec: dict) -> tuple[float, float] | None:
+    """The part's extent along its own anchor ``forward`` from the anchor point: ``(low, high)`` metres, or None.
+
+    Taken from the record's mesh bounds (the frame the anchor is measured in), so a part whose body sits off its foot is
+    placed right: the footprint alone carries lengths, not where they lie against the anchor point.
+    """
+    att, bounds = rec.get("attachment") or {}, ((rec.get("geometry") or {}).get("bounds"))
+    anchor = att.get("anchor")
+    if not anchor or not bounds:
+        return None
+    lo, hi, f, p = bounds["min"], bounds["max"], anchor["forward"], anchor["point"]
+    ts = [sum((c[i] - p[i]) * f[i] for i in range(3))
+          for c in ((x, y, z) for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2]))]
+    return round(min(ts), 4), round(max(ts), 4)
+
+
+def hides_slots(extent, seat: dict | None, rear: dict | None) -> list[str]:
+    """``["sight_rear"]`` when an optic with forward ``extent`` seated on ``seat`` covers the host's ``rear`` sight seat, else [].
+
+    Both mounts have to be measured. After placing the optic (spec 3.1) its extent along the host forward is the seat's
+    coordinate plus the part's own extent; the rear seat counts as covered inside that, widened by ``HIDES_MARGIN_M`` each way.
+    """
+    if extent is None or not seat or not rear or seat.get("point") is None or rear.get("point") is None:
+        return []
+    fwd = seat["forward"]
+    origin = sum(a * b for a, b in zip(seat["point"], fwd))
+    at = sum(a * b for a, b in zip(rear["point"], fwd))
+    return ["sight_rear"] if origin + extent[0] - HIDES_MARGIN_M <= at <= origin + extent[1] + HIDES_MARGIN_M else []
 
 
 def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affinity: dict, params: dict,
               twin_replaces: list[str] | None = None) -> dict | None:
     """The compatibility entry of ``part`` on ``host`` or None; ``entry["listed"]`` says compatible (True) or pending (False).
 
-    ``part`` is ``{id, pack, slot, kind, flags, tokens, foot_length_m, mate_d_m}``, ``host`` a ``_host_view``.
+    ``part`` is ``{id, pack, slot, kind, flags, tokens, foot_length_m, mate_d_m, setting, extent_m?}``, ``host`` a ``_host_view``.
     ``verdict`` is the override verdict for this pair (``add`` / ``remove`` / None), ``twin`` whether the host has a twin child.
     ``twin_replaces`` (A1) is the one child a ``twin`` entry replaces; without it a twin entry copies the slot's ``occupied_by``.
     """
     if verdict == "remove":
         return None
+    if verdict != "add" and part["setting"] != host["setting"]:
+        return None  # A2 setting gate: before any tier, so a cross-setting twin is no candidate and does not count toward twin_multi
     slot = part["slot"]
     mount = host["mounts"].get(slot)
     available = mount is not None and mount["source"] != "none"
@@ -216,6 +262,11 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
     if available:
         replaces = list(twin_replaces) if tier == "twin" and twin_replaces else list(mount["occupied_by"])
         entry.update(score=score_of(tier, span, bore, params), signals=sorted(signals), replaces=replaces)
+        if slot == "optic":  # a twin entry seats on the child it twins, as the game does (spec 4.3)
+            seat = (mount.get("seats") or {}).get(replaces[0]) if tier == "twin" and len(replaces) == 1 else None
+            hidden = hides_slots(part.get("extent_m"), seat or mount, host["mounts"].get("sight_rear"))
+            if hidden:
+                entry["hides_slots"] = hidden
     return entry
 
 
@@ -233,9 +284,10 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
     affinity = tables.get("attach_affinity") or {}
     child_vocab = {t for toks in (tables.get("child_tokens") or {}).values() for t in toks}
     generic = frozenset(params["generic_tokens"]) | child_vocab
+    genre_by_pack = tables.get("attach_genre_by_pack") or {}
     child_extents = child_extents or {}
     prev_twins = prev_twins or {}
-    hosts = [_host_view(r, generic) for r in sorted(records, key=lambda r: r["id"])
+    hosts = [_host_view(r, generic, genre_by_pack) for r in sorted(records, key=lambda r: r["id"])
              if eligible(r["role"], r["kind"], r["hold_class"])]
     host_ids = [h["id"] for h in hosts]
     parts: dict[str, dict] = {}
@@ -246,9 +298,10 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
         if not att or att["slot"] not in ATTACH_SLOTS:
             continue
         part = {"id": rec["id"], "pack": rec["pack"], "slot": att["slot"], "kind": att["kind"], "flags": set(rec["flags"]),
-                "tokens": name_tokens(rec["asset_id"], generic),
+                "tokens": name_tokens(rec["asset_id"], generic), "setting": setting_of(genre_by_pack, rec["pack"]),
                 "foot_length_m": (att["footprint"] or {}).get("foot_length_m"),
-                "mate_d_m": (att["footprint"] or {}).get("mate_d_m")}
+                "mate_d_m": (att["footprint"] or {}).get("mate_d_m"),
+                "extent_m": forward_extent(rec) if att["slot"] == "optic" else None}
         extents = sorted_extents(att["footprint"])
         eff = effective_override(rec["id"], overrides) if overrides else None
         sources = (eff or {}).get("compat_sources") or []

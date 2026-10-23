@@ -7,6 +7,8 @@ W8c (docs/weapon_attachments.md 6.1, D-5, INV-17) adds three categorical keys, s
 ``set.attachment_slot`` / ``set.attachment_kind``, ``compatible {add, remove}`` (host ids and host globs; allowed on an id
 entry and on a glob entry) and ``mounts {slot: {source: child_node | none, child: <node name>}}`` (id entries only). Any other
 key inside ``compatible`` or ``mounts`` (``point``, ``up``, ``span_m``, ``offset``, a bare number...) is a SchemaError (exit 6).
+
+W8h (A2) adds the id-only ``pair``: another sight part of the SAME pack (or null to unpair); see ``pair_overrides``.
 """
 
 from __future__ import annotations
@@ -37,7 +39,8 @@ SET_KEYS = ("role", "kind", "archetype", "hold_class", "genre", "component", "ca
 # `forward` and `confidence_cap` (spec 4.5, W2e) are id-only: they correct ONE weapon's measured direction / rate it for
 # review, which a pattern must never do to a whole family
 # `mounts` is id-only for the same reason (a host's seat is one gun's); `compatible` is also allowed on a glob (the family case)
-ID_ENTRY_KEYS = ("set", "confirm", "exclude", "renamed_from", "forward", "confidence_cap", "note", "compatible", "mounts")
+# `pair` (A2) is id-only as well: it pairs ONE sight part with its partner, categorical (an id or null)
+ID_ENTRY_KEYS = ("set", "confirm", "exclude", "renamed_from", "forward", "confidence_cap", "note", "compatible", "mounts", "pair")
 GLOB_ENTRY_KEYS = ("set", "confirm", "exclude", "note", "compatible")
 COMPATIBLE_KEYS = ("add", "remove")
 MOUNT_OVERRIDE_KEYS = ("source", "child")  # nothing else: a coordinate here would be pack-derived data (INV-17)
@@ -179,7 +182,7 @@ def validate_overrides(doc) -> list[str]:
             for k in entry:
                 if k not in allowed:
                     hint = (f" ({k} is for exact ids only)"
-                            if k in ("renamed_from", "forward", "confidence_cap", "mounts") else "")
+                            if k in ("renamed_from", "forward", "confidence_cap", "mounts", "pair") else "")
                     errors.append(f"{where}.{k}: unknown key{hint}")
             if "set" in entry:
                 _validate_set(entry["set"], f"{where}.set", errors)
@@ -198,6 +201,15 @@ def validate_overrides(doc) -> list[str]:
                 validate_compatible(entry["compatible"], f"{where}.compatible", errors)
             if "mounts" in entry and section == "ids":
                 validate_mounts(entry["mounts"], f"{where}.mounts", errors)
+            if "pair" in entry and section == "ids":
+                partner = entry["pair"]
+                if partner is not None:
+                    if not well_formed_id(partner):
+                        errors.append(f"{where}.pair: must be null or a '<pack>/<asset_id>' id")
+                    elif partner == key:
+                        errors.append(f"{where}.pair: a part cannot be paired with itself")
+                    elif partner.split("/")[0] != key.split("/")[0]:
+                        errors.append(f"{where}.pair: {partner!r} is in another pack (a pair is one pack's set, INV-20)")
             if "forward" in entry and section == "ids" and entry["forward"] not in FORWARD_VALUES:
                 errors.append(f"{where}.forward: {entry['forward']!r} not in {list(FORWARD_VALUES)}")
             if "confidence_cap" in entry and section == "ids":
@@ -290,6 +302,15 @@ def effective_override(full_id: str, doc: dict | None) -> dict | None:
         "note": next((e["note"] for _, e in sources if e.get("note")), ""),
         "matched": [k for k, _ in sources],
     }
+
+
+def pair_overrides(doc: dict | None) -> dict[str, str | None]:
+    """``{part id: partner id or None}`` from the id entries that carry a ``pair`` key (A2, spec 3.5 and 6.1).
+
+    A ``null`` is an explicit unpair, so it is kept; an id entry without the key is absent. The entry acts on both members
+    (``pairs.apply_pairs`` makes the relation symmetric), so naming the relation on one side is enough.
+    """
+    return {k: v["pair"] for k, v in sorted(((doc or {}).get("ids") or {}).items()) if "pair" in v}
 
 
 def compatible_verdict(sources: list[dict], part_id: str, host_id: str) -> str | None:
