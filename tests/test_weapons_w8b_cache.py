@@ -27,7 +27,7 @@ from synty_inventory.weapons.rules import load_rules  # noqa: E402
 
 N_ELIGIBLE = 9  # FAKE_Mount hosts that are whole + ranged + one_hand/long_gun (the grenade host is the tenth asset)
 N_ASSETS = 10
-N_ATTACH_PARTS, N_ATTACH_HOSTS = 24, 2  # the W8a fixture: 24 parts with a slot, plus the assault rifle and the pistol
+N_ATTACH_PARTS, N_ATTACH_HOSTS = 23, 2  # the W8a fixture: 23 parts with a slot, plus the assault rifle and the pistol
 
 
 @pytest.fixture(scope="module")

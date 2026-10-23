@@ -20,7 +20,7 @@ from synty_inventory.weapons import mounts as M  # noqa: E402
 from synty_inventory.weapons.geometry import measure_weapon_detail  # noqa: E402
 from synty_inventory.weapons.rules import load_rules  # noqa: E402
 
-SLOTS = ["optic", "muzzle", "underbarrel", "magazine", "laser_light"]
+SLOTS = ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]
 P = A.MOUNT_PACK
 MOUNT, DOUBLE, PLAIN = (f"{P}/SM_Wep_Rifle_{n}_01" for n in ("Mount", "Double", "Plain"))
 PISTOL, GRENADE, HULL = f"{P}/SM_Wep_Pistol_Mount_01", f"{P}/SM_Wep_Grenade_Mount_01", f"{P}/SM_Wep_Rifle_Hull_01"
@@ -58,7 +58,7 @@ def detail_of(world, host, overrides=None, rules=None):
 # --- AC66: seats from the child nodes --------------------------------------------------------------------------------
 
 
-def test_ac66_every_eligible_host_carries_all_five_slots_and_the_others_carry_null(world):
+def test_ac66_every_eligible_host_carries_all_seven_slots_and_the_others_carry_null(world):
     for rid, hold in [(MOUNT, "long_gun"), (DOUBLE, "long_gun"), (PLAIN, "long_gun"), (PISTOL, "one_hand"), (HULL, "long_gun")]:
         r = rec(world, rid)
         assert (r["role"], r["kind"], r["hold_class"]) == ("whole", "ranged", hold)
@@ -220,18 +220,22 @@ def test_ac68_no_slot_is_ever_defaulted_to_a_bounds_guess(world):
 
 def test_ac68_mount_missing_needs_a_compatible_attachment_for_that_slot(world):
     m = mounts(world, PLAIN)
-    assert M.mount_reasons(m) == set()  # compatibility inference is W8c: the build passes nothing
-    assert M.mount_reasons(m, {"optic"}) == {"mount_missing"}
-    assert M.mount_reasons(m, {"muzzle"}) == set()  # the muzzle slot is a probe, not none
-    assert M.mount_reasons(mounts(world, MOUNT), {"optic"}) == set()  # the optic has a child
-    assert M.mount_reasons(mounts(world, MOUNT), {"underbarrel", "laser_light"}) == {"mount_missing"}
+    est = {"mount_estimated"}  # A2: both sight slots of these hosts are probe seats
+    assert M.mount_reasons(m) == est  # compatibility inference is W8c: the build passes nothing
+    assert M.mount_reasons(m, {"optic"}) == est | {"mount_missing"}
+    assert M.mount_reasons(m, {"muzzle"}) == est  # the muzzle slot is a probe, not none
+    assert M.mount_reasons(mounts(world, MOUNT), {"optic"}) == est  # the optic has a child
+    assert M.mount_reasons(mounts(world, MOUNT), {"underbarrel", "laser_light"}) == est | {"mount_missing"}
     assert M.mount_reasons(None, {"optic"}) == set()
     assert "mount_missing" not in rec(world, PLAIN)["review"]["reasons"]
 
 
-def test_ac68_a_build_has_no_mount_reason_other_than_ambiguity(world):
+def test_ac68_a_build_has_no_mount_missing_and_estimates_only_the_sight_seats(world):
     for w in world[0]["weapons"]:
-        assert not {"mount_missing", "mount_estimated"} & set(w["review"]["reasons"])
+        assert "mount_missing" not in w["review"]["reasons"]
+        mm = w["geometry"]["mounts"]
+        probed = {s for s, m in (mm or {}).items() if m["source"] == "probe" and s.startswith("sight_")}
+        assert ("mount_estimated" in w["review"]["reasons"]) == bool(probed), w["id"]  # A2: only a sight probe seat is an estimate
 
 
 def test_ac68_only_whole_ranged_one_hand_and_long_gun_records_get_a_block(world):

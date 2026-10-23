@@ -116,8 +116,8 @@ PARTS = {
     "SM_Wep_RedDot_01": ("bottom", ("optic", "reflex")),
     "SM_Wep_Reflex_01": ("bottom", ("optic", "reflex")),
     "SM_Wep_Holo_01": ("bottom", ("optic", "reflex")),
-    "SM_Wep_IronSight_01": ("bottom", ("optic", "iron")),
-    "SM_Wep_Iron_Rear_Sight_01": ("bottom", ("optic", "iron")),  # `iron` and `sight` not adjacent: the pair row, not the joined one
+    "SM_Wep_IronSight_01": ("bottom", None),  # A2: an iron sight whose name decides no side is no attachment (sight_side_unsure, AC87)
+    "SM_Wep_Iron_Rear_Sight_01": ("bottom", ("sight_rear", "other")),  # `iron` and `sight` not adjacent: the pair row, not the joined one
     "SM_Wep_Silencer_01": ("muzzle", ("muzzle", "suppressor")),
     "SM_Wep_Pistol_Suppressor_01": ("muzzle", ("muzzle", "suppressor")),
     "SM_Wep_Foregrip_01": ("top", ("underbarrel", "foregrip")),

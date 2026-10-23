@@ -56,6 +56,21 @@ G, MC, WFX = A.G, A.MC, A.WFX
 PACK_A, PACK_B = "FAKE_CompA", "FAKE_CompB"
 PACK_SETTINGS = {PACK_A: {"setting": "military", "era": "modern"}, PACK_B: {"setting": "military", "era": "modern"}}
 
+
+def compat_rules() -> dict:
+    """The shipped rules with both fixture packs listed under ONE setting (A2, spec 5.1 setting gate), as AC72's cross-pack case needs.
+
+    A pack absent from ``attach_genre_by_pack`` matches only itself, so without this every cross-pack candidate of the fixture
+    would be gated away. The word is the fixture's own; nothing here is read from the shipped table.
+    """
+    from copy import deepcopy
+
+    from synty_inventory.weapons.rules import load_rules
+
+    rules = deepcopy(load_rules())
+    rules["attachment_rules"]["attach_genre_by_pack"] = {PACK_A: "fixture", PACK_B: "fixture"}
+    return rules
+
 ALPHA, BETA, GAMMA, EPSILON = ("SM_Wep_Rifle_Alpha_01", "SM_Wep_Rifle_Beta_01", "SM_Wep_Pistol_Gamma_01", "SM_Wep_Rifle_Epsilon_01")
 DELTA = "SM_Wep_Rifle_Delta_01"
 HOSTS_A = (ALPHA, BETA, GAMMA, EPSILON)
@@ -162,6 +177,7 @@ def build(tmp_path: Path, *, roots: dict | None = None, meshes: dict | None = No
     cat, root = write_world(tmp_path, roots=roots, meshes=meshes, drop=drop)
     kw.setdefault("threejs_v2_dir", root)
     kw.setdefault("geometry_cache", {} if cache is None else cache)
+    kw.setdefault("rules", compat_rules())
     directory, excluded = WFX.build(cat, pack_settings=PACK_SETTINGS, **kw)
     return directory, excluded, cat, root
 
@@ -194,7 +210,8 @@ def build_report(tmp_path: Path, *, overrides: dict | None = None, rules: dict |
 
     cat, root = write_world(tmp_path, roots=roots, meshes=meshes, drop=drop)
     directory, excluded, report = build_directory_report(
-        cat, overrides=overrides if overrides is not None else empty_overrides(), rules=rules, pack_settings=PACK_SETTINGS,
+        cat, overrides=overrides if overrides is not None else empty_overrides(), rules=rules or compat_rules(),
+        pack_settings=PACK_SETTINGS,
         threejs_v2_dir=root, geometry_cache={} if cache is None else cache)
     return directory, excluded, report, cat, root
 

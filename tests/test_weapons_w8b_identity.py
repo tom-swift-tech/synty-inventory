@@ -68,7 +68,7 @@ def test_the_directory_this_build_exports_from_does_carry_mounts(world):
     # the golden proves nothing unless the export had a block to drop
     hosts = [w for w in world["directory"]["weapons"] if (w["geometry"] or {}).get("mounts")]
     assert len(hosts) >= 2
-    assert all(sorted(w["geometry"]["mounts"]) == ["laser_light", "magazine", "muzzle", "optic", "underbarrel"] for w in hosts)
+    assert all(sorted(w["geometry"]["mounts"]) == ["laser_light", "magazine", "muzzle", "optic", "sight_front", "sight_rear", "underbarrel"] for w in hosts)
 
 
 def test_the_default_export_equals_the_w7_golden_byte_for_byte(world, capsys):

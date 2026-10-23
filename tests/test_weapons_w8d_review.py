@@ -1,6 +1,6 @@
 """W8d: the Attachments section of the review page (docs/weapon_attachments.md 6.2; AC76).
 
-World: ``w8d_world`` (review_helpers packs plus FAKE_Attach / FAKE_Mount / FAKE_CompA / FAKE_CompB), 40 attachment parts and 50
+World: ``w8d_world`` (review_helpers packs plus FAKE_Attach / FAKE_Mount / FAKE_CompA / FAKE_CompB), 39 attachment parts and 50
 mount-bearing hosts. Literals below were worked out from the fixture meshes:
 
 * ``FAKE_CompA/SM_Wep_Rifle_Mag_01`` is a magazine/standard part whose measured forward is +z (flip to -z). Its hosts: twins
@@ -140,11 +140,14 @@ def test_the_attachments_section_sits_between_the_archetype_sections_and_parts_a
     assert secs.index("sec-attachments") == secs.index("sec-role-part") - 1
     assert all(s.startswith("sec-archetype-") for s in secs[secs.index("sec-unknown") + 1:secs.index("sec-attachments")])
     ids = page.ids("sec-attachments")
-    assert len(ids) == 40 == len({i for i in ids})
+    assert len(ids) == 39 == len({i for i in ids})  # A2: the sight_side_unsure part has no block
     attachments = {i for i, w in world["by_id"].items() if w["role"] == "part" and w.get("attachment")}
     assert set(ids) == attachments
     assert not set(page.ids("sec-role-part")) & attachments  # an attachment appears there and not in Parts
-    assert set(page.ids("sec-role-part")) == {i for i, w in world["by_id"].items() if w["role"] == "part"} - attachments
+    # A2: a sight_side_unsure part has no block and caps at 0.59, so it is listed under Low confidence, not Parts
+    unsure = "FAKE_Attach/SM_Wep_IronSight_01"
+    assert unsure in page.ids("sec-low") and unsure not in page.ids("sec-role-part")
+    assert set(page.ids("sec-role-part")) == {i for i, w in world["by_id"].items() if w["role"] == "part"} - attachments - {unsure}
     # even a low-confidence attachment is listed under Attachments only
     low = [i for i in ids if world["by_id"][i]["review"]["confidence"] < 0.6]
     assert low and not set(low) & set(page.ids("sec-low"))
@@ -167,14 +170,14 @@ def test_attachment_tiles_are_grouped_by_slot_in_slot_order(world):
     slots = [world["by_id"][i]["attachment"]["slot"] for i in ids]
     order = [s for s in ATTACH_SLOTS if s in slots]
     assert [s for i, s in enumerate(slots) if i == 0 or s != slots[i - 1]] == order
-    assert {s: slots.count(s) for s in order} == {"optic": 18, "muzzle": 6, "underbarrel": 5, "magazine": 8, "laser_light": 3}
+    assert {s: slots.count(s) for s in order} == {"optic": 16, "muzzle": 6, "underbarrel": 5, "magazine": 8, "laser_light": 3, "sight_rear": 1}  # A2: no iron optics; one rear sight
 
 
 def test_the_embedded_data_lists_every_candidate_host_pending_ones_marked(world):
     data = world["page"].data()
     assert data["schema"] == "weapon-attach-review/1" and data["slots"] == list(ATTACH_SLOTS)
     assert data["tiers"] == ["override", "twin", "same_pack_fit", "cross_pack_fit"]
-    assert len(data["attachments"]) == 40 and len(data["hosts"]) == 50
+    assert len(data["attachments"]) == 39 and len(data["hosts"]) == 50
     mag = data["attachments"][MAG]
     assert mag["slot"] == "magazine" and mag["kind"] == "standard" and mag["flip"] == {"from": "+z", "to": "-z"}
     rows = [(h["host"], h["tier"], h["pending"]) for h in mag["hosts"]]
@@ -229,7 +232,7 @@ def test_previews_are_embedded_when_the_png_exists_and_skipped_when_it_does_not(
 def test_without_a_previews_folder_there_are_no_images_and_the_page_still_builds(world, tmp_path):
     dest = write_review_page(world["directory"], tmp_path / "bare", base_dir=world["tmp"], previews_dir=tmp_path / "nothing")
     page = Page(dest.read_text(encoding="utf-8"))
-    assert not page.pv_imgs and len(page.ids("sec-attachments")) == 40
+    assert not page.pv_imgs and len(page.ids("sec-attachments")) == 39
 
 
 def test_the_page_makes_no_network_access_and_names_no_external_url(world):
@@ -335,7 +338,7 @@ def test_in_chromium_a_slot_change_resets_the_kind_and_the_mount_picker_writes_c
     page.locator("#b-clear").click()
     open_tile(page, ALPHA)
     assert page.locator("#mnt").is_visible() and page.locator("#att").is_hidden()
-    assert page.locator("#mounts tr").count() == 1 + 5  # header plus one row per slot
+    assert page.locator("#mounts tr").count() == 1 + 7  # header plus one row per slot (A2: seven)
     assert page.locator("#mounts tr.dim").count() == 2  # underbarrel and laser_light have no seat
     cells = [c.strip() for c in page.locator("#mounts tr").nth(1).locator("td").all_inner_texts()]
     assert cells[0] == "optic" and "child_node (SM_Wep_Rifle_Alpha_01_Scope)" in cells[1] and cells[3] == "0.90"

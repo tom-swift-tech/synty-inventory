@@ -330,12 +330,13 @@ def rec_pending(rows):
 
 def part_view(**kw):
     base = {"id": "P/part", "pack": "P", "slot": "optic", "kind": "scope", "flags": set(), "tokens": frozenset({"x"}),
-            "foot_length_m": 0.06, "mate_d_m": None}
+            "foot_length_m": 0.06, "mate_d_m": None, "setting": ("setting", "s")}  # A2: one setting for P and Q
     return {**base, **kw}
 
 
 def host_view(**kw):
-    base = {"id": "P/host", "pack": "P", "archetype": "rifle", "flags": set(), "mounts": {}, "tokens": frozenset({"x"})}
+    base = {"id": "P/host", "pack": "P", "archetype": "rifle", "flags": set(), "mounts": {}, "tokens": frozenset({"x"}),
+            "setting": ("setting", "s")}
     return {**base, **kw}
 
 

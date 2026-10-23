@@ -23,7 +23,7 @@ from synty_inventory.weapons.geometry import measure_cached  # noqa: E402
 from synty_inventory.weapons.overrides import empty_overrides  # noqa: E402
 from synty_inventory.weapons.rules import load_rules  # noqa: E402
 
-N_ATTACHMENTS = 24  # the fixture parts whose expected slot/kind is not None (w8a_attach.PARTS); counted again below
+N_ATTACHMENTS = 23  # the fixture parts whose expected slot/kind is not None (w8a_attach.PARTS); counted again below
 N_ELIGIBLE_HOSTS = 2  # the assault rifle and the pistol: whole, ranged, long_gun / one_hand (W8b mounts)
 
 

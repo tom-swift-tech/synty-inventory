@@ -38,6 +38,14 @@ A = _load("w8a_attach")
 C = _load("w8c_compat")
 
 PACK_SETTINGS = {**H.pack_settings(), **A.PACK_SETTINGS, **A.MOUNT_SETTINGS, **C.PACK_SETTINGS}
+
+
+def world_rules() -> dict:
+    """The shipped rules with every pack of the world under ONE setting (A2 setting gate, spec 5.1): the world mixes the W7 packs
+    and the W8 fixture packs and its tests judge cross-pack candidates, which a gate would otherwise remove."""
+    rules = C.compat_rules()
+    rules["attachment_rules"]["attach_genre_by_pack"] = {pack: "fixture" for pack in (*PACK_SETTINGS, "FAKE_Generic")}  # FAKE_Generic has no pack setting (AC5)
+    return rules
 ROT_HOST = C.H[C.ALPHA]  # FAKE_CompA/SM_Wep_Rifle_Alpha_01
 ATTACH_PACKS = (A.PACK, A.MOUNT_PACK, C.PACK_A, C.PACK_B)  # the packs that carry attachment parts and hosts
 
@@ -81,6 +89,7 @@ def build(tmp: Path, **kw):
     kw.setdefault("threejs_v2_dir", root)
     kw.setdefault("geometry_cache", {})
     kw.setdefault("pack_settings", PACK_SETTINGS)
+    kw.setdefault("rules", world_rules())
     directory, excluded = H.build(cat, **kw)
     return directory, excluded, cat, root
 
