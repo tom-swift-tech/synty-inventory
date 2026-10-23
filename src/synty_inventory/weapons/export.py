@@ -159,9 +159,17 @@ def _bake_frame(rows: list[tuple[int, int]], frame: dict) -> dict:
     return out
 
 
+def _bake_mount(rows: list[tuple[int, int]], m: dict) -> dict:
+    """One mount with its frame baked; A1: every frame in ``seats`` is baked like the mount's own (``span_m`` stays)."""
+    out = _bake_frame(rows, m)
+    if m.get("seats"):  # `_bake_frame` copies the dict shallowly: the seats are rebuilt, not shared with the directory
+        out["seats"] = {node: _bake_frame(rows, seat) for node, seat in m["seats"].items()}
+    return out
+
+
 def _bake_mounts(rows: list[tuple[int, int]], mounts: dict) -> dict:
     """``geometry.mounts`` with every non-null frame baked; ``span_m``, ``bore_d_m`` and the labels are scalars and stay."""
-    return {slot: (m if m["point"] is None else _bake_frame(rows, m)) for slot, m in mounts.items()}
+    return {slot: (m if m["point"] is None else _bake_mount(rows, m)) for slot, m in mounts.items()}
 
 
 def _export_attachment(att: dict, rows, *, min_tier: str, host_ids: set[str], keep_foreign: bool) -> dict:

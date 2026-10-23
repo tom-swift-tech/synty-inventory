@@ -34,6 +34,10 @@ Judgment calls, stated once:
   ``pending_hosts``); an inferred candidate does not.
 * Twin evidence is the host's ``child_extents`` from this build's measurement. A host carried over from a partial build has
   none, so a carried part keeps the twin relation it already stored for a carried host (``prev_twins``).
+* A1 (W8f). A twin entry names the ONE baked child it matches in ``replaces`` (``matched_child``: the closest sorted extents,
+  the lower node name on a tie), so a game hides that child and seats the part on ``mounts.<slot>.seats[child]``. A carried twin
+  keeps the single name its stored entry has, else (none or several) the copy of ``occupied_by``. Only ``twin`` entries
+  narrow ``replaces``: an override entry for the same pair stays a copy of the slot.
 """
 
 from __future__ import annotations
@@ -82,6 +86,19 @@ def is_twin(a, b) -> bool:
     """Spec 5.1 / AC71: the sorted extents agree within ``max(3 % of the larger, 0.8 mm)`` on every axis."""
     xs, ys = sorted(a), sorted(b)
     return len(xs) == len(ys) == 3 and all(abs(x - y) <= max(TWIN_REL_TOL * max(x, y), TWIN_ABS_TOL_M) for x, y in zip(xs, ys))
+
+
+def matched_child(extents, children: dict) -> str | None:
+    """The child of ``children`` (``{node: {"extents": sorted, ...}}``) the sorted ``extents`` twin, or None (A1).
+
+    When several children match, the closest sorted extents win (smallest largest per-axis gap) and the lower node name
+    breaks a tie, so the choice is deterministic and the same for the twin seat and for the forward correction.
+    """
+    if extents is None:
+        return None
+    gaps = [(max(abs(a - b) for a, b in zip(sorted(extents), row["extents"])), name)
+            for name, row in children.items() if is_twin(extents, row["extents"])]
+    return min(gaps)[1] if gaps else None
 
 
 def fit_span(foot_length_m, mount: dict | None) -> str | None:
@@ -151,11 +168,13 @@ def _host_view(rec: dict, generic) -> dict:
             "mounts": mounts, "tokens": name_tokens(rec["asset_id"], generic)}
 
 
-def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affinity: dict, params: dict) -> dict | None:
+def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affinity: dict, params: dict,
+              twin_replaces: list[str] | None = None) -> dict | None:
     """The compatibility entry of ``part`` on ``host`` or None; ``entry["listed"]`` says compatible (True) or pending (False).
 
     ``part`` is ``{id, pack, slot, kind, flags, tokens, foot_length_m, mate_d_m}``, ``host`` a ``_host_view``.
     ``verdict`` is the override verdict for this pair (``add`` / ``remove`` / None), ``twin`` whether the host has a twin child.
+    ``twin_replaces`` (A1) is the one child a ``twin`` entry replaces; without it a twin entry copies the slot's ``occupied_by``.
     """
     if verdict == "remove":
         return None
@@ -191,18 +210,19 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
             signals.add(name)
     entry = {"host": host["id"], "tier": tier, "listed": available}
     if available:
-        entry.update(score=score_of(tier, span, bore, params), signals=sorted(signals),
-                     replaces=list(mount["occupied_by"]))
+        replaces = list(twin_replaces) if tier == "twin" and twin_replaces else list(mount["occupied_by"])
+        entry.update(score=score_of(tier, span, bore, params), signals=sorted(signals), replaces=replaces)
     return entry
 
 
 def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, child_extents: dict | None = None,
-            prev_twins: frozenset = frozenset()) -> dict:
+            prev_twins: dict | None = None) -> dict:
     """``{"parts": {id: {compatible, pending, reasons}}, "host_slots": {id: {slot}}, "problems": [str]}`` (pure).
 
-    ``child_extents`` is ``{host id: {slot: {node: sorted extents}}}`` of the hosts measured in this build; a host not in it
-    falls back to ``prev_twins`` (``{(part id, host id)}`` twin relations stored earlier). ``problems`` lists override
-    patterns that name no eligible host (``child_not_found``), never silently dropped.
+    ``child_extents`` is ``{host id: {slot: {node: {"extents", "axes", "seat"}}}}`` of the hosts measured in this build; a host
+    not in it falls back to ``prev_twins`` (``{(part id, host id): the replaces its stored twin entry had}``, the twin
+    relations stored earlier). ``problems`` lists override patterns that name no eligible host (``child_not_found``), never
+    silently dropped.
     """
     tables = attachment_rules(rules)
     params = _params(tables)
@@ -210,6 +230,7 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
     child_vocab = {t for toks in (tables.get("child_tokens") or {}).values() for t in toks}
     generic = frozenset(params["generic_tokens"]) | child_vocab
     child_extents = child_extents or {}
+    prev_twins = prev_twins or {}
     hosts = [_host_view(r, generic) for r in sorted(records, key=lambda r: r["id"])
              if eligible(r["role"], r["kind"], r["hold_class"])]
     host_ids = [h["id"] for h in hosts]
@@ -234,12 +255,15 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
         listed, pending = [], []
         for host in hosts:
             if host["id"] in child_extents:
-                twin = extents is not None and any(
-                    is_twin(extents, e) for e in (child_extents[host["id"]].get(part["slot"]) or {}).values())
-            else:
+                matched = matched_child(extents, child_extents[host["id"]].get(part["slot"]) or {})
+                twin, twin_replaces = matched is not None, ([matched] if matched is not None else None)
+            else:  # a carried host has no evidence: the stored entry decides, and its single child name is kept
                 twin = (rec["id"], host["id"]) in prev_twins
+                stored = prev_twins.get((rec["id"], host["id"])) or []
+                twin_replaces = list(stored) if len(stored) == 1 else None
             verdict = compatible_verdict(sources, rec["id"], host["id"]) if sources else None
-            got = candidate(part, host, verdict=verdict, twin=twin, affinity=affinity, params=params)
+            got = candidate(part, host, verdict=verdict, twin=twin, affinity=affinity, params=params,
+                            twin_replaces=twin_replaces)
             if got is None:
                 continue
             if got.pop("listed"):
@@ -267,9 +291,9 @@ def apply_compat(records: list[dict], rules: dict, overrides: dict | None = None
     Runs over the WHOLE record set, carried-over records of a partial build included: it first forgets what an earlier run
     stored (the lists and the three reasons) and recomputes, so the result does not depend on how the directory got here.
     """
-    prev_twins = frozenset(
-        (r["id"], e["host"]) for r in records if r.get("attachment")
-        for e in r["attachment"]["compatible_hosts"] + r["attachment"]["pending_hosts"] if e["tier"] == "twin")
+    prev_twins = {
+        (r["id"], e["host"]): e.get("replaces", []) for r in records if r.get("attachment")
+        for e in r["attachment"]["compatible_hosts"] + r["attachment"]["pending_hosts"] if e["tier"] == "twin"}
     for rec in records:
         rec["review"]["reasons"] = [x for x in rec["review"]["reasons"] if x not in COMPAT_REASONS]
         if rec.get("attachment"):

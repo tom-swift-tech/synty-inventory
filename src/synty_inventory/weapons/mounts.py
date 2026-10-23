@@ -35,6 +35,11 @@ Judgment calls, stated once (the spec fixes only the 0.5 / 0.4 muzzle values):
 * Confidence literals: ``child_node`` 0.9 (0.6 when several children compete), ``override`` 1.0, muzzle probe 0.8 with a
   ring / 0.5 with ``face_extent`` / 0.4 ``bounds_fallback``, ``none`` 0.0. A host whose selected node, or the chosen
   child, carries a rotation or scale (NB-15) caps the slot at 0.4.
+* A1 (W8f). A slot that lists more than one measured child also carries ``seats`` (``{node: {point, forward, up, span_m}}``, one
+  frame per listed child built exactly like the mount's own seat), whatever rung won, because a baked twin of the SMALLER child
+  must be placed on that child's frame; the larger one stays ``child_node`` and the mount's own seat. A slot with one listed
+  child, a ``none`` slot and the muzzle slot have no ``seats`` key. ``child_extents`` (the twin evidence beside the record)
+  gives each listed child ``{extents, axes, seat}``.
 """
 
 from __future__ import annotations
@@ -188,19 +193,32 @@ def _frame(point, forward: np.ndarray, up: np.ndarray) -> dict:
 # -- the child rung ---------------------------------------------------------------------------------------
 
 
-def _child_mount(slot: str, node: str, names: list[str], measured: dict, axes: dict, cap: float | None, source: str,
-                 ambiguous: bool) -> dict:
-    """The mount seated on child ``node`` (its anchor point, its foot length), listing ``names`` in ``occupied_by``."""
+def _child_frame(slot: str, node: str, measured: dict, axes: dict) -> dict:
+    """``{point, forward, up, span_m}`` of child ``node``: its own anchor point and foot length, the slot's axes from the host's."""
     anchor, footprint, _ = measured[node]
     fwd, up = _axis_vec(axes["forward"]), _axis_vec(axes["up"]) * _UP_SIGN[slot]
+    return {**_frame(anchor["point"], fwd, up), "span_m": footprint["foot_length_m"]}
+
+
+def _child_mount(slot: str, node: str, names: list[str], measured: dict, axes: dict, cap: float | None, source: str,
+                 ambiguous: bool) -> dict:
+    """The mount seated on child ``node`` (its anchor point, its foot length), listing ``names`` in ``occupied_by``.
+
+    A1: with more than one listed child the mount also carries ``seats``, the same frame for every listed child, so a twin of
+    the smaller one is placed on ITS child and not on the larger one that owns the mount's own seat.
+    """
     conf = CONF_OVERRIDE if source == "override" else (CONF_CHILD_AMBIGUOUS if ambiguous else CONF_CHILD)
     if cap is not None:
         conf = min(conf, cap)
-    return {
-        **_frame(anchor["point"], fwd, up), "source": source, "span_m": footprint["foot_length_m"],
+    frame = _child_frame(slot, node, measured, axes)
+    mount = {
+        **{k: frame[k] for k in ("point", "forward", "up")}, "source": source, "span_m": frame["span_m"],
         "span_source": "child_foot", "occupied_by": sorted(names), "child_node": node, "bore_d_m": None,
         "bore_source": None, "confidence": conf, "reason": None,
     }
+    if len(names) > 1:  # `names` are all measured: the caller lists only children whose anchor could be measured
+        mount["seats"] = {n: _child_frame(slot, n, measured, axes) for n in sorted(names)}
+    return mount
 
 
 def _measure_children(vertices: Callable, slot: str, names) -> dict:
@@ -303,6 +321,7 @@ def build_mounts(
             by_slot[slot].append(name)
 
     mounts: dict[str, dict] = {}
+    measured_by_slot: dict[str, dict] = {}
     for slot in ATTACH_SLOTS:
         ov = overrides.get(slot) if isinstance(overrides.get(slot), dict) else {}
         if ov.get("source") == "none":
@@ -317,7 +336,7 @@ def build_mounts(
             occupied = sorted(set(by_slot[slot]) | ({forced} if forced else set()))
             mounts[slot] = resolve_slot(None, None, _muzzle_mount(path, glb_node, scale, verts, axes, occupied, cap, probe))
             continue
-        measured = _measure_children(vertices, slot, by_slot[slot] + ([forced] if forced else []))
+        measured = measured_by_slot[slot] = _measure_children(vertices, slot, by_slot[slot] + ([forced] if forced else []))
         if forced is not None and forced not in measured:
             problems.append(f"child_unmeasured: {slot}: {forced}")
             forced = None
@@ -331,24 +350,30 @@ def build_mounts(
             child_rung = _child_mount(slot, seat, listed, measured, axes, _child_cap(cap, candidates, seat),
                                       "child_node", len(listed) > 1)
         mounts[slot] = resolve_slot(override_rung, child_rung, None)
-    return {"mounts": mounts, "problems": problems, "child_extents": _child_extents(mounts, vertices)}
+    return {"mounts": mounts, "problems": problems,
+            "child_extents": _child_extents(mounts, vertices, measured_by_slot, axes)}
 
 
-def _child_extents(mounts: dict, vertices: Callable) -> dict:
-    """``{slot: {node: [sorted AABB extents, metres]}}`` of every child a slot lists in ``occupied_by`` (W8c twin evidence).
+def _child_extents(mounts: dict, vertices: Callable, measured_by_slot: dict, axes: dict) -> dict:
+    """``{slot: {node: {"extents", "axes", "seat"}}}`` of every child a slot lists in ``occupied_by`` (twin evidence, W8c / A1).
 
     The twin rule of spec 5.1 compares the SORTED AABB extents of a standalone part with those of "a child of the same
-    slot", and the mount block only keeps the seat's foot length, so the extents ride beside it in the measurement detail
-    (and the geometry cache) and never enter the record. The vertices are the memo ``build_mounts`` already filled, so
-    this costs no second decode. A slot without baked children is absent.
+    slot", and the mount block only keeps the seat's foot length, so the evidence rides beside it in the measurement detail
+    (and the geometry cache) and never enters the record. Per child: ``extents`` the sorted AABB extents (metres),
+    ``axes`` the same extents per axis x, y, z (the yaw-free test of the forward correction, 3.4 step 3a) and ``seat`` the
+    frame ``_child_frame`` builds for it (None for a muzzle device, which is not anchor-measured). The vertices are the
+    memo ``build_mounts`` already filled, so this costs no second decode. A slot without baked children is absent.
     """
-    out: dict[str, dict[str, list[float]]] = {}
+    out: dict[str, dict[str, dict]] = {}
     for slot, m in mounts.items():
+        measured = measured_by_slot.get(slot) or {}
         rows = {}
         for name in m["occupied_by"]:
             v = vertices(name)
             if v is not None:
-                rows[name] = sorted(_r(e) for e in (v.max(axis=0) - v.min(axis=0)))
+                per_axis = [_r(e) for e in (v.max(axis=0) - v.min(axis=0))]
+                rows[name] = {"extents": sorted(per_axis), "axes": per_axis,
+                              "seat": _child_frame(slot, name, measured, axes) if name in measured else None}
         if rows:
             out[slot] = rows
     return out

@@ -76,7 +76,7 @@ COMPAT_TIERS = ("override", "twin", "same_pack_fit", "cross_pack_fit")  # rank =
 MOUNT_SOURCES = ("override", "child_node", "probe", "none")
 MOUNT_NONE_REASONS = ("no_child_no_probe", "slot_disabled", "probe_unavailable")
 ANCHOR_FOOT_SOURCES = ("authored_up", "measured", "override")
-ANCHOR_FORWARD_SOURCES = ("section", "authored", "override")
+ANCHOR_FORWARD_SOURCES = ("section", "authored", "twin", "override")  # twin: the forward a baked twin child fixes (A1, W8f)
 CARRIER_KINDS = ("quiver", "sheath", "scabbard", "holster")
 AMMO_PROJECTILES = ("bullet", "shell", "arrow", "bolt", "rocket", "other")
 PROVENANCES = ("rules", "override", "pack_settings", "measured")

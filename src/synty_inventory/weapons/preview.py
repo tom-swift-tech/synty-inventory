@@ -145,12 +145,20 @@ def build_job(pair: dict, part: dict, host: dict, threejs_dir: Path) -> dict:
     """Everything the renderer needs for one pair, as plain data (paths, node names, scales, 4x4 as nested lists).
 
     ``matrix`` is ``attach.place(anchor, mount)``: attachment-scaled GLB space -> host-scaled GLB space. ``hide`` is the
-    baked child the attachment replaces.
+    baked child the attachment replaces. A1: a twin pair whose entry names exactly one child that the mount has a seat for
+    (``mounts.<slot>.seats``) is placed on that seat and hides only that child, so a twin of the smaller of two magazines
+    lands on ITS child and not on the larger one that owns the mount's own seat; every other pair is placed as before.
     """
     slot = pair["slot"]
     anchor = part["attachment"]["anchor"]
     mount = host["geometry"]["mounts"][slot]
     hide = sorted(set(mount.get("occupied_by") or []) | ({mount["child_node"]} if mount.get("child_node") else set()))
+    frame = mount
+    if pair.get("twin"):
+        entry = next((e for e in part["attachment"].get("compatible_hosts") or [] if e["host"] == pair["host"]), None)
+        replaces = (entry or {}).get("replaces") or []
+        if len(replaces) == 1 and replaces[0] in (mount.get("seats") or {}):
+            frame, hide = mount["seats"][replaces[0]], list(replaces)
     return {
         **pair,
         "host_glb": Path(threejs_dir) / host["files"]["glb"], "host_nodes": _selection(host["files"].get("glb_node")),
@@ -159,7 +167,7 @@ def build_job(pair: dict, part: dict, host: dict, threejs_dir: Path) -> dict:
         "part_glb": Path(threejs_dir) / part["files"]["glb"], "part_nodes": _selection(part["files"].get("glb_node")),
         "part_scale": float(part["files"].get("glb_scale") or 1.0),
         "part_tint": PART_TINT, "host_tint": None,  # None: the host is drawn with its own materials
-        "matrix": [[float(c) for c in row] for row in place(anchor, mount)],
+        "matrix": [[float(c) for c in row] for row in place(anchor, frame)],
     }
 
 
