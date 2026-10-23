@@ -365,6 +365,44 @@ kind_hints:
   # loose throwables that are not grenades or bombs (those have rules); star = throwing stars, potato = a thrown potato
   thrown: [rock, stone, star, potato]
 
+# W8a (docs/weapon_attachments.md 3.3): which `part` records are user-swappable attachments, and their {slot, kind}. It runs
+# AFTER the part rules above, only for role part, and never changes `component`. Tokens here are RAW lower-case tokens of the
+# id (split on `_` and camelCase, digits dropped, plus the joins of 2-3 neighbouring tokens so Red_Dot reaches `reddot`): the
+# token_aliases step is NOT applied, because it folds scope/sight/reddot/reflex into one `optic` token and mag/drum/clip into
+# `magazine`, which would erase the slot/kind distinction this table makes. `tokens_none` is the spec's `not_tokens`.
+# `never`: a part matching ANY row is never an attachment (a vehicle accessory named like a laser), checked before `rows`.
+# `rows`: first match wins; a part no row matches (rack and rail segments, carry handles without a scope, bayonets, stocks)
+# keeps `attachment: null`.
+attachment_rules:
+  never:
+    - {name: never_vehicle_token, match: {tokens_any: [veh, vehicle, heli, jet, tug]}}
+    - {name: never_vehicle_pack, match: {packs_any: ['*Vehicle*', '*Vehicles*']}}
+  rows:
+    - {name: optic_sniper_scope, match: {tokens_all: [scope, sniper], tokens_none: [handle]}, set: {slot: optic, kind: sniper_scope}}
+    - {name: optic_scope, match: {tokens_any: [scope], tokens_none: [handle, sniper]}, set: {slot: optic, kind: scope}}
+    - {name: optic_carry_handle_scope, match: {tokens_all: [handle, scope]}, set: {slot: optic, kind: carry_handle_scope}}
+    - {name: optic_reflex, match: {tokens_any: [redot, reddot, reflex, holo]}, set: {slot: optic, kind: reflex}}
+    - {name: optic_iron_joined, match: {tokens_any: [ironsight]}, set: {slot: optic, kind: iron}}
+    - {name: optic_iron_pair, match: {tokens_all: [iron, sight]}, set: {slot: optic, kind: iron}}
+    - {name: muzzle_suppressor, match: {tokens_any: [silencer, suppressor]}, set: {slot: muzzle, kind: suppressor}}
+    - {name: underbarrel_foregrip, match: {tokens_any: [foregrip, vertgrip]}, set: {slot: underbarrel, kind: foregrip}}
+    - {name: underbarrel_bipod, match: {tokens_any: [bipod]}, set: {slot: underbarrel, kind: bipod}}
+    - {name: laser_laser, match: {tokens_any: [laser], tokens_none: [mining]}, set: {slot: laser_light, kind: laser}}
+    - {name: laser_light, match: {tokens_any: [flashlight, torch]}, set: {slot: laser_light, kind: light}}
+    - {name: magazine_drum_joined, match: {tokens_any: [drummag]}, set: {slot: magazine, kind: drum}}
+    - {name: magazine_drum_pair, match: {tokens_all: [drum, mag]}, set: {slot: magazine, kind: drum}}
+    - {name: magazine_standard, match: {tokens_any: [mag, magazine], tokens_none: [cell]}, set: {slot: magazine, kind: standard}}
+    - {name: magazine_cell, match: {tokens_any: [cell], tokens_none: [mining]}, set: {slot: magazine, kind: cell}}
+  # Host child meshes that fill a slot (docs/weapon_attachments.md 4.2; read by the W8b mount builder, not by W8a).
+  child_tokens:
+    optic: [scope, sight, reddot, redot, holo]
+    magazine: [mag, magazine, drummag, cell, battery]
+    underbarrel: [foregrip, bipod]
+    laser_light: [laser, flashlight]
+    muzzle: [silencer, suppressor, brake, compensator, flashhider]
+  # Child names that never fill a slot, whatever else they contain.
+  child_never: [trigger, slide, hammer, cylinder, pump, charge, handle, forestock, barrel, stock, switch, pin, clip]
+
 # archetype -> hold_class (spec 3.4.2). `none` = not hand-held.
 hold_by_archetype:
   pistol: one_hand

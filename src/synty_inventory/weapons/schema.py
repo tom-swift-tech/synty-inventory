@@ -13,9 +13,14 @@ from jsonschema import Draft202012Validator
 from . import (
     AMMO_FAMILIES,
     AMMO_PROJECTILES,
+    ANCHOR_FOOT_SOURCES,
+    ANCHOR_FORWARD_SOURCES,
     ARCHETYPES,
+    ATTACH_KINDS,
+    ATTACH_SLOTS,
     CANDIDATE_SOURCES,
     CARRIER_KINDS,
+    COMPAT_TIERS,
     COMPONENT_SLOTS,
     EXCLUDE_REASONS,
     FLAGS,
@@ -47,6 +52,56 @@ _NUM_NULL = {"type": ["number", "null"]}
 _STR_NULL = {"type": ["string", "null"]}
 _ICON_MODE = {"type": "string", "enum": ["blend_retry"]}  # icons.ICON_MODE_BLEND (schema imports no sibling)
 _AXIS = {"type": "string", "pattern": "^[+-][xyz]$"}
+
+_ATTACH_KIND_VALUES = sorted({k for kinds in ATTACH_KINDS.values() for k in kinds})  # per-slot membership: check_record
+_FRAME = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["point", "forward", "up", "foot_source", "forward_source", "symmetric"],
+    "properties": {
+        "point": _VEC3, "forward": _VEC3, "up": _VEC3,
+        "foot_source": _enum(ANCHOR_FOOT_SOURCES), "forward_source": _enum(ANCHOR_FORWARD_SOURCES),
+        "symmetric": {"type": "boolean"},
+    },
+}
+_METRES = {"type": "number", "minimum": 0}
+ATTACHMENT_SCHEMA = {
+    # docs/weapon_attachments.md 3.2; the directory form of pending_hosts is {host, tier} (the export form is bare ids)
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["slot", "kind", "anchor", "footprint", "compatible_hosts", "pending_hosts"],
+    "properties": {
+        "slot": _enum(ATTACH_SLOTS),
+        "kind": _enum(_ATTACH_KIND_VALUES),
+        "anchor": {"anyOf": [_FRAME, {"type": "null"}]},
+        "footprint": {"anyOf": [{
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["length_m", "width_m", "height_m", "foot_length_m", "foot_width_m", "mate_d_m"],
+            "properties": {k: _METRES for k in ("length_m", "width_m", "height_m", "foot_length_m", "foot_width_m")}
+                          | {"mate_d_m": {"anyOf": [_METRES, {"type": "null"}]}},
+        }, {"type": "null"}]},
+        "compatible_hosts": {"type": "array", "items": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["host", "tier", "score", "signals", "replaces"],
+            "properties": {
+                "host": {"type": "string", "pattern": _ID_PATTERN}, "tier": _enum(COMPAT_TIERS),
+                "score": {"type": "number", "minimum": 0, "maximum": 1},
+                "signals": {"type": "array", "items": {"type": "string"}},
+                "replaces": {"type": "array", "items": {"type": "string"}},
+            },
+        }},
+        "pending_hosts": {"type": "array", "items": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["host", "tier"],
+            "properties": {"host": {"type": "string", "pattern": _ID_PATTERN}, "tier": _enum(COMPAT_TIERS)},
+        }},
+    },
+}
+_HOST_HOLDS = ("one_hand", "long_gun")  # hosts that carry mounts (docs/weapon_attachments.md 4.1)
+_FRAME_TOL = 1e-3  # INV-18: unit length and mutual orthogonality
 
 GEOMETRY_SCHEMA = {
     "type": "object",
@@ -185,6 +240,7 @@ WEAPON_SCHEMA = {
                 "candidate_source": _enum(CANDIDATE_SOURCES),
             },
         },
+        "attachment": {"anyOf": [ATTACHMENT_SCHEMA, {"type": "null"}]},  # optional: only part records carry the key (W8a)
         "provenance": {
             "type": "object",
             "additionalProperties": False,
@@ -199,13 +255,15 @@ DIRECTORY_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "required": ["schema", "weapon_version", "geometry_version", "rules_digest", "overrides_digest", "packs",
-                 "counts", "weapons"],
+                 "counts", "weapons"],  # attach_version / attach_rules_digest are optional: a W7 directory has neither
     "properties": {
         "schema": {"const": "weapon-directory/1"},
         "weapon_version": {"type": "integer", "minimum": 1},
         "geometry_version": {"type": "integer", "minimum": 1},
         "rules_digest": {"type": "string", "pattern": _HEX16},
         "overrides_digest": {"type": "string", "pattern": _HEX16},
+        "attach_version": {"type": "integer", "minimum": 1},
+        "attach_rules_digest": {"type": "string", "pattern": _HEX16},
         "packs": {"type": "array", "items": {
             "type": "object",
             "additionalProperties": False,
@@ -255,6 +313,37 @@ def _schema_errors(schema: dict, doc, prefix: str = "") -> list[str]:
     return out
 
 
+def _frame_errors(frame: dict, where: str) -> list[str]:
+    """INV-18: unit forward and up, orthogonal to each other (right = up x forward is then right-handed by construction)."""
+    f, u = frame["forward"], frame["up"]
+    dot = sum(a * b for a, b in zip(f, u))
+    errs = [f"{where}.{name}: not a unit vector" for name, v in (("forward", f), ("up", u))
+            if abs(sum(c * c for c in v) ** 0.5 - 1.0) > _FRAME_TOL]
+    if abs(dot) > _FRAME_TOL:
+        errs.append(f"{where}: forward and up are not orthogonal")
+    return errs
+
+
+def _check_attachment(att: dict, role: str, where: str) -> list[str]:
+    """Cross-field rules of docs/weapon_attachments.md 3.2 and INV-14/18 for one non-null ``attachment`` block."""
+    errs: list[str] = []
+    here = f"{where}.attachment"
+    if role != "part":
+        errs.append(f"{here}: non-null only for role part")
+    if att["kind"] not in ATTACH_KINDS[att["slot"]]:
+        errs.append(f"{here}.kind: {att['kind']!r} is not a kind of slot {att['slot']} ({list(ATTACH_KINDS[att['slot']])})")
+    if (att["anchor"] is None) != (att["footprint"] is None):
+        errs.append(f"{here}: anchor and footprint are null together")
+    if att["anchor"] is not None:
+        errs += _frame_errors(att["anchor"], f"{here}.anchor")
+    if att["footprint"] is not None and (att["footprint"]["mate_d_m"] is not None) != (att["slot"] == "muzzle"):
+        errs.append(f"{here}.footprint.mate_d_m: non-null exactly for the muzzle slot")
+    keys = [(COMPAT_TIERS.index(h["tier"]), -h["score"], h["host"]) for h in att["compatible_hosts"]]
+    if keys != sorted(keys):
+        errs.append(f"{here}.compatible_hosts: must be sorted by (tier rank, -score, host)")
+    return errs
+
+
 def check_record(rec: dict, where: str) -> list[str]:
     """Cross-field rules of spec 4.1 for one record that already passed the structural schema."""
     errs: list[str] = []
@@ -274,6 +363,8 @@ def check_record(rec: dict, where: str) -> list[str]:
             errs.append(f"{where}.{field}: present exactly when role is {owner}")
     if flags != sorted(flags):
         errs.append(f"{where}.flags: must be sorted")
+    if rec.get("attachment") is not None:
+        errs += _check_attachment(rec["attachment"], role, where)
     geom = rec["geometry"]
     if (geom is None) != ("unmeasured" in flags):
         errs.append(f"{where}.geometry: null exactly when flag 'unmeasured' is set")
@@ -317,6 +408,18 @@ def validate_directory(doc, excluded_doc=None) -> list[str]:
             errors.append(f"weapons[{i}].id: duplicate id {w['id']}")
         seen.add(w["id"])
         errors += check_record(w, f"weapons[{i}]")
+    # INV-14: the hosts an attachment names exist in the directory and are eligible (whole, ranged, one_hand/long_gun)
+    by_id = {w["id"]: w for w in weapons}
+    for i, w in enumerate(weapons):
+        att = w.get("attachment")
+        for field in (("compatible_hosts", "pending_hosts") if att else ()):
+            for j, entry in enumerate(att[field]):
+                host = by_id.get(entry["host"])
+                if host is None:
+                    errors.append(f"weapons[{i}].attachment.{field}[{j}].host: {entry['host']} is not in the directory")
+                elif not (host["role"] == "whole" and host["kind"] == "ranged" and host["hold_class"] in _HOST_HOLDS):
+                    errors.append(f"weapons[{i}].attachment.{field}[{j}].host: {entry['host']} is not an eligible host "
+                                  "(whole, ranged, one_hand or long_gun)")
     if ids != sorted(ids):
         errors.append("weapons: must be sorted by id")
     # INV-13: renamed ids are never live ids and are claimed by at most one record

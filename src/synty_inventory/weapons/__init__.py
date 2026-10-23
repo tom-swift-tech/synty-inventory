@@ -13,6 +13,8 @@ from pathlib import Path
 WEAPON_VERSION = 1  # classification + hints; bump invalidates directory.json
 WEAPON_GEOMETRY_VERSION = 5  # geometry algorithm; bump invalidates _geometry_cache.json entries (2: bow belly rule, ranged section-sign convention, shield front; 3: melee grip anchored on the pivot, checked against a surface width profile; 4: melee grip kept 0.045 m off the butt end (W2f), melee forward sign of a mid-origin item from the larger end head over the outer 25 % for the head-forward archetypes (W2f); 5: the head sign decides over a differing pivot sign for the pivot-sourced headed melee archetypes and for head-lead tools (W7))
 
+WEAPON_ATTACH_VERSION = 1  # attachment records (docs/weapon_attachments.md D-12); joins the attachment cache fingerprint, never WEAPON_GEOMETRY_VERSION
+
 ROLES = ("whole", "part", "ammo", "carrier", "emplaced")
 NON_WEAPON_ROLES = ("part", "ammo", "carrier")  # kind is null for these (spec 4.1)
 KINDS = ("ranged", "melee", "thrown", "shield")
@@ -45,9 +47,11 @@ FLAGS = (
     "preset", "prefab_only", "shared_glb_node", "token_candidate", "unmeasured",
 )  # sorted: records carry them sorted (spec 3.4.5)
 REASONS = (
-    "axes_unexpected", "colourway_unknown", "degenerate", "kind_guessed", "low_confidence", "muzzle_fallback",
-    "no_geometry", "node_transform", "origin_outside_bounds", "unknown_archetype",
-)
+    "anchor_forward_unsure", "anchor_unmeasured", "attach_kind_unknown", "axes_unexpected", "colourway_unknown",
+    "compat_cross_pack", "degenerate", "kind_guessed", "low_confidence", "mount_ambiguous", "mount_estimated",
+    "mount_missing", "muzzle_fallback", "no_geometry", "node_transform", "origin_outside_bounds", "twin_multi",
+    "unknown_archetype",
+)  # the eight attachment reasons (docs/weapon_attachments.md section 8) are used from W8a (anchor_*, attach_kind_*) and W8b/W8c (rest)
 EXCLUDE_REASONS = (
     "nonplaceable", "ui", "fx", "character_attachment", "mech_attachment", "scenery", "tool_prop", "override",
 )
@@ -59,6 +63,20 @@ COMPONENT_SLOTS = (
     "optic", "magazine", "stock", "barrel", "body", "grip", "silencer", "bayonet", "rail", "trigger",
     "handguard", "misc",
 )
+# Attachment vocabulary (docs/weapon_attachments.md sections 3.2 and 8). W8a owns every enum addition; later slices only import.
+ATTACH_SLOTS = ("optic", "muzzle", "underbarrel", "magazine", "laser_light")
+ATTACH_KINDS = {  # per slot, closed; every slot also has `other` (an unrecognised kind inside a known slot)
+    "optic": ("scope", "sniper_scope", "reflex", "iron", "carry_handle_scope", "other"),
+    "muzzle": ("suppressor", "brake", "flash_hider", "other"),
+    "underbarrel": ("foregrip", "bipod", "other"),
+    "magazine": ("standard", "extended", "drum", "cell", "other"),
+    "laser_light": ("laser", "light", "other"),
+}
+COMPAT_TIERS = ("override", "twin", "same_pack_fit", "cross_pack_fit")  # rank = index + 1
+MOUNT_SOURCES = ("override", "child_node", "probe", "none")
+MOUNT_NONE_REASONS = ("no_child_no_probe", "slot_disabled", "probe_unavailable")
+ANCHOR_FOOT_SOURCES = ("authored_up", "measured", "override")
+ANCHOR_FORWARD_SOURCES = ("section", "authored", "override")
 CARRIER_KINDS = ("quiver", "sheath", "scabbard", "holster")
 AMMO_PROJECTILES = ("bullet", "shell", "arrow", "bolt", "rocket", "other")
 PROVENANCES = ("rules", "override", "pack_settings", "measured")
