@@ -1,0 +1,16 @@
+{
+  "schema": "w8e_rot_pair/1",
+  "note": "Hand-written pair for preview.build_job (no GLB is opened). The rotation it yields is NOT its own transpose; see tests/test_weapons_w8e_rotation.py for the hand derivation.",
+  "slot": "optic",
+  "part": {
+    "files": {"glb": "w8e/part.glb", "glb_node": null, "glb_scale": 1.0},
+    "attachment": {"anchor": {"point": [0.01, 0.02, 0.04], "forward": [1, 0, 0], "up": [0, 0, 1]}}
+  },
+  "host": {
+    "files": {"glb": "w8e/host.glb", "glb_node": null, "glb_scale": 1.0},
+    "geometry": {
+      "item_basis": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+      "mounts": {"optic": {"point": [0.5, 0.6, 0.7], "forward": [0, 1, 0], "up": [-1, 0, 0], "source": "child_node"}}
+    }
+  }
+}

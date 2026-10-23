@@ -103,11 +103,11 @@ def test_the_plan_covers_every_twin_pair_and_all_five_slots_with_a_non_twin_samp
     want = {(w["id"], e["host"]) for w in world.directory["weapons"] if w.get("attachment")
             for e in w["attachment"]["compatible_hosts"] if e["tier"] == "twin"}
     assert {(p["part"], p["host"]) for p in twins} == want
-    # the sample takes one pair per attachment, round-robin over the slots: 3 each of optic/muzzle/magazine/laser_light
-    # first, then a fourth muzzle (underbarrel has no non-twin candidate)
-    # round-robin over the slots, one pair per attachment; underbarrel has no non-twin candidate and laser_light only two
-    assert [p["slot"] for p in others] == ["optic", "muzzle", "magazine", "laser_light"] * 2 + ["optic", "muzzle", "magazine", "muzzle"]
-    assert len({p["part"] for p in others}) == 12 and not {p["tier"] for p in others} - {"same_pack_fit", "cross_pack_fit"}
+    # the sample takes one pair per attachment, best tier first (W8e): the 8 same_pack_fit pairs (3 optic, 5 muzzle, round-robin
+    # over the slots) precede the 4 cross_pack_fit ones (magazine and laser_light; underbarrel has no non-twin candidate)
+    assert [p["slot"] for p in others] == ["optic", "muzzle"] * 3 + ["muzzle"] * 2 + ["magazine", "laser_light"] * 2
+    assert [p["tier"] for p in others] == ["same_pack_fit"] * 8 + ["cross_pack_fit"] * 4
+    assert len({p["part"] for p in others}) == 12
     assert preview.plan_pairs(world.directory)[0] == pairs  # deterministic
 
 
