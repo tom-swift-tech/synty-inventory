@@ -514,6 +514,23 @@ attachment_rules:
     ridge_tol_m: 0.008
     seat_ray_m: 0.003
     seat_flat_tol_m: 0.006
+  # Hosts that get no seat for a slot (A3, spec 7). slot -> host name tokens; the host's tokens are those of its asset id (the id after the
+  # pack, split like the family_overlap tokens, plus the joins of neighbouring tokens, so Flare_Gun reaches `flaregun`). A host with one of
+  # them gets that slot's mount `none` / `slot_disabled`, so the slot veto of compat.py removes every candidate that is not an override.
+  # Flare guns and props: the A2 look gate showed sights on top of a briefcase and high on a flare-gun block. Inside attachment_rules,
+  # so editing it moves attach_rules_digest and never rules_digest.
+  attach_host_never:
+    sight_front: [flare, flaregun, prop]
+    sight_rear: [flare, flaregun, prop]
+  # Baked iron sights (A3, spec 4.6 item 7). A host child whose name (minus the host's own name tokens) has a token of `tokens` and none
+  # of `not_tokens`, or one of `rear_tokens`, is an iron sight the gun already carries; its side is its position along the host's long
+  # axis (muzzle half = front, else rear; a carry handle is always rear), and a sight slot the probe would have seated on that side is
+  # refused (`slot_disabled`). A child that names its side is the sided child_node of child_tokens and is not looked at here. `Sight_Glass`,
+  # a scope or red-dot part and a ChargeHandle (tokens charge, handle) are not baked sights. Inside attachment_rules, like the tables above.
+  baked_sights:
+    tokens: [sight, sights, ironsight, ironsights]
+    not_tokens: [glass, scope, lens, reticle, laser, red, dot]
+    rear_tokens: [carryhandle, carry]
 
 # archetype -> hold_class (spec 3.4.2). `none` = not hand-held.
 hold_by_archetype:

@@ -158,7 +158,7 @@ def test_with_attachments_the_same_snapshot_differs_only_by_the_added_keys(world
     assert strip_added(doc_of(att)) == doc_of(plain)
     got = doc_of(att)
     gf = got["generated_from"]
-    assert gf["attach_version"] == 3 and len(gf["attach_rules_digest"]) == 16
+    assert gf["attach_version"] == 4 and len(gf["attach_rules_digest"]) == 16
     assert gf["attach_rules_digest"] != gf["rules_digest"] == "7b9829af37328fe7" and gf["geometry_version"] == 5
     assert gf["filter"]["attachments"] is True
     assert sorted(gf) == ["attach_rules_digest", "attach_version", "filter", "geometry_version", "overrides_digest", "packs",

@@ -17,13 +17,15 @@ same_pack_fit, cross_pack_fit and the pending list, which are one candidate list
 * ``twin``: the host has a baked child of the part's slot whose SORTED AABB extents equal the part's within
   ``max(3 %, 0.8 mm)`` per axis (``is_twin``; score 0.95). A part twinning the children of several hosts is a twin of
   each of them and gets the review reason ``twin_multi``.
-* ``same_pack_fit``: same pack, ``family_overlap`` AND ``affinity``, no veto (0.6 to 0.9).
+* ``same_pack_fit``: same pack, ``family_overlap`` AND ``affinity``, no veto (0.6 to 0.9). A3 (W8i): for the two sight slots
+  ``family_overlap`` is not required (an iron sight is pack-generic: Military's name no gun); the span-less probe seat counts as
+  neutral (``fit_span`` is None: no bonus, no veto), so the score is the tier base. Every other slot is unchanged.
 * ``cross_pack_fit``: another pack, ``affinity`` AND a measured fit, no veto (0.3 to 0.6, reason ``compat_cross_pack``).
 
 Signals: ``family_overlap`` (the names share a token once generic ones are gone), ``affinity`` (the slot x kind table
 ``attach_affinity`` lists the host's archetype), ``mount_available`` (the host's seat is not ``none``), ``fit_span`` (the
 part's foot against the seat's span) and ``fit_bore`` (a muzzle device's mating diameter against a RING-measured bore).
-Vetoes: a host slot disabled by override (``slot_disabled``), an override removal, a ``mech_scale`` host for a part that is
+Vetoes: a host slot disabled by override or by A3's ``attach_host_never`` / baked-sight rules (``slot_disabled``), an override removal, a ``mech_scale`` host for a part that is
 not, and a foot more than 1.5 times a PROBE span. A ``child_foot`` span is a lower bound, so it can never veto.
 
 A candidate whose host seat is ``none`` is not listed in ``compatible_hosts`` but in ``pending_hosts`` (D-8): a game overlay
@@ -54,7 +56,7 @@ from __future__ import annotations
 
 from fnmatch import fnmatchcase
 
-from . import ATTACH_SLOTS, COMPAT_TIERS
+from . import ATTACH_SLOTS, COMPAT_TIERS, SIGHT_SLOTS
 from .classify import _CAMEL_RE, _SEGMENT_SPLIT_RE
 from .mounts import eligible, mount_reasons
 from .overrides import compatible_verdict, effective_override
@@ -245,7 +247,7 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
         return None
     elif twin:
         tier = "twin"
-    elif same_pack and family and affine:
+    elif same_pack and (family or slot in SIGHT_SLOTS) and affine:  # A3: a sight is pack-generic, no name overlap needed
         tier = "same_pack_fit"
     elif not same_pack and affine and (
             not available or (bore != "bad" and (span in ("fits", "neutral") or bore == "good"))):

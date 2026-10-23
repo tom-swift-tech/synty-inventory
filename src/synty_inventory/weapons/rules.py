@@ -48,7 +48,9 @@ RULE_SET_KEYS = ("role", "kind", "archetype", "component", "carrier", "ammo")
 ATTACH_MATCH_KEYS = ("tokens_any", "tokens_all", "tokens_none", "component_slot")
 ATTACH_NEVER_KEYS = ("tokens_any", "packs_any")
 ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affinity", "attach_compat",
-                   "attach_genre_by_pack", "sight_probe")  # A2: the setting-gate map and the sight seat probe parameters
+                   "attach_genre_by_pack", "sight_probe",  # A2: the setting-gate map and the sight seat probe parameters
+                   "attach_host_never", "baked_sights")  # A3 (W8i): hosts that get no seat for a slot, and the baked-sight child tokens
+BAKED_SIGHT_KEYS = ("tokens", "not_tokens", "rear_tokens")  # attachment_rules.baked_sights (docs/weapon_attachments.md 4.6 item 7)
 # A row may carry a `reason` (a review reason) instead of a `set`: it classifies no slot (iron sight with no decided side, spec 3.3)
 ATTACH_ROW_REASONS = ("sight_side_unsure",)
 # sight_probe parameters (docs/weapon_attachments.md 4.6): name -> (type, minimum, maximum); metres unless a count
@@ -419,6 +421,44 @@ def _check_attachment_rules(val) -> list[str]:
         errors.extend(_check_genre_by_pack(val["attach_genre_by_pack"]))
     if val.get("sight_probe") is not None:
         errors.extend(_check_sight_probe(val["sight_probe"]))
+    if val.get("attach_host_never") is not None:
+        errors.extend(_check_host_never(val["attach_host_never"]))
+    if val.get("baked_sights") is not None:
+        errors.extend(_check_baked_sights(val["baked_sights"]))
+    return errors
+
+
+def _check_host_never(val) -> list[str]:
+    """``attach_host_never``: ``{slot: [host name tokens]}`` (A3, spec 7). A host whose name has one of the tokens gets no seat for the slot."""
+    where = "attachment_rules.attach_host_never"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping slot -> [host name tokens]"]
+    errors: list[str] = []
+    for slot, tokens in val.items():
+        if slot not in ATTACH_SLOTS:
+            errors.append(f"{where}.{slot}: not in {list(ATTACH_SLOTS)}")
+        else:
+            _check_str_list(tokens, f"{where}.{slot}", errors, lower=True)
+    return errors
+
+
+def _check_baked_sights(val) -> list[str]:
+    """``baked_sights``: ``{tokens, not_tokens, rear_tokens}`` (A3, spec 4.6 item 7), lower-case child name tokens.
+
+    ``tokens`` must name something; the other two lists may be empty (no veto words, no carry-handle rule).
+    """
+    where = "attachment_rules.baked_sights"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping with {', '.join(BAKED_SIGHT_KEYS)}"]
+    errors: list[str] = []
+    for key in val:
+        if key not in BAKED_SIGHT_KEYS:
+            errors.append(f"{where}.{key}: unknown key (allowed: {', '.join(BAKED_SIGHT_KEYS)})")
+    for key in BAKED_SIGHT_KEYS:
+        tokens = val.get(key)
+        if key != "tokens" and tokens == []:
+            continue
+        _check_str_list(tokens, f"{where}.{key}", errors, lower=True)
     return errors
 
 
@@ -521,7 +561,8 @@ def weapon_rules_digest(rules: dict) -> str:
 
 
 def attach_rules_digest(rules: dict) -> str:
-    """Digest of the ``attachment_rules`` table alone (rows, never, child_tokens, child_never); an absent table hashes as empty."""
+    """Digest of the ``attachment_rules`` table alone (rows, never, child_tokens, child_never and every other key of it, A3's
+    ``attach_host_never`` and ``baked_sights`` included); an absent table hashes as empty."""
     return digest(attachment_rules(rules))
 
 

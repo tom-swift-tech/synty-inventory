@@ -96,17 +96,19 @@ def test_the_plan_covers_every_twin_pair_and_all_five_slots_with_a_non_twin_samp
     others = [p for p in pairs if not p["twin"]]
     assert (len(pairs), len(twins), len(others)) == (67, 55, 12)  # A2: the 10 twin pairs of the two iron-sight parts (optic/iron) are gone with the kind
     assert [p["twin"] for p in pairs] == [True] * 55 + [False] * 12  # twins first
-    assert {p["slot"] for p in pairs} == set(SLOTS)
+    assert {p["slot"] for p in pairs} == set(SLOTS) | {"sight_rear"}  # A3 (W8i): the rear iron sight part is a same_pack_fit of the pistol host (no family overlap needed)
     assert {p["slot"] for p in twins} == set(SLOTS)  # the twin pairs alone cover every slot
     assert len({(p["part"], p["host"]) for p in pairs}) == 67  # no pair twice
     # every compatible twin pair of the directory is in the plan
     want = {(w["id"], e["host"]) for w in world.directory["weapons"] if w.get("attachment")
             for e in w["attachment"]["compatible_hosts"] if e["tier"] == "twin"}
     assert {(p["part"], p["host"]) for p in twins} == want
-    # the sample takes one pair per attachment, best tier first (W8e): the 8 same_pack_fit pairs (3 optic, 5 muzzle, round-robin
-    # over the slots) precede the 4 cross_pack_fit ones (magazine and laser_light; underbarrel has no non-twin candidate)
-    assert [p["slot"] for p in others] == ["optic", "muzzle"] * 3 + ["muzzle"] * 2 + ["magazine", "laser_light"] * 2
-    assert [p["tier"] for p in others] == ["same_pack_fit"] * 8 + ["cross_pack_fit"] * 4
+    # the sample takes one pair per attachment, best tier first (W8e): the 9 same_pack_fit pairs (3 optic, 5 muzzle, 1 sight_rear,
+    # round-robin over the slots) precede the 3 cross_pack_fit ones (2 magazine and 1 laser_light; underbarrel has no non-twin
+    # candidate). A3 (W8i): the sight_rear pair is new (a same-pack sight needs no family overlap) and took a cross_pack laser_light place
+    assert [p["slot"] for p in others] == ["optic", "muzzle", "sight_rear", "optic", "muzzle", "optic", "muzzle", "muzzle", "muzzle",
+                                           "magazine", "laser_light", "magazine"]
+    assert [p["tier"] for p in others] == ["same_pack_fit"] * 9 + ["cross_pack_fit"] * 3
     assert len({p["part"] for p in others}) == 12
     assert preview.plan_pairs(world.directory)[0] == pairs  # deterministic
 

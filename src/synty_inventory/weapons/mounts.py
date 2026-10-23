@@ -16,9 +16,16 @@ Per slot the sources are tried in the order ``override > child_node > probe > no
   probe's own face points. The rail probe for the other slots is spike W9 and does not exist here.
 * ``probe`` (``sight_front`` / ``sight_rear``, A2 / W8h-B): no host names its iron-sight children by side, so a sight slot with
   no child and no override takes the seat of ``mount_probe.sight_seats`` (spec 4.6), run on the host minus the ``occupied_by`` of
-  ``optic``, ``sight_front`` and ``sight_rear``. Confidence 0.5 (0.4 on a transformed node), ``span_m`` null, review reason
+  ``optic``, ``sight_front``, ``sight_rear`` and (A3, W8i) ``muzzle``, ``underbarrel`` and ``laser_light`` (a baked suppressor is
+  not the rail either). Confidence 0.5 (0.4 on a transformed node), ``span_m`` null, review reason
   ``mount_estimated``; a host the probe refuses has both slots ``none`` / ``probe_unavailable``. Rules without a ``sight_probe``
   table run no probe (the slots stay ``no_child_no_probe``).
+* A3 (W8i), two ways a sight slot is refused (``none`` / ``slot_disabled``, which the slot veto of compat.py turns into "no
+  candidate"): ``attachment_rules.attach_host_never`` (a flare gun or a prop: ``excluded_slots``) and a BAKED sight child (spec 4.6
+  item 7, ``baked_sight_sides``): a host child named ``Sight_01`` / ``Sights`` / ``CarryHandle`` that the sided ``child_tokens`` do not
+  see. The side is the child's position along the host's forward axis; only a slot the probe actually seated is refused, so no
+  existing reason (``child_node``, ``override``, ``probe_unavailable``, ``no_child_no_probe``) changes. A table hit never
+  overrules an explicit id override of the slot (the human wins, as everywhere in D-3).
 * ``override``: categorical (D-5). ``{"source": "child_node", "child": <node name>}`` seats the slot on that node,
   ``{"source": "none"}`` disables it. The mapping is passed in by the caller (W8c loads it from the committed file); a
   named node that is not a mesh node of the host is reported in ``problems`` (``child_not_found``) and the ladder goes on.
@@ -50,6 +57,7 @@ Judgment calls, stated once (the spec fixes only the 0.5 / 0.4 muzzle values):
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 import numpy as np
 
@@ -62,6 +70,8 @@ from .classify import raw_tokens
 from .mount_probe import sight_seats
 from .rules import attachment_rules
 
+# the slots whose baked children are not part of the surface the sight probe reads (spec 4.6 item 1; A3 added the last three)
+PROBE_DROP_SLOTS = ("optic", "sight_front", "sight_rear", "muzzle", "underbarrel", "laser_light")
 HOST_HOLDS = ("one_hand", "long_gun")  # with role whole and kind ranged: the hosts that carry mounts (4.1)
 
 CONF_CHILD = 0.9
@@ -177,6 +187,58 @@ def matching_slots(name: str, tables: dict) -> list[str]:
             and not (tokens & set(child_tokens.get("optic") or ())) - {"sight"}:
         slots.remove("optic")
     return slots
+
+
+def excluded_slots(host_id: str, tables: dict) -> list[str]:
+    """The slots ``attachment_rules.attach_host_never`` refuses for host ``host_id`` (A3, spec 7), in ATTACH_SLOTS order.
+
+    The host's tokens are those of its asset id (the id after the pack) as ``raw_tokens`` makes them: split on ``_`` and
+    camelCase, digits dropped, plus the joins of two or three neighbours (so ``Flare_Gun`` reaches ``flaregun``). A token is a
+    whole word: ``Properly`` is not ``prop``. No table, no exclusion.
+    """
+    never = tables.get("attach_host_never") or {}
+    tokens = raw_tokens(host_id)
+    return [s for s in ATTACH_SLOTS if tokens & set(never.get(s) or ())]
+
+
+def baked_sight_sides(candidates, host_id: str, tables: dict, vertices: Callable, verts: np.ndarray, axes: dict,
+                      host_volume: float) -> set[str]:
+    """The sight slots whose side already carries a baked iron sight or carry handle child of the host (A3, spec 4.6 item 7).
+
+    A child (``candidates``: the host's mesh nodes) is a baked sight when its name tokens, minus the tokens of the host's own
+    name (``SM_Wep_Rifle_Assault_Sight_01`` on host ``SM_Wep_Rifle_Assault_01`` leaves ``sight``; the host's own words never make
+    a child a sight) include one of ``baked_sights.tokens`` while the child's full name has none of ``not_tokens`` (a host word never
+    lifts a veto), or include one of ``rear_tokens`` (a carry
+    handle is a rear sight). A child that names its side (``frontsight``, ``rearsight``: the sided ``child_node`` of 4.2) is not
+    looked at, and neither is the body of the gun. Side: the centre of the child's bounding box along the host's forward axis
+    against the middle of the host's extent on that axis, strictly on the muzzle side = ``sight_front``, otherwise ``sight_rear``;
+    a carry handle is always ``sight_rear``. ``vertices`` is the memoised per-child loader of ``build_mounts`` (a child is decoded
+    once); a child that cannot be decoded has no position and is skipped.
+    """
+    spec = tables.get("baked_sights")
+    if not spec or not len(verts):
+        return set()
+    sight, veto, rear_only = set(spec.get("tokens") or ()), set(spec.get("not_tokens") or ()), set(spec.get("rear_tokens") or ())
+    f_i, f_s = "xyz".index(axes["forward"][1]), (1.0 if axes["forward"][0] == "+" else -1.0)
+    host_f = f_s * verts[:, f_i]
+    middle = (float(host_f.min()) + float(host_f.max())) / 2.0
+    own = raw_tokens(host_id)
+    sides: set[str] = set()
+    for name in sorted(candidates):
+        if set(matching_slots(name, tables)) & set(SIGHT_SLOTS):
+            continue  # a sided child: the child_node of 4.2, unchanged
+        full = raw_tokens(name)
+        tokens = full - own  # the host's own words never make a child a sight ...
+        carry = bool(tokens & rear_only)
+        if not (carry or (tokens & sight and not full & veto)):  # ... and never lift a veto word either (host Glass_Rifle, child Sight_Glass)
+            continue
+        v = vertices(name)
+        if v is None or (host_volume > _EPS and _volume(v) >= _BODY_FRAC * host_volume):
+            continue
+        child_f = f_s * v[:, f_i]
+        centre = (float(child_f.min()) + float(child_f.max())) / 2.0
+        sides.add("sight_front" if centre > middle and not carry else "sight_rear")
+    return sides
 
 
 def _load(path, selection, glb_node, scale, drop: frozenset[str] = frozenset()) -> np.ndarray | None:
@@ -324,14 +386,15 @@ def _probe_sights(mounts: dict, path, glb_node, scale, axes: dict, tables: dict,
     """Fill the sight slots that have neither a child nor an override from the seat probe (spec 4.6), in place.
 
     A slot disabled by an override stays disabled. The probe sees the host without the nodes already listed by
-    ``optic``, ``sight_front`` and ``sight_rear`` (a baked scope is not the rail). When it refuses, every slot it was to
-    fill becomes ``none`` / ``probe_unavailable``.
+    ``optic``, ``sight_front``, ``sight_rear`` and, from A3, ``muzzle``, ``underbarrel`` and ``laser_light`` (a baked scope is not
+    the rail, and neither is a baked suppressor, laser or foregrip: the A2 close-up showed the front seat on top of a baked
+    suppressor). When it refuses, every slot it was to fill becomes ``none`` / ``probe_unavailable``.
     """
     params = tables.get("sight_probe")
     open_slots = [s for s in SIGHT_SLOTS if mounts[s]["source"] == "none" and mounts[s]["reason"] == "no_child_no_probe"]
     if not params or not open_slots:
         return
-    drop = frozenset(n for s in ("optic", *SIGHT_SLOTS) for n in mounts[s]["occupied_by"])
+    drop = frozenset(n for s in PROBE_DROP_SLOTS for n in mounts[s]["occupied_by"])
     mesh = _load_mesh(path, glb_node, scale, drop)
     seats = sight_seats(mesh[0], mesh[1], axes, params) if mesh is not None else None
     for slot in open_slots:
@@ -343,7 +406,7 @@ def _probe_sights(mounts: dict, path, glb_node, scale, axes: dict, tables: dict,
 
 def build_mounts(
     path, glb_node: NodeSel, scale: float, rules: dict, *, verts: np.ndarray, axes: dict, transformed: bool = False,
-    probe: Callable, overrides: dict | None = None,
+    probe: Callable, overrides: dict | None = None, host_id: str | None = None,
 ) -> dict:
     """``{"mounts": block, "problems": [str], "child_extents": {...}}`` for one eligible host (spec 4).
 
@@ -351,10 +414,13 @@ def build_mounts(
     axes, ``transformed`` the NB-15 flag of the selected node, ``probe`` the A0 muzzle probe
     (``geometry.muzzle_probe``; passed in because geometry imports this module), ``overrides`` the categorical mount
     overrides ``{slot: {"source": "child_node", "child": name} | {"source": "none"}}`` (W8c loads them; None = no
-    override). ``problems`` lists what could not be honoured (``child_not_found: <slot>: <name>``), never silently dropped.
+    override). ``host_id`` is the host's asset id (A3: ``attach_host_never`` and the baked-sight detector read its name tokens;
+    the GLB file stem when None). ``problems`` lists what could not be honoured (``child_not_found: <slot>: <name>``), never silently dropped.
     """
     tables = attachment_rules(rules)
     overrides = overrides or {}
+    host_id = host_id or Path(path).stem
+    never = excluded_slots(host_id, tables)
     candidates = mesh_nodes(read_glb_json(path), glb_node)
     host_volume = _volume(verts)
     cap = CONF_TRANSFORMED if transformed else None
@@ -381,7 +447,7 @@ def build_mounts(
     measured_by_slot: dict[str, dict] = {}
     for slot in ATTACH_SLOTS:
         ov = overrides.get(slot) if isinstance(overrides.get(slot), dict) else {}
-        if ov.get("source") == "none":
+        if ov.get("source") == "none" or (slot in never and not ov):  # A3: a table exclusion is a rule, and an id override beats a rule
             mounts[slot] = resolve_slot(none_mount("slot_disabled"), None, None)
             continue
         forced = ov.get("child") if ov.get("source") == "child_node" else None
@@ -408,6 +474,9 @@ def build_mounts(
                                       "child_node", len(listed) > 1)
         mounts[slot] = resolve_slot(override_rung, child_rung, None)
     _probe_sights(mounts, path, glb_node, scale, axes, tables, cap)
+    for slot in sorted(baked_sight_sides(candidates, host_id, tables, vertices, verts, axes, host_volume)):
+        if mounts[slot]["source"] == "probe":  # only a seat the probe set: a none, child_node or override slot keeps its reason
+            mounts[slot] = none_mount("slot_disabled")
     return {"mounts": mounts, "problems": problems,
             "child_extents": _child_extents(mounts, vertices, measured_by_slot, axes)}
 

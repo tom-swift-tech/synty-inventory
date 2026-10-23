@@ -240,6 +240,7 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
             threejs_v2_dir, files["glb"], node, scale, cls["archetype"], cls["kind"], cls["role"], rules, cache,
             hold_class=cls["hold_class"], genre=cls["genre"], forward_override=forward_override,
             head_lead=head_lead, attach_slot=attach["slot"] if attach else None, mount_overrides=mount_overrides,
+            host_id=asset["id"],
         )
         stats["cached" if cached else "decoded"] += 1
         measured = pass2_inputs(detail)

@@ -610,7 +610,7 @@ def measure_weapon_detail(
     glb: Path, glb_node: NodeSel, scale: float, archetype: str, kind: str | None, role: str, rules: dict,
     *, hold_class: str | None = None, genre: str | None = None, forward_override: str | None = None,
     head_lead: bool = False, attach_slot: str | None = None, mount_overrides: dict | None = None,
-    with_mounts: bool = False,
+    with_mounts: bool = False, host_id: str | None = None,
 ) -> dict:
     """``{'geometry': block | None, 'flags': [...], 'reasons': [...], 'warning': str | None}`` (spec 3.5).
 
@@ -623,7 +623,8 @@ def measure_weapon_detail(
     ``mounts.build_mounts``) and ``mount_problems`` (and, W8c, ``child_extents``: the sorted AABB extents of each baked child a slot lists in
     ``occupied_by``, the twin evidence of spec 5.1); they sit beside ``geometry`` and not in it, and
     ``directory.py`` decides what the record carries. ``measure_cached`` and ``measure_weapon`` ask for them.
-    ``mount_overrides`` is the categorical per-slot override mapping (W8c supplies it; None = none).
+    ``mount_overrides`` is the categorical per-slot override mapping (W8c supplies it; None = none). ``host_id`` (A3, W8i) is the
+    asset id of an eligible host: ``attach_host_never`` and the baked-sight detector read its name tokens (default: the GLB file stem).
 
     ``flags``/``reasons`` hold only what the measurement adds (``forward_by_fallback``, ``origin_outside_bounds``;
     ``axes_unexpected``, ``muzzle_fallback``, ``origin_outside_bounds``, ``node_transform``) -- or, when the mesh
@@ -843,7 +844,7 @@ def measure_weapon_detail(
         out["attach"] = measure_anchor(verts, attach_slot, forward_override)
     if with_mounts and eligible(role, kind, hold_class):
         built = build_mounts(glb, glb_node, scale, rules, verts=verts, axes={"forward": forward, "up": up},
-                             transformed=transformed, probe=muzzle_probe, overrides=mount_overrides)
+                             transformed=transformed, probe=muzzle_probe, overrides=mount_overrides, host_id=host_id)
         out["mounts"], out["mount_problems"] = built["mounts"], built["problems"]
         out["child_extents"] = built["child_extents"]  # W8c twin evidence: beside the block, never in the record
     return out
@@ -910,7 +911,7 @@ _PROBE_CODE_DIGEST = code_digest((Path(__file__).parent / "mount_probe.py").read
 
 def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, forward_override=None,
                         *, head_lead: bool = False, attach_slot: str | None = None,
-                        mount_overrides: dict | None = None) -> str:
+                        mount_overrides: dict | None = None, host_id: str | None = None) -> str:
     # the measurement depends on the classification context, not only on the file (spec 3.5 says file + versions;
     # deviation reported): a rules or override change that flips archetype/kind/hold must not serve stale geometry
     fp = {
@@ -940,6 +941,9 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
             "ct": tables.get("child_tokens"), "cn": tables.get("child_never"),
             # A2: the sight seat probe is an input too, its code (pd) and its parameters (sp)
             "pd": _PROBE_CODE_DIGEST, "sp": tables.get("sight_probe"),
+            # A3: the excluded-host table and the baked-sight tokens are inputs, and so is the host's name (it decides the exclusion
+            # and is the stem the baked-sight detector strips); the detector's code is part of mounts.py (md)
+            "hn": tables.get("attach_host_never"), "bs": tables.get("baked_sights"), "hi": host_id,
         }
         if mount_overrides:
             fp["mv"]["mo"] = mount_overrides
@@ -950,7 +954,7 @@ def measure_cached(
     threejs_v2_dir: Path, glb_rel: str, glb_node: NodeSel, scale: float, archetype: str, kind: str | None,
     role: str, rules: dict, cache: dict, *, hold_class: str | None = None, genre: str | None = None,
     forward_override: str | None = None, head_lead: bool = False, attach_slot: str | None = None,
-    mount_overrides: dict | None = None,
+    mount_overrides: dict | None = None, host_id: str | None = None,
 ) -> tuple[dict, bool]:
     """``(detail, was_cached)``. Entry id = relative GLB path + node tag + scale tag (as ``glb_measure``); the
     entry is valid while ``mtime:size`` and its version (``WEAPON_GEOMETRY_VERSION`` + the digest of this file) match, and holds one result per
@@ -967,7 +971,7 @@ def measure_cached(
     cache_id += scale_cache_tag(scale)
     version = f"{_pkg.WEAPON_GEOMETRY_VERSION}+{_CODE_DIGEST}"
     fp = _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules, forward_override, head_lead=head_lead,
-                             attach_slot=attach_slot, mount_overrides=mount_overrides)
+                             attach_slot=attach_slot, mount_overrides=mount_overrides, host_id=host_id)
     entry = cache.get(cache_id)
     if not entry or entry.get("key") != key or entry.get("version") != version:
         entry = {"key": key, "version": version, "by_inputs": {}}
@@ -978,7 +982,7 @@ def measure_cached(
     detail = measure_weapon_detail(
         abs_path, glb_node, scale, archetype, kind, role, rules, hold_class=hold_class, genre=genre,
         forward_override=forward_override, head_lead=head_lead, attach_slot=attach_slot, mount_overrides=mount_overrides,
-        with_mounts=True,
+        with_mounts=True, host_id=host_id,
     )
     entry["by_inputs"][fp] = deepcopy(detail)
     return detail, False
