@@ -34,6 +34,7 @@ from . import (
     PROVENANCES,
     REASONS,
     ROLES,
+    SEAT_SHIFT_MAX_M,
     SIGHT_SLOTS,
     SIZE_CLASSES_W,
     STATUSES,
@@ -96,6 +97,8 @@ ATTACHMENT_SCHEMA = {
                 "replaces": {"type": "array", "items": {"type": "string"}},
                 # A2, spec 4.3: present only on an optic entry that covers the host's rear sight, never an empty list
                 "hides_slots": {"type": "array", "items": {"const": "sight_rear"}, "minItems": 1, "maxItems": 1},
+                # A5 (W8m), spec 5.4: present only on an optic or underbarrel entry whose pair was settled to contact, metres along the mount's up
+                "seat_shift_m": {"type": "number", "minimum": -SEAT_SHIFT_MAX_M, "maximum": SEAT_SHIFT_MAX_M},
             },
         }},
         "pending_hosts": {"type": "array", "items": {
@@ -374,12 +377,15 @@ def _frame_errors(frame: dict, where: str) -> list[str]:
 
 
 def _pair_hides_errors(att: dict, here: str) -> list[str]:
-    """A2: ``pair`` is non-null only in the sight slots (spec 3.5); ``hides_slots`` only on an optic part's entries (spec 4.3)."""
+    """A2: ``pair`` is non-null only in the sight slots (spec 3.5); ``hides_slots`` only on an optic part's entries (spec 4.3); A5:
+    ``seat_shift_m`` only on an optic or underbarrel part's entries (spec 5.4)."""
     errs = []
     if att["pair"] is not None and att["slot"] not in SIGHT_SLOTS:
         errs.append(f"{here}.pair: non-null only for the sight slots {list(SIGHT_SLOTS)}, not {att['slot']}")
     if att["slot"] != "optic" and any("hides_slots" in h for h in att["compatible_hosts"]):
         errs.append(f"{here}.compatible_hosts: hides_slots is for optic entries only")
+    if att["slot"] not in ("optic", "underbarrel") and any("seat_shift_m" in h for h in att["compatible_hosts"]):
+        errs.append(f"{here}.compatible_hosts: seat_shift_m is for optic and underbarrel entries only")
     return errs
 
 

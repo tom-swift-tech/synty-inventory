@@ -584,6 +584,17 @@ attachment_rules:
   # Slots whose same_pack_fit candidate needs no family_overlap (A4, spec 5.1): the part names no gun. laser_light (no labelled pair yet), magazine
   # and optic (their names carry the family) are left out on purpose. Inside attachment_rules: moves attach_rules_digest, never rules_digest.
   family_free_slots: [sight_front, sight_rear, muzzle, underbarrel]
+  # Settle to contact (A5, spec 5.4): the parts of these slots get a per-pair `seat_shift_m` on their compatible_hosts entries, found by casting the
+  # part's contact face (the 4 mm slab at its extreme, sampled every 2.5 mm) onto the host's outer surface along the mount's up. A pair within dead_m
+  # (3 mm) of the surface is left alone, a bigger offset is closed up to clamp_m, a host surface further than reach_m is ignored. Inside
+  # attachment_rules: moves attach_rules_digest, never rules_digest.
+  contact:
+    slots: [optic, underbarrel]
+    slab_m: 0.004
+    pitch_m: 0.0025
+    dead_m: 0.003
+    clamp_m: 0.060
+    reach_m: 0.5
 
 # archetype -> hold_class (spec 3.4.2). `none` = not hand-held.
 hold_by_archetype:

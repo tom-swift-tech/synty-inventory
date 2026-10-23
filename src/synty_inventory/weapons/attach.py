@@ -249,3 +249,108 @@ def _rigid_inverse(m: np.ndarray) -> np.ndarray:
 
 def place(anchor: dict, mount: dict) -> np.ndarray:
     return frame_matrix(mount) @ _rigid_inverse(frame_matrix(anchor))
+
+
+# -- the hidden nodes and settle to contact (A5, W8m; spec 4.3 and 5.4) ---------------------------------------------------
+
+
+def hidden_nodes(mounts: dict, slot: str, entry: dict | None) -> list[str]:
+    """The host nodes a pair does not draw (and settle to contact does not count): every node of the slot's ``occupied_by`` plus its
+    ``child_node`` for EVERY pair (E1: the runtime hides the whole slot whichever child the part is seated on), and the same of each slot in the
+    entry's ``hides_slots`` (A2, 4.3: the rear sight an optic covers). One source of truth for ``preview.build_job`` and the contact post-pass."""
+
+    def slot_nodes(m: dict) -> set[str]:
+        return set(m.get("occupied_by") or []) | ({m["child_node"]} if m.get("child_node") else set())
+
+    hide = slot_nodes(mounts[slot])
+    for hidden in (entry or {}).get("hides_slots") or []:
+        hide |= slot_nodes(mounts.get(hidden) or {})
+    return sorted(hide)
+
+
+_SETTLE_AXIS_COS = float(np.cos(np.radians(1.0)))  # a mount's up counts as axis-aligned within 1 degree (5.4 (e))
+_SETTLE_OFFSET_M = (1.37e-5, 0.93e-5)  # lateral ray offset: no ray runs exactly along a triangle edge or a box side
+_SETTLE_BUDGET = 1 << 21  # (sample, triangle) pairs held at once
+
+
+def up_axis(up) -> tuple[int, int] | None:
+    """``(axis index, sign)`` of a mount's ``up`` when it is within 1 degree of a coordinate axis, else None."""
+    if up is None:
+        return None
+    u = np.asarray(up, dtype=np.float64).reshape(-1)
+    n = float(np.linalg.norm(u)) if u.shape == (3,) else 0.0
+    if not np.isfinite(n) or n < _EPS:
+        return None
+    a = int(np.argmax(np.abs(u)))
+    return (a, 1 if u[a] > 0 else -1) if abs(float(u[a])) / n >= _SETTLE_AXIS_COS else None
+
+
+def settle_applies(slot: str, mount: dict | None, tier: str, anchor: dict | None, params: dict) -> bool:
+    """Which pairs get a ``seat_shift_m`` (5.4 "Which pairs"): a slot of ``contact.slots`` whose host mount is a real seat (a, not ``none``), not an
+    authored one (b, source not ``override``), whose entry is not authored either (c, tier not ``twin`` or ``override``), with a measured anchor (d)
+    and an axis-aligned ``up`` (e)."""
+    if slot not in params["slots"] or anchor is None or tier in ("twin", "override"):
+        return False
+    if mount is None or mount.get("source") in (None, "none", "override") or mount.get("point") is None:
+        return False
+    return up_axis(mount.get("up")) is not None
+
+
+def settle_pair(samples, host_v, host_t, up, params: dict) -> tuple[float | None, float | None]:
+    """``(d, seat_shift_m)`` of one pair (5.4); ``(None, None)`` when nothing counts, ``(d, None)`` when ``|d|`` is inside the dead zone.
+
+    ``samples`` are the part's surface samples (``mount_probe.surface_samples``) already carried through the placement into the host's space;
+    ``host_v`` / ``host_t`` are the host's render triangles; ``up`` is the mount's ``up`` (``u``: the host lies along ``-u`` from the part);
+    ``params`` is ``attachment_rules.contact``. The contact face is the samples within ``slab_m`` of the part's extreme along ``-u``. Each face
+    sample casts a line along ``u`` (offset across it by ``_SETTLE_OFFSET_M``) at the host triangles; the OUTER surface is the hit with the
+    greatest coordinate along ``u`` (not the nearest: a hollow tube has surfaces inside), and ``s = p.u - h.u`` is positive for a gap, negative
+    for a part sunk in. A sample with no hit or ``|s|`` over ``reach_m`` is ignored. ``d`` is the MINIMUM ``s`` (the sample that touches first);
+    ``seat_shift_m = -clamp(d)`` rounded to 1e-4, moving a gap toward the host (negative) and a sunk part away (positive).
+    """
+    axis = up_axis(up)
+    p = np.asarray(samples, dtype=np.float64).reshape(-1, 3)
+    v = np.asarray(host_v, dtype=np.float64).reshape(-1, 3)
+    t = np.asarray(host_t, dtype=np.int64).reshape(-1, 3)
+    if axis is None or not len(p) or not len(t):
+        return None, None
+    a, sign = axis
+    lat = [i for i in range(3) if i != a]
+    along = sign * p[:, a]
+    face = p[along <= along.min() + params["slab_m"] + _EPS]
+    face_c = sign * face[:, a]
+    q = face[:, lat] + np.asarray(_SETTLE_OFFSET_M)
+    order = np.lexsort((q[:, 1], q[:, 0]))  # strips of neighbours: each chunk's bounding box stays small, so its triangle prefilter bites
+    q, face_c = q[order], face_c[order]
+
+    tri = v[t]
+    A, B, C = tri[:, 0][:, lat], tri[:, 1][:, lat], tri[:, 2][:, lat]
+    den = (B[:, 1] - C[:, 1]) * (A[:, 0] - C[:, 0]) + (C[:, 0] - B[:, 0]) * (A[:, 1] - C[:, 1])
+    keep = np.abs(den) > 1e-14  # a triangle edge-on to the cast is a line, not a surface
+    if not keep.any():
+        return None, None
+    A, B, C, den = A[keep], B[keep], C[keep], den[keep]
+    hc = sign * tri[keep][:, :, a]
+    lo, hi = np.minimum(np.minimum(A, B), C), np.maximum(np.maximum(A, B), C)
+    top = np.full(len(q), -np.inf)
+    step = max(1, min(256, _SETTLE_BUDGET // len(den)))
+    for i in range(0, len(q), step):
+        qc = q[i:i + step]
+        near = ((hi >= qc.min(axis=0)) & (lo <= qc.max(axis=0))).all(axis=1)
+        if not near.any():
+            continue
+        a_, b_, c_, d_, h_ = A[near], B[near], C[near], den[near], hc[near]
+        qa, qb = qc[:, 0:1], qc[:, 1:2]
+        l1 = ((b_[:, 1] - c_[:, 1]) * (qa - c_[:, 0]) + (c_[:, 0] - b_[:, 0]) * (qb - c_[:, 1])) / d_
+        l2 = ((c_[:, 1] - a_[:, 1]) * (qa - c_[:, 0]) + (a_[:, 0] - c_[:, 0]) * (qb - c_[:, 1])) / d_
+        l3 = 1.0 - l1 - l2
+        h = l1 * h_[:, 0] + l2 * h_[:, 1] + l3 * h_[:, 2]
+        top[i:i + step] = np.where((l1 >= 0) & (l2 >= 0) & (l3 >= 0), h, -np.inf).max(axis=1)
+    s = face_c - top
+    counts = np.isfinite(top) & (np.abs(s) <= params["reach_m"])
+    if not counts.any():
+        return None, None
+    d = float(s[counts].min())
+    if abs(d) <= params["dead_m"]:
+        return d, None
+    shift = _r(-min(max(d, -params["clamp_m"]), params["clamp_m"]))
+    return d, (shift if shift != 0.0 else None)

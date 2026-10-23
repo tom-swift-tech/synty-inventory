@@ -29,6 +29,7 @@ from . import (
     HOLD_CLASSES,
     KINDS,
     ROLES,
+    SEAT_SHIFT_MAX_M,
     SchemaError,
     WEIGHT_CLASSES,
     digest,
@@ -50,7 +51,8 @@ ATTACH_NEVER_KEYS = ("tokens_any", "packs_any")
 ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affinity", "attach_compat",
                    "attach_genre_by_pack", "sight_probe",  # A2: the setting-gate map and the sight seat probe parameters
                    "attach_host_never", "baked_sights",  # A3 (W8i): hosts that get no seat for a slot, and the baked-sight child tokens
-                   "anchor", "family_free_slots")  # A4 (W8l): the foot ladder and free-end forward, the name-generic slots
+                   "anchor", "family_free_slots",  # A4 (W8l): the foot ladder and free-end forward, the name-generic slots
+                   "contact")  # A5 (W8m): settle to contact (spec 5.4)
 BAKED_SIGHT_KEYS = ("tokens", "not_tokens", "rear_tokens")  # attachment_rules.baked_sights (docs/weapon_attachments.md 4.6 item 7): required
 # A3 addendum 3 (W8j, item 8): optional name-token lists (empty allowed, an absent list switches that part of the rule off), the carry-handle
 # height fraction and the fused front post parameters (name -> (type, minimum, maximum); metres unless a count or a fraction)
@@ -73,6 +75,10 @@ SIGHT_PROBE_PARAMS = {
 ANCHOR_PARAMS = {"lip_min_m": (0.0, 0.05), "lip_max_m": (0.0, 0.05), "lip_growth": (1.0, 100.0)}
 ANCHOR_FREE_END_KEYS = ("min_displacement_m", "kinds")
 ANCHOR_MAX_RUNGS = 8  # foot_depths_m is a short ladder, not a profile
+# A5 (W8m) contact parameters (docs/weapon_attachments.md 5.4): name -> (minimum, maximum) in metres, every one required. The clamp's upper bound is
+# the schema's bound for the entry key `seat_shift_m` (SEAT_SHIFT_MAX_M), so a table can never write a value the export check refuses.
+CONTACT_SLOTS = ("optic", "underbarrel")  # the only slots the rule can name: the key lives on these parts' entries
+CONTACT_PARAMS = {"slab_m": (0.0005, 0.05), "pitch_m": (0.0005, 0.05), "dead_m": (0.0, 0.05), "clamp_m": (0.0005, SEAT_SHIFT_MAX_M), "reach_m": (0.01, 5.0)}
 # W8c compatibility tables (docs/weapon_attachments.md 5.1). The score bands per tier are the spec's; the tunable base and
 # bonus values must keep every reachable score inside the band of their tier (checked at load).
 COMPAT_SCORE_BANDS = {"same_pack_fit": (0.6, 0.9), "cross_pack_fit": (0.3, 0.6)}
@@ -442,6 +448,8 @@ def _check_attachment_rules(val) -> list[str]:
         errors.extend(_check_anchor(val["anchor"]))
     if val.get("family_free_slots") is not None:
         errors.extend(_check_family_free_slots(val["family_free_slots"]))
+    if val.get("contact") is not None:
+        errors.extend(_check_contact(val["contact"]))
     return errors
 
 
@@ -488,6 +496,33 @@ def _check_anchor(val) -> list[str]:
             errors.append(f"{where}.free_end.kinds.{slot}: must be a foot slot of {[s for s in ATTACH_SLOTS if s != 'muzzle']}")
         elif not isinstance(names, list) or not names or not all(n in ATTACH_KINDS[slot] for n in names):
             errors.append(f"{where}.free_end.kinds.{slot}: must be a non-empty list of kinds of that slot ({list(ATTACH_KINDS[slot])})")
+    return errors
+
+
+def _check_contact(val) -> list[str]:
+    """``contact``: the parameters of settle to contact (A5, spec 5.4); every key is required.
+
+    ``slots`` is a non-empty list of distinct slots of ``CONTACT_SLOTS``; the five lengths are in range, and the dead zone must stay below the clamp
+    (otherwise a pair would be clamped to a value inside its own dead zone).
+    """
+    where = "attachment_rules.contact"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping with slots, {', '.join(CONTACT_PARAMS)}"]
+    errors: list[str] = []
+    for key in val:
+        if key != "slots" and key not in CONTACT_PARAMS:
+            errors.append(f"{where}.{key}: unknown key (allowed: slots, {', '.join(CONTACT_PARAMS)})")
+    slots = val.get("slots")
+    if not isinstance(slots, list) or not slots or not all(isinstance(s, str) and s in CONTACT_SLOTS for s in slots):
+        errors.append(f"{where}.slots: must be a non-empty list of slots from {list(CONTACT_SLOTS)}")
+    elif len(set(slots)) != len(slots):
+        errors.append(f"{where}.slots: slots must be distinct")
+    for key, (lo, hi) in CONTACT_PARAMS.items():
+        v = val.get(key)
+        if not _is_num(v) or not (lo <= v <= hi):
+            errors.append(f"{where}.{key}: must be a number from {lo} to {hi}")
+    if not errors and val["dead_m"] >= val["clamp_m"]:
+        errors.append(f"{where}: dead_m must be below clamp_m")
     return errors
 
 

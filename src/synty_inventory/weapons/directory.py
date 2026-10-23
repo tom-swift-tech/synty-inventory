@@ -21,13 +21,14 @@ from ..schema import migrate_catalog
 from . import ATTACH_KINDS, InputError, SchemaError, digest, to_text, write_text_lf
 from .candidates import evaluate_candidate
 from .classify import attachment_reason, classify, classify_attachment, tokenize_id
+from .attach import hidden_nodes, settle_applies
 from .compat import apply_compat
-from .geometry import measure_cached, pass2_inputs
+from .geometry import measure_cached, pass2_inputs, settle_cached
 from .hints import build_group_stats, derive_hints
 from .mounts import mount_reasons
 from .overrides import effective_override, load_overrides
 from .pairs import apply_pairs
-from .rules import attach_rules_digest, head_lead_tokens, load_rules, weapon_rules_digest
+from .rules import attach_rules_digest, attachment_rules, head_lead_tokens, load_rules, weapon_rules_digest
 from .schema import validate_directory
 from .variants import discover_variants, has_colourway_info, variant_link_paths
 
@@ -302,6 +303,50 @@ def _apply_measurement(rec: dict, detail: dict, compatible_slots=frozenset()) ->
     rec["provenance"]["geometry"] = "measured"
 
 
+def _stored_shifts(records: list[dict]) -> dict[tuple[str, str], float]:
+    """(part id, host id) -> seat_shift_m of the pairs the records carry now (those a partial build carries over from its base)."""
+    return {(r["id"], e["host"]): e["seat_shift_m"] for r in records if r.get("attachment")
+            for e in r["attachment"].get("compatible_hosts") or [] if "seat_shift_m" in e}
+
+
+def _apply_contact(records: list[dict], rules: dict, threejs_v2_dir: Path | None, cache: dict, stats: dict, stored: dict) -> None:
+    """A5 (W8m, spec 5.4): the post-pass after compatibility. Every entry of compatible_hosts of an optic or underbarrel part that
+    attach.settle_applies selects gets seat_shift_m when settle_cached finds one; the key is absent otherwise (compat builds the
+    entries without it, so an entry that finds none needs no removal). The pairs are walked host by host, so each host mesh is decoded once.
+
+    A pair whose meshes cannot be read now (no threejs_v2 root, a missing or undecodable GLB) keeps the value its record carried before the
+    build (stored: a partial build's carried-over parts), the way compat keeps a stored relation for a host it cannot measure. stats
+    counts the pairs by how they were settled (computed, cached, kept), apart from geometry_stats.
+    """
+    params = attachment_rules(rules).get("contact")
+    if not params:  # a custom rules file without the table: no rule, no key
+        return
+    by_id = {r["id"]: r for r in records}
+    work = []
+    for part in records:
+        att = part.get("attachment")
+        if not att or not att.get("compatible_hosts") or att["slot"] not in params["slots"]:
+            continue
+        for entry in att["compatible_hosts"]:
+            host = by_id.get(entry["host"])
+            mount = (((host or {}).get("geometry") or {}).get("mounts") or {}).get(att["slot"])
+            if settle_applies(att["slot"], mount, entry["tier"], att.get("anchor"), params):
+                work.append((entry["host"], part["id"], part, host, entry, mount))
+    memo: dict = {}
+    for _, _, part, host, entry, mount in sorted(work, key=lambda w: w[:2]):
+        att = part["attachment"]
+        shift, how = None, "unavailable"
+        if threejs_v2_dir is not None and (part.get("files") or {}).get("glb") and (host.get("files") or {}).get("glb"):
+            shift, how = settle_cached(threejs_v2_dir, part["files"], host["files"], att["anchor"], mount,
+                                       hidden_nodes(host["geometry"]["mounts"], att["slot"], entry), att["slot"], params, cache, memo)
+        if how == "unavailable":
+            shift = stored.get((part["id"], entry["host"]))
+            how = "kept"
+        stats[how] += 1
+        if shift is not None:
+            entry["seat_shift_m"] = shift
+
+
 def _mark_duplicates(records: list[dict]) -> None:
     """duplicate_of = id of the first record (by id) sharing the same GLB file and node selection."""
     for rec in records:  # reset, so carried-over records from a partial build are recomputed on the union
@@ -416,6 +461,7 @@ def build_directory_report(
     warnings: list[str] = []
     cache = geometry_cache if geometry_cache is not None else {}
     geo_stats = {"decoded": 0, "cached": 0}
+    contact_stats = {"computed": 0, "cached": 0, "kept": 0}  # A5: the pairs of the contact post-pass, apart from geo_stats (which tests pin)
     can_measure = measure and threejs_v2_dir is not None
     skipped_for_root = False
     listing_cache: dict = {}  # Alts directory listings, shared by every record of the build (fast over ~2,700)
@@ -525,8 +571,10 @@ def build_directory_report(
     if partial and can_measure:  # a rebuilt part is judged against carried hosts exactly as in a full build
         child_extents.update(_carried_child_extents(docs, set(selected), records, rules, overrides, settings, threejs_v2_dir, cache))
     # W8c: compatibility needs every host's mounts, so it is a post-pass over ALL records (carried-over ones included)
+    stored_shifts = _stored_shifts(records)  # compat rebuilds every entry; a pair that cannot be settled now keeps its carried value
     apply_pairs(records, overrides)  # A2: sight sets, before compatibility (a set candidate needs both members' lists)
     warnings.extend(apply_compat(records, rules, overrides, child_extents=child_extents))
+    _apply_contact(records, rules, threejs_v2_dir if can_measure else None, cache, contact_stats, stored_shifts)  # A5: after compat, it needs the entries
     excluded.sort(key=lambda e: e["id"])
     pack_rows.sort(key=lambda p: p["pack"])
 
@@ -570,6 +618,7 @@ def build_directory_report(
         "geometry_coverage": (round(sum(1 for r in with_glb if r["geometry"] is not None) / len(with_glb), 4)
                               if with_glb else 1.0),
         "geometry_stats": dict(geo_stats),
+        "contact_stats": dict(contact_stats),
         "stale_overrides": _stale_overrides(overrides, all_ids, set(selected), partial=partial),
         "warnings": sorted(warnings),
     }

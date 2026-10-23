@@ -78,6 +78,7 @@ ATTACH_KINDS = {  # per slot, closed; every slot also has `other` (an unrecognis
 COMPAT_TIERS = ("override", "twin", "same_pack_fit", "cross_pack_fit")  # rank = index + 1
 MOUNT_SOURCES = ("override", "child_node", "probe", "none")
 MOUNT_NONE_REASONS = ("no_child_no_probe", "slot_disabled", "probe_unavailable")
+SEAT_SHIFT_MAX_M = 0.060  # A5 (W8m, spec 5.4): the largest |seat_shift_m| a compatible_hosts entry may carry (schema bound, ceiling of contact.clamp_m)
 ANCHOR_FOOT_SOURCES = ("authored_up", "measured", "override")
 ANCHOR_FORWARD_SOURCES = ("section", "authored", "twin", "override", "free_end")  # twin: the forward a baked twin child fixes (A1, W8f); free_end: the side a magazine or bipod leans to (A4, W8l)
 # the twin tolerance of spec 5.1: sorted AABB extents agree within max(3 %, 0.8 mm) per axis. compat.py (twin tier) and mounts.py (mirrored pair, A4)
