@@ -23,6 +23,7 @@ from .candidates import evaluate_candidate
 from .classify import classify, classify_attachment, tokenize_id
 from .geometry import measure_cached, pass2_inputs
 from .hints import build_group_stats, derive_hints
+from .mounts import mount_reasons
 from .overrides import effective_override, load_overrides
 from .rules import attach_rules_digest, head_lead_tokens, load_rules, weapon_rules_digest
 from .schema import validate_directory
@@ -211,12 +212,20 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
     return cls, detail
 
 
-def _apply_measurement(rec: dict, detail: dict) -> None:
-    """Merge a measurement into the unmeasured stub record: geometry, flags, reasons, provenance."""
+def _apply_measurement(rec: dict, detail: dict, compatible_slots=frozenset()) -> None:
+    """Merge a measurement into the unmeasured stub record: geometry, flags, reasons, provenance.
+
+    W8b: ``geometry.mounts`` is the host mount block for an eligible host and null for every other measured record
+    (docs/weapon_attachments.md 4.1, D-9). ``compatible_slots`` are the slots with at least one inferred-compatible
+    attachment, which turn a ``none`` mount into the review reason ``mount_missing``; compatibility inference is W8c, so
+    the build passes the empty default and that reason cannot fire yet.
+    """
     if detail["geometry"] is None:
         rec["review"]["reasons"] = sorted(set(rec["review"]["reasons"]) | set(detail["reasons"]))
         return
     rec["geometry"] = detail["geometry"]
+    rec["geometry"]["mounts"] = detail.get("mounts")
+    detail["reasons"] = sorted(set(detail["reasons"]) | mount_reasons(detail.get("mounts"), compatible_slots))
     rec["flags"] = sorted((set(rec["flags"]) - {"unmeasured"}) | set(detail["flags"]))
     rec["review"]["reasons"] = sorted((set(rec["review"]["reasons"]) - {"no_geometry"}) | set(detail["reasons"]))
     rec["provenance"]["geometry"] = "measured"
@@ -418,6 +427,7 @@ def build_directory_report(
                 _apply_measurement(rec, detail)
                 if detail.get("warning"):
                     warnings.append(f"{full_id}: {detail['warning']}")
+                warnings.extend(f"{full_id}: mount {problem}" for problem in detail.get("mount_problems") or [])
             _apply_attachment(rec, _attachment_block(_attach_class(asset, pack_id, cls, rules), detail), detail)
             records.append(rec)
             n_records += 1

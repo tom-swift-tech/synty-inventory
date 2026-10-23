@@ -28,6 +28,8 @@ from ..sources.glb_measure import NodeSel, _cache_key, node_cache_tag, node_sele
 from ..sources.glb_scale import scale_cache_tag
 from . import digest, write_text_lf
 from .attach import measure_anchor
+from .mounts import build_mounts, eligible
+from .rules import attachment_rules
 
 CACHE_NAME = "_geometry_cache.json"
 
@@ -149,6 +151,18 @@ def muzzle_point(vertices, forward: str = "+z", up: str = "+y", bounds: dict | N
     coordinates while the forward coordinate is the bounds maximum (not a mean). ``bounds`` ({'min','max'}) defaults
     to the AABB of ``vertices``, which is what the Godot code measures.
     """
+    point, source, _ = muzzle_probe(vertices, forward, up, bounds)
+    return point, source
+
+
+def muzzle_probe(vertices, forward: str = "+z", up: str = "+y", bounds: dict | None = None) -> tuple[list[float], str, np.ndarray]:
+    """``muzzle_point`` plus the face points it averaged: ``(point, source, face [N,3])``.
+
+    The one A0 algorithm (docs/weapon_attachments.md 4.2 forbids a second one): ``muzzle_point`` is this function minus the
+    face. ``face`` is the deduplicated vertex set of the first tolerance window holding three or more points (the points
+    the face point is the mean of) and is empty for ``bounds_fallback``. The host muzzle mount (``mounts.py``) runs it on the
+    host mesh minus the baked muzzle devices and reads the bore from the same face.
+    """
     v = np.asarray(vertices, dtype=np.float64).reshape(-1, 3)
     if not len(v):
         raise ValueError("muzzle_point needs at least one vertex")
@@ -171,10 +185,10 @@ def muzzle_point(vertices, forward: str = "+z", up: str = "+y", bounds: dict | N
             break
     pt = np.zeros(3)
     if len(face) >= _MUZZLE_MIN_POINTS:
-        mean = np.mean(np.array(list(face.values())), axis=0)
-        pt[:] = mean
+        pts = np.array(list(face.values()))
+        pt[:] = np.mean(pts, axis=0)
         pt[fa] = fs * max_f
-        return _vec(pt), "face"
+        return _vec(pt), "face", pts
     side = 3 - fa - ua  # the lateral axis that is not up
     pt[side] = (bmin[side] + bmax[side]) * 0.5
     uc_min = float(us * bmax[ua] if us < 0 else bmin[ua])
@@ -182,7 +196,7 @@ def muzzle_point(vertices, forward: str = "+z", up: str = "+y", bounds: dict | N
     # signed up coordinate: min_up + 0.75 * up_extent, mapped back to the axis
     pt[ua] = us * (uc_min + _MUZZLE_HEIGHT_FRAC * (uc_max - uc_min))
     pt[fa] = fs * max_f
-    return _vec(pt), "bounds_fallback"
+    return _vec(pt), "bounds_fallback", np.zeros((0, 3))
 
 
 # -- decode ------------------------------------------------------------------------------------------------
@@ -595,13 +609,20 @@ def _fail(reasons: list[str], warning: str | None = None) -> dict:
 def measure_weapon_detail(
     glb: Path, glb_node: NodeSel, scale: float, archetype: str, kind: str | None, role: str, rules: dict,
     *, hold_class: str | None = None, genre: str | None = None, forward_override: str | None = None,
-    head_lead: bool = False, attach_slot: str | None = None,
+    head_lead: bool = False, attach_slot: str | None = None, mount_overrides: dict | None = None,
+    with_mounts: bool = False,
 ) -> dict:
     """``{'geometry': block | None, 'flags': [...], 'reasons': [...], 'warning': str | None}`` (spec 3.5).
 
     ``attach_slot`` (W8a: the part is an attachment seated in this slot) adds the key ``attach`` = ``attach.measure_anchor``
     of the same decoded vertices (the anchor, the footprint and the reasons they imply); ``forward_override`` then also
     fixes the anchor's forward sign. Without a slot the result has no such key.
+
+    ``with_mounts`` (W8b, off by default so a bare measurement is the W7 dict byte for byte) makes an eligible host
+    (``mounts.eligible``: whole, ranged, one_hand / long_gun) add the keys ``mounts`` (the ``geometry.mounts`` block of
+    ``mounts.build_mounts``) and ``mount_problems``; they sit beside ``geometry`` and not in it, and
+    ``directory.py`` decides what the record carries. ``measure_cached`` and ``measure_weapon`` ask for them.
+    ``mount_overrides`` is the categorical per-slot override mapping (W8c supplies it; None = none).
 
     ``flags``/``reasons`` hold only what the measurement adds (``forward_by_fallback``, ``origin_outside_bounds``;
     ``axes_unexpected``, ``muzzle_fallback``, ``origin_outside_bounds``, ``node_transform``) -- or, when the mesh
@@ -819,6 +840,10 @@ def measure_weapon_detail(
     out = {"geometry": geometry, "flags": sorted(flags), "reasons": sorted(reasons), "warning": warning}
     if attach_slot is not None:
         out["attach"] = measure_anchor(verts, attach_slot, forward_override)
+    if with_mounts and eligible(role, kind, hold_class):
+        built = build_mounts(glb, glb_node, scale, rules, verts=verts, axes={"forward": forward, "up": up},
+                             transformed=transformed, probe=muzzle_probe, overrides=mount_overrides)
+        out["mounts"], out["mount_problems"] = built["mounts"], built["problems"]
     return out
 
 
@@ -826,11 +851,13 @@ def measure_weapon(
     glb: Path, glb_node: NodeSel, scale: float, archetype: str, kind: str | None, role: str, rules: dict,
     *, hold_class: str | None = None, genre: str | None = None, forward_override: str | None = None,
 ) -> dict | None:
-    """The spec 4.1 ``geometry`` block, or None when the mesh cannot be measured (spec 3.3 signature)."""
-    return measure_weapon_detail(
+    """The spec 4.1 ``geometry`` block as a directory record stores it (``mounts`` included, None for a record that is not
+    an eligible host), or None when the mesh cannot be measured (spec 3.3 signature)."""
+    detail = measure_weapon_detail(
         glb, glb_node, scale, archetype, kind, role, rules, hold_class=hold_class, genre=genre,
-        forward_override=forward_override,
-    )["geometry"]
+        forward_override=forward_override, with_mounts=True,
+    )
+    return None if detail["geometry"] is None else {**detail["geometry"], "mounts": detail.get("mounts")}
 
 
 def pass2_inputs(detail: dict) -> dict | None:
@@ -875,10 +902,12 @@ def code_digest(data: bytes) -> str:
 # digest of the local checkout would not be.
 _CODE_DIGEST = code_digest(Path(__file__).read_bytes())
 _ATTACH_CODE_DIGEST = code_digest((Path(__file__).parent / "attach.py").read_bytes())  # the anchor algorithm's own digest
+_MOUNTS_CODE_DIGEST = code_digest((Path(__file__).parent / "mounts.py").read_bytes())  # and the mount builder's
 
 
 def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, forward_override=None,
-                        *, head_lead: bool = False, attach_slot: str | None = None) -> str:
+                        *, head_lead: bool = False, attach_slot: str | None = None,
+                        mount_overrides: dict | None = None) -> str:
     # the measurement depends on the classification context, not only on the file (spec 3.5 says file + versions;
     # deviation reported): a rules or override change that flips archetype/kind/hold must not serve stale geometry
     fp = {
@@ -897,6 +926,18 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
         # same idea for an attachment part (W8a): absent for every other record, so no existing fingerprint changes. The
         # attachment version and the digest of attach.py keep a stale anchor from surviving an algorithm change or a bump
         fp["as"], fp["av"], fp["ad"] = attach_slot, _pkg.WEAPON_ATTACH_VERSION, _ATTACH_CODE_DIGEST
+    if eligible(role, kind, hold_class):
+        # W8b: only an eligible host carries mounts, so only its fingerprint changes. The attachment version is read at call
+        # time (a bump must miss the cache, AC78) and WEAPON_GEOMETRY_VERSION stays untouched (D-12). The child vocabulary
+        # is an input, so an edit to child_tokens / child_never cannot serve a stale mount; so are the two algorithms
+        # that make it (anchor of the child, the mount builder) and a categorical override.
+        tables = attachment_rules(rules)
+        fp["mv"] = {
+            "v": _pkg.WEAPON_ATTACH_VERSION, "ad": _ATTACH_CODE_DIGEST, "md": _MOUNTS_CODE_DIGEST,
+            "ct": tables.get("child_tokens"), "cn": tables.get("child_never"),
+        }
+        if mount_overrides:
+            fp["mv"]["mo"] = mount_overrides
     return digest(fp)
 
 
@@ -904,6 +945,7 @@ def measure_cached(
     threejs_v2_dir: Path, glb_rel: str, glb_node: NodeSel, scale: float, archetype: str, kind: str | None,
     role: str, rules: dict, cache: dict, *, hold_class: str | None = None, genre: str | None = None,
     forward_override: str | None = None, head_lead: bool = False, attach_slot: str | None = None,
+    mount_overrides: dict | None = None,
 ) -> tuple[dict, bool]:
     """``(detail, was_cached)``. Entry id = relative GLB path + node tag + scale tag (as ``glb_measure``); the
     entry is valid while ``mtime:size`` and its version (``WEAPON_GEOMETRY_VERSION`` + the digest of this file) match, and holds one result per
@@ -920,7 +962,7 @@ def measure_cached(
     cache_id += scale_cache_tag(scale)
     version = f"{_pkg.WEAPON_GEOMETRY_VERSION}+{_CODE_DIGEST}"
     fp = _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules, forward_override, head_lead=head_lead,
-                             attach_slot=attach_slot)
+                             attach_slot=attach_slot, mount_overrides=mount_overrides)
     entry = cache.get(cache_id)
     if not entry or entry.get("key") != key or entry.get("version") != version:
         entry = {"key": key, "version": version, "by_inputs": {}}
@@ -930,7 +972,8 @@ def measure_cached(
         return deepcopy(hit), True
     detail = measure_weapon_detail(
         abs_path, glb_node, scale, archetype, kind, role, rules, hold_class=hold_class, genre=genre,
-        forward_override=forward_override, head_lead=head_lead, attach_slot=attach_slot,
+        forward_override=forward_override, head_lead=head_lead, attach_slot=attach_slot, mount_overrides=mount_overrides,
+        with_mounts=True,
     )
     entry["by_inputs"][fp] = deepcopy(detail)
     return detail, False
