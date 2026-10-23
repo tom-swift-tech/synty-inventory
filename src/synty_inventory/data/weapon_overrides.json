@@ -202,6 +202,32 @@
         "component": "misc",
         "role": "part"
       }
+    },
+    "POLYGON_Western_Frontier/SM_Wep_Rifle_Stack_01": {
+      "mounts": {
+        "laser_light": {
+          "source": "none"
+        },
+        "magazine": {
+          "source": "none"
+        },
+        "muzzle": {
+          "source": "none"
+        },
+        "optic": {
+          "source": "none"
+        },
+        "sight_front": {
+          "source": "none"
+        },
+        "sight_rear": {
+          "source": "none"
+        },
+        "underbarrel": {
+          "source": "none"
+        }
+      },
+      "note": "W8j census review, lead ruling 2026-10-23: a rack of rifles (a prop), not a gun: every mount slot refused"
     }
   },
   "schema": "weapon-overrides/1"
