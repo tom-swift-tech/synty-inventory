@@ -13,7 +13,7 @@ from pathlib import Path
 WEAPON_VERSION = 1  # classification + hints; bump invalidates directory.json
 WEAPON_GEOMETRY_VERSION = 5  # geometry algorithm; bump invalidates _geometry_cache.json entries (2: bow belly rule, ranged section-sign convention, shield front; 3: melee grip anchored on the pivot, checked against a surface width profile; 4: melee grip kept 0.045 m off the butt end (W2f), melee forward sign of a mid-origin item from the larger end head over the outer 25 % for the head-forward archetypes (W2f); 5: the head sign decides over a differing pivot sign for the pivot-sourced headed melee archetypes and for head-lead tools (W7))
 
-WEAPON_ATTACH_VERSION = 6  # attachment records (docs/weapon_attachments.md D-12); joins the attachment cache fingerprint, never WEAPON_GEOMETRY_VERSION (2: A1 twin seats and twin forward, W8f; 3: A2 sight slots, kinds, pairs, setting gate and sight seats, W8h; 4: A3 pack-generic same-pack sight candidates, no sight seat on flare and prop hosts or beside a baked sight child, probe mesh without baked muzzle, underbarrel and laser children, W8i; 5: A3 addendum 3, a baked optic body child refuses both sight slots, a glass-only host refuses optic and sights, a baked iron sight, carry handle or fused front post refuses both sight slots, toy and water hosts take no optic or sight, W8j; 6: A3 addendum 3b, the same rules also refuse a sight slot the probe could not seat (probe_unavailable, no_child_no_probe), so a baked host has no pending sights, and the fused front post detector runs on a refused host too, W8k)
+WEAPON_ATTACH_VERSION = 7  # attachment records (docs/weapon_attachments.md D-12); joins the attachment cache fingerprint, never WEAPON_GEOMETRY_VERSION (2: A1 twin seats and twin forward, W8f; 3: A2 sight slots, kinds, pairs, setting gate and sight seats, W8h; 4: A3 pack-generic same-pack sight candidates, no sight seat on flare and prop hosts or beside a baked sight child, probe mesh without baked muzzle, underbarrel and laser children, W8i; 5: A3 addendum 3, a baked optic body child refuses both sight slots, a glass-only host refuses optic and sights, a baked iron sight, carry handle or fused front post refuses both sight slots, toy and water hosts take no optic or sight, W8j; 6: A3 addendum 3b, the same rules also refuse a sight slot the probe could not seat (probe_unavailable, no_child_no_probe), so a baked host has no pending sights, and the fused front post detector runs on a refused host too, W8k; 7: A3 addendum 4, the free end decides the forward of a standard magazine and a bipod, a foot lip is measured one rung deeper, muzzle and underbarrel candidates need no name overlap, a baked optic seat is lifted to the receiver top, a mirrored pair of children seats at its midpoint, W8l)
 
 ROLES = ("whole", "part", "ammo", "carrier", "emplaced")
 NON_WEAPON_ROLES = ("part", "ammo", "carrier")  # kind is null for these (spec 4.1)
@@ -79,7 +79,11 @@ COMPAT_TIERS = ("override", "twin", "same_pack_fit", "cross_pack_fit")  # rank =
 MOUNT_SOURCES = ("override", "child_node", "probe", "none")
 MOUNT_NONE_REASONS = ("no_child_no_probe", "slot_disabled", "probe_unavailable")
 ANCHOR_FOOT_SOURCES = ("authored_up", "measured", "override")
-ANCHOR_FORWARD_SOURCES = ("section", "authored", "twin", "override")  # twin: the forward a baked twin child fixes (A1, W8f)
+ANCHOR_FORWARD_SOURCES = ("section", "authored", "twin", "override", "free_end")  # twin: the forward a baked twin child fixes (A1, W8f); free_end: the side a magazine or bipod leans to (A4, W8l)
+# the twin tolerance of spec 5.1: sorted AABB extents agree within max(3 %, 0.8 mm) per axis. compat.py (twin tier) and mounts.py (mirrored pair, A4)
+# both read it, and compat imports mounts, so it lives here
+TWIN_REL_TOL = 0.03
+TWIN_ABS_TOL_M = 0.0008
 CARRIER_KINDS = ("quiver", "sheath", "scabbard", "holster")
 AMMO_PROJECTILES = ("bullet", "shell", "arrow", "bolt", "rocket", "other")
 PROVENANCES = ("rules", "override", "pack_settings", "measured")

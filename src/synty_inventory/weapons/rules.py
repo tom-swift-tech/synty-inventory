@@ -49,7 +49,8 @@ ATTACH_MATCH_KEYS = ("tokens_any", "tokens_all", "tokens_none", "component_slot"
 ATTACH_NEVER_KEYS = ("tokens_any", "packs_any")
 ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affinity", "attach_compat",
                    "attach_genre_by_pack", "sight_probe",  # A2: the setting-gate map and the sight seat probe parameters
-                   "attach_host_never", "baked_sights")  # A3 (W8i): hosts that get no seat for a slot, and the baked-sight child tokens
+                   "attach_host_never", "baked_sights",  # A3 (W8i): hosts that get no seat for a slot, and the baked-sight child tokens
+                   "anchor", "family_free_slots", "optic_seat")  # A4 (W8l): the foot ladder and free-end forward, the name-generic slots, the optic seat lift
 BAKED_SIGHT_KEYS = ("tokens", "not_tokens", "rear_tokens")  # attachment_rules.baked_sights (docs/weapon_attachments.md 4.6 item 7): required
 # A3 addendum 3 (W8j, item 8): optional name-token lists (empty allowed, an absent list switches that part of the rule off), the carry-handle
 # height fraction and the fused front post parameters (name -> (type, minimum, maximum); metres unless a count or a fraction)
@@ -68,6 +69,11 @@ SIGHT_PROBE_PARAMS = {
     "min_separation_m": (float, 0.0, 1.0), "side_min_m": (float, 0.0, 0.1), "side_frac": (float, 0.0, 1.0),
     "ridge_tol_m": (float, 0.0, 0.1), "seat_ray_m": (float, 0.0, 0.05), "seat_flat_tol_m": (float, 0.0, 0.1),  # live-calibrated (4.6 item 6)
 }
+# A4 (W8l) anchor parameters (docs/weapon_attachments.md 3.4 steps 1a and 3b): name -> (minimum, maximum), every one required; metres unless a ratio.
+ANCHOR_PARAMS = {"lip_min_m": (0.0, 0.05), "lip_max_m": (0.0, 0.05), "lip_growth": (1.0, 100.0)}
+ANCHOR_FREE_END_KEYS = ("min_displacement_m", "kinds")
+ANCHOR_MAX_RUNGS = 8  # foot_depths_m is a short ladder, not a profile
+OPTIC_SEAT_PARAMS = {"lift_cap_m": (0.0, 0.2)}
 # W8c compatibility tables (docs/weapon_attachments.md 5.1). The score bands per tier are the spec's; the tunable base and
 # bonus values must keep every reachable score inside the band of their tier (checked at load).
 COMPAT_SCORE_BANDS = {"same_pack_fit": (0.6, 0.9), "cross_pack_fit": (0.3, 0.6)}
@@ -433,6 +439,79 @@ def _check_attachment_rules(val) -> list[str]:
         errors.extend(_check_host_never(val["attach_host_never"]))
     if val.get("baked_sights") is not None:
         errors.extend(_check_baked_sights(val["baked_sights"]))
+    if val.get("anchor") is not None:
+        errors.extend(_check_anchor(val["anchor"]))
+    if val.get("family_free_slots") is not None:
+        errors.extend(_check_family_free_slots(val["family_free_slots"]))
+    if val.get("optic_seat") is not None:
+        errors.extend(_check_optic_seat(val["optic_seat"]))
+    return errors
+
+
+def _check_anchor(val) -> list[str]:
+    """``anchor``: the foot ladder and the free-end forward of the anchor measurement (A4, spec 3.4 steps 1a and 3b); every key is required.
+
+    ``foot_depths_m`` is an increasing list of positive depths (the first is the foot slab of step 1), ``lip_min_m`` must not exceed ``lip_max_m``,
+    and ``free_end`` is ``{min_displacement_m, kinds: {slot: [kind]}}`` over foot slots (a muzzle device has no foot slab) and kinds of that slot.
+    """
+    where = "attachment_rules.anchor"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping"]
+    errors: list[str] = []
+    for key in val:
+        if key not in ("foot_depths_m", "free_end") + tuple(ANCHOR_PARAMS):
+            errors.append(f"{where}.{key}: unknown key (allowed: foot_depths_m, {', '.join(ANCHOR_PARAMS)}, free_end)")
+    depths = val.get("foot_depths_m")
+    if not isinstance(depths, list) or not 1 <= len(depths) <= ANCHOR_MAX_RUNGS or not all(_is_num(d) and 0 < d <= 0.1 for d in depths):
+        errors.append(f"{where}.foot_depths_m: must be a list of 1 to {ANCHOR_MAX_RUNGS} depths in metres, each above 0 and at most 0.1")
+    elif any(b <= a for a, b in zip(depths, depths[1:])):
+        errors.append(f"{where}.foot_depths_m: must be strictly increasing")
+    for key, (lo, hi) in ANCHOR_PARAMS.items():
+        v = val.get(key)
+        if not _is_num(v) or not (lo <= v <= hi):
+            errors.append(f"{where}.{key}: must be a number from {lo} to {hi}")
+    if not errors and val["lip_min_m"] > val["lip_max_m"]:
+        errors.append(f"{where}: lip_min_m must not exceed lip_max_m")
+    free = val.get("free_end")
+    if not isinstance(free, dict):
+        errors.append(f"{where}.free_end: must be a mapping with {', '.join(ANCHOR_FREE_END_KEYS)}")
+        return errors
+    for key in free:
+        if key not in ANCHOR_FREE_END_KEYS:
+            errors.append(f"{where}.free_end.{key}: unknown key (allowed: {', '.join(ANCHOR_FREE_END_KEYS)})")
+    disp = free.get("min_displacement_m")
+    if not _is_num(disp) or not (0 < disp <= 0.5):
+        errors.append(f"{where}.free_end.min_displacement_m: must be a number above 0 and at most 0.5")
+    kinds = free.get("kinds")
+    if not isinstance(kinds, dict):
+        errors.append(f"{where}.free_end.kinds: must be a mapping slot -> [kinds]")
+        return errors
+    for slot, names in kinds.items():
+        if slot not in ATTACH_SLOTS or slot == "muzzle":
+            errors.append(f"{where}.free_end.kinds.{slot}: must be a foot slot of {[s for s in ATTACH_SLOTS if s != 'muzzle']}")
+        elif not isinstance(names, list) or not names or not all(n in ATTACH_KINDS[slot] for n in names):
+            errors.append(f"{where}.free_end.kinds.{slot}: must be a non-empty list of kinds of that slot ({list(ATTACH_KINDS[slot])})")
+    return errors
+
+
+def _check_family_free_slots(val) -> list[str]:
+    """``family_free_slots``: the slots whose same_pack_fit candidate needs no ``family_overlap`` (A4, spec 5.1); a list of distinct slots, may be empty."""
+    where = "attachment_rules.family_free_slots"
+    if not isinstance(val, list) or not all(isinstance(s, str) and s in ATTACH_SLOTS for s in val):
+        return [f"{where}: must be a list of slots from {list(ATTACH_SLOTS)}"]
+    return [f"{where}: slots must be distinct"] if len(set(val)) != len(val) else []
+
+
+def _check_optic_seat(val) -> list[str]:
+    """``optic_seat``: the cap of the optic seat lift (A4, spec 4.2); every parameter is required."""
+    where = "attachment_rules.optic_seat"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping"]
+    errors = [f"{where}.{k}: unknown key (allowed: {', '.join(OPTIC_SEAT_PARAMS)})" for k in val if k not in OPTIC_SEAT_PARAMS]
+    for key, (lo, hi) in OPTIC_SEAT_PARAMS.items():
+        v = val.get(key)
+        if not _is_num(v) or not (lo <= v <= hi):
+            errors.append(f"{where}.{key}: must be a number from {lo} to {hi}")
     return errors
 
 
