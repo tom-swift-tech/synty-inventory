@@ -124,11 +124,13 @@ def test_ac95_their_optic_mount_is_unchanged_and_the_plain_host_is_seated_by_the
     assert plain["optic"]["source"] == "child_node"
     bare = excl[f"{PX}/{PLAIN}"]["geometry"]["mounts"]
     assert bare["sight_front"]["source"] == bare["sight_rear"]["source"] == "probe"
-    for host in EXCLUDED:
+    m = excl[f"{PX}/{FLARE}"]["geometry"]["mounts"]  # A5 item 0: a prop host loses every slot, only the flare pistol keeps optic and muzzle
+    assert m["optic"]["source"] == "child_node" and m["optic"]["occupied_by"] == [f"{FLARE}_Scope"]
+    assert m["optic"]["point"] == plain["optic"]["point"] and m["optic"]["span_m"] == plain["optic"]["span_m"]
+    assert m["muzzle"]["source"] == "probe"  # no other slot is touched
+    for host in (BRIEFCASE, PROP):
         m = excl[f"{PX}/{host}"]["geometry"]["mounts"]
-        assert m["optic"]["source"] == "child_node" and m["optic"]["occupied_by"] == [f"{host}_Scope"]
-        assert m["optic"]["point"] == plain["optic"]["point"] and m["optic"]["span_m"] == plain["optic"]["span_m"]
-        assert m["muzzle"]["source"] == "probe"  # no other slot is touched
+        assert m["optic"]["source"] == m["muzzle"]["source"] == "none" and m["optic"]["reason"] == m["muzzle"]["reason"] == "slot_disabled", host
 
 
 def test_ac95_no_sight_candidate_lists_an_excluded_host_listed_or_pending(excl):
@@ -149,15 +151,17 @@ def test_ac95_an_add_override_still_lists_the_pair_as_override(tmp_path):
 def test_ac95_the_shipped_table_lists_flare_flaregun_and_prop_for_both_sight_slots():
     table = load_rules()["attachment_rules"]["attach_host_never"]
     # W8j (item 8 E): the sight slots also list the water, watergun and toy names, and the optic slot those three
-    assert table == {"optic": ["water", "watergun", "toy"],
+    # A5 item 0: `prop` also names optic (last) and the four other slots
+    assert table == {"optic": ["water", "watergun", "toy", "prop"],
                      "sight_front": ["flare", "flaregun", "prop", "water", "watergun", "toy"],
-                     "sight_rear": ["flare", "flaregun", "prop", "water", "watergun", "toy"]}
+                     "sight_rear": ["flare", "flaregun", "prop", "water", "watergun", "toy"],
+                     "muzzle": ["prop"], "underbarrel": ["prop"], "magazine": ["prop"], "laser_light": ["prop"]}
 
 
 @pytest.mark.parametrize("asset_id,slots", [
     ("SM_Wep_Pistol_Flare_01", ["sight_front", "sight_rear"]),
-    ("SM_Prop_Briefcase_Flaregun_01", ["sight_front", "sight_rear"]),
-    ("SM_Wep_Rifle_Prop_01", ["sight_front", "sight_rear"]),
+    ("SM_Prop_Briefcase_Flaregun_01", ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]),  # A5 item 0
+    ("SM_Wep_Rifle_Prop_01", ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]),  # A5 item 0
     ("SM_Wep_Flare_Gun_01", ["sight_front", "sight_rear"]),  # `flare` hits
     ("SM_Wep_Rifle_Properly_01", []),  # a token, not a substring
     ("SM_Wep_Rifle_Assault_01", []),
