@@ -185,7 +185,11 @@ def test_every_planned_job_maps_the_anchor_onto_the_mount_within_the_tolerances(
         mount = world.by_id[pair["host"]]["geometry"]["mounts"][pair["slot"]]
         m = np.asarray(job["matrix"])
         got = (m @ np.append(anchor["point"], 1.0))[:3]
-        assert np.allclose(got, mount["point"], atol=TOL_M, rtol=0), pair
+        # A5 (W8m): a pair settled to contact (an entry carrying seat_shift_m) is placed translate(shift * up) after the A4 placement; the
+        # hand-built Alpha host seats its Giant scope 50 mm inside its body, so that pair is keyed. Every other pair maps onto the mount itself.
+        entry = next(e for e in world.by_id[pair["part"]]["attachment"]["compatible_hosts"] if e["host"] == pair["host"])
+        want = np.asarray(mount["point"]) + entry.get("seat_shift_m", 0.0) * np.asarray(mount["up"])
+        assert np.allclose(got, want, atol=TOL_M, rtol=0), pair
         for key in ("up", "forward"):
             assert angle_deg(m[:3, :3] @ anchor[key], mount[key]) <= TOL_DEG, (pair, key)
 

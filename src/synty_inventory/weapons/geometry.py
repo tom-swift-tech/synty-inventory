@@ -27,7 +27,8 @@ from ..sources.glb_geometry import load_triangles, node_world_matrices
 from ..sources.glb_measure import NodeSel, _cache_key, node_cache_tag, node_selected, read_glb_json
 from ..sources.glb_scale import scale_cache_tag
 from . import digest, write_text_lf
-from .attach import measure_anchor
+from .attach import measure_anchor, place, settle_pair
+from .mount_probe import surface_samples
 from .mounts import build_mounts, eligible
 from .rules import attachment_rules
 
@@ -951,9 +952,9 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
             # whole baked_sights table, so the glass / body / handle lists, the handle height fraction and every fused_post parameter move the
             # key; the fused front post detector itself lives in mount_probe.py (pd) and its caller in mounts.py (md)
             "hn": tables.get("attach_host_never"), "bs": tables.get("baked_sights"), "hi": host_id,
-            # A4 (W8l): a child's anchor follows the foot ladder (`ap`, the anchor table), and the optic seat lift and the mirrored pair live in
-            # mounts.py (`md`): the cap of the lift (`os`) is an input
-            "ap": tables.get("anchor"), "os": tables.get("optic_seat"),
+            # A4 (W8l): a child's anchor follows the foot ladder (`ap`, the anchor table), and the mirrored pair lives in mounts.py (`md`).
+            # A5 (W8m, item 2) retired the optic seat lift and its `os` input: the mounts source changed, so `md` moves the key
+            "ap": tables.get("anchor"),
         }
         if mount_overrides:
             fp["mv"]["mo"] = mount_overrides
@@ -996,3 +997,86 @@ def measure_cached(
     )
     entry["by_inputs"][fp] = deepcopy(detail)
     return detail, False
+
+
+# -- settle to contact, per pair (A5, W8m; spec 5.4) ---------------------------------------------------------------------------
+
+_SETTLE_MEMO_HOSTS = 2  # decoded host meshes kept while a build walks the pairs host by host
+_SETTLE_MEMO_PARTS = 512  # sampled part meshes kept (a few thousand points each)
+
+
+def _glb_ids(files: dict) -> tuple[str, NodeSel, float, str]:
+    """``(relative path, node selection, scale, cache id)`` of a record's ``files``; the id is the one ``measure_cached`` uses."""
+    glb, node, scale = files["glb"], files.get("glb_node") or None, float(files.get("glb_scale") or 1.0)
+    return glb, node, scale, (f"{glb}#{node_cache_tag(node)}" if node else glb) + scale_cache_tag(scale)
+
+
+def _settle_meshes(root: Path, part_files: dict, host_files: dict, hide: list[str], pitch: float, memo: dict):
+    """``(part surface samples, host vertices, host triangles)`` or None when a mesh cannot be read. The caller's ``memo`` keeps the last host
+    meshes and the sampled parts of one build, so a post-pass that walks host by host decodes each host once."""
+    parts, hosts = memo.setdefault("parts", {}), memo.setdefault("hosts", {})
+    p_glb, p_node, p_scale, _ = _glb_ids(part_files)
+    h_glb, h_node, h_scale, _ = _glb_ids(host_files)
+    pk = (str(root / p_glb), node_cache_tag(p_node), p_scale, pitch)
+    if pk not in parts:
+        got = load_triangles(root / p_glb, p_node, exclude=_collision, scale=p_scale)
+        samples = None
+        if got is not None and len(got[0]) and len(got[1]) and np.isfinite(got[0]).all():
+            samples = surface_samples(np.asarray(got[0], dtype=np.float64), np.asarray(got[1]), pitch)
+        if len(parts) >= _SETTLE_MEMO_PARTS:
+            parts.pop(next(iter(parts)))
+        parts[pk] = samples
+    hk = (str(root / h_glb), node_cache_tag(h_node), h_scale, tuple(hide))
+    if hk not in hosts:
+        drop = frozenset(hide)
+        got = load_triangles(root / h_glb, h_node, exclude=lambda n: _collision(n) or n in drop, scale=h_scale)
+        mesh = None
+        if got is not None and len(got[0]) and len(got[1]) and np.isfinite(got[0]).all():
+            mesh = (np.asarray(got[0], dtype=np.float64), np.asarray(got[1], dtype=np.int64))
+        while len(hosts) >= _SETTLE_MEMO_HOSTS:
+            hosts.pop(next(iter(hosts)))
+        hosts[hk] = mesh
+    if parts[pk] is None or hosts[hk] is None:
+        return None
+    return parts[pk], hosts[hk][0], hosts[hk][1]
+
+
+def settle_cached(
+    threejs_v2_dir: Path, part_files: dict, host_files: dict, anchor: dict, mount: dict, hide: list[str], slot: str,
+    params: dict, cache: dict, memo: dict | None = None,
+) -> tuple[float | None, str]:
+    """``(seat_shift_m, how)`` of one pair (``attach.settle_pair``), ``how`` being ``cached``, ``computed`` or ``unavailable`` (a file is
+    missing or undecodable: nothing is stored, the caller keeps whatever it had).
+
+    The pair is cached beside the measurements, in the same ``cache`` dict: entry id ``pair|<part id>|<host id>`` (the ids of ``measure_cached``),
+    valid while both files' ``mtime:size`` and the version (``WEAPON_GEOMETRY_VERSION`` + the digest of this file) match, one result per
+    fingerprint of the pair's inputs: the part's anchor, the mount frame, the hidden nodes, the slot, the ``contact`` table, the attach version
+    and the digests of ``attach.py`` (the rule) and ``mount_probe.py`` (the sampler). A cache hit therefore equals a recompute (AC78), and a
+    build with nothing changed reads no mesh. A "no key" result is cached too (``shift`` null)."""
+    memo = memo if memo is not None else {}
+    p_glb, _, _, p_id = _glb_ids(part_files)
+    h_glb, _, _, h_id = _glb_ids(host_files)
+    p_key, h_key = _cache_key(threejs_v2_dir / p_glb), _cache_key(threejs_v2_dir / h_glb)
+    if p_key is None or h_key is None:
+        return None, "unavailable"
+    cache_id, key = f"pair|{p_id}|{h_id}", f"{p_key}+{h_key}"
+    version = f"{_pkg.WEAPON_GEOMETRY_VERSION}+{_CODE_DIGEST}"
+    fp = digest({
+        "slot": slot, "an": anchor, "mt": {k: mount[k] for k in ("point", "forward", "up")}, "hide": list(hide), "ct": params,
+        "av": _pkg.WEAPON_ATTACH_VERSION, "ad": _ATTACH_CODE_DIGEST, "pd": _PROBE_CODE_DIGEST,
+    })
+    entry = cache.get(cache_id)
+    if not entry or entry.get("key") != key or entry.get("version") != version:
+        entry = {"key": key, "version": version, "by_inputs": {}}
+        cache[cache_id] = entry
+    hit = entry["by_inputs"].get(fp)
+    if hit is not None:
+        return hit.get("shift"), "cached"
+    meshes = _settle_meshes(threejs_v2_dir, part_files, host_files, list(hide), float(params["pitch_m"]), memo)
+    if meshes is None:
+        return None, "unavailable"
+    samples, host_v, host_t = meshes
+    m = place(anchor, mount)  # the A4 placement; the shift is measured from there
+    _, shift = settle_pair(samples @ m[:3, :3].T + m[:3, 3], host_v, host_t, mount["up"], params)
+    entry["by_inputs"][fp] = {"shift": shift}
+    return shift, "computed"

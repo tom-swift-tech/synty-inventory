@@ -1,4 +1,4 @@
-"""W8l: the optic seat lift (AC108), the mirrored pair seat (AC109) and the foot ladder on a host child (AC107).
+"""W8l: the retired optic seat lift (AC108R, A5 item 2), the mirrored pair seat (AC109) and the foot ladder on a host child (AC107).
 
 docs/weapon_attachments.md 4.2 "A4 on the child seat" and 3.4 step 1a. The hosts are boxes written by ``w8h_world`` into the pack
 FAKE_W8L (nothing from a real pack). Every expected number is a LITERAL worked out by hand from the dimensions below:
@@ -6,8 +6,6 @@ FAKE_W8L (nothing from a real pack). Every expected number is a LITERAL worked o
   body      x +-0.02, y 0..0.10, z -0.25..0.35 (top face y 0.10)                      (the stepped host: z -0.25..0.05 at 0.10, 0.05..0.35 at 0.12)
   scope     box x +-0.01, y 0..0.04, z +-0.03, a child translated to (0, bottom, z): its foot centre is (0, bottom, z), foot 0.06 long
   leg       box x +-0.005, y -0.08..0, z +-0.01 (a bipod leg hanging from the underside y 0): foot centre (x, 0, 0), foot 0.02 long
-
-The sampling grid of the probe mesh is 2.5 mm, but a flat top face is sampled at exactly its own height, so a lift lands on the face (+-0.5 mm).
 """
 
 from __future__ import annotations
@@ -49,10 +47,10 @@ def named(n: str) -> str:
 
 
 HOSTS = {
-    # AC108
-    named("Recess"): host(named("Recess"), [("Scope", SCOPE, (0.0, 0.086, 0.0))]),      # 14 mm in the top: lifts to 0.100
-    named("Cap"): host(named("Cap"), [("Scope", SCOPE, (0.0, 0.07, 0.0))]),             # 30 mm in: exactly the cap, lifts to 0.100
-    named("OverCap"): host(named("OverCap"), [("Scope", SCOPE, (0.0, 0.069, 0.0))]),    # 31 mm in: a hump, not a receiver top
+    # AC108R (the shapes of the retired lift fixtures; the seat is the child's own point)
+    named("Recess"): host(named("Recess"), [("Scope", SCOPE, (0.0, 0.086, 0.0))]),      # 14 mm in the top (the lift used to move the seat to 0.100)
+    named("Cap"): host(named("Cap"), [("Scope", SCOPE, (0.0, 0.07, 0.0))]),             # 30 mm in (the lift cap)
+    named("OverCap"): host(named("OverCap"), [("Scope", SCOPE, (0.0, 0.069, 0.0))]),    # 31 mm in
     named("Deep"): host(named("Deep"), [("Scope", SCOPE, (0.0, 0.06, 0.0))]),           # 40 mm in
     named("Flush"): host(named("Flush"), [("Scope", SCOPE, (0.0, 0.10, 0.0))]),         # sits on the top
     named("Raised"): host(named("Raised"), [("Scope", SCOPE, (0.0, 0.11, 0.0))]),       # 10 mm above the top
@@ -80,53 +78,38 @@ def mounts(tmp_path_factory):
     return {w["asset_id"]: w["geometry"]["mounts"] for w in directory["weapons"]}
 
 
-def optic_y(mounts, name):
-    return mounts[named(name)]["optic"]["point"][1]
+# --- AC108R: the optic seat lift of A4 item 4 is retired (A5 item 2): a child_node optic seat is the child's own point -------------
+# Each literal is the baked scope's foot centre (0, bottom, z) written in HOSTS above, i.e. its pre-A4 value; the lift used to move the up
+# coordinate of the first six to the receiver top 0.100 (or 0.120 on the stepped host) when the scope sat 14 to 30 mm in the top.
 
 
-# --- AC108: a child_node optic seat is lifted to the host surface under the baked scope --------------------------------------
-
-
-def test_ac108_a_scope_nested_14_mm_in_the_receiver_top_seats_on_the_top(mounts):
-    optic = mounts[named("Recess")]["optic"]
-    assert optic["point"] == pytest.approx([0.0, 0.100, 0.0], abs=0.0005)
-    # only the up coordinate moves: everything else is what the child gave
+@pytest.mark.parametrize(("name", "point"), [
+    ("Recess", [0.0, 0.086, 0.0]),     # 14 mm in the top: the lift made it 0.100
+    ("Cap", [0.0, 0.07, 0.0]),         # 30 mm in: the lift made it 0.100
+    ("OverCap", [0.0, 0.069, 0.0]), ("Deep", [0.0, 0.06, 0.0]), ("Flush", [0.0, 0.10, 0.0]), ("Raised", [0.0, 0.11, 0.0]),
+    ("Aside", [0.10, 0.086, 0.0]),
+])
+def test_ac108r_a_child_node_optic_mount_is_the_childs_own_point(mounts, name, point):
+    optic = mounts[named(name)]["optic"]
+    assert optic["point"] == point
     assert (optic["source"], optic["span_m"], optic["span_source"], optic["forward"], optic["up"]) == (
         "child_node", 0.06, "child_foot", [0.0, 0.0, 1.0], [0.0, 1.0, 0.0])
-    assert optic["occupied_by"] == [named("Recess") + "_Scope"] and optic["child_node"] == named("Recess") + "_Scope"
+    assert optic["occupied_by"] == [named(name) + "_Scope"] and optic["child_node"] == named(name) + "_Scope"
     assert optic["confidence"] == 0.9 and optic["reason"] is None
 
 
-def test_ac108_the_cap_is_30_mm_and_a_bigger_lift_is_a_hump_the_seat_stays(mounts):
-    assert optic_y(mounts, "Cap") == pytest.approx(0.100, abs=0.0005)  # exactly 0.030: inside
-    assert optic_y(mounts, "OverCap") == pytest.approx(0.069, abs=0.00005)  # 0.031: the child point as it was
-    assert optic_y(mounts, "Deep") == pytest.approx(0.060, abs=0.00005)  # 0.040
-
-
-@pytest.mark.parametrize(("name", "y"), [("Flush", 0.10), ("Raised", 0.11), ("Aside", 0.086)])
-def test_ac108_a_scope_on_the_top_above_it_or_beside_the_body_keeps_its_seat(mounts, name, y):
-    assert optic_y(mounts, name) == pytest.approx(y, abs=0.00005)
-
-
-def test_ac108_the_x_and_z_of_the_point_never_move(mounts):
-    assert mounts[named("Recess")]["optic"]["point"][0::2] == [0.0, 0.0]
-    assert mounts[named("Aside")]["optic"]["point"][0::2] == pytest.approx([0.10, 0.0], abs=0.00005)
-
-
-def test_ac108_a_host_without_a_scope_child_has_no_optic_seat_to_lift(mounts):
+def test_ac108r_a_host_without_a_scope_child_has_no_optic_seat(mounts):
     optic = mounts[named("Bare")]["optic"]
     assert optic["source"] == "none" and optic["point"] is None
 
 
-def test_ac108_a_two_scope_mount_lifts_on_the_union_rectangle_and_each_seat_for_its_own_child(mounts):
+def test_ac108r_a_two_scope_mount_and_each_of_its_seats_keep_the_childrens_own_points(mounts):
     optic = mounts[named("Step")]["optic"]
-    # the mount point is the larger scope's seat (Scope_A, bottom 0.096) lifted on the union of both rectangles: the highest top under
-    # either scope is the 0.12 step (24 mm above 0.096, inside the cap); x and z stay at Scope_A's (0, -0.10)
-    assert optic["point"] == pytest.approx([0.0, 0.120, -0.10], abs=0.0005)
+    assert optic["point"] == [0.0, 0.096, -0.10]  # the larger scope's own seat (Scope_A, bottom 0.096); the lift made it 0.120
     assert optic["occupied_by"] == [named("Step") + "_Scope_A", named("Step") + "_Scope_B"]
     seats = optic["seats"]
-    assert seats[named("Step") + "_Scope_A"]["point"] == pytest.approx([0.0, 0.100, -0.10], abs=0.0005)  # its own top, 0.10
-    assert seats[named("Step") + "_Scope_B"]["point"] == pytest.approx([0.0, 0.120, 0.20], abs=0.0005)  # its own top, 0.12
+    assert seats[named("Step") + "_Scope_A"]["point"] == [0.0, 0.096, -0.10]  # the lift made it 0.100
+    assert seats[named("Step") + "_Scope_B"]["point"] == [0.0, 0.116, 0.20]  # the lift made it 0.120
 
 
 # --- AC109: two twin children mirrored about the centre line seat at their midpoint -------------------------------------------
