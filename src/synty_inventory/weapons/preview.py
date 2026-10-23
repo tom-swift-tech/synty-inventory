@@ -14,7 +14,8 @@ and both have a GLB. ``--plan`` prints the pairs and needs no renderer.
 
 Rendering. ``PreviewRenderer`` is the icon harness ``Renderer`` (same loopback server, browser and frame/decode path) opening
 ``icon_harness/preview.html``; ``render_pairs`` takes any object with ``render_pair(job, size)``, so the file handling and the
-index are tested without a GPU. A preview is flattened onto a plain background: it is a picture to look at, not an icon, and a
+index are tested without a GPU. The placed attachment is drawn in one flat orange (``PART_TINT``, a field of every job) and the host with its own
+materials, so a white part on a white host cannot hide a muzzle brake. A preview is flattened onto a plain background: it is a picture to look at, not an icon, and a
 dark model on a transparent PNG disappears in most viewers. Outputs: ``<name>.png`` per pair, ``index.json``
 (``weapon-attach-preview/1``, merged with what an earlier run left), and with ``--sheet`` ``sheet.png``, a contact sheet in
 index order. A failed pair is listed and the rest go on; a renderer that cannot start is exit 5 with nothing written.
@@ -56,6 +57,7 @@ DEFAULT_DIRNAME = "attach-preview"
 DEFAULT_SIZE = 384
 DEFAULT_OTHERS = 12  # non-twin pairs in the default sample (every slot is covered when the directory has them)
 BACKGROUND = (58, 64, 76)  # the flat colour a preview is drawn on
+PART_TINT = "e8742a"  # the placed attachment is drawn in this flat colour (orange); the host keeps its own materials
 BLANK_RENDER = "blank_render"
 _SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -150,6 +152,7 @@ def build_job(pair: dict, part: dict, host: dict, threejs_dir: Path) -> dict:
         "item_basis": [[int(c) for c in row] for row in host["geometry"]["item_basis"]],
         "part_glb": Path(threejs_dir) / part["files"]["glb"], "part_nodes": _selection(part["files"].get("glb_node")),
         "part_scale": float(part["files"].get("glb_scale") or 1.0),
+        "part_tint": PART_TINT, "host_tint": None,  # None: the host is drawn with its own materials
         "matrix": [[float(c) for c in row] for row in place(anchor, mount)],
     }
 
@@ -169,7 +172,7 @@ class PreviewRenderer(Renderer):
             "host": {"glb": self._glb_url(job["host_glb"]), "nodes": job["host_nodes"], "hide": job["hide"],
                      "scale": job["host_scale"]},
             "part": {"glb": self._glb_url(job["part_glb"]), "nodes": job["part_nodes"], "scale": job["part_scale"],
-                     "matrix": job["matrix"]},
+                     "matrix": job["matrix"], "tint": job["part_tint"]},
             "itemBasis": job["item_basis"], "camDir": list(camera_direction(False)),
         }, size)
 

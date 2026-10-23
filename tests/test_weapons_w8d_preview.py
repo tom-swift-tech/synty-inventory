@@ -156,6 +156,17 @@ def test_the_job_hides_the_baked_child_the_attachment_replaces_and_carries_the_h
     assert scope["hide"] == ["SM_Wep_Rifle_Epsilon_01_Scope"]
 
 
+def test_the_placed_part_is_tinted_and_the_host_is_not(world):
+    """AC83 look: the attachment is drawn in its own flat colour so it reads against the host (white on white hid a muzzle brake)."""
+    job = job_of(world, C.P[C.SIL_BRAKE], C.H[C.EPSILON])
+    assert job["part_tint"] == "e8742a" and job["host_tint"] is None  # None: the host keeps its own materials
+    r, g, b = (int(job["part_tint"][i:i + 2], 16) for i in (0, 2, 4))
+    assert (r, g, b) == (232, 116, 42) and r - b > 150  # unmistakably orange, against a grey / white host
+    seen = StubRenderer()
+    preview.render_pairs(seen, [job], Path(world.tmp) / "tint_out", 64)
+    assert seen.jobs[0]["part_tint"] == "e8742a"
+
+
 def angle_deg(a, b) -> float:
     a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
     return float(np.degrees(np.arccos(np.clip(a @ b / (np.linalg.norm(a) * np.linalg.norm(b)), -1.0, 1.0))))
@@ -398,4 +409,7 @@ def test_the_real_renderer_draws_a_non_blank_picture_of_a_placed_twin(world, tmp
     assert report["rendered"] == 1 and report["failed"] == []
     assert (px[..., 3] > 0).sum() > 500
     flat = preview.flatten(px)
+    orange = (flat[..., 0].astype(int) - flat[..., 2].astype(int)) > 100  # the tint, not the grey host nor the blue-grey background
+    grey = (np.abs(flat[..., 0].astype(int) - flat[..., 2].astype(int)) < 20) & (flat[..., 0] > 150)
+    assert orange.sum() > 100 and grey.sum() > 500  # a tinted part AND an untinted host are both in the picture
     assert len({tuple(c) for c in flat.reshape(-1, 4)[::97]}) > 3  # more than a flat fill

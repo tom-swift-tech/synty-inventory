@@ -34,6 +34,17 @@ function select(gltf, nodes, hide, label) {
   return kept;
 }
 
+// The placed attachment is drawn in one flat colour (hex string, e.g. "e8742a"), so it reads against the host whatever the
+// host's own materials are. The host keeps its own look. Only the kept (visible) meshes are touched.
+function tint(meshes, hex) {
+  const color = new THREE.Color(parseInt(hex, 16));
+  for (const mesh of meshes) {
+    // GLTFLoader shades a mesh without normals flat; a replacement material must do the same or it renders black
+    const flat = !(mesh.geometry && mesh.geometry.attributes && mesh.geometry.attributes.normal);
+    mesh.material = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0, flatShading: flat });
+  }
+}
+
 function scaled(s) {
   return new THREE.Matrix4().makeScale(s, s, s);
 }
@@ -45,6 +56,7 @@ window.previewPrepare = async function previewPrepare(p) {
   const partGltf = await load(p.part.glb);
   const hostKept = select(hostGltf, p.host.nodes, p.host.hide, "host");
   const partKept = select(partGltf, p.part.nodes, null, "attachment");
+  if (p.part.tint) tint(partKept, p.part.tint);
 
   // item_basis rows are the item-frame axes expressed in asset space: item = B * asset (as in icon.js)
   const b = p.itemBasis;
