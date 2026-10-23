@@ -128,7 +128,7 @@ def test_the_twin_is_placed_on_its_own_child_centre_within_0_1_mm_and_iou_99(wor
     want = (np.array(CHILD_BOX[part][0]), np.array(CHILD_BOX[part][1]))
     assert np.all(np.abs((box[0] + box[1]) / 2 - (want[0] + want[1]) / 2) <= 0.0001), (box, want)
     assert W.iou(box, want) >= 0.99
-    assert job["hide"] == [SMALL if part == MAG_SMALL else LARGE]  # only the matched child is hidden
+    assert job["hide"] == sorted([SMALL, LARGE])  # E1: the whole slot is hidden, whichever child the twin is seated on
 
 
 def test_a_pair_that_is_not_a_twin_keeps_the_mount_seat_and_hides_the_whole_slot(world):
