@@ -55,9 +55,9 @@ ENGINE_FILE_KEYS = {
 ENGINE_LABEL = {"godot": "godot", "unity": "unity", "threejs": "glb", "all": "all"}
 PUBLIC_KEYS = ("archetype", "family", "genre", "geometry", "hints", "id", "kind", "role", "visuals")
 _POINTS = ("tip", "butt", "muzzle", "grip", "support")
-# W8b: the host mounts and the review reasons they add exist only in the directory. The default export is byte-identical to
+# W8b/W8c: the host mounts and the review reasons they (and the compatibility pass) add exist only in the directory. The default export is byte-identical to
 # W7's (D-10, INV-19), so the projection drops them; `--attachments` (W8d) is where they come back.
-_MOUNT_REASONS = ("mount_ambiguous", "mount_estimated", "mount_missing")
+_MOUNT_REASONS = ("compat_cross_pack", "mount_ambiguous", "mount_estimated", "mount_missing", "twin_multi")
 _HEX16 = re.compile(r"^[0-9a-f]{16}$")
 _DRIVE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]")
 _PUBLIC_APPROVAL_KEY = "weapons_public_icons_approved"

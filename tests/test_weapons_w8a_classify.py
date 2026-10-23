@@ -129,11 +129,15 @@ def test_no_geometry_leaves_the_block_without_an_anchor_and_the_review_untouched
     assert validate_directory(directory) == []
 
 
-def test_a_fully_built_directory_validates_and_lists_no_hosts_yet(built):
+def test_a_fully_built_directory_validates_and_lists_only_the_eligible_hosts(built):
+    # W8a listed no host at all (the compatibility pass did not exist); W8c fills the lists, so the check now is that every
+    # listed host is one of the two eligible guns of this fixture (the grenade and the sword are never hosts, INV-14)
     assert validate_directory(built[0]) == []
+    eligible_hosts = {f"{A.PACK}/SM_Wep_Rifle_Assault_01", f"{A.PACK}/SM_Wep_Pistol_01"}
     for rec in built[0]["weapons"]:
         if rec.get("attachment"):
-            assert rec["attachment"]["compatible_hosts"] == [] and rec["attachment"]["pending_hosts"] == []
+            listed = {h["host"] for h in rec["attachment"]["compatible_hosts"] + rec["attachment"]["pending_hosts"]}
+            assert listed <= eligible_hosts
 
 
 # --- the rules digests (D-10): attachment rules do not move rules_digest --------------------------------------------

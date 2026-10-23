@@ -1,6 +1,7 @@
 """W8a: the CLI surface and the export, which stay W7 until slice W8d (docs/weapon_attachments.md 3.6, 3.7, D-10).
 
-``attach-eval`` and ``attach-preview`` are registered and answer exit 2 with a hint naming their slice. The export flags are
+``attach-preview`` is registered and answers exit 2 with a hint naming its slice (``attach-eval`` was built in W8c and is tested in
+test_weapons_w8c_eval.py). The export flags are
 registered and ``--attachments`` is refused (exit 2). A default export of part records carries no ``attachment`` key.
 """
 
@@ -40,8 +41,6 @@ def cfg(tmp_path):
 
 
 @pytest.mark.parametrize(("argv", "slice_name"), [
-    (["weapons", "attach-eval"], "W8c"),
-    (["weapons", "attach-eval", "--labels", "l.json", "--min-precision", "0.9", "--min-recall", "0.8"], "W8c"),
     (["weapons", "attach-preview"], "W8d"),
     (["weapons", "attach-preview", "--out", "o", "--ids", "A/b", "--limit", "5"], "W8d"),
 ])

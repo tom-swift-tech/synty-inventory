@@ -620,7 +620,8 @@ def measure_weapon_detail(
 
     ``with_mounts`` (W8b, off by default so a bare measurement is the W7 dict byte for byte) makes an eligible host
     (``mounts.eligible``: whole, ranged, one_hand / long_gun) add the keys ``mounts`` (the ``geometry.mounts`` block of
-    ``mounts.build_mounts``) and ``mount_problems``; they sit beside ``geometry`` and not in it, and
+    ``mounts.build_mounts``) and ``mount_problems`` (and, W8c, ``child_extents``: the sorted AABB extents of each baked child a slot lists in
+    ``occupied_by``, the twin evidence of spec 5.1); they sit beside ``geometry`` and not in it, and
     ``directory.py`` decides what the record carries. ``measure_cached`` and ``measure_weapon`` ask for them.
     ``mount_overrides`` is the categorical per-slot override mapping (W8c supplies it; None = none).
 
@@ -844,6 +845,7 @@ def measure_weapon_detail(
         built = build_mounts(glb, glb_node, scale, rules, verts=verts, axes={"forward": forward, "up": up},
                              transformed=transformed, probe=muzzle_probe, overrides=mount_overrides)
         out["mounts"], out["mount_problems"] = built["mounts"], built["problems"]
+        out["child_extents"] = built["child_extents"]  # W8c twin evidence: beside the block, never in the record
     return out
 
 

@@ -18,9 +18,10 @@ from pathlib import Path
 from .. import weapons as _pkg  # read versions at call time (a test may bump WEAPON_VERSION)
 from ..paths import is_pack_catalog_file
 from ..schema import migrate_catalog
-from . import InputError, SchemaError, digest, to_text, write_text_lf
+from . import ATTACH_KINDS, InputError, SchemaError, digest, to_text, write_text_lf
 from .candidates import evaluate_candidate
 from .classify import classify, classify_attachment, tokenize_id
+from .compat import apply_compat
 from .geometry import measure_cached, pass2_inputs
 from .hints import build_group_stats, derive_hints
 from .mounts import mount_reasons
@@ -31,6 +32,7 @@ from .variants import discover_variants, has_colourway_info, variant_link_paths
 
 DIRECTORY_NAME = "directory.json"
 EXCLUDED_NAME = "excluded.json"
+_ATTACH_SET_KEYS = {"attachment_slot", "attachment_kind"}
 ICONS_DIRNAME = "icons"  # the folder weapons/icons.py fills; the carried-over variant links are checked against it
 
 
@@ -122,9 +124,31 @@ def _record(asset: dict, pack_id: str, cls: dict, source: str, renamed_from: lis
     }
 
 
-def _attach_class(asset: dict, pack_id: str, cls: dict, rules: dict) -> dict | None:
-    """The attachment {slot, kind, rule} of the final classification of a part, or None (docs/weapon_attachments.md 3.3)."""
-    return classify_attachment(asset["id"], pack_id, cls["role"], cls["component"], rules)
+def _attach_class(asset: dict, pack_id: str, cls: dict, rules: dict, overrides: dict | None = None) -> dict | None:
+    """The attachment {slot, kind, rule} of the final classification of a part, or None (docs/weapon_attachments.md 3.3).
+
+    W8c: ``set.attachment_slot`` / ``set.attachment_kind`` of the overrides (exact id > longest glob) replace what the rules
+    found, or make a part an attachment the rows missed. A slot without a kind takes the rule's kind when the rule found
+    the same slot and ``other`` otherwise; a kind without a slot needs the rules' slot (SchemaError, exit 6, when the part
+    has none or the kind does not belong to the slot). The override never changes ``component`` (3.3).
+    """
+    got = classify_attachment(asset["id"], pack_id, cls["role"], cls["component"], rules)
+    if cls["role"] != "part" or not overrides:
+        return got
+    full_id = f"{pack_id}/{asset['id']}"
+    chosen = ((effective_override(full_id, overrides) or {}).get("set")) or {}
+    slot, kind = chosen.get("attachment_slot"), chosen.get("attachment_kind")
+    if slot is None and kind is None:
+        return got
+    slot = slot or (got["slot"] if got else None)
+    if slot is None:
+        raise SchemaError(f"{full_id}: set.attachment_kind {kind!r} needs a slot, and the rules found none: "
+                          "set attachment_slot as well")
+    if kind is None:
+        kind = got["kind"] if got and got["slot"] == slot else "other"
+    elif kind not in ATTACH_KINDS[slot]:
+        raise SchemaError(f"{full_id}: set.attachment_kind {kind!r} is not a kind of slot {slot} ({list(ATTACH_KINDS[slot])})")
+    return {"slot": slot, "kind": kind, "rule": "override"}
 
 
 def _attachment_block(attach_class: dict | None, detail: dict | None) -> dict | None:
@@ -170,14 +194,15 @@ def _context(cls: dict) -> tuple:
 
 
 def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, threejs_v2_dir, cache, stats,
-                    forward_override=None):
+                    forward_override=None, mount_overrides=None):
     """Measure one record's GLB, then re-classify with the measured length (pass 2).
 
     Pass 2 can change archetype/hold (a length rule filling an unknown archetype, the long-blade exception); the
     measurement depends on both, so a changed context is measured once more (the decode is memoised, so this
     costs no second read). ``forward_override`` is the id override's ``forward`` (spec 4.5), passed to every
     measurement, and so is ``head_lead`` (W7 R-H2: one of the id's tokens is in ``rules.head_lead_tokens``; the id decides
-    it, so it does not change between the pass-1 and pass-2 classifications). Returns ``(final classification, last measurement detail)``.
+    it, so it does not change between the pass-1 and pass-2 classifications). ``mount_overrides`` (W8c) is the id override's
+    categorical ``mounts`` mapping; it joins the geometry cache fingerprint of an eligible host. Returns ``(final classification, last measurement detail)``.
 
     W7b: a whole/emplaced record whose rules leave ``kind`` null starts as ``melee`` (``kind_guessed``, unmeasured
     fallback), is measured as such, and pass 2 then takes ``ranged`` when the measured long axis is ``z``. ``kind`` is part
@@ -194,11 +219,11 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
     detail = None
     head_lead = bool(head_lead_tokens(rules) & set(tokenize_id(asset["id"], rules)))
     for _ in range(3):
-        attach = _attach_class(asset, pack_id, cls, rules)
+        attach = _attach_class(asset, pack_id, cls, rules, overrides)
         detail, cached = measure_cached(
             threejs_v2_dir, files["glb"], node, scale, cls["archetype"], cls["kind"], cls["role"], rules, cache,
             hold_class=cls["hold_class"], genre=cls["genre"], forward_override=forward_override,
-            head_lead=head_lead, attach_slot=attach["slot"] if attach else None,
+            head_lead=head_lead, attach_slot=attach["slot"] if attach else None, mount_overrides=mount_overrides,
         )
         stats["cached" if cached else "decoded"] += 1
         measured = pass2_inputs(detail)
@@ -212,13 +237,42 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
     return cls, detail
 
 
+def _carried_child_extents(docs, selected, records, rules, overrides, settings, threejs_v2_dir, cache) -> dict[str, dict]:
+    """``child_extents`` (the twin evidence) of the eligible hosts a partial build carries over from its base.
+
+    The carried records hold no measurement, but a part rebuilt in this run must meet the same hosts it would meet in a
+    full build, so the host GLBs are read again through the geometry cache (a hit when the cache is warm). The build's own
+    decode / hit counters are not touched. A host that cannot be measured now keeps the relation its stored lists carry
+    (``compat.apply_compat`` falls back to them).
+    """
+    wanted = {r["id"] for r in records if r["pack"] not in selected and (r.get("geometry") or {}).get("mounts")}
+    out: dict[str, dict] = {}
+    for pack_id in sorted(docs):
+        for asset in docs[pack_id]["assets"]:
+            full_id = f"{pack_id}/{asset.get('id')}"
+            if full_id not in wanted or not (asset.get("files") or {}).get("glb"):
+                continue
+            ev = evaluate_candidate(asset, pack_id, rules)
+            id_entry = overrides.get("ids", {}).get(full_id) or {}
+            eff = effective_override(full_id, overrides) if (ev["candidate"] or id_entry) else None
+            source = ev["source"] if ev["candidate"] else "name_token"
+            cls = classify(asset, pack_id, rules, overrides, settings.get(pack_id), candidate_source=source)
+            _, detail = _measure_record(
+                asset, pack_id, cls, source, rules, overrides, settings.get(pack_id), threejs_v2_dir, cache,
+                {"cached": 0, "decoded": 0}, forward_override=(eff or {}).get("forward"),
+                mount_overrides=(eff or {}).get("mounts"))
+            if detail is not None and "child_extents" in detail:
+                out[full_id] = detail["child_extents"]
+    return out
+
+
 def _apply_measurement(rec: dict, detail: dict, compatible_slots=frozenset()) -> None:
     """Merge a measurement into the unmeasured stub record: geometry, flags, reasons, provenance.
 
     W8b: ``geometry.mounts`` is the host mount block for an eligible host and null for every other measured record
     (docs/weapon_attachments.md 4.1, D-9). ``compatible_slots`` are the slots with at least one inferred-compatible
-    attachment, which turn a ``none`` mount into the review reason ``mount_missing``; compatibility inference is W8c, so
-    the build passes the empty default and that reason cannot fire yet.
+    attachment, which turn a ``none`` mount into the review reason ``mount_missing``; the build passes the empty default
+    here and ``compat.apply_compat`` adds that reason once every part's compatibility is known (W8c).
     """
     if detail["geometry"] is None:
         rec["review"]["reasons"] = sorted(set(rec["review"]["reasons"]) | set(detail["reasons"]))
@@ -349,6 +403,7 @@ def build_directory_report(
     skipped_for_root = False
     listing_cache: dict = {}  # Alts directory listings, shared by every record of the build (fast over ~2,700)
     trees_missing = 0
+    child_extents: dict[str, dict] = {}  # host id -> {slot: {child node: sorted AABB extents}} of the hosts measured now
 
     if partial:
         if base is None:
@@ -385,7 +440,9 @@ def build_directory_report(
             ev = evaluate_candidate(asset, pack_id, rules)
             id_entry = overrides.get("ids", {}).get(full_id) or {}
             eff = effective_override(full_id, overrides) if (ev["candidate"] or id_entry) else None
-            wants_in = bool(id_entry.get("set") or id_entry.get("confirm"))
+            # an override that only sets attachment_slot / attachment_kind classifies a part that is already a record; it
+            # must not declare a weapon the candidate patterns missed or restore a rejected one
+            wants_in = bool(set(id_entry.get("set") or {}) - _ATTACH_SET_KEYS or id_entry.get("confirm"))
             placeable = asset.get("placeable") is not False
 
             accepted, source, reason, matched = ev["accepted"], ev["source"], ev["reason"], ev["matched"]
@@ -409,7 +466,7 @@ def build_directory_report(
             if can_measure and (asset.get("files") or {}).get("glb"):
                 cls, detail = _measure_record(
                     asset, pack_id, cls, source, rules, overrides, settings.get(pack_id), threejs_v2_dir, cache,
-                    geo_stats, forward_override=(eff or {}).get("forward"),
+                    geo_stats, forward_override=(eff or {}).get("forward"), mount_overrides=(eff or {}).get("mounts"),
                 )
             elif measure and (asset.get("files") or {}).get("glb"):
                 skipped_for_root = True
@@ -424,11 +481,13 @@ def build_directory_report(
             else:
                 trees_missing += 1
             if detail is not None:
+                if "child_extents" in detail:  # an eligible host: its baked children are the twin evidence (W8c)
+                    child_extents[full_id] = detail["child_extents"]
                 _apply_measurement(rec, detail)
                 if detail.get("warning"):
                     warnings.append(f"{full_id}: {detail['warning']}")
                 warnings.extend(f"{full_id}: mount {problem}" for problem in detail.get("mount_problems") or [])
-            _apply_attachment(rec, _attachment_block(_attach_class(asset, pack_id, cls, rules), detail), detail)
+            _apply_attachment(rec, _attachment_block(_attach_class(asset, pack_id, cls, rules, overrides), detail), detail)
             records.append(rec)
             n_records += 1
         pack_rows.append({
@@ -443,6 +502,10 @@ def build_directory_report(
     _mark_duplicates(records)
     _check_renames(records)
     records.sort(key=lambda r: r["id"])
+    if partial and can_measure:  # a rebuilt part is judged against carried hosts exactly as in a full build
+        child_extents.update(_carried_child_extents(docs, set(selected), records, rules, overrides, settings, threejs_v2_dir, cache))
+    # W8c: compatibility needs every host's mounts, so it is a post-pass over ALL records (carried-over ones included)
+    warnings.extend(apply_compat(records, rules, overrides, child_extents=child_extents))
     excluded.sort(key=lambda e: e["id"])
     pack_rows.sort(key=lambda p: p["pack"])
 

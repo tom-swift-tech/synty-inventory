@@ -1,0 +1,35 @@
+{
+  "schema": "sit_mount_place/1",
+  "tolerance_m": 0.0005,
+  "tolerance_deg": 0.1,
+  "cases": [
+    {
+      "name": "muzzle_identity",
+      "host": {"point": [0, 0.05, 0.5], "forward": [0, 1, 0], "up": [0, 0, 1]},
+      "part": {"point": [0, 0, 0], "forward": [0, 1, 0], "up": [0, 0, 1]},
+      "origin": [0, 0.05, 0.5],
+      "basis": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    },
+    {
+      "name": "optic_part_authored_on_its_side",
+      "host": {"point": [0, 0.07, 0.2], "forward": [0, 0, 1], "up": [0, 1, 0]},
+      "part": {"point": [0.01, 0.02, 0.03], "forward": [0, 1, 0], "up": [0, 0, 1]},
+      "origin": [0.01, 0.04, 0.18],
+      "basis": [[-1, 0, 0], [0, 0, 1], [0, 1, 0]]
+    },
+    {
+      "name": "underbarrel_hangs_down",
+      "host": {"point": [0, 0.03, 0.3], "forward": [0, 0, 1], "up": [0, -1, 0]},
+      "part": {"point": [0.005, 0.002, 0.01], "forward": [0, 0, 1], "up": [0, 1, 0]},
+      "origin": [0.005, 0.032, 0.29],
+      "basis": [[-1, 0, 0], [0, -1, 0], [0, 0, 1]]
+    },
+    {
+      "name": "three_cycle",
+      "host": {"point": [0.1, 0.2, 0.3], "forward": [0, 1, 0], "up": [1, 0, 0]},
+      "part": {"point": [0.02, 0.01, 0.04], "forward": [0, 0, 1], "up": [0, -1, 0]},
+      "origin": [0.11, 0.16, 0.32],
+      "basis": [[0, 0, -1], [-1, 0, 0], [0, 1, 0]]
+    }
+  ]
+}
