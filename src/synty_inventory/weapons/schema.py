@@ -112,6 +112,12 @@ EXPORT_ATTACHMENT_SCHEMA = {
 _HOST_HOLDS = ("one_hand", "long_gun")  # hosts that carry mounts (docs/weapon_attachments.md 4.1)
 _FRAME_TOL = 1e-3  # INV-18: unit length and mutual orthogonality
 
+_SEAT = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["point", "forward", "up", "span_m"],
+    "properties": {"point": _VEC3, "forward": _VEC3, "up": _VEC3, "span_m": {"anyOf": [_METRES, {"type": "null"}]}},
+}
 _MOUNT = {
     # one slot of geometry.mounts (docs/weapon_attachments.md 4.1); the cross-field rules (INV-15 to INV-18) are in _check_mounts
     "type": "object",
@@ -129,6 +135,8 @@ _MOUNT = {
         "bore_source": _enum(("ring", "face_extent"), nullable=True),
         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
         "reason": _enum(MOUNT_NONE_REASONS, nullable=True),
+        # A1: optional, present only when occupied_by lists more than one measurable child; one frame per listed child
+        "seats": {"type": "object", "additionalProperties": _SEAT},
     },
 }
 MOUNTS_SCHEMA = {
@@ -435,6 +443,14 @@ def _check_mount(slot: str, m: dict, geom: dict, where: str) -> list[str]:
         errs.append(f"{here}.span_source: null exactly when span_m is")
     if src != "none" and not any(coords[:3]):
         errs += _frame_errors(m, here)
+    seats = m.get("seats")
+    if seats is not None:
+        if src not in ("child_node", "override"):
+            errs.append(f"{here}.seats: only a child_node or override mount carries seats")
+        for node in sorted(seats):
+            if node not in m["occupied_by"]:
+                errs.append(f"{here}.seats.{node}: not a node of occupied_by")
+            errs += _frame_errors(seats[node], f"{here}.seats.{node}")
     occ = m["occupied_by"]
     if occ != sorted(set(occ)):
         errs.append(f"{here}.occupied_by: must be sorted and duplicate-free (INV-16)")

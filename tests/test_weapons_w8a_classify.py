@@ -181,7 +181,7 @@ def test_editing_a_w7_rule_moves_rules_digest_and_not_the_attach_digest():
 def test_the_directory_header_records_both_digests_and_the_attach_version(built):
     d = built[0]
     assert d["rules_digest"] == W7_RULES_DIGEST
-    assert d["attach_version"] == 1 and d["attach_rules_digest"] == attach_rules_digest(load_rules())
+    assert d["attach_version"] == 2 and d["attach_rules_digest"] == attach_rules_digest(load_rules())
 
 
 def test_a_changed_attachment_row_moves_the_attach_digest_but_not_the_export_digest(tmp_path):
