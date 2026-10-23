@@ -38,6 +38,10 @@ Judgment calls, stated once:
   the lower node name on a tie), so a game hides that child and seats the part on ``mounts.<slot>.seats[child]``. A carried twin
   keeps the single name its stored entry has, else (none or several) the copy of ``occupied_by``. Only ``twin`` entries
   narrow ``replaces``: an override entry for the same pair stays a copy of the slot.
+* A1 (W8f). ``twin_forward`` runs first, over the whole record set: a baked child sits as the game's own authoring put it, so
+  where a part has a yaw-free twin child its forward must be the host's, whatever the step-3 section prior guessed. It takes the
+  evidence as the host mount's ``forward``, never touches ``review`` and gives up (changes nothing) on an override, a muzzle
+  device, hosts that disagree, a child turned against the part, or a host forward that would lie along the part's own up.
 """
 
 from __future__ import annotations
@@ -285,12 +289,89 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
     return {"parts": parts, "host_slots": host_slots, "problems": sorted(problems)}
 
 
+def _axis_of(vec) -> int | None:
+    """The axis index of a unit axis vector (``[0, 0, -1]`` -> 2), or None when it is not one."""
+    i = max(range(3), key=lambda k: abs(vec[k]))
+    return i if abs(abs(vec[i]) - 1.0) < 1e-3 else None
+
+
+def _part_axes(anchor: dict, footprint: dict) -> list[float] | None:
+    """The part's AABB extents per axis x, y, z from its footprint (anchor frames are axis-aligned): ``length_m`` along
+    ``forward``, ``height_m`` along ``up``, ``width_m`` along the third axis. None when the frame is not axis-aligned."""
+    f, u = _axis_of(anchor["forward"]), _axis_of(anchor["up"])
+    if f is None or u is None or f == u:
+        return None
+    out = [0.0, 0.0, 0.0]
+    out[f], out[u], out[3 - f - u] = footprint["length_m"], footprint["height_m"], footprint["width_m"]
+    return out
+
+
+def _axes_equal(a, b) -> bool:
+    """Per-axis (unsorted) extents agree within the twin tolerance: no yaw between the two meshes."""
+    return all(abs(x - y) <= max(TWIN_REL_TOL * max(x, y), TWIN_ABS_TOL_M) for x, y in zip(a, b))
+
+
+def twin_forward(records: list[dict], child_extents: dict) -> list[str]:
+    """Correct the anchor forward of every part that has twin evidence (spec 3.4 step 3a, A1); returns the corrected ids.
+
+    Steps 1 to 3 of the anchor measure a part alone, and their forward SIGN (and, for a near-round body, the forward AXIS) is
+    a prior. A baked child that the part twins sits in its host as the game's own authoring put it, so its host's
+    forward IS the gun-forward direction for that part: the evidence outranks the prior. For a part with a non-null anchor,
+    a slot other than ``muzzle`` (its frame uses ``up`` as the bore, and every live muzzle twin already agrees) and no
+    explicit ``forward`` override (the human wins), each host of ``child_extents`` whose mount for the slot is not ``none``
+    is asked: does the part twin one of its children (``matched_child``) with the same PER-AXIS extents (a yawed child proves
+    nothing about the part's forward)? If so the host mount's ``forward`` is the answer. Hosts that disagree: the part keeps
+    its measurement. A forward along the part's own ``up`` would make an invalid frame and is never applied.
+
+    On a change the anchor takes the forward with ``forward_source = "twin"`` and ``symmetric = False``; an axis change
+    also swaps ``length_m`` / ``width_m`` and ``foot_length_m`` / ``foot_width_m`` (exact: the frames are axis-aligned). Point,
+    up, height and mate diameter never change, and neither does ``review``: a correction never raises confidence. Running it
+    again finds the forward already right and does nothing. Only ``child_extents`` is evidence: a host known only from a
+    stored relation (``prev_twins``) proves nothing here.
+    """
+    hosts = {r["id"]: r for r in records}
+    done: list[str] = []
+    for rec in sorted(records, key=lambda r: r["id"]):
+        att = rec.get("attachment")
+        if not att or att["slot"] not in ATTACH_SLOTS or att["slot"] == "muzzle":
+            continue
+        anchor, foot = att["anchor"], att["footprint"]
+        if anchor is None or foot is None or anchor["forward_source"] == "override":
+            continue
+        axes, extents = _part_axes(anchor, foot), sorted_extents(foot)
+        if axes is None:
+            continue
+        wanted = set()
+        for host_id in sorted(child_extents):
+            mount = (((hosts.get(host_id) or {}).get("geometry") or {}).get("mounts") or {}).get(att["slot"])
+            if not mount or mount["source"] == "none" or mount.get("forward") is None:
+                continue
+            rows = child_extents[host_id].get(att["slot"]) or {}
+            name = matched_child(extents, rows)
+            if name is not None and _axes_equal(axes, rows[name]["axes"]):
+                wanted.add(tuple(mount["forward"]))
+        if len(wanted) != 1:
+            continue  # no evidence, or hosts that disagree
+        want = list(next(iter(wanted)))
+        new_axis, old_axis = _axis_of(want), _axis_of(anchor["forward"])
+        if want == anchor["forward"] or new_axis is None or new_axis == _axis_of(anchor["up"]):
+            continue
+        anchor["forward"], anchor["forward_source"], anchor["symmetric"] = want, "twin", False
+        if new_axis != old_axis:
+            foot["length_m"], foot["width_m"] = foot["width_m"], foot["length_m"]
+            foot["foot_length_m"], foot["foot_width_m"] = foot["foot_width_m"], foot["foot_length_m"]
+        done.append(rec["id"])
+    return done
+
+
 def apply_compat(records: list[dict], rules: dict, overrides: dict | None = None, *, child_extents: dict | None = None) -> list[str]:
     """Fill the compatibility fields of ``records`` in place; returns the warnings (override patterns that match no host).
 
     Runs over the WHOLE record set, carried-over records of a partial build included: it first forgets what an earlier run
     stored (the lists and the three reasons) and recomputes, so the result does not depend on how the directory got here.
+    A1: the twin forward correction (``twin_forward``) runs first, so ``fit_span`` reads the corrected ``foot_length_m``.
     """
+    twin_forward(records, child_extents or {})
     prev_twins = {
         (r["id"], e["host"]): e.get("replaces", []) for r in records if r.get("attachment")
         for e in r["attachment"]["compatible_hosts"] + r["attachment"]["pending_hosts"] if e["tier"] == "twin"}
