@@ -157,15 +157,15 @@ def snapshot(directory, *, attachments):
 
 
 def test_ac96_the_version_constants():
-    assert pkg.WEAPON_ATTACH_VERSION == 7
+    assert pkg.WEAPON_ATTACH_VERSION == 8
     assert pkg.WEAPON_GEOMETRY_VERSION == 5
 
 
-def test_ac96_the_directory_header_and_the_attachments_export_record_attach_version_7(tmp_path):
+def test_ac96_the_directory_header_and_the_attachments_export_record_attach_version_8(tmp_path):
     directory = W.build(tmp_path, WORLD)[0]
-    assert directory["attach_version"] == 7 and directory["geometry_version"] == 5
+    assert directory["attach_version"] == 8 and directory["geometry_version"] == 5
     gf = snapshot(directory, attachments=True)["generated_from"]
-    assert gf["attach_version"] == 7 and gf["attach_rules_digest"] == directory["attach_rules_digest"]
+    assert gf["attach_version"] == 8 and gf["attach_rules_digest"] == directory["attach_rules_digest"]
 
 
 def test_ac96_the_default_export_header_is_the_w7_one(tmp_path):

@@ -6,7 +6,8 @@ mount-bearing hosts. Literals below were worked out from the fixture meshes:
 * ``FAKE_CompA/SM_Wep_Rifle_Mag_01`` is a magazine/standard part whose measured forward is +z (flip to -z). Its hosts: twins
   FAKE_CompA/Alpha and FAKE_Mount/Mount_01 (0.95), cross_pack_fit FAKE_Mount/Double_01 (0.5), then pending (no mount) hosts
   Beta and Epsilon (same_pack_fit) and more cross-pack ones:
-  3 compatible + 39 pending = 42 rows in the full world.
+  3 compatible + 37 pending = 40 rows in the full world (A5 item 0: the two hosts named `SM_Prop_*` take no
+  attachment, so they are in no part's host list).
 * ``FAKE_Attach/SM_Wep_Footless_Scope_01`` has no measurable anchor: nothing to flip.
 * ``FAKE_CompA/SM_Wep_Rifle_Alpha_01`` is a host with all five mount slots; its optic seat is the child node
   ``SM_Wep_Rifle_Alpha_01_Scope`` (0.90), muzzle a probe seat (0.80), underbarrel and laser_light ``none`` (no_child_no_probe).
@@ -159,7 +160,7 @@ def test_an_attachment_tile_shows_slot_kind_tier_counts_and_reasons(world):
     assert (t["data-attach"], t["data-slot"], t["data-akind"], t["data-flipfrom"], t["data-flipto"]) == ("1", "magazine", "standard", "+z", "-z")
     text = " ".join("".join(t["_text"]).split())
     assert "magazine" in text and "standard" in text
-    assert "twin 2" in text and "cross_pack_fit 1" in text and "no mount 39" in text
+    assert "twin 2" in text and "cross_pack_fit 1" in text and "no mount 37" in text
     assert "compat_cross_pack" in text and "twin_multi" in text  # the review reasons are on the tile
     plain = world["page"].tile(FOOTLESS)
     assert plain["data-flipto"] == "" and plain["data-flipfrom"] == ""  # no measured anchor: nothing to flip
@@ -183,7 +184,7 @@ def test_the_embedded_data_lists_every_candidate_host_pending_ones_marked(world)
     rows = [(h["host"], h["tier"], h["pending"]) for h in mag["hosts"]]
     assert rows[:3] == [(ALPHA, "twin", False), (MOUNT_01, "twin", False), ("FAKE_Mount/SM_Wep_Rifle_Double_01", "cross_pack_fit", False)]
     assert rows[3:5] == [("FAKE_CompA/SM_Wep_Rifle_Beta_01", "same_pack_fit", True), ("FAKE_CompA/SM_Wep_Rifle_Epsilon_01", "same_pack_fit", True)]
-    assert len(rows) == 42 and sum(1 for r in rows if r[2]) == 39  # 3 compatible, 39 with no mount
+    assert len(rows) == 40 and sum(1 for r in rows if r[2]) == 37  # 3 compatible, 37 with no mount (A5 item 0: two `SM_Prop_*` hosts dropped)
     assert [h["score"] for h in mag["hosts"][:3]] == [0.95, 0.95, 0.5] and mag["hosts"][3]["score"] is None
     assert data["attachments"][FOOTLESS]["flip"] is None
     assert data["kinds"]["magazine"] == ["standard", "extended", "drum", "cell", "other"]
@@ -304,7 +305,7 @@ def test_in_chromium_flip_slot_kind_hosts_and_mounts_round_trip_into_valid_corre
     assert page.locator("#att").is_visible() and page.locator("#mnt").is_hidden()
     assert page.locator("#b-flip").inner_text() == "Flip forward" and "+z" in page.locator("#p-flip").inner_text()
     rows = page.locator("#hosts label.hrow")
-    assert rows.count() == 42 and page.locator("#hosts label.hrow.dim").count() == 39
+    assert rows.count() == 40 and page.locator("#hosts label.hrow.dim").count() == 37
     page.locator("#b-flip").click()
     assert page.locator("#b-flip").inner_text() == "Undo flip"
     host_row(page, MOUNT_01).locator("input").uncheck()  # remove an inferred host
