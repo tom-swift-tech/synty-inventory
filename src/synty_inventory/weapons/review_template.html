@@ -82,6 +82,35 @@ details.family .grid { margin-top:6px; }
 details.raw { margin-top:16px; }
 details.raw textarea { width:100%; min-height:120px; background:var(--card); color:var(--fg); border:1px solid var(--line);
   border-radius:6px; padding:6px; font:12px/1.3 monospace; }
+section.sec h3.slot { font-size:14px; margin:12px 0 6px; color:var(--acc); }
+section.sec h3.slot .n { color:var(--dim); font-weight:normal; font-size:12px; }
+.tag.slot { color:#7fe0c8; }
+.tag.akind { color:#e0c87f; }
+.tag.tier { color:var(--dim); }
+.reasons { color:var(--warn); font-size:11px; margin-top:2px; overflow-wrap:anywhere; }
+.pvs { display:flex; gap:4px; margin-top:4px; flex-wrap:wrap; }
+img.pv { width:96px; height:96px; object-fit:contain; background:#0d0f13; border-radius:4px; }
+button.chip { min-height:30px; padding:4px 10px; border-radius:15px; font-size:13px; }
+button.chip.on { background:#7a5a13; border-color:#c99a2e; }
+.bar label.chk { display:flex; align-items:center; gap:4px; font-size:13px; color:var(--dim); }
+#panel h4 { margin:10px 0 4px; font-size:13px; color:var(--dim); font-weight:600; }
+#panel .hosts { display:flex; flex-direction:column; gap:3px; max-height:30vh; overflow-y:auto; }
+#panel label.hrow { flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px; background:var(--card); border-radius:6px;
+  padding:3px 6px; color:var(--fg); }
+#panel label.hrow.dim, #panel tr.dim { opacity:.55; }
+#panel label.hrow input[type=checkbox] { width:auto; margin:0; }
+#panel .hid { font-size:12px; overflow-wrap:anywhere; flex:1 1 160px; }
+#panel .score { font-size:12px; color:var(--ok); }
+#panel .tag.nm { background:#3a3a3a; color:var(--dim); }
+#panel .hstate.inferred { color:var(--dim); font-size:11px; }
+#panel .hstate.added { color:var(--ok); font-size:11px; }
+#panel .hstate.removed { color:var(--bad); font-size:11px; }
+#panel .hosts select.lab { width:auto; margin:0; padding:3px; }
+#panel input[type=text] { flex:1 1 160px; min-width:0; padding:7px; border-radius:6px; border:1px solid var(--line);
+  background:var(--card); color:var(--fg); }
+#panel table { width:100%; border-collapse:collapse; font-size:12px; }
+#panel th, #panel td { text-align:left; padding:3px 4px; border-bottom:1px solid var(--line); vertical-align:top; overflow-wrap:anywhere; }
+#panel td select { margin:0; padding:3px; }
 @media (min-width: 900px) {
   body { padding-bottom:30px; }
   body.panel-open { padding-bottom:30px; padding-right:372px; }
@@ -97,6 +126,9 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
     <input id="q" type="search" placeholder="Filter by id" aria-label="Filter tiles by id">
     <button id="dl" class="primary" type="button">Download corrections.json</button>
     <button id="cp" type="button">Copy to clipboard</button>
+    <button id="f-nomount" class="chip" type="button" aria-pressed="false" title="Hosts whose mount is missing (review reason mount_missing)">No mount (@@NOMOUNT@@)</button>
+    <label class="chk"><input id="c-label" type="checkbox"> Label mode</label>
+    <button id="dl-labels" type="button" hidden>Download weapon_attach_labels.json</button>
     <span id="msg" role="status"></span>
   </div>
   <nav class="jump">@@NAV@@</nav>
@@ -104,7 +136,7 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
 <main>
 @@SECTIONS@@
 </main>
-<details class="raw"><summary>Corrections JSON (<span id="pcount">0</span> pending)</summary>
+<details class="raw"><summary>Corrections JSON (<span id="pcount">0</span> pending; <span id="lcount">0</span> labelled pairs)</summary>
   <textarea id="raw" readonly rows="8" aria-label="Corrections JSON"></textarea>
 </details>
 <aside id="panel" hidden aria-label="Correction panel">
@@ -120,6 +152,21 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
     <label id="l-carrier" hidden>carrier kind<select id="f-carrier"></select></label>
     <label id="l-ammo" hidden>projectile<select id="f-ammo"></select></label>
   </div>
+  <div id="att" hidden>
+    <h4>Attachment</h4>
+    <div class="fields">
+      <label>attachment slot<select id="f-aslot"></select></label>
+      <label>attachment kind<select id="f-akind"></select></label>
+    </div>
+    <div class="row"><button id="b-flip" type="button">Flip forward</button><span class="sub" id="p-flip"></span></div>
+    <h4>Hosts <span id="p-hostn"></span></h4>
+    <div class="hosts" id="hosts"></div>
+    <div class="row"><input id="h-add" type="text" placeholder="Add a host: pack/asset_id or pack/glob*" aria-label="Add a host id or glob"><button id="b-hadd" type="button">Add</button></div>
+  </div>
+  <div id="mnt" hidden>
+    <h4>Mounts</h4>
+    <table id="mounts" aria-label="Mounts"></table>
+  </div>
   <div class="row">
     <button id="b-ok" class="good" type="button">Mark correct</button>
     <button id="b-no" class="bad" type="button">Not a weapon</button>
@@ -131,24 +178,35 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
   <div class="state" id="p-state"></div>
 </aside>
 <script type="application/json" id="enums">@@ENUMS@@</script>
+<script type="application/json" id="attach-data">@@ATTACH@@</script>
 <script>
 (function () {
   'use strict';
   var ENUMS = JSON.parse(document.getElementById('enums').textContent);
+  var DATA = JSON.parse(document.getElementById('attach-data').textContent);
   var FIELDS = ['role', 'kind', 'archetype', 'hold_class', 'genre'];
+  var ATTACH_KEYS = ['attachment_slot', 'attachment_kind'];
   var KEY = 'weapon-corrections/1:' + (document.body.getAttribute('data-state-key') || '');
+  var LABEL_KEY = 'weapon-attach-labels/1:' + (document.body.getAttribute('data-state-key') || '');
 
   // localStorage is optional: a blocked or full store falls back to memory and the page still works.
   var store = null;
   try { store = window.localStorage; store.setItem('__t', '1'); store.removeItem('__t'); } catch (e) { store = null; }
-  function load() {
-    try { var raw = store ? store.getItem(KEY) : null; var o = raw ? JSON.parse(raw) : {}; return o && typeof o === 'object' ? o : {}; }
+  function load(key) {
+    try { var raw = store ? store.getItem(key) : null; var o = raw ? JSON.parse(raw) : {}; return o && typeof o === 'object' ? o : {}; }
     catch (e) { return {}; }
   }
-  function persist() { if (store) { try { store.setItem(KEY, JSON.stringify(state)); } catch (e) { /* quota */ } } }
+  function persist() {
+    if (store) {
+      try { store.setItem(KEY, JSON.stringify(state)); store.setItem(LABEL_KEY, JSON.stringify(labels)); } catch (e) { /* quota */ }
+    }
+  }
 
-  // state: tile id -> {scope: 'id'|'family', set: {}, confirm: bool, exclude: bool, note: string}
-  var state = load();
+  // state: tile id -> {scope: 'id'|'family', set: {}, confirm: bool, exclude: bool, note: string,
+  //                    hosts: {host: 'remove'}, addIds: [host id or glob], flip: bool, mounts: {slot: 'none'|node}}
+  // labels (Label mode): part id -> {host id: true|false}
+  var state = load(KEY);
+  var labels = load(LABEL_KEY);
   var tiles = {};
   var all = document.querySelectorAll('.tile[data-id]');
   for (var i = 0; i < all.length; i++) { tiles[all[i].getAttribute('data-id')] = all[i]; }
@@ -163,10 +221,44 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
   FIELDS.forEach(function (f) { fill(el('f-' + f), ENUMS[f], '(unchanged)'); });
   fill(el('f-carrier'), ENUMS.carrier, '(choose)');
   fill(el('f-ammo'), ENUMS.ammo, '(choose)');
+  fill(el('f-aslot'), DATA.slots, '(unchanged)');
 
   function isEmpty(o) { for (var k in o) { if (Object.prototype.hasOwnProperty.call(o, k)) { return false; } } return true; }
+  function listOf(o) { return Array.isArray(o) ? o : []; }
+
+  // --- attachment extras of one state entry -------------------------------------------------------------
+  // compatible {add, remove}: a host row of the checklist that is unticked is a removal; a typed id or glob is an addition.
+  function compatOf(s) {
+    var add = listOf(s.addIds).slice(), remove = [];
+    Object.keys(s.hosts || {}).sort().forEach(function (h) { if (s.hosts[h] === 'remove') { remove.push(h); } });
+    add = add.filter(function (h, i) { return add.indexOf(h) === i; }).sort();
+    if (!add.length && !remove.length) { return null; }
+    var o = {};
+    if (add.length) { o.add = add; }
+    if (remove.length) { o.remove = remove; }
+    return o;
+  }
+  // mounts {slot: {source: 'none'} | {source: 'child_node', child: node}}: categorical only, never a number
+  function mountsOf(s) {
+    var m = s.mounts || {}, out = {}, any = false;
+    DATA.slots.forEach(function (slot) {
+      if (!m[slot]) { return; }
+      out[slot] = m[slot] === 'none' ? { source: 'none' } : { source: 'child_node', child: m[slot] };
+      any = true;
+    });
+    return any ? out : null;
+  }
+  function flipTo(t) { return t.getAttribute('data-flipto') || ''; }
+  function hasExtras(s) {
+    return !!(compatOf(s) || s.flip || mountsOf(s));
+  }
+  function isPending(s) {
+    return !!(s && (!isEmpty(s.set || {}) || s.confirm || s.exclude || hasExtras(s)));
+  }
 
   // The corrections file (weapon-corrections/1) built from the pending state; sorted by target so it is stable.
+  // `forward` and `mounts` are exact-id only (a glob target is exit 6), so a family correction writes them as a
+  // separate entry for the tile's own id.
   function buildCorrections() {
     var byTarget = {};
     Object.keys(state).sort().forEach(function (id) {
@@ -177,15 +269,62 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
       var sset = s.set || {};
       if ((sset.role === 'carrier' && !sset.carrier) || (sset.role === 'ammo' && !sset.ammo)) { return; }  // incomplete
       var c = { target: target };
+      var idOnly = {};
+      var comp = s.exclude ? null : compatOf(s);
       if (s.exclude) { c.exclude = true; }
-      else if (!isEmpty(s.set || {})) { c.set = s.set; }
-      else { c.confirm = true; }
-      if (s.note) { c.note = s.note; }
-      byTarget[JSON.stringify(target)] = c;
+      else if (!isEmpty(sset)) { c.set = sset; }
+      else if (s.confirm || !hasExtras(s)) { c.confirm = true; }
+      if (comp) { c.compatible = comp; }
+      if (!s.exclude && s.flip && flipTo(t)) { idOnly.forward = flipTo(t); }
+      var mnt = s.exclude ? null : mountsOf(s);
+      if (mnt) { idOnly.mounts = mnt; }
+      var shared = !!(c.exclude || c.set || c.confirm || c.compatible);
+      var hasOnly = !isEmpty(idOnly);
+      if (family) {
+        if (shared) {
+          if (s.note) { c.note = s.note; }
+          byTarget[JSON.stringify(target)] = c;
+        }
+        if (hasOnly) {
+          var d = { target: { id: id } };
+          Object.keys(idOnly).forEach(function (k) { d[k] = idOnly[k]; });
+          if (!shared && s.note) { d.note = s.note; }
+          byTarget[JSON.stringify(d.target)] = d;
+        }
+      } else {
+        Object.keys(idOnly).forEach(function (k) { c[k] = idOnly[k]; });
+        if (s.note) { c.note = s.note; }
+        if (shared || hasOnly) { byTarget[JSON.stringify(target)] = c; }
+      }
     });
     return { schema: 'weapon-corrections/1', corrections: Object.keys(byTarget).sort().map(function (k) { return byTarget[k]; }) };
   }
   window.__buildCorrections = buildCorrections;
+
+  // Label mode output (weapon-attach-labels/1): ids and booleans only, one entry per (part, host), sorted.
+  function buildLabels() {
+    var pairs = [];
+    Object.keys(labels).sort().forEach(function (part) {
+      Object.keys(labels[part] || {}).sort().forEach(function (host) {
+        if (typeof labels[part][host] === 'boolean') { pairs.push({ part: part, host: host, fits: labels[part][host] }); }
+      });
+    });
+    return { schema: 'weapon-attach-labels/1', pairs: pairs };
+  }
+  window.__buildLabels = buildLabels;
+
+  function stateLabel(s, t) {
+    var label = s.exclude ? 'not a weapon' : (!isEmpty(s.set || {}) ? 'changed' : (t.hasAttribute('data-excluded') ? 'restore' : 'correct'));
+    if (!s.exclude && isEmpty(s.set || {}) && !s.confirm && hasExtras(s)) {
+      var bits = [];
+      if (compatOf(s)) { bits.push('hosts'); }
+      if (s.flip) { bits.push('flip'); }
+      if (mountsOf(s)) { bits.push('mounts'); }
+      label = bits.join(' + ');
+    }
+    if (s.scope === 'family') { label += ' (family)'; }
+    return label;
+  }
 
   function render() {
     var n = 0;
@@ -194,10 +333,8 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
       if (s) {
         n++;
         t.classList.add('pending');
-        var label = s.exclude ? 'not a weapon' : (!isEmpty(s.set || {}) ? 'changed' : (t.hasAttribute('data-excluded') ? 'restore' : 'correct'));
-        if (s.scope === 'family') { label += ' (family)'; }
         if (!tag) { tag = document.createElement('span'); tag.className = 'tag pend'; t.querySelector('.line').appendChild(tag); }
-        tag.textContent = label;
+        tag.textContent = stateLabel(s, t);
       } else {
         t.classList.remove('pending');
         if (tag) { tag.parentNode.removeChild(tag); }
@@ -205,7 +342,136 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
     });
     el('pcount').textContent = String(n);
     el('raw').value = JSON.stringify(buildCorrections(), null, 1);
+    el('lcount').textContent = String(buildLabels().pairs.length);
     persist();
+  }
+
+  // --- the attachment panel -----------------------------------------------------------------------------
+  function curSlot(t) {
+    var s = state[cur];
+    return (s && s.set && s.set.attachment_slot) || t.getAttribute('data-slot');
+  }
+  function fillKinds(t) {
+    var slot = curSlot(t), s = state[cur];
+    fill(el('f-akind'), DATA.kinds[slot] || [], '(unchanged)');
+    el('f-akind').value = (s && s.set && s.set.attachment_kind) || '';
+  }
+  function setAttachPanel(t) {
+    var is = t.hasAttribute('data-attach');
+    el('att').hidden = !is;
+    if (!is) { return; }
+    var s = state[cur] || { set: {} };
+    el('f-aslot').value = (s.set && s.set.attachment_slot) || '';
+    fillKinds(t);
+    var to = flipTo(t);
+    el('b-flip').hidden = !to;
+    el('b-flip').textContent = s.flip ? 'Undo flip' : 'Flip forward';
+    el('p-flip').textContent = to ? ('forward ' + t.getAttribute('data-flipfrom') + (s.flip ? ' -> ' + to + ' (pending)' : ' (measured)')) : 'no measured anchor: nothing to flip';
+    renderHosts(t);
+  }
+
+  function hostRow(t, h, extra) {
+    var s = state[cur] || {};
+    var row = document.createElement('label');
+    row.className = 'hrow' + (h.pending ? ' dim' : '');
+    var box = document.createElement('input'); box.type = 'checkbox';
+    var removed = !extra && s.hosts && s.hosts[h.host] === 'remove';
+    box.checked = !removed;
+    box.addEventListener('change', function () { toggleHost(h.host, !!extra, box.checked); });
+    var name = document.createElement('span'); name.className = 'hid'; name.textContent = h.host;
+    row.appendChild(box); row.appendChild(name);
+    var tier = document.createElement('span'); tier.className = 'tag tier'; tier.textContent = h.tier || 'added'; row.appendChild(tier);
+    if (h.score !== null && h.score !== undefined) {
+      var sc = document.createElement('span'); sc.className = 'score'; sc.textContent = Number(h.score).toFixed(2); row.appendChild(sc);
+    }
+    if (h.pending) { var nm = document.createElement('span'); nm.className = 'tag nm'; nm.textContent = 'no mount'; row.appendChild(nm); }
+    var st = document.createElement('span'); st.className = 'hstate ' + (extra ? 'added' : (removed ? 'removed' : 'inferred'));
+    st.textContent = extra ? 'added' : (removed ? 'removed' : 'inferred');
+    row.appendChild(st);
+    if (h.preview) {
+      var img = document.createElement('img'); img.className = 'pv'; img.src = h.preview; img.width = 96; img.height = 96; img.alt = '';
+      row.appendChild(img);
+    }
+    if (el('c-label').checked && !extra) {
+      var lab = document.createElement('select'); lab.className = 'lab'; lab.setAttribute('aria-label', 'label ' + h.host);
+      [['', 'unlabelled'], ['1', 'fits'], ['0', 'does not fit']].forEach(function (p) {
+        var o = document.createElement('option'); o.value = p[0]; o.textContent = p[1]; lab.appendChild(o);
+      });
+      var have = labels[cur] && labels[cur][h.host];
+      lab.value = have === true ? '1' : (have === false ? '0' : '');
+      lab.addEventListener('click', function (ev) { ev.stopPropagation(); });
+      lab.addEventListener('change', function () { setLabel(h.host, lab.value); });
+      row.appendChild(lab);
+    }
+    return row;
+  }
+  function renderHosts(t) {
+    var box = el('hosts'), s = state[cur] || {};
+    box.textContent = '';
+    var info = DATA.attachments[cur];
+    var rows = info ? info.hosts : [];
+    rows.forEach(function (h) { box.appendChild(hostRow(t, h, false)); });
+    listOf(s.addIds).forEach(function (id) { box.appendChild(hostRow(t, { host: id, tier: null, score: null, pending: false, preview: null }, true)); });
+    el('p-hostn').textContent = '(' + rows.filter(function (h) { return !h.pending; }).length + ' compatible, ' +
+      rows.filter(function (h) { return h.pending; }).length + ' no mount)';
+  }
+  function toggleHost(host, isAdded, on) {
+    if (!cur) { return; }
+    var e = entry();
+    if (isAdded) {
+      if (!on) { e.addIds = listOf(e.addIds).filter(function (x) { return x !== host; }); }
+    } else {
+      e.hosts = e.hosts || {};
+      if (on) { delete e.hosts[host]; } else { e.hosts[host] = 'remove'; }
+    }
+    settle();
+  }
+  function setLabel(host, value) {
+    if (!cur) { return; }
+    labels[cur] = labels[cur] || {};
+    if (value === '') { delete labels[cur][host]; if (isEmpty(labels[cur])) { delete labels[cur]; } }
+    else { labels[cur][host] = value === '1'; }
+    render();
+  }
+
+  // --- the Mounts table of a host ----------------------------------------------------------------------------
+  function setMountsPanel(t) {
+    var info = t.hasAttribute('data-mounts') ? DATA.hosts[cur] : null;
+    el('mnt').hidden = !info;
+    var table = el('mounts');
+    table.textContent = '';
+    if (!info) { return; }
+    var s = state[cur] || {}, picked = s.mounts || {};
+    var head = document.createElement('tr');
+    ['slot', 'source', 'occupied_by', 'confidence', 'seat'].forEach(function (h) {
+      var th = document.createElement('th'); th.textContent = h; head.appendChild(th);
+    });
+    table.appendChild(head);
+    DATA.slots.forEach(function (slot) {
+      var m = info.mounts[slot];
+      if (!m) { return; }
+      var tr = document.createElement('tr');
+      if (m.source === 'none') { tr.className = 'dim'; }
+      [slot, m.source + (m.child ? ' (' + m.child + ')' : '') + (m.reason ? ': ' + m.reason : ''),
+       m.occupied_by.length ? m.occupied_by.join(', ') : '-', m.confidence === null || m.confidence === undefined ? '-' : Number(m.confidence).toFixed(2)
+      ].forEach(function (text) { var td = document.createElement('td'); td.textContent = text; tr.appendChild(td); });
+      var td = document.createElement('td');
+      var sel = document.createElement('select'); sel.className = 'mnt-pick'; sel.setAttribute('aria-label', 'mount ' + slot);
+      var keep = document.createElement('option'); keep.value = ''; keep.textContent = '(unchanged)'; sel.appendChild(keep);
+      var none = document.createElement('option'); none.value = 'none'; none.textContent = 'none'; sel.appendChild(none);
+      info.nodes.forEach(function (n) { var o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
+      sel.value = picked[slot] || '';
+      sel.addEventListener('change', function () { pickMount(slot, sel.value); });
+      td.appendChild(sel); tr.appendChild(td);
+      table.appendChild(tr);
+    });
+  }
+  function pickMount(slot, value) {
+    if (!cur) { return; }
+    var e = entry();
+    e.mounts = e.mounts || {};
+    if (value) { e.mounts[slot] = value; } else { delete e.mounts[slot]; }
+    settle();
   }
 
   function setPanelValues(t) {
@@ -222,9 +488,11 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
     el('b-ok').hidden = excl; el('b-no').hidden = excl; el('b-restore').hidden = !excl;
     el('l-fam').hidden = excl || !t.getAttribute('data-glob');
     FIELDS.forEach(function (f) { el('f-' + f).disabled = excl; });
+    setAttachPanel(t);
+    setMountsPanel(t);
     var st = state[cur];
     el('p-state').textContent = st && st.set && ((st.set.role === 'carrier' && !st.set.carrier) || (st.set.role === 'ammo' && !st.set.ammo))
-      ? 'Choose the carrier kind / projectile: not emitted until then' : st ? ('Pending: ' + (st.exclude ? 'not a weapon' : (!isEmpty(st.set || {}) ? 'set ' + JSON.stringify(st.set) : (excl ? 'restore' : 'mark correct')))) : '';
+      ? 'Choose the carrier kind / projectile: not emitted until then' : st ? ('Pending: ' + stateLabel(st, t) + (!isEmpty(st.set || {}) ? ' ' + JSON.stringify(st.set) : '')) : '';
   }
 
   function openPanel(id) {
@@ -260,11 +528,18 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
     return state[cur];
   }
   function after() { render(); if (cur) { setPanelValues(tiles[cur]); } }
+  // drop an entry that no longer asks for anything, then redraw
+  function settle() {
+    if (cur && state[cur] && !isPending(state[cur])) { delete state[cur]; }
+    after();
+  }
   function note() { if (cur && state[cur]) { state[cur].note = el('note').value; } }
 
   function onField() {
     if (!cur) { return; }
     var e = entry(), t = tiles[cur];
+    var keep = {};
+    ATTACH_KEYS.forEach(function (k) { if (e.set && e.set[k]) { keep[k] = e.set[k]; } });
     e.set = {}; e.confirm = false; e.exclude = false;
     FIELDS.forEach(function (f) {
       var v = el('f-' + f).value;
@@ -272,14 +547,43 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
     });
     if (e.set.role === 'carrier' && el('f-carrier').value) { e.set.carrier = el('f-carrier').value; }
     if (e.set.role === 'ammo' && el('f-ammo').value) { e.set.ammo = el('f-ammo').value; }
+    ATTACH_KEYS.forEach(function (k) { if (keep[k]) { e.set[k] = keep[k]; } });
     e.note = el('note').value;
-    if (isEmpty(e.set)) { delete state[cur]; }
-    after();
+    settle();
     // carrier/ammo need their sub-object before the correction is valid: keep the extra select in view
     var role = el('f-role').value;
     el('l-carrier').hidden = role !== 'carrier'; el('l-ammo').hidden = role !== 'ammo';
   }
   FIELDS.concat(['carrier', 'ammo']).forEach(function (f) { el('f-' + f).addEventListener('change', onField); });
+
+  // slot / kind of an attachment: only a value that differs from the tile's own is written
+  function onAttachField(key, select, tileAttr) {
+    if (!cur) { return; }
+    var e = entry(), t = tiles[cur];
+    e.set = e.set || {};
+    if (select.value && select.value !== t.getAttribute(tileAttr)) { e.set[key] = select.value; } else { delete e.set[key]; }
+    if (key === 'attachment_slot') { delete e.set.attachment_kind; }  // the kinds belong to the slot: choose again
+    settle();
+  }
+  el('f-aslot').addEventListener('change', function () { onAttachField('attachment_slot', el('f-aslot'), 'data-slot'); });
+  el('f-akind').addEventListener('change', function () { onAttachField('attachment_kind', el('f-akind'), 'data-akind'); });
+  el('b-flip').addEventListener('click', function () {
+    if (!cur || !flipTo(tiles[cur])) { return; }
+    var e = entry(); e.flip = !e.flip; settle();
+  });
+  function addHost() {
+    if (!cur) { return; }
+    var v = el('h-add').value.trim();
+    if (!/^[^\/\s]+\/[^\s]+$/.test(v)) { el('p-state').textContent = 'A host is <pack>/<asset id or glob>'; return; }
+    var e = entry();
+    e.addIds = listOf(e.addIds);
+    if (e.addIds.indexOf(v) < 0) { e.addIds.push(v); }
+    el('h-add').value = '';
+    settle();
+  }
+  el('b-hadd').addEventListener('click', addHost);
+  el('h-add').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); addHost(); } });
+
   el('note').addEventListener('input', function () { note(); render(); });
   el('c-fam').addEventListener('change', function () {
     if (!cur) { return; }
@@ -306,14 +610,16 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
   });
 
   function say(text) { el('msg').textContent = text; }
-  el('dl').addEventListener('click', function () {
-    var text = JSON.stringify(buildCorrections(), null, 1) + '\n';
+  function download(name, obj) {
+    var text = JSON.stringify(obj, null, 1) + '\n';
     var url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-    var a = document.createElement('a'); a.href = url; a.download = 'corrections.json';
+    var a = document.createElement('a'); a.href = url; a.download = name;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-    say('corrections.json downloaded');
-  });
+    say(name + ' downloaded');
+  }
+  el('dl').addEventListener('click', function () { download('corrections.json', buildCorrections()); });
+  el('dl-labels').addEventListener('click', function () { download('weapon_attach_labels.json', buildLabels()); });
   el('cp').addEventListener('click', function () {
     var text = JSON.stringify(buildCorrections(), null, 1) + '\n';
     function fallback() {
@@ -326,16 +632,32 @@ details.raw textarea { width:100%; min-height:120px; background:var(--card); col
     } else { fallback(); }
   });
 
-  el('q').addEventListener('input', function () {
+  // --- filters: the id search and the "No mount" chip (hosts that review reason mount_missing flags) --------------
+  var onlyNoMount = false;
+  function applyFilter() {
     var q = el('q').value.trim().toLowerCase();
     Object.keys(tiles).forEach(function (id) {
-      tiles[id].classList.toggle('hide', !!q && id.toLowerCase().indexOf(q) < 0);
+      var miss = !!q && id.toLowerCase().indexOf(q) < 0;
+      var nm = onlyNoMount && !tiles[id].hasAttribute('data-nomount');
+      tiles[id].classList.toggle('hide', miss || nm);
     });
     Array.prototype.forEach.call(document.querySelectorAll('details.family'), function (d) {
       var any = d.querySelector('.tile:not(.hide)');
       d.classList.toggle('hide', !any);
-      if (q && any) { d.open = true; }
+      if ((q || onlyNoMount) && any) { d.open = true; }
     });
+  }
+  el('q').addEventListener('input', applyFilter);
+  el('f-nomount').addEventListener('click', function () {
+    onlyNoMount = !onlyNoMount;
+    el('f-nomount').setAttribute('aria-pressed', onlyNoMount ? 'true' : 'false');
+    el('f-nomount').classList.toggle('on', onlyNoMount);
+    applyFilter();
+  });
+  el('c-label').addEventListener('change', function () {
+    document.body.classList.toggle('label-mode', el('c-label').checked);
+    el('dl-labels').hidden = !el('c-label').checked;
+    if (cur) { setPanelValues(tiles[cur]); }
   });
 
   render();

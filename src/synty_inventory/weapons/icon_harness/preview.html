@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<!-- Attachment placement preview harness (docs/weapon_attachments.md 6.2). Same server and rig as icon.html (weapons/icons.py);
+     preview.js builds a scene of one host plus one placed attachment on top of icon.js. No network. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>weapon attach preview harness</title>
+    <style>
+      html, body { margin: 0; background: transparent; overflow: hidden; }
+      canvas { display: block; }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/three/build/three.module.js",
+          "three/addons/": "/three/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <script type="module" src="/harness/preview.js"></script>
+  </body>
+</html>

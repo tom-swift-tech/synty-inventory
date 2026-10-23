@@ -5,8 +5,12 @@ precedence), which is not changed here. The merge rules:
 
 * the target is an exact id or a glob; a later correction for the same target replaces the earlier one's
   ``set`` / ``confirm`` / ``exclude`` / ``note``;
-* ``forward`` and ``confidence_cap`` (exact-id entries, written by hand, W2e) are carried over unchanged when a
-  later correction replaces the classification; a correction cannot create or change them;
+* ``confidence_cap`` (exact-id entries, written by hand, W2e) is carried over unchanged when a later correction
+  replaces the classification; a correction cannot create or change it;
+* W8d: ``forward`` (one of ``+x .. -z``, exact-id targets only; a glob target or a non-enum value is exit 6) is the review
+  page's forward flip of an attachment part. It is stored on the id entry, which is where ``attach.measure_anchor`` already
+  reads it (docs/weapon_attachments.md 3.4.3, 6.1). A correction that carries it REPLACES the stored value; a later
+  correction that only reclassifies keeps it, and one that carries only ``forward`` keeps the stored ``set`` / ``confirm``;
 * W8c: ``compatible {add, remove}`` (ids and globs, any target) and ``mounts {slot: {source, child}}`` (exact-id targets
   only; a glob target is exit 6) are stored as given, with the ``compatible`` lists sorted and de-duplicated. A correction
   that carries them REPLACES the stored block; a later correction that only reclassifies keeps them (like ``forward``), and
@@ -33,7 +37,7 @@ from . import overrides as _ov
 from .cli import _catalogs, _emit, _guarded
 
 SCHEMA = "weapon-corrections/1"
-CORRECTION_KEYS = ("target", "set", "confirm", "exclude", "renamed_from", "note", "compatible", "mounts")
+CORRECTION_KEYS = ("target", "set", "confirm", "exclude", "renamed_from", "note", "compatible", "mounts", "forward")
 _CLASSIFY_KEYS = ("set", "confirm", "exclude")
 
 
@@ -55,6 +59,8 @@ def _entry_of(corr: dict) -> dict:
         entry["compatible"] = _normal_compatible(corr["compatible"])
     if "mounts" in corr:
         entry["mounts"] = deepcopy(corr["mounts"])
+    if "forward" in corr:
+        entry["forward"] = corr["forward"]
     return entry
 
 
@@ -124,9 +130,9 @@ def validate_corrections(doc) -> list[str]:
             elif isinstance(target, dict) and target.get("id") in rf:
                 errors.append(f"{where}.renamed_from: an id cannot be renamed from itself")
         has_action = bool(corr.get("set")) or corr.get("confirm") is True or corr.get("exclude") is True \
-            or bool(rf) or bool(corr.get("compatible")) or bool(corr.get("mounts"))
+            or bool(rf) or bool(corr.get("compatible")) or bool(corr.get("mounts")) or "forward" in corr
         if not has_action:
-            errors.append(f"{where}: carries no action (set, confirm, exclude, renamed_from, compatible or mounts)")
+            errors.append(f"{where}: carries no action (set, confirm, exclude, renamed_from, compatible, mounts or forward)")
         if corr.get("exclude") is True and (corr.get("set") or corr.get("confirm") is True):
             errors.append(f"{where}: exclude cannot be combined with set or confirm")
         # enum / shape checks of `set` are the override validator's job: run the entry through it
@@ -146,15 +152,15 @@ def _merged_entry(old: dict | None, corr: dict) -> dict:
     classify = [k for k in _CLASSIFY_KEYS if corr.get(k)]  # the correction decides the classification
     if classify:
         new = _entry_of(corr)
-        # not classification: a later correction keeps them unless it carries its own compatible / mounts (replace)
+        # not classification: a later correction keeps them unless it carries its own compatible / mounts / forward (replace)
         for kept in ("renamed_from", "forward", "confidence_cap", "compatible", "mounts"):
             if kept in old and kept not in new:
                 new[kept] = deepcopy(old[kept])
     else:
-        new = deepcopy(old)  # renamed_from / compatible / mounts only: everything else stays
+        new = deepcopy(old)  # renamed_from / compatible / mounts / forward only: everything else stays
         if corr.get("note"):
             new["note"] = corr["note"]
-        for replaced in ("compatible", "mounts"):
+        for replaced in ("compatible", "mounts", "forward"):
             if replaced in corr:
                 new[replaced] = _entry_of(corr)[replaced]
     if corr.get("renamed_from"):
