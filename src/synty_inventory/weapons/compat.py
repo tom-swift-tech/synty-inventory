@@ -20,6 +20,9 @@ same_pack_fit, cross_pack_fit and the pending list, which are one candidate list
 * ``same_pack_fit``: same pack, ``family_overlap`` AND ``affinity``, no veto (0.6 to 0.9). A3 (W8i): for the two sight slots
   ``family_overlap`` is not required (an iron sight is pack-generic: Military's name no gun); the span-less probe seat counts as
   neutral (``fit_span`` is None: no bonus, no veto), so the score is the tier base. Every other slot is unchanged.
+  A4 (W8l, item 2): the slots that need no name overlap are the table ``attachment_rules.family_free_slots`` (shipped: the two
+  sight slots, ``muzzle`` and ``underbarrel``: a silencer or a foregrip names no gun), read through ``_params``; nothing else changes (every
+  veto, ``fit_span`` and ``fit_bore`` stay), and ``magazine`` / ``optic`` / ``laser_light`` keep the name test.
 * ``cross_pack_fit``: another pack, ``affinity`` AND a measured fit, no veto (0.3 to 0.6, reason ``compat_cross_pack``).
 
 Signals: ``family_overlap`` (the names share a token once generic ones are gone), ``affinity`` (the slot x kind table
@@ -56,7 +59,7 @@ from __future__ import annotations
 
 from fnmatch import fnmatchcase
 
-from . import ATTACH_SLOTS, COMPAT_TIERS, SIGHT_SLOTS
+from . import ATTACH_SLOTS, COMPAT_TIERS, TWIN_ABS_TOL_M, TWIN_REL_TOL
 from .classify import _CAMEL_RE, _SEGMENT_SPLIT_RE
 from .mounts import eligible, mount_reasons
 from .overrides import compatible_verdict, effective_override
@@ -64,8 +67,7 @@ from .rules import attachment_rules
 
 # -- the thresholds of the spec (5.1), named constants -----------------------------------------------------
 
-TWIN_REL_TOL = 0.03  # twin: sorted AABB extents agree within max(3 %, 0.8 mm) per axis
-TWIN_ABS_TOL_M = 0.0008
+# twin: sorted AABB extents agree within max(3 %, 0.8 mm) per axis (TWIN_REL_TOL / TWIN_ABS_TOL_M come from the package: mounts.py reads them too)
 FIT_SPAN_FITS = 1.0  # foot_length / span <= 1.0 adds the span bonus
 FIT_SPAN_NEUTRAL_MAX = 1.5  # up to 1.5 neutral; above it a PROBE span vetoes, a child_foot span stays neutral-or-worse
 FIT_BORE_REL_TOL = 0.35  # |mate_d - bore_d| <= 0.35 * bore_d adds the bore bonus, otherwise it subtracts the penalty
@@ -172,7 +174,9 @@ def score_of(tier: str, span: str | None, bore: str | None, params: dict) -> flo
 
 def _params(tables: dict) -> dict:
     got = tables.get("attach_compat") or {}
-    return {k: got.get(k, v) if not isinstance(v, dict) else {**v, **(got.get(k) or {})} for k, v in _DEFAULTS.items()}
+    out = {k: got.get(k, v) if not isinstance(v, dict) else {**v, **(got.get(k) or {})} for k, v in _DEFAULTS.items()}
+    out["family_free_slots"] = frozenset(tables.get("family_free_slots") or ())  # A4: the slots whose same_pack_fit needs no family_overlap
+    return out
 
 
 def setting_of(genre_by_pack: dict | None, pack: str):
@@ -247,7 +251,7 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
         return None
     elif twin:
         tier = "twin"
-    elif same_pack and (family or slot in SIGHT_SLOTS) and affine:  # A3: a sight is pack-generic, no name overlap needed
+    elif same_pack and (family or slot in params["family_free_slots"]) and affine:  # A3 / A4: a sight, a muzzle device and a foregrip name no gun
         tier = "same_pack_fit"
     elif not same_pack and affine and (
             not available or (bore != "bad" and (span in ("fits", "neutral") or bore == "good"))):
