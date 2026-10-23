@@ -5,6 +5,8 @@ sit-capabilities b800211) with all defaults: no rail probe in v1 (W9 spike), sea
 overlays, cross-pack off, additive-percent stacking, magazine = mesh swap, ~150 phone labels after W8d. Start the builds."
 Decisions D-1 to D-12 came from Tom's three 2026-10-22 decisions; Q-1 to Q-10 (§12) are decided on their defaults.
 The approved base for the build slices is the commit that records this approval.
+**Amendment A1 (W8f, approved by Tom 2026-10-23):** twin evidence seats a twin pair on the baked child it matches and corrects the part's
+forward (§3.4 step 3a, §4.2 `seats`, §4.3, §5.1). `WEAPON_ATTACH_VERSION` goes 1 to 2; nothing else about the contract moves (D-12).
 **Branch:** `spec/attachments`, based on `main` at `e6e82b6` (W7 merged).
 **Parent:** [weapon_directory.md](weapon_directory.md) (called "the directory spec" below). Everything there still
 holds; this document adds fields and verbs and amends nothing it does not name. `DS§N` points into the directory spec;
@@ -72,7 +74,7 @@ BONDED's overlay selects 52 ids from five packs: 48 ranged guns and 4 grenades. 
 | D-9 | Grenades, melee, shields and ammo get `mounts: null` (`not_applicable`). | no slot exists for them |
 | D-10 | Default export output is **byte-identical** to the W7 export unless `--attachments` is passed. | sit_armory and every game snapshot keep working untouched |
 | D-11 | Cross-pack fit candidates are generated but excluded from the default export (`--min-compat-tier same_pack_fit`). | 8 BONDED guns have no same-pack attachments; Tom decides whether they borrow (Q-1) |
-| D-12 | `WEAPON_ATTACH_VERSION` (new, starts 1) versions attachment records and mounts; it joins the geometry/attachment cache keys, so the cache invalidates without touching `WEAPON_GEOMETRY_VERSION`, which **stays 5** (the exported `generated_from.geometry_version` therefore stays 5 and the default export stays byte-identical, D-10). Record `schema_version` stays 1: the changes are additive. | cache invalidation without breaking readers that ignore unknown keys |
+| D-12 | `WEAPON_ATTACH_VERSION` (new, starts 1; 2 from amendment A1, W8f, because twin evidence changes part anchors, twin entries and multi-child mounts) versions attachment records and mounts; it joins the geometry/attachment cache keys, so the cache invalidates without touching `WEAPON_GEOMETRY_VERSION`, which **stays 5** (the exported `generated_from.geometry_version` therefore stays 5 and the default export stays byte-identical, D-10). Record `schema_version` stays 1: the changes are additive. | cache invalidation without breaking readers that ignore unknown keys |
 
 ## 3. Attachment record (`attachment` on `role == "part"` records)
 
@@ -111,8 +113,8 @@ formula then holds in the item frame provided the consumer has applied each reco
   "anchor": {                        // the attachment's own contact frame (§3.1), null with reason when unmeasurable; `footprint` is then null too
     "point": [0,0,0], "forward": [0,0,1], "up": [0,1,0],
     "foot_source": "authored_up",    // authored_up | measured | override
-    "forward_source": "section",     // section | authored | override
-    "symmetric": false               // true when the forward sign is a coin flip (forward_source "authored")
+    "forward_source": "section",     // section | authored | twin | override (twin: A1, §3.4 step 3a)
+    "symmetric": false               // true when the forward sign is a coin flip (forward_source "authored"); false for twin and override
   },
   "footprint": {                     // metres, along the anchor frame
     "length_m": 0.0,                 // extent along anchor.forward
@@ -186,6 +188,23 @@ algorithm uses that as a prior and verifies it.
    convex side; for a laser the emitter. When the larger/smaller ratio is below 1.15 the part is `symmetric: true`,
    `forward_source = "authored"` (+axis), review reason `anchor_forward_unsure`, and confidence is capped at 0.59 so it
    lands on the review page. The DS§4.5 `forward` override applies to a part (it sets `forward_source = "override"`).
+   **3a. Twin correction (A1).** Steps 1 to 3 measure a part alone. When the part is a `twin` (§5.1) of a baked child of a host slot, that child's
+   pose in the host is ground truth for the gun-forward direction, because a baked child sits as the game's own authoring put it. So, for a
+   non-muzzle part with at least one twin host child whose per-axis (unsorted) AABB extents equal the part's within the twin tolerance (no yaw
+   between the two meshes), the part's `forward` must equal that host's `axes.forward` (a unit axis vector in the shared asset axes). If the
+   measured forward differs, it is replaced: `forward_source = "twin"`, `symmetric = false`. When the axis changes (a near-round drum measured
+   along x on a host that points along z), the footprint is swapped exactly, since the anchor frames are axis-aligned: `length_m` with `width_m`
+   and `foot_length_m` with `foot_width_m`; a sign flip alone changes no number. `point`, `up`, `height_m` and `mate_d_m` never change. The
+   correction is skipped when the part carries an explicit `forward` override (the human wins), and when its twin hosts disagree (it then keeps
+   the measurement and the `anchor_forward_unsure` reason). Muzzle devices are out of scope: their frame uses `up` as the bore direction and
+   every live muzzle twin already agrees with its host. The correction runs inside `compat.apply_compat` before the candidates are scored (so
+   `fit_span` reads the corrected `foot_length_m`), over the whole record set (a partial build gives the result a full build gives), and it never
+   touches `review.confidence` or `review.reasons` (a correction never raises confidence).
+   *Known limit.* Only parts with a twin child (about a fifth of the attachments) get this evidence. For every other part the forward SIGN is a
+   geometric guess, and the guess is poor: measured against the baked children of the live hosts, the step-3 rule picks the gun-forward end on
+   about half of the optics and on a minority of the magazines (a reversed magazine is near-symmetric about its foot, so it rarely shows; a reversed
+   scope does). Label review (Label mode, §6.2) and the categorical `forward` override (§6.1) are the cover for those parts; replacing the
+   step-3 rule is a separate decision.
 4. **Muzzle devices.** `up` is the bore direction: the long axis, toward the *larger* end (the free end of a suppressor
    is wider than its mating end; this rule rests on two live samples only, so it is a prior to be re-checked on the
    first labelled muzzle devices, and `symmetric`-style review applies if the end ratio is below 1.15). The mating face is the opposite end; `point` is its ring centre; `mate_d_m` is twice
@@ -215,6 +234,9 @@ algorithm uses that as a prior and verifies it.
     "span_source": "child_foot",     // child_foot (a lower bound) | probe | null
     "occupied_by": ["<GLB node name>"],  // sorted baked children to hide; [] if the slot is free
     "child_node": "<GLB node name>", // the one node the seat was measured from (source child_node/override); else null
+    "seats": {                       // A1, optional: present only when occupied_by lists more than one measurable child; else absent
+      "<GLB node name>": {"point": [0,0,0], "forward": [0,0,1], "up": [0,1,0], "span_m": 0.0}   // one frame per listed child
+    },
     "bore_d_m": null, "bore_source": null,    // muzzle only: ring | face_extent | null
     "confidence": 0.9,
     "reason": null                   // source none: no_child_no_probe | slot_disabled | probe_unavailable
@@ -236,7 +258,9 @@ algorithm uses that as a prior and verifies it.
   `span_source = "child_foot"`. `occupied_by` is the sorted list of **every** matching child of that slot (a rifle may carry
   a drum and a box magazine, a shotgun two cells: all of them are hidden when something else is mounted). When there is
   more than one, the seat (`child_node`, `point`, `span_m`) comes from the larger by AABB volume and the record gets
-  review reason `mount_ambiguous`.
+  review reason `mount_ambiguous`. A1: the mount then also carries `seats`, one frame per listed child that could be measured, built exactly like
+  the seat above (that child's own `point`, `forward` and `up` as above, `span_m` its own foot length). A pair that twins a smaller child is
+  seated on that child's frame (§4.3, §5.1); every other pair keeps using the mount's own seat. A mount with a single listed child has no `seats`.
 - **`probe` (muzzle).** `point` is the **seat**: the barrel end, measured by the A0 probe (no second algorithm, AC67) run on the
   host mesh **minus the nodes listed in this slot's `occupied_by`** (vertices and bounds of the reduced mesh). It is not the face of
   a baked brake or suppressor: with a baked device the seat sits behind the device face by the device length (AC84). With an
@@ -257,8 +281,9 @@ algorithm uses that as a prior and verifies it.
 
 `occupied_by` is a sorted list of GLB node names exactly as in the file (empty = the slot is free). A game that mounts a
 separate attachment in that slot hides every listed node (sit_weapons, DM-B) and restores them when it is removed. Each
-`compatible_hosts[]` entry carries `replaces`, a copy of that host slot's `occupied_by`, so the part-side view shows what
-it displaces. Open assumption (Q-9): node names survive into the engine scene
+`compatible_hosts[]` entry carries `replaces`, so the part-side view shows what it displaces: for a non-twin entry a copy of that host slot's
+`occupied_by`; for a `twin` entry (A1) the single baked child the part twins (a one-element list), so a game hides only that child and seats
+the part on `seats[<that child>]` when the mount has `seats`, else on the mount itself. Open assumption (Q-9): node names survive into the engine scene
 (true for Synty names, which are alphanumeric plus `_`); DM-B confirms.
 
 ### 4.4 Bore and diameter fit
@@ -285,9 +310,13 @@ and a score in [0, 1]:
 | tier | rank | rule | score band |
 |---|---|---|---|
 | `override` | 1 | an override entry adds it (§6.1) | 1.0 |
-| `twin` | 2 | host has a child of the same slot whose sorted AABB extents equal the attachment's within `max(3 %, 0.8 mm)` per axis, exactly one such host child per part (a part twinning several hosts' children is `twin` for all of them, flagged `twin_multi`) | 0.95 |
+| `twin` | 2 | host has a child of the same slot whose sorted AABB extents equal the attachment's within `max(3 %, 0.8 mm)` per axis, exactly one such host child per part (a part twinning several hosts' children is `twin` for all of them, flagged `twin_multi`); A1: when two children of one host match, the closest sorted extents wins and the lower node name breaks a tie | 0.95 |
 | `same_pack_fit` | 3 | same pack, `family_overlap` AND `affinity` AND no veto | 0.6 - 0.9 |
 | `cross_pack_fit` | 4 | different pack, `affinity` AND measured fit AND no veto | 0.3 - 0.6 |
+
+A1 (twin evidence). A twin entry names its child in `replaces` (§4.3) and its seat is that child's frame, so a pair is placed against the baked child it
+matches, not against whichever child won the slot's seat. The same evidence corrects the part's forward (§3.4 step 3a). The `twin` tier is
+decided from the sorted extents alone, so the correction (which only reorders axes) never changes a tier.
 
 Signals (all listed in the entry's `signals`):
 
@@ -368,7 +397,7 @@ Any other key (`point`, `up`, `span_m`, `offset`, a number...) is rejected with 
 - `--min-compat-tier {override|twin|same_pack_fit|cross_pack_fit}` (default `same_pack_fit`, D-11) filters
   `compatible_hosts` **and `pending_hosts`** by the same rule (a cross-pack candidate on a mountless host must not reach a game's `fits` list). Entries whose host is not in the exported set are dropped from both unless `--keep-foreign-hosts`. In the directory, `pending_hosts` entries are `{host, tier}` so the filter has the tier; the export emits ids only, sorted by `(tier rank, host)`, for candidates that pass the filter.
 - `--frame item` bakes every point and vector of `anchor` and `mounts` through the record's own `item_basis`
-  (points: rotated; vectors: rotated; `span_m`, `footprint`, `bore_d_m` unchanged). `node_offset` keeps its rule (DS§4.1).
+  (points: rotated; vectors: rotated; `span_m`, `footprint`, `bore_d_m` unchanged; A1: each frame in `seats` is baked like the mount frame). `node_offset` keeps its rule (DS§4.1).
   `generated_from` gains `attach_version`, `attach_rules_digest` and `filter.attachments` (boolean, `true`) **only with `--attachments`**; without it none of the three keys exists and `geometry_version` is unchanged (5).
   `generated_from.rules_digest` is computed over exactly the rule sections W7 hashed: the attachment tables (`attachment_rules`, including `never`, `rows`, `child_tokens` and `child_never`) are excluded from it, so adding or editing attachment rules never moves the default export's `rules_digest` (Tom: the default export is byte-identical to W7). The attachment tables hash separately into `attach_rules_digest`. The directory header records both digests and `WEAPON_ATTACH_VERSION`, and treats a change of any of them as stale, so an edit to an attachment rule still rebuilds `directory.json` (AC77, AC78).
 - Exit 6 on a contract violation: `attachment` on a non-part, `compatible_hosts` naming an id absent from the
@@ -379,7 +408,7 @@ Any other key (`point`, `up`, `span_m`, `offset`, a number...) is rejected with 
 ## 8. Data shapes and enumerations
 
 - `ATTACH_SLOTS = (optic, muzzle, underbarrel, magazine, laser_light)`; `ATTACH_KINDS` per slot, each including `other` (§3.2);
-  `MOUNT_SOURCES = (override, child_node, probe, none)`; `COMPAT_TIERS = (override, twin, same_pack_fit, cross_pack_fit)`;
+  `MOUNT_SOURCES = (override, child_node, probe, none)`; `ANCHOR_FORWARD_SOURCES = (section, authored, twin, override)` (A1 adds `twin`); `COMPAT_TIERS = (override, twin, same_pack_fit, cross_pack_fit)`;
   `MOUNT_NONE_REASONS = (no_child_no_probe, slot_disabled, probe_unavailable)`; new `REASONS`: `anchor_unmeasured`,
   `anchor_forward_unsure`, `attach_kind_unknown`, `mount_missing`, `mount_ambiguous`, `mount_estimated`,
   `twin_multi`, `compat_cross_pack`. New `FLAGS`: none. Single source `weapons/__init__.py`, mirrored in
@@ -456,11 +485,13 @@ that must make the test fail.
 | AC77 | Export: default output equals the stored W7-format golden byte for byte (a `--roles all` export without `--attachments` differs from the W7 reference only in `confidence` and `review_reasons` of parts whose `attachment` is non-null, nothing else), `generated_from` included (`geometry_version` 5, no `attach_version`, no `filter.attachments`); the same snapshot exported with `--attachments` differs only by the added keys, `attach_version` and `filter.attachments`; with `--attachments` item-frame points equal `item_basis * asset point` within 1e-4 per record (host and part separately), `occupied_by` lists preserved, tiers below `--min-compat-tier` dropped, foreign hosts dropped, exit 6 on each violation of INV-14..18 | bake the part through the host's `item_basis` -> fails on a rotated fixture; bump `WEAPON_GEOMETRY_VERSION`, emit `attach_version` unconditionally, or hash `attachment_rules` into the default `rules_digest` -> the byte diff fails |
 | AC78 | Determinism and caching: two builds identical; bumping `WEAPON_ATTACH_VERSION` or `WEAPON_GEOMETRY_VERSION` invalidates cached entries; a cache hit equals a recompute | omit the version from the key -> stale hit survives a bump |
 | AC79 | `weapons attach-eval`: on the fixture labels, reported precision and recall equal hand-computed values exactly; exit 4 when below the supplied gates | remove one fixture rule -> recall drops below the gate, exit 4 |
-| AC80 | **Live (local, not CI; reported, never committed).** On BONDED's packs: (a) sanity: the live `twin` count equals the survey figure (11 parts on BONDED's packs; a different count is reported and investigated, not gated); (b) twin placement on the real hosts: AABB centre within **5 mm** and IoU >= 0.85 for >= 90 % of twin pairs; (c) on Tom's labels (stratified, >= 150 pairs with >= 40 positives, Q-5): precision >= 0.90 and recall >= 0.80 for tiers up to `same_pack_fit`; cross-pack reported separately, ungated until Q-1 is answered; (d) child-node coverage printed (expected: magazine 19, optic 12 of 48) | n/a (acceptance run) |
+| AC80 | **Live (local, not CI; reported, never committed).** On BONDED's packs: (a) sanity: the live `twin` count equals the survey figure (11 parts on BONDED's packs; a different count is reported and investigated, not gated); (b) twin placement on the real hosts: AABB centre within **5 mm** and IoU >= 0.85 for >= 90 % of twin pairs, each pair measured against the baked child its `replaces` names (A1: the twin seat and the twin-corrected anchor describe the same baked pose, so this gate is self-consistent by construction for twin pairs; it checks the plumbing and the placement math, not an independent prediction, and the independent evidence is the labels in (c)); (c) on Tom's labels (stratified, >= 150 pairs with >= 40 positives, Q-5): precision >= 0.90 and recall >= 0.80 for tiers up to `same_pack_fit`; cross-pack reported separately, ungated until Q-1 is answered; (d) child-node coverage printed (expected: magazine 19, optic 12 of 48) | n/a (acceptance run) |
 | AC81 | **Spike gate (W9).** An estimator may set `source: probe` for optic only if, on the child-bearing hosts, the median `|probe - child truth|` <= 10 mm and the maximum <= 25 mm for the seat height and the median forward error <= 15 mm; otherwise it stays disabled and hosts keep `none`. The estimator source never reads a child node | feed it the child -> the "independent" check is violated |
 | AC82 | No regression: on the W7 live directory, role/kind/archetype counts equal the W7 report (the role/kind/archetype count table equals the W7 report, null-kind whole/emplaced count 0, and every pre-existing test keeps its outcome; the pytest totals grow by design and are not compared); every pre-existing field of every record is byte-equal to the W7 reference, with two enumerated exceptions that sections 3.4.6 and 4.2 mandate: `confidence` and `review_reasons` of a record may change, and only by the section 8 attachment reasons (`anchor_unmeasured`, `anchor_forward_unsure`, `attach_kind_unknown`, `mount_missing`, `mount_ambiguous`, `mount_estimated`, `twin_multi`, `compat_cross_pack`) and the `low_confidence` and confidence cap or scale that they cause; the only new fields are `geometry.mounts` and `attachment` (the test fails on any other difference, and lists the changed records) | n/a (diff test over the fixture directory in CI; live diff reported) |
 | AC83 | Visual checkpoint (look): `attach-preview` renders >= 6 twin pairs and >= 6 non-twin pairs covering every slot; the lead views the captures before W8d closes; the baked node is hidden in each; no capture shows the attachment inside the receiver by more than the AC70 depth | n/a (lead review) |
 | AC84 | Muzzle seat: on fixture (g) `mounts.muzzle.occupied_by` lists the brake node, `source` is `probe`, `point` equals the A0 probe of the mesh minus the brake (the barrel end) within 0.5 mm, and sits behind the device face by the brake length within 1 mm; `geometry.muzzle` is still the face of the brake (W7 bare-gun value, unchanged); a host with no brake gives `point == geometry.muzzle` exactly | include the brake in the probe mesh -> the seat lands on the device face and the behind-by-length check fails |
+| AC85 | Twin seat (A1): on a fixture host with two same-slot children, a part that twins the smaller one has `replaces` equal to that one child and is placed so its AABB equals that child's (centre <= 0.1 mm, IoU >= 0.99); the mount carries `seats` for both children and keeps the larger as `child_node`; a one-child slot has no `seats`; export bakes the `seats` frames through `item_basis` | place a twin on the mount's seat child -> the two-magazine fixture fails; drop `seats` from the export bake -> the item-frame check fails |
+| AC86 | Twin forward correction (A1): a fixture part whose measured forward is the reverse of its host's, and one whose measured axis differs (a near-round drum), are corrected with `forward_source` `twin`, the footprint swapped on the axis change only, and then place onto their twin children (centre <= 0.1 mm, IoU >= 0.99); an explicit `forward` override, a part with disagreeing twin hosts, and a muzzle device are left as measured; `review.confidence` and `review.reasons` never change; `WEAPON_ATTACH_VERSION` is 2 and the cache misses on the bump | skip the correction -> the reversed fixture fails the placement; apply it to a muzzle part or ignore the override -> the left-alone cases fail |
 
 Gate commands are those of DS§11.1 (`pytest -k weapons`, then the full suite, each judged by exit
 code). W8a/b/c/d add `tests/test_weapons_attach_*.py`; none reads Synty data.
@@ -511,6 +542,7 @@ gates by exit code, synthetic fixtures only). Approval of this spec starts W8a. 
 | W8d review page, export, preview | W8c | W9 | AC76, AC77, AC82, AC83 (look) | `review.py` + `review_template.html` (edit), `export.py` (edit), `weapons/preview.py` + harness additions, the wiring of `compat.export_compatible` / `export_pending` into `--attachments`, a corrections path for the review page's forward flip, tests | preview needs the renderer on this machine | L: ~1,200 lines |
 | W9 rail-probe spike | W8b | W8c, W8d | AC81 | `weapons/mount_probe.py`, a report script (not shipped if it fails) | yes (calibration on the child-bearing hosts) | S: ~400 lines |
 | W10 acceptance | W8d | none | AC80, AC82 (live) | none (a report) | yes; Tom's labels | the lead runs it |
+| W8f twin evidence (A1) | W8d | none | AC85, AC86, AC80 (b) re-run | `compat.py`, `mounts.py`, `schema.py`, `export.py`, `preview.py`, `weapons/__init__.py` (edit), tests | the AC80 re-run | M: ~500 lines |
 
 Shared files: `cli.py`, `pyproject.toml`, `weapons/__init__.py` constants are W8a's only; later slices use the named
 constants. `weapon_rules.yaml` is edited sequentially (W8a tables, W8c compat), never in parallel. Parallel pairs
@@ -520,4 +552,6 @@ constants. `weapon_rules.yaml` is edited sequentially (W8a tables, W8c compat), 
 
 DS§4.1 gains the `attachment` block and `geometry.mounts`; DS§4.5 gains the `compatible`, `mounts` and part-side `forward`
 keys; DS§4.6 gains the new enumerations; DS§3.10 gains the export flags; DS§3.9 gains the Attachments section; DS§10 gains
-C-18 to C-27 by reference; DS§11 points to §13. Nothing existing changes meaning.
+C-18 to C-27 by reference; DS§11 points to §13. Nothing existing changes meaning. A1 adds one enum value (`forward_source` `twin`), one optional mount key
+(`seats`) and narrows `replaces` of a twin entry to its matched child; readers that ignore unknown keys and unknown enum values are unaffected (C-25), and the
+default export stays byte-identical to W7 (INV-19), because none of this reaches it.
