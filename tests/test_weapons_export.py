@@ -213,7 +213,9 @@ def test_ac24_frame_asset_keeps_the_asset_space_with_the_long_extent_on_y(world,
     assert g["item_basis"] == [[0, 0, 1], [1, 0, 0], [0, 1, 0]]  # kept so a consumer can rotate the mesh itself
     # asset frame is the directory's own geometry, record for record
     for w in doc["weapons"]:
-        assert w["geometry"] == world.by_id[w["id"]]["geometry"]
+        # the directory now carries geometry.mounts (W8b); the W7-format export never does (INV-19)
+        stored = world.by_id[w["id"]]["geometry"]
+        assert w["geometry"] == (None if stored is None else {k: v for k, v in stored.items() if k != "mounts"})
         assert w["geometry"] is None or w["geometry"]["frame"] == "asset"
 
 
