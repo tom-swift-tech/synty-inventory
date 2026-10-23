@@ -1,8 +1,8 @@
 """``weapons attach-preview``: look-first placement previews of attachments on their hosts (docs/weapon_attachments.md 6.2, AC83).
 
 For a pair (attachment part, compatible host) the PNG shows the host with the attachment placed by the section 3.1
-transform ``place(anchor, mount) = T(mount) * T(anchor)^-1`` and the baked child the attachment replaces
-(``mounts.<slot>.occupied_by`` and ``child_node``) left out. Tom looks at these before trusting a placement; the review page
+transform ``place(anchor, mount) = T(mount) * T(anchor)^-1`` and the baked children of the slot it mounts in
+(``mounts.<slot>.occupied_by`` and ``child_node``, all of them, as the runtime hides them) left out. Tom looks at these before trusting a placement; the review page
 embeds them (``review.load_previews``); they are never committed.
 
 Which pairs. Every twin pair (an exact dimensional twin of the host's baked child is the ground truth, so these are the
@@ -144,10 +144,12 @@ def plan_pairs(directory: dict, *, packs=None, ids=None, limit: int = 0, others:
 def build_job(pair: dict, part: dict, host: dict, threejs_dir: Path) -> dict:
     """Everything the renderer needs for one pair, as plain data (paths, node names, scales, 4x4 as nested lists).
 
-    ``matrix`` is ``attach.place(anchor, mount)``: attachment-scaled GLB space -> host-scaled GLB space. ``hide`` is the
-    baked child the attachment replaces. A1: a twin pair whose entry names exactly one child that the mount has a seat for
-    (``mounts.<slot>.seats``) is placed on that seat and hides only that child, so a twin of the smaller of two magazines
-    lands on ITS child and not on the larger one that owns the mount's own seat; every other pair is placed as before.
+    ``matrix`` is ``attach.place(anchor, mount)``: attachment-scaled GLB space -> host-scaled GLB space. ``hide`` is every node of the
+    slot's ``occupied_by`` plus its ``child_node`` for EVERY pair (E1: the runtime hides the whole slot whichever child the part
+    is seated on); ``replaces`` never narrows it. A1: a twin pair whose entry's ``replaces`` names exactly one child that the mount
+    has a seat for (``mounts.<slot>.seats``) is placed on that seat, so a twin of the smaller of two magazines lands on ITS child
+    and not on the larger one that owns the mount's own seat (``replaces`` chooses the seat only); every other pair is placed on
+    the mount as before.
     """
     slot = pair["slot"]
     anchor = part["attachment"]["anchor"]
@@ -158,7 +160,7 @@ def build_job(pair: dict, part: dict, host: dict, threejs_dir: Path) -> dict:
         entry = next((e for e in part["attachment"].get("compatible_hosts") or [] if e["host"] == pair["host"]), None)
         replaces = (entry or {}).get("replaces") or []
         if len(replaces) == 1 and replaces[0] in (mount.get("seats") or {}):
-            frame, hide = mount["seats"][replaces[0]], list(replaces)
+            frame = mount["seats"][replaces[0]]
     return {
         **pair,
         "host_glb": Path(threejs_dir) / host["files"]["glb"], "host_nodes": _selection(host["files"].get("glb_node")),
