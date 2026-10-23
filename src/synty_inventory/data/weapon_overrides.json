@@ -55,6 +55,34 @@
       "forward": "+z",
       "note": "forward: warhead/muzzle end is +z; visual check 2026-10-16: the pivot/section sign points at the stock; no shape rule separates it"
     },
+    "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_02": {
+      "mounts": {
+        "optic": {
+          "source": "none"
+        },
+        "sight_front": {
+          "source": "none"
+        },
+        "sight_rear": {
+          "source": "none"
+        }
+      },
+      "note": "W8j census review, lead ruling 2026-10-23: fused carry handle (census sheet #042)"
+    },
+    "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_04": {
+      "mounts": {
+        "optic": {
+          "source": "none"
+        },
+        "sight_front": {
+          "source": "none"
+        },
+        "sight_rear": {
+          "source": "none"
+        }
+      },
+      "note": "W8j census review, lead ruling 2026-10-23: fused carry handle (census sheet #044)"
+    },
     "POLYGON_Dark_Fortress/SM_Prop_Ballista_01": {
       "confidence_cap": 0.55,
       "note": "siege engine facing ambiguous in the icon; for Tom to confirm in review"
@@ -74,6 +102,73 @@
     "POLYGON_Goblin_War_Camp/SM_Veh_Ballista_01": {
       "confidence_cap": 0.55,
       "note": "siege engine facing ambiguous in the icon; for Tom to confirm in review"
+    },
+    "POLYGON_Military/SM_Wep_Preset_A_Rifle_03": {
+      "mounts": {
+        "optic": {
+          "source": "none"
+        },
+        "sight_front": {
+          "source": "none"
+        },
+        "sight_rear": {
+          "source": "none"
+        }
+      },
+      "note": "W8j census review, lead ruling 2026-10-23: fused carry handle on the receiver (census sheet #089)"
+    },
+    "POLYGON_SciFi_Space/SM_Wep_Rifle_01": {
+      "mounts": {
+        "optic": {
+          "source": "none"
+        },
+        "sight_front": {
+          "source": "none"
+        },
+        "sight_rear": {
+          "source": "none"
+        }
+      },
+      "note": "W8j census review, lead ruling 2026-10-23: fused top sight block (census sheet #181)"
+    },
+    "POLYGON_SciFi_Worlds/SM_Wep_Assault_03": {
+      "mounts": {
+        "sight_front": {
+          "source": "none"
+        },
+        "sight_rear": {
+          "source": "none"
+        }
+      },
+      "note": "W8j census review, lead ruling 2026-10-23: fused top sight block, optic seat unaffected (census sheet #189)"
+    },
+    "POLYGON_SciFi_Worlds/SM_Wep_Heavy_03": {
+      "mounts": {
+        "optic": {
+          "source": "none"
+        },
+        "sight_front": {
+          "source": "none"
+        },
+        "sight_rear": {
+          "source": "none"
+        }
+      },
+      "note": "W8j census review, lead ruling 2026-10-23: fused top housing slab with a window (census sheet #192, dev manager call)"
+    },
+    "POLYGON_SciFi_Worlds/SM_Wep_Shotgun_03": {
+      "mounts": {
+        "optic": {
+          "source": "none"
+        },
+        "sight_front": {
+          "source": "none"
+        },
+        "sight_rear": {
+          "source": "none"
+        }
+      },
+      "note": "W8j census review, lead ruling 2026-10-23: twin tubes on top over the receiver (census sheet #207, dev manager call)"
     },
     "POLYGON_War/SM_Wep_American_HeavyMachineGun_Tripod_01": {
       "note": "a tripod mount: no direction of its own",
