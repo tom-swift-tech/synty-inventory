@@ -42,11 +42,14 @@ EXPECTED = {
     W.SCOPE_TIGHT: ([(A_, SAME, 0.8), (E_, SAME, 0.8)], [(B_, SAME), (D_, CROSS)]),
     W.SCOPE_WIDE: ([(A_, SAME, 0.7), (E_, SAME, 0.7)], [(B_, SAME), (D_, CROSS)]),
     W.SCOPE_GIANT: ([(A_, SAME, 0.7), (E_, SAME, 0.7)], [(B_, SAME), (D_, CROSS)]),
-    W.SIL: ([(B_, SAME, 0.7), (A_, SAME, 0.6), (E_, SAME, 0.6)], []),
-    W.SIL_SLIM: ([(A_, SAME, 0.8), (E_, SAME, 0.8), (B_, SAME, 0.7), (D_, CROSS, 0.5)], []),
-    W.SIL_BRAKE: ([(E_, TWIN, 0.95), (B_, SAME, 0.7), (A_, SAME, 0.6)], []),
+    # W8l (A4, spec 5.1 family_free_slots): a muzzle part needs no name overlap, so the pistol GAMMA (no "rifle" token) joins every silencer's list
+    # at the same-pack base 0.7 (a square body: no ring, no bore signal) and sorts by host id beside BETA (0.7)
+    W.SIL: ([(G_, SAME, 0.7), (B_, SAME, 0.7), (A_, SAME, 0.6), (E_, SAME, 0.6)], []),
+    W.SIL_SLIM: ([(A_, SAME, 0.8), (E_, SAME, 0.8), (G_, SAME, 0.7), (B_, SAME, 0.7), (D_, CROSS, 0.5)], []),
+    W.SIL_BRAKE: ([(E_, TWIN, 0.95), (G_, SAME, 0.7), (B_, SAME, 0.7), (A_, SAME, 0.6)], []),
     W.MAG: ([(A_, TWIN, 0.95)], [(B_, SAME), (E_, SAME), (D_, CROSS)]),
-    W.GRIP: ([(G_, TWIN, 0.95)], [(D_, CROSS)]),
+    # W8l: an underbarrel part needs no name overlap either; the three rifles have no foregrip child and no probe for the slot, so they are pending
+    W.GRIP: ([(G_, TWIN, 0.95)], [(A_, SAME), (B_, SAME), (E_, SAME), (D_, CROSS)]),
     W.LASER: ([(G_, TWIN, 0.95)], [(D_, CROSS)]),
     W.ALT_SCOPE: ([(A_, TWIN, 0.95), (E_, TWIN, 0.95)], [(B_, CROSS)]),
 }
@@ -142,8 +145,9 @@ def test_ac72_the_order_is_rank_then_descending_score_then_host(built):
         entries = rec(built, part)["attachment"]["compatible_hosts"]
         keys = [(compat.tier_rank(e["tier"]), -e["score"], e["host"]) for e in entries]
         assert keys == sorted(keys)
-    # the descending score is visible in the literals: SIL lists 0.7 before the two 0.6 entries although BETA sorts after ALPHA
-    assert [h for h, _, _ in EXPECTED[W.SIL][0]] == [B_, A_, E_]
+    # the descending score is visible in the literals: SIL lists the two 0.7 entries (GAMMA, BETA: by host id) before the two 0.6 entries
+    # although BETA sorts after ALPHA
+    assert [h for h, _, _ in EXPECTED[W.SIL][0]] == [G_, B_, A_, E_]
 
 
 def test_ac72_two_builds_are_identical(built, tmp_path):
@@ -236,8 +240,9 @@ def test_ac73_fit_bore_good_bad_and_ignored():
 
 
 def test_ac73_a_face_extent_mount_gives_no_bore_signal_in_the_built_directory(built):
-    # BETA has a square barrel (face extent 0.0283): 0.026 would be a "good" bore and 0.013 a "bad" one if it counted
-    assert W.hosts_of(rec(built, W.SIL))[0] == (B_, SAME, 0.7)
+    # BETA has a square barrel (face extent 0.0283): 0.026 would be a "good" bore and 0.013 a "bad" one if it counted (GAMMA, a square pistol
+    # that the family-free muzzle rule of W8l lists as well, is the same case and sorts first at 0.7)
+    assert W.hosts_of(rec(built, W.SIL))[:2] == [(G_, SAME, 0.7), (B_, SAME, 0.7)]
     slim_beta = next(e for e in rec(built, W.SIL_SLIM)["attachment"]["compatible_hosts"] if e["host"] == B_)
     assert slim_beta["score"] == 0.7 and "fit_bore" not in slim_beta["signals"] and "bore_mismatch" not in slim_beta["signals"]
 
@@ -294,7 +299,8 @@ def test_ac75_pending_of_the_built_directory_through_the_export_filter(built):
 def test_ac75_a_host_with_a_default_tier_pending_slot_gets_mount_missing_and_others_do_not(built):
     flagged = {r["asset_id"] for r in built["weapons"] if "mount_missing" in r["review"]["reasons"]}
     # BETA: no optic and no magazine seat but candidates for both; EPSILON: no magazine seat. DELTA has only cross-pack candidates.
-    assert flagged == {W.BETA, W.EPSILON}
+    # W8l: the foregrip part now lists the rifles with no name overlap (underbarrel is a family-free slot) and ALPHA has no underbarrel seat.
+    assert flagged == {W.ALPHA, W.BETA, W.EPSILON}
 
 
 # --- INV-14 in the schema --------------------------------------------------------------------------------------------

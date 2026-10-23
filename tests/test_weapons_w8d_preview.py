@@ -105,10 +105,13 @@ def test_the_plan_covers_every_twin_pair_and_all_five_slots_with_a_non_twin_samp
     assert {(p["part"], p["host"]) for p in twins} == want
     # the sample takes one pair per attachment, best tier first (W8e): the 9 same_pack_fit pairs (3 optic, 5 muzzle, 1 sight_rear,
     # round-robin over the slots) precede the 3 cross_pack_fit ones (2 magazine and 1 laser_light; underbarrel has no non-twin
-    # candidate). A3 (W8i): the sight_rear pair is new (a same-pack sight needs no family overlap) and took a cross_pack laser_light place
+    # candidate). A3 (W8i): the sight_rear pair is new (a same-pack sight needs no family overlap) and took a cross_pack laser_light place.
+    # A4 (W8l): a muzzle part needs no name overlap, so the FAKE_Attach Silencer (a part of the pistol host's own pack) gets its first
+    # non-twin pair: 10 same_pack_fit pairs (3 optic, 6 muzzle, 1 sight_rear) precede 2 cross_pack_fit ones (magazine, laser_light), and the
+    # third cross_pack_fit pair (the second magazine) falls past the 12 cap
     assert [p["slot"] for p in others] == ["optic", "muzzle", "sight_rear", "optic", "muzzle", "optic", "muzzle", "muzzle", "muzzle",
-                                           "magazine", "laser_light", "magazine"]
-    assert [p["tier"] for p in others] == ["same_pack_fit"] * 9 + ["cross_pack_fit"] * 3
+                                           "muzzle", "magazine", "laser_light"]
+    assert [p["tier"] for p in others] == ["same_pack_fit"] * 10 + ["cross_pack_fit"] * 2
     assert len({p["part"] for p in others}) == 12
     assert preview.plan_pairs(world.directory)[0] == pairs  # deterministic
 

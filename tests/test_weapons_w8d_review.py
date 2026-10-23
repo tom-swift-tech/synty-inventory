@@ -211,8 +211,8 @@ def test_the_mounts_table_data_has_all_five_slots_and_the_seat_kinds_of_an_eligi
 def test_the_no_mount_chip_count_equals_the_hosts_with_mount_missing(world):
     missing = [i for i, w in world["by_id"].items() if isinstance((w.get("geometry") or {}).get("mounts"), dict)
                and "mount_missing" in w["review"]["reasons"]]
-    assert len(missing) == 9
-    assert re.search(r'id="f-nomount"[^>]*>No mount \(9\)<', world["text"])
+    assert len(missing) == 15  # A4 (W8l): +6 hosts, a family-free underbarrel part now lists them while they have no underbarrel seat
+    assert re.search(r'id="f-nomount"[^>]*>No mount \(15\)<', world["text"])
     flagged = [t["data-id"] for t in world["page"].tiles if "data-nomount" in t]
     assert sorted(flagged) == sorted(missing)
 
@@ -386,7 +386,7 @@ def test_in_chromium_the_no_mount_chip_filters_to_hosts_missing_a_mount(world, b
     page.click("#f-nomount")
     assert page.locator("#f-nomount").get_attribute("aria-pressed") == "true"
     shown = page.locator(".tile:visible").evaluate_all("els => els.map(e => e.getAttribute('data-id'))")
-    assert len(shown) == 9 and visible() < before
+    assert len(shown) == 15 and visible() < before  # A4 (W8l): 9 + 6 hosts that gain mount_missing
     page.click("#f-nomount")
     assert visible() == before
 
