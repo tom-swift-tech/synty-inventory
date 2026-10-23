@@ -371,6 +371,16 @@ def _check_attachment(att: dict, role: str, where: str) -> list[str]:
     keys = [(COMPAT_TIERS.index(h["tier"]), -h["score"], h["host"]) for h in att["compatible_hosts"]]
     if keys != sorted(keys):
         errs.append(f"{here}.compatible_hosts: must be sorted by (tier rank, -score, host)")
+    if len({h["host"] for h in att["compatible_hosts"]}) != len(keys):
+        errs.append(f"{here}.compatible_hosts: a host is listed twice (INV-14)")
+    for h in att["compatible_hosts"]:
+        if h["replaces"] != sorted(set(h["replaces"])):
+            errs.append(f"{here}.compatible_hosts[{h['host']}].replaces: must be sorted and duplicate-free (a copy of occupied_by)")
+    pending = [(COMPAT_TIERS.index(h["tier"]), h["host"]) for h in att["pending_hosts"]]
+    if pending != sorted(pending):
+        errs.append(f"{here}.pending_hosts: must be sorted by (tier rank, host)")
+    if len(set(pending)) != len(pending) or len({h["host"] for h in att["pending_hosts"]}) != len(pending):
+        errs.append(f"{here}.pending_hosts: a host is listed twice (INV-14)")
     return errs
 
 

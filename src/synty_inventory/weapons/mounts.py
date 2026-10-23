@@ -270,7 +270,7 @@ def build_mounts(
     path, glb_node: NodeSel, scale: float, rules: dict, *, verts: np.ndarray, axes: dict, transformed: bool = False,
     probe: Callable, overrides: dict | None = None,
 ) -> dict:
-    """``{"mounts": block, "problems": [str]}`` for one eligible host (spec 4).
+    """``{"mounts": block, "problems": [str], "child_extents": {...}}`` for one eligible host (spec 4).
 
     ``verts`` are the host's own decoded vertices (what ``geometry`` measured), ``axes`` its ``{forward, up}`` signed
     axes, ``transformed`` the NB-15 flag of the selected node, ``probe`` the A0 muzzle probe
@@ -331,7 +331,27 @@ def build_mounts(
             child_rung = _child_mount(slot, seat, listed, measured, axes, _child_cap(cap, candidates, seat),
                                       "child_node", len(listed) > 1)
         mounts[slot] = resolve_slot(override_rung, child_rung, None)
-    return {"mounts": mounts, "problems": problems}
+    return {"mounts": mounts, "problems": problems, "child_extents": _child_extents(mounts, vertices)}
+
+
+def _child_extents(mounts: dict, vertices: Callable) -> dict:
+    """``{slot: {node: [sorted AABB extents, metres]}}`` of every child a slot lists in ``occupied_by`` (W8c twin evidence).
+
+    The twin rule of spec 5.1 compares the SORTED AABB extents of a standalone part with those of "a child of the same
+    slot", and the mount block only keeps the seat's foot length, so the extents ride beside it in the measurement detail
+    (and the geometry cache) and never enter the record. The vertices are the memo ``build_mounts`` already filled, so
+    this costs no second decode. A slot without baked children is absent.
+    """
+    out: dict[str, dict[str, list[float]]] = {}
+    for slot, m in mounts.items():
+        rows = {}
+        for name in m["occupied_by"]:
+            v = vertices(name)
+            if v is not None:
+                rows[name] = sorted(_r(e) for e in (v.max(axis=0) - v.min(axis=0)))
+        if rows:
+            out[slot] = rows
+    return out
 
 
 def _child_cap(cap: float | None, candidates: dict[str, bool], name: str) -> float | None:

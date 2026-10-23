@@ -7,6 +7,10 @@ precedence), which is not changed here. The merge rules:
   ``set`` / ``confirm`` / ``exclude`` / ``note``;
 * ``forward`` and ``confidence_cap`` (exact-id entries, written by hand, W2e) are carried over unchanged when a
   later correction replaces the classification; a correction cannot create or change them;
+* W8c: ``compatible {add, remove}`` (ids and globs, any target) and ``mounts {slot: {source, child}}`` (exact-id targets
+  only; a glob target is exit 6) are stored as given, with the ``compatible`` lists sorted and de-duplicated. A correction
+  that carries them REPLACES the stored block; a later correction that only reclassifies keeps them (like ``forward``), and
+  one that carries only them keeps the stored ``set`` / ``confirm`` / ``exclude``;
 * ``renamed_from`` (exact-id targets only) is *unioned* into the entry as a sorted, de-duplicated list, so it
   survives a later ``set`` correction and a correction that carries only ``renamed_from`` never wipes a ``set``;
 * applying the same file twice is a no-op (INV-10): every rule above is idempotent and the file is written in
@@ -29,7 +33,7 @@ from . import overrides as _ov
 from .cli import _catalogs, _emit, _guarded
 
 SCHEMA = "weapon-corrections/1"
-CORRECTION_KEYS = ("target", "set", "confirm", "exclude", "renamed_from", "note")
+CORRECTION_KEYS = ("target", "set", "confirm", "exclude", "renamed_from", "note", "compatible", "mounts")
 _CLASSIFY_KEYS = ("set", "confirm", "exclude")
 
 
@@ -47,7 +51,19 @@ def _entry_of(corr: dict) -> dict:
         entry["exclude"] = True
     if corr.get("note"):
         entry["note"] = corr["note"]
+    if "compatible" in corr:
+        entry["compatible"] = _normal_compatible(corr["compatible"])
+    if "mounts" in corr:
+        entry["mounts"] = deepcopy(corr["mounts"])
     return entry
+
+
+def _normal_compatible(val):
+    """``compatible`` with each pattern list sorted and de-duplicated (a malformed value is left for the validator)."""
+    if not isinstance(val, dict):
+        return deepcopy(val)
+    return {k: (sorted(set(v)) if isinstance(v, list) and all(isinstance(x, str) for x in v) else deepcopy(v))
+            for k, v in val.items()}
 
 
 def target_of(corr: dict) -> tuple[str, str]:
@@ -108,9 +124,9 @@ def validate_corrections(doc) -> list[str]:
             elif isinstance(target, dict) and target.get("id") in rf:
                 errors.append(f"{where}.renamed_from: an id cannot be renamed from itself")
         has_action = bool(corr.get("set")) or corr.get("confirm") is True or corr.get("exclude") is True \
-            or bool(rf)
+            or bool(rf) or bool(corr.get("compatible")) or bool(corr.get("mounts"))
         if not has_action:
-            errors.append(f"{where}: carries no action (set, confirm, exclude or renamed_from)")
+            errors.append(f"{where}: carries no action (set, confirm, exclude, renamed_from, compatible or mounts)")
         if corr.get("exclude") is True and (corr.get("set") or corr.get("confirm") is True):
             errors.append(f"{where}: exclude cannot be combined with set or confirm")
         # enum / shape checks of `set` are the override validator's job: run the entry through it
@@ -130,13 +146,17 @@ def _merged_entry(old: dict | None, corr: dict) -> dict:
     classify = [k for k in _CLASSIFY_KEYS if corr.get(k)]  # the correction decides the classification
     if classify:
         new = _entry_of(corr)
-        for kept in ("renamed_from", "forward", "confidence_cap"):  # not classification: a later correction keeps them
-            if kept in old:
+        # not classification: a later correction keeps them unless it carries its own compatible / mounts (replace)
+        for kept in ("renamed_from", "forward", "confidence_cap", "compatible", "mounts"):
+            if kept in old and kept not in new:
                 new[kept] = deepcopy(old[kept])
     else:
-        new = deepcopy(old)  # renamed_from-only: everything else stays
+        new = deepcopy(old)  # renamed_from / compatible / mounts only: everything else stays
         if corr.get("note"):
             new["note"] = corr["note"]
+        for replaced in ("compatible", "mounts"):
+            if replaced in corr:
+                new[replaced] = _entry_of(corr)[replaced]
     if corr.get("renamed_from"):
         new["renamed_from"] = sorted(set(new.get("renamed_from") or []) | set(corr["renamed_from"]))
     return new

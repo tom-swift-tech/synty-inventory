@@ -2,17 +2,25 @@
 
 Precedence per field, highest first: exact-id entry > longest matching glob > rule match. The file holds ids,
 globs and enum values only: no measurements and no pack data (INV-1).
+
+W8c (docs/weapon_attachments.md 6.1, D-5, INV-17) adds three categorical keys, still ids, globs, node names and enums only:
+``set.attachment_slot`` / ``set.attachment_kind``, ``compatible {add, remove}`` (host ids and host globs; allowed on an id
+entry and on a glob entry) and ``mounts {slot: {source: child_node | none, child: <node name>}}`` (id entries only). Any other
+key inside ``compatible`` or ``mounts`` (``point``, ``up``, ``span_m``, ``offset``, a bare number...) is a SchemaError (exit 6).
 """
 
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from fnmatch import fnmatchcase
 from pathlib import Path
 
 from . import (
     AMMO_PROJECTILES,
     ARCHETYPES,
+    ATTACH_KINDS,
+    ATTACH_SLOTS,
     CARRIER_KINDS,
     COMPONENT_SLOTS,
     GENRES,
@@ -24,11 +32,16 @@ from . import (
 )
 
 SCHEMA = "weapon-overrides/1"
-SET_KEYS = ("role", "kind", "archetype", "hold_class", "genre", "component", "carrier", "ammo")
+SET_KEYS = ("role", "kind", "archetype", "hold_class", "genre", "component", "carrier", "ammo", "attachment_slot",
+            "attachment_kind")
 # `forward` and `confidence_cap` (spec 4.5, W2e) are id-only: they correct ONE weapon's measured direction / rate it for
 # review, which a pattern must never do to a whole family
-ID_ENTRY_KEYS = ("set", "confirm", "exclude", "renamed_from", "forward", "confidence_cap", "note")
-GLOB_ENTRY_KEYS = ("set", "confirm", "exclude", "note")
+# `mounts` is id-only for the same reason (a host's seat is one gun's); `compatible` is also allowed on a glob (the family case)
+ID_ENTRY_KEYS = ("set", "confirm", "exclude", "renamed_from", "forward", "confidence_cap", "note", "compatible", "mounts")
+GLOB_ENTRY_KEYS = ("set", "confirm", "exclude", "note", "compatible")
+COMPATIBLE_KEYS = ("add", "remove")
+MOUNT_OVERRIDE_KEYS = ("source", "child")  # nothing else: a coordinate here would be pack-derived data (INV-17)
+MOUNT_OVERRIDE_SOURCES = ("child_node", "none")
 FORWARD_VALUES = ("+x", "-x", "+y", "-y", "+z", "-z")
 CONFIDENCE_CAP_RANGE = (0.05, 0.59)  # inclusive: below 0.6 so the record lands in Low confidence, the classifier's floor
 
@@ -84,10 +97,59 @@ def _validate_set(s, where: str, errors: list[str]) -> None:
         errors.append(f"{where}.carrier: kind not in {list(CARRIER_KINDS)}")
     if "ammo" in s and _name_of(s["ammo"], "projectile") not in AMMO_PROJECTILES:
         errors.append(f"{where}.ammo: projectile not in {list(AMMO_PROJECTILES)}")
+    slot, kind = s.get("attachment_slot"), s.get("attachment_kind")
+    if "attachment_slot" in s and slot not in ATTACH_SLOTS:
+        errors.append(f"{where}.attachment_slot: {slot!r} not in {list(ATTACH_SLOTS)}")
+    all_kinds = sorted({k for kinds in ATTACH_KINDS.values() for k in kinds})
+    if "attachment_kind" in s and kind not in all_kinds:
+        errors.append(f"{where}.attachment_kind: {kind!r} not in {all_kinds}")
+    elif slot in ATTACH_SLOTS and "attachment_kind" in s and kind not in ATTACH_KINDS[slot]:
+        errors.append(f"{where}.attachment_kind: {kind!r} is not a kind of slot {slot} ({list(ATTACH_KINDS[slot])})")
     if s.get("role") == "carrier" and "carrier" not in s:
         errors.append(f"{where}: role carrier needs a carrier kind in the same set")
     if s.get("role") == "ammo" and "ammo" not in s:
         errors.append(f"{where}: role ammo needs a projectile in the same set")
+
+
+def validate_compatible(val, where: str, errors: list[str]) -> None:
+    """``{"add": [pattern], "remove": [pattern]}``: host ids or host globs (``<pack>/<pattern>``) and nothing else."""
+    if not isinstance(val, dict) or not val:
+        errors.append(f"{where}: must be a non-empty object with add and/or remove")
+        return
+    for key, patterns in val.items():
+        if key not in COMPATIBLE_KEYS:
+            errors.append(f"{where}.{key}: not allowed (only {', '.join(COMPATIBLE_KEYS)}; ids and globs, never numbers)")
+        elif not isinstance(patterns, list) or not all(well_formed_id(p) for p in patterns):
+            errors.append(f"{where}.{key}: must be a list of '<pack>/<asset id or glob>' strings")
+
+
+def validate_mounts(val, where: str, errors: list[str]) -> None:
+    """``{slot: {"source": "child_node", "child": <node name>} | {"source": "none"}}``: categorical only (INV-17, AC74).
+
+    A key other than ``source`` / ``child`` (``point``, ``up``, ``span_m``, ``offset``, a number...) is rejected: the file
+    selects a seat, it never places one.
+    """
+    if not isinstance(val, dict) or not val:
+        errors.append(f"{where}: must be a non-empty object slot -> {{source, child}}")
+        return
+    for slot, entry in val.items():
+        here = f"{where}.{slot}"
+        if slot not in ATTACH_SLOTS:
+            errors.append(f"{here}: slot not in {list(ATTACH_SLOTS)}")
+        if not isinstance(entry, dict):
+            errors.append(f"{here}: must be an object with source (and child)")
+            continue
+        for key in entry:
+            if key not in MOUNT_OVERRIDE_KEYS:
+                errors.append(f"{here}.{key}: not allowed (only {', '.join(MOUNT_OVERRIDE_KEYS)}: the file never carries "
+                              "coordinates or measured numbers, INV-17)")
+        source = entry.get("source")
+        if source not in MOUNT_OVERRIDE_SOURCES:
+            errors.append(f"{here}.source: {source!r} not in {list(MOUNT_OVERRIDE_SOURCES)}")
+        elif source == "child_node" and not (isinstance(entry.get("child"), str) and entry["child"]):
+            errors.append(f"{here}.child: source child_node needs the GLB node name")
+        elif source == "none" and "child" in entry:
+            errors.append(f"{here}.child: not allowed with source none")
 
 
 def validate_overrides(doc) -> list[str]:
@@ -117,7 +179,7 @@ def validate_overrides(doc) -> list[str]:
             for k in entry:
                 if k not in allowed:
                     hint = (f" ({k} is for exact ids only)"
-                            if k in ("renamed_from", "forward", "confidence_cap") else "")
+                            if k in ("renamed_from", "forward", "confidence_cap", "mounts") else "")
                     errors.append(f"{where}.{k}: unknown key{hint}")
             if "set" in entry:
                 _validate_set(entry["set"], f"{where}.set", errors)
@@ -132,6 +194,10 @@ def validate_overrides(doc) -> list[str]:
                     errors.append(f"{where}.renamed_from: must be a list of '<pack>/<asset_id>' ids")
                 elif key in rf:
                     errors.append(f"{where}.renamed_from: an id cannot be renamed from itself")
+            if "compatible" in entry:
+                validate_compatible(entry["compatible"], f"{where}.compatible", errors)
+            if "mounts" in entry and section == "ids":
+                validate_mounts(entry["mounts"], f"{where}.mounts", errors)
             if "forward" in entry and section == "ids" and entry["forward"] not in FORWARD_VALUES:
                 errors.append(f"{where}.forward: {entry['forward']!r} not in {list(FORWARD_VALUES)}")
             if "confidence_cap" in entry and section == "ids":
@@ -203,6 +269,11 @@ def effective_override(full_id: str, doc: dict | None) -> dict | None:
                     f"globs {set_from[field]!r} and {key!r} have equal length, both match {full_id!r} and set "
                     f"{field!r} differently"
                 )
+    compat_sources = [
+        {"key": key, "exact": key == full_id, "add": sorted(set(entry["compatible"].get("add") or [])),
+         "remove": sorted(set(entry["compatible"].get("remove") or []))}
+        for key, entry in sources if entry.get("compatible")
+    ]
     return {
         "set": merged_set,
         "confirm": any(e.get("confirm") for _, e in sources),
@@ -212,6 +283,46 @@ def effective_override(full_id: str, doc: dict | None) -> dict | None:
         # id-only (a glob entry cannot carry them, see validate_overrides)
         "forward": (id_entry or {}).get("forward"),
         "confidence_cap": (id_entry or {}).get("confidence_cap"),
+        # W8c: categorical attachment keys. `compat_sources` keeps every entry that carries a `compatible` block in
+        # precedence order (the exact id first, then globs by descending length) for `compatible_verdict`; `mounts` is id-only
+        "compat_sources": compat_sources,
+        "mounts": deepcopy((id_entry or {}).get("mounts")) or None,
         "note": next((e["note"] for _, e in sources if e.get("note")), ""),
         "matched": [k for k, _ in sources],
     }
+
+
+def compatible_verdict(sources: list[dict], part_id: str, host_id: str) -> str | None:
+    """``"add"``, ``"remove"`` or None: what the ``compatible`` overrides of one part say about one host (AC74).
+
+    ``sources`` is ``effective_override(part)["compat_sources"]``: the exact-id entry first, then the matching globs by
+    descending length. The first entry that names the host decides (exact id > longest glob); inside one entry the most
+    specific host pattern wins (the host's exact id over a glob, a longer glob over a shorter) and a remove beats an add
+    of equal specificity. Two glob entries of equal length that name the host differently are ambiguous: SchemaError.
+    """
+    def decide(src: dict) -> str | None:
+        best: tuple[int, int] | None = None
+        verdict = None
+        for kind in ("add", "remove"):  # remove last: it wins a tie
+            for pat in src[kind]:
+                if fnmatchcase(host_id, pat):
+                    spec = (1 if pat == host_id else 0, len(pat))
+                    if best is None or spec >= best:
+                        best, verdict = spec, kind
+        return verdict
+
+    i = 0
+    while i < len(sources):
+        group = [sources[i]]
+        while i + len(group) < len(sources) and not sources[i]["exact"] \
+                and len(sources[i + len(group)]["key"]) == len(sources[i]["key"]):
+            group.append(sources[i + len(group)])
+        i += len(group)
+        verdicts = [(src["key"], decide(src)) for src in group]
+        verdicts = [(k, v) for k, v in verdicts if v is not None]
+        if len({v for _, v in verdicts}) > 1:
+            raise SchemaError(f"globs {verdicts[0][0]!r} and {verdicts[1][0]!r} have equal length, both match {part_id!r} "
+                              f"and disagree on host {host_id!r} (compatible add versus remove)")
+        if verdicts:
+            return verdicts[0][1]
+    return None

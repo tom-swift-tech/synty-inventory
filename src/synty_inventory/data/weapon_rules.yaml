@@ -403,6 +403,49 @@ attachment_rules:
   # Child names that never fill a slot, whatever else they contain.
   child_never: [trigger, slide, hammer, cylinder, pump, charge, handle, forestock, barrel, stock, switch, pin, clip]
 
+  # Compatibility (docs/weapon_attachments.md 5.1, read by weapons/compat.py; W8c). Both tables live INSIDE attachment_rules on
+  # purpose: that key is excluded from rules_digest (so the W7 default export stays byte-identical) and hashed into
+  # attach_rules_digest (so an edit rebuilds directory.json). The thresholds of the spec (twin tolerance, fit_span cuts, the bore
+  # tolerance) are named constants in compat.py; what is tunable lives here.
+  # slot x kind -> the host archetypes that can carry it (this is where the genre knowledge lives; human-edited). `default`
+  # covers the kinds of a slot that list no row (and `other`). A slot or kind without any row has no affinity.
+  attach_affinity:
+    optic:
+      sniper_scope: [sniper, rifle, lmg, launcher]
+      scope: [sniper, rifle, smg, lmg, shotgun, launcher]
+      carry_handle_scope: [rifle, smg, lmg]
+      reflex: [pistol, revolver, smg, rifle, shotgun, lmg, launcher, utility_gun]
+      iron: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
+      default: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, launcher, utility_gun]
+    muzzle:
+      suppressor: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
+      default: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
+    underbarrel:
+      foregrip: [smg, rifle, shotgun, sniper, lmg, heavy_gun, launcher]
+      bipod: [sniper, rifle, lmg, heavy_gun]
+      default: [smg, rifle, shotgun, sniper, lmg, heavy_gun]
+    laser_light:
+      laser: [pistol, revolver, smg, rifle, shotgun, utility_gun]
+      light: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
+      default: [pistol, revolver, smg, rifle, shotgun, utility_gun]
+    magazine:
+      standard: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
+      extended: [pistol, smg, rifle, shotgun, sniper, lmg, utility_gun]
+      drum: [smg, rifle, shotgun, lmg]
+      cell: [pistol, smg, rifle, lmg, heavy_gun, launcher, utility_gun]
+      default: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
+  # Score parameters (spec 5.1: "initial values are parameters, not contract"). A candidate's score is `base` of its tier plus
+  # the fit signals, clamped to the band of its tier (same_pack_fit 0.6-0.9, cross_pack_fit 0.3-0.6); override and twin are
+  # fixed. `generic_tokens` are dropped from both names before `family_overlap` (numbers are dropped by the tokenizer).
+  attach_compat:
+    tier_score: {override: 1.0, twin: 0.95}
+    base: {same_pack_fit: 0.7, cross_pack_fit: 0.4}
+    fit_span_bonus: 0.1
+    fit_bore_bonus: 0.1
+    fit_bore_penalty: 0.1
+    generic_tokens: [wep, sm, attachment, attach, separate, mod, accessory, part, small, medium, med, large, big, huge, tiny,
+                     mini, long, short, left, right, front, rear, top, bottom, alt, clean]
+
 # archetype -> hold_class (spec 3.4.2). `none` = not hand-held.
 hold_by_archetype:
   pistol: one_hand

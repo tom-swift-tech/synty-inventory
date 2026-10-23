@@ -47,7 +47,12 @@ RULE_SET_KEYS = ("role", "kind", "archetype", "component", "carrier", "ammo")
 # existing component slot. The spec calls the negative list `not_tokens`; the engine's key is `tokens_none`, kept here.
 ATTACH_MATCH_KEYS = ("tokens_any", "tokens_all", "tokens_none", "component_slot")
 ATTACH_NEVER_KEYS = ("tokens_any", "packs_any")
-ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never")
+ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affinity", "attach_compat")
+# W8c compatibility tables (docs/weapon_attachments.md 5.1). The score bands per tier are the spec's; the tunable base and
+# bonus values must keep every reachable score inside the band of their tier (checked at load).
+COMPAT_SCORE_BANDS = {"same_pack_fit": (0.6, 0.9), "cross_pack_fit": (0.3, 0.6)}
+COMPAT_FIXED_TIERS = ("override", "twin")
+COMPAT_NUMBER_KEYS = ("fit_span_bonus", "fit_bore_bonus", "fit_bore_penalty")
 REQUIRED_TOP = (
     "version", "token_aliases", "candidates", "rules", "hold_by_archetype", "genre_by_archetype",
     "plausible_length_m", "axes_expected", "grip_proportion", "size_class_cuts_m", "weight_by_archetype",
@@ -393,6 +398,65 @@ def _check_attachment_rules(val) -> list[str]:
                     _check_str_list(tokens, f"attachment_rules.child_tokens.{slot}", errors, lower=True)
     if val.get("child_never") is not None:
         _check_str_list(val["child_never"], "attachment_rules.child_never", errors, lower=True)
+    if val.get("attach_affinity") is not None:
+        errors.extend(_check_attach_affinity(val["attach_affinity"]))
+    if val.get("attach_compat") is not None:
+        errors.extend(_check_attach_compat(val["attach_compat"]))
+    return errors
+
+
+def _check_attach_affinity(val) -> list[str]:
+    """``attach_affinity``: ``{slot: {kind | default: [archetype, ...]}}`` (docs/weapon_attachments.md 5.1)."""
+    if not isinstance(val, dict):
+        return ["attachment_rules.attach_affinity: must be a mapping slot -> {kind -> [archetypes]}"]
+    errors: list[str] = []
+    for slot, kinds in val.items():
+        where = f"attachment_rules.attach_affinity.{slot}"
+        if slot not in ATTACH_SLOTS:
+            errors.append(f"{where}: slot not in {list(ATTACH_SLOTS)}")
+        elif not isinstance(kinds, dict) or not kinds:
+            errors.append(f"{where}: must be a non-empty mapping kind -> [archetypes]")
+        else:
+            for kind, archetypes in kinds.items():
+                if kind != "default" and kind not in ATTACH_KINDS[slot]:
+                    errors.append(f"{where}.{kind}: not a kind of the slot (or 'default'): {list(ATTACH_KINDS[slot])}")
+                elif not isinstance(archetypes, list) or not all(isinstance(a, str) for a in archetypes):
+                    errors.append(f"{where}.{kind}: must be a list of archetypes")
+                elif not set(archetypes) <= set(ARCHETYPES):
+                    errors.append(f"{where}.{kind}: unknown archetype(s) {sorted(set(archetypes) - set(ARCHETYPES))}")
+    return errors
+
+
+def _check_attach_compat(val) -> list[str]:
+    """``attach_compat``: the score parameters. Every reachable score has to stay inside its tier's band (spec 5.1 table)."""
+    where = "attachment_rules.attach_compat"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping"]
+    errors: list[str] = []
+    for key in val:
+        if key not in ("tier_score", "base", "generic_tokens", *COMPAT_NUMBER_KEYS):
+            errors.append(f"{where}.{key}: unknown key")
+    nums = {}
+    for key in COMPAT_NUMBER_KEYS:
+        if key in val and not (_is_num(val[key]) and 0 <= val[key] <= 0.5):
+            errors.append(f"{where}.{key}: must be a number from 0 to 0.5")
+        nums[key] = val[key] if _is_num(val.get(key)) else 0.0
+    ts, base = val.get("tier_score"), val.get("base")
+    if ts is not None:
+        if not (isinstance(ts, dict) and set(ts) <= set(COMPAT_FIXED_TIERS) and all(_is_num(v) and 0 <= v <= 1 for v in ts.values())):
+            errors.append(f"{where}.tier_score: must map {list(COMPAT_FIXED_TIERS)} to numbers from 0 to 1")
+    if base is not None:
+        if not (isinstance(base, dict) and set(base) <= set(COMPAT_SCORE_BANDS) and all(_is_num(v) for v in base.values())):
+            errors.append(f"{where}.base: must map {list(COMPAT_SCORE_BANDS)} to numbers")
+        else:
+            for tier, b in base.items():
+                lo, hi = COMPAT_SCORE_BANDS[tier]
+                top, bottom = b + nums["fit_span_bonus"] + nums["fit_bore_bonus"], b - nums["fit_bore_penalty"]
+                if top > hi + 1e-9 or bottom < lo - 1e-9:
+                    errors.append(f"{where}.base.{tier}: {b} with the fit signals reaches {round(bottom, 4)}..{round(top, 4)}, "
+                                  f"outside the band {lo}-{hi}")
+    if val.get("generic_tokens") is not None:
+        _check_str_list(val["generic_tokens"], f"{where}.generic_tokens", errors, lower=True)
     return errors
 
 
