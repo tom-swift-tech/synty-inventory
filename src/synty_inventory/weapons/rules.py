@@ -50,7 +50,15 @@ ATTACH_NEVER_KEYS = ("tokens_any", "packs_any")
 ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affinity", "attach_compat",
                    "attach_genre_by_pack", "sight_probe",  # A2: the setting-gate map and the sight seat probe parameters
                    "attach_host_never", "baked_sights")  # A3 (W8i): hosts that get no seat for a slot, and the baked-sight child tokens
-BAKED_SIGHT_KEYS = ("tokens", "not_tokens", "rear_tokens")  # attachment_rules.baked_sights (docs/weapon_attachments.md 4.6 item 7)
+BAKED_SIGHT_KEYS = ("tokens", "not_tokens", "rear_tokens")  # attachment_rules.baked_sights (docs/weapon_attachments.md 4.6 item 7): required
+# A3 addendum 3 (W8j, item 8): optional name-token lists (empty allowed, an absent list switches that part of the rule off), the carry-handle
+# height fraction and the fused front post parameters (name -> (type, minimum, maximum); metres unless a count or a fraction)
+BAKED_OPTIC_LISTS = ("glass_tokens", "body_tokens", "handle_tokens", "handle_not_tokens")
+BAKED_SIGHT_OPTIONAL = BAKED_OPTIC_LISTS + ("handle_min_height_frac", "fused_post")
+FUSED_POST_PARAMS = {
+    "bin_m": (float, 0.001, 0.05), "half_bins": (int, 1, 100), "rise_m": (float, 0.0005, 0.1),
+    "width_min_m": (float, 0.001, 0.2), "width_max_m": (float, 0.001, 0.5), "min_pos": (float, 0.0, 1.0),
+}
 # A row may carry a `reason` (a review reason) instead of a `set`: it classifies no slot (iron sight with no decided side, spec 3.3)
 ATTACH_ROW_REASONS = ("sight_side_unsure",)
 # sight_probe parameters (docs/weapon_attachments.md 4.6): name -> (type, minimum, maximum); metres unless a count
@@ -443,22 +451,55 @@ def _check_host_never(val) -> list[str]:
 
 
 def _check_baked_sights(val) -> list[str]:
-    """``baked_sights``: ``{tokens, not_tokens, rear_tokens}`` (A3, spec 4.6 item 7), lower-case child name tokens.
+    """``baked_sights``: ``{tokens, not_tokens, rear_tokens}`` (A3, spec 4.6 item 7), lower-case child name tokens, plus the optional
+    addendum 3 keys of item 8 (``glass_tokens``, ``body_tokens``, ``handle_tokens``, ``handle_not_tokens``, ``handle_min_height_frac``,
+    ``fused_post``).
 
-    ``tokens`` must name something; the other two lists may be empty (no veto words, no carry-handle rule).
+    ``tokens`` must name something; the other lists may be empty (no veto words, no carry-handle rule). A handle rule (non-empty
+    ``handle_tokens``) needs its height fraction; a ``fused_post`` table needs all of its parameters, in range, with a width range that is
+    not empty.
     """
     where = "attachment_rules.baked_sights"
     if not isinstance(val, dict):
         return [f"{where}: must be a mapping with {', '.join(BAKED_SIGHT_KEYS)}"]
     errors: list[str] = []
     for key in val:
-        if key not in BAKED_SIGHT_KEYS:
-            errors.append(f"{where}.{key}: unknown key (allowed: {', '.join(BAKED_SIGHT_KEYS)})")
+        if key not in BAKED_SIGHT_KEYS + BAKED_SIGHT_OPTIONAL:
+            errors.append(f"{where}.{key}: unknown key (allowed: {', '.join(BAKED_SIGHT_KEYS + BAKED_SIGHT_OPTIONAL)})")
     for key in BAKED_SIGHT_KEYS:
         tokens = val.get(key)
         if key != "tokens" and tokens == []:
             continue
         _check_str_list(tokens, f"{where}.{key}", errors, lower=True)
+    for key in BAKED_OPTIC_LISTS:
+        if key in val and val[key] != []:
+            _check_str_list(val[key], f"{where}.{key}", errors, lower=True)
+    frac = val.get("handle_min_height_frac")
+    if frac is not None and not (_is_num(frac) and 0 <= frac <= 1):
+        errors.append(f"{where}.handle_min_height_frac: must be a number from 0 to 1")
+    if val.get("handle_tokens") and frac is None:
+        errors.append(f"{where}.handle_min_height_frac: required with handle_tokens")
+    if "fused_post" in val:
+        errors.extend(_check_fused_post(val["fused_post"]))
+    return errors
+
+
+def _check_fused_post(val) -> list[str]:
+    """``baked_sights.fused_post``: the numeric parameters of the fused front post detector (spec 4.6 item 8 D); every one is required."""
+    where = "attachment_rules.baked_sights.fused_post"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping"]
+    errors = []
+    for key in val:
+        if key not in FUSED_POST_PARAMS:
+            errors.append(f"{where}.{key}: unknown key (allowed: {', '.join(FUSED_POST_PARAMS)})")
+    for key, (typ, lo, hi) in FUSED_POST_PARAMS.items():
+        v = val.get(key)
+        ok = (isinstance(v, int) and not isinstance(v, bool)) if typ is int else _is_num(v)
+        if not ok or not (lo <= v <= hi):
+            errors.append(f"{where}.{key}: must be {'an integer' if typ is int else 'a number'} from {lo} to {hi}")
+    if not errors and val["width_min_m"] > val["width_max_m"]:
+        errors.append(f"{where}: width_min_m must not exceed width_max_m")
     return errors
 
 
