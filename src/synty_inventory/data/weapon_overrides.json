@@ -103,6 +103,26 @@
       "confidence_cap": 0.55,
       "note": "siege engine facing ambiguous in the icon; for Tom to confirm in review"
     },
+    "POLYGON_Military/SM_Wep_Mod_B_Mag_03": {
+      "forward": "+z",
+      "note": "W10c: the section prior picks the end opposite the bend of this curved magazine (bottom bends +z, as every Military twin mag); cards c055-c057"
+    },
+    "POLYGON_Military/SM_Wep_Mod_B_Mag_07": {
+      "forward": "+z",
+      "note": "W10c: same cause as B_Mag_03; card c063"
+    },
+    "POLYGON_Military/SM_Wep_Mod_Bipod_01": {
+      "forward": "+z",
+      "note": "W10c: legs extend away from the hinge block toward +z; card c127"
+    },
+    "POLYGON_Military/SM_Wep_Mod_Bipod_02": {
+      "forward": "-z",
+      "note": "W10c: hinge block at the +z end, legs toward -z; card c128"
+    },
+    "POLYGON_Military/SM_Wep_Mod_Bipod_03": {
+      "forward": "+z",
+      "note": "W10c: as Bipod_01; card c129"
+    },
     "POLYGON_Military/SM_Wep_Preset_A_Rifle_03": {
       "mounts": {
         "optic": {
