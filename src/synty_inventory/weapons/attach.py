@@ -26,7 +26,7 @@ _MATE_TOLS_M = (0.001, 0.002, 0.005, 0.010)  # mating-face tolerances, as the A0
 _EPS = 1e-9
 _AXES = "xyz"
 _SIGNED_AXIS_RE = re.compile(r"^[+-][xyz]$")
-_FOOT_AT_BOTTOM = ("optic", "laser_light")  # the others hang from a +Y foot
+_FOOT_AT_BOTTOM = ("optic", "laser_light", "sight_front", "sight_rear")  # the others hang from a +Y foot; the sights stand on the receiver like an optic (A2)
 
 
 def _r(x) -> float:

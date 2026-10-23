@@ -382,8 +382,20 @@ attachment_rules:
     - {name: optic_scope, match: {tokens_any: [scope], tokens_none: [handle, sniper]}, set: {slot: optic, kind: scope}}
     - {name: optic_carry_handle_scope, match: {tokens_all: [handle, scope]}, set: {slot: optic, kind: carry_handle_scope}}
     - {name: optic_reflex, match: {tokens_any: [redot, reddot, reflex, holo]}, set: {slot: optic, kind: reflex}}
-    - {name: optic_iron_joined, match: {tokens_any: [ironsight]}, set: {slot: optic, kind: iron}}
-    - {name: optic_iron_pair, match: {tokens_all: [iron, sight]}, set: {slot: optic, kind: iron}}
+    # Iron sights (A2, spec 3.3). `ironsight` is the joined token OR the pair iron+sight (classify.py adds the token `ironsight` to the
+    # match context when both words are present, so each row is written once). The side comes from the NAME only: `front` and `post`
+    # mark a front sight, `rear` a rear sight; a kind row precedes the plain row of its side (first match wins); the plain row has
+    # kind `other`, which is not an unknown kind. A name with no side or with both sides matches no slot row and ends on the
+    # `reason` row below (no slot, review reason sight_side_unsure).
+    - {name: sight_front_canted, match: {tokens_all: [ironsight, canted], tokens_any: [front, post], tokens_none: [rear]}, set: {slot: sight_front, kind: canted}}
+    - {name: sight_front_hood, match: {tokens_all: [ironsight, hood], tokens_any: [front, post], tokens_none: [rear]}, set: {slot: sight_front, kind: hooded}}
+    - {name: sight_front_hooded, match: {tokens_all: [ironsight, hooded], tokens_any: [front, post], tokens_none: [rear]}, set: {slot: sight_front, kind: hooded}}
+    - {name: sight_front_post, match: {tokens_all: [ironsight, post], tokens_none: [rear]}, set: {slot: sight_front, kind: post}}
+    - {name: sight_front_plain, match: {tokens_all: [ironsight], tokens_any: [front, post], tokens_none: [rear]}, set: {slot: sight_front, kind: other}}
+    - {name: sight_rear_canted, match: {tokens_all: [ironsight, rear, canted], tokens_none: [front, post]}, set: {slot: sight_rear, kind: canted}}
+    - {name: sight_rear_aperture, match: {tokens_all: [ironsight, rear], tokens_any: [ring, aperture, peep], tokens_none: [front, post]}, set: {slot: sight_rear, kind: aperture}}
+    - {name: sight_rear_notch, match: {tokens_all: [ironsight, rear, notch], tokens_none: [front, post]}, set: {slot: sight_rear, kind: notch}}
+    - {name: sight_rear_plain, match: {tokens_all: [ironsight, rear], tokens_none: [front, post]}, set: {slot: sight_rear, kind: other}}
     - {name: muzzle_suppressor, match: {tokens_any: [silencer, suppressor]}, set: {slot: muzzle, kind: suppressor}}
     - {name: underbarrel_foregrip, match: {tokens_any: [foregrip, vertgrip]}, set: {slot: underbarrel, kind: foregrip}}
     - {name: underbarrel_bipod, match: {tokens_any: [bipod]}, set: {slot: underbarrel, kind: bipod}}
@@ -393,9 +405,14 @@ attachment_rules:
     - {name: magazine_drum_pair, match: {tokens_all: [drum, mag]}, set: {slot: magazine, kind: drum}}
     - {name: magazine_standard, match: {tokens_any: [mag, magazine], tokens_none: [cell]}, set: {slot: magazine, kind: standard}}
     - {name: magazine_cell, match: {tokens_any: [cell], tokens_none: [mining]}, set: {slot: magazine, kind: cell}}
+    # Last on purpose: an iron-sight name no side row took (unmarked, or marked on both sides) keeps attachment null and gets the
+    # review reason, confidence capped at 0.59 plus low_confidence. A row with `reason` sets no slot; classify_attachment skips it.
+    - {name: sight_side_unsure, match: {tokens_all: [ironsight]}, reason: sight_side_unsure}
   # Host child meshes that fill a slot (docs/weapon_attachments.md 4.2; read by the W8b mount builder, not by W8a).
   child_tokens:
-    optic: [scope, sight, reddot, redot, holo]
+    optic: [scope, sight, reddot, redot, holo]  # a bare `sight` stays here: the live *_Sight_Glass children are optic glass (spec 4.2)
+    sight_front: [frontsight, sightfront, ironsightfront, frontironsight]  # A2: sided names only; an unsided `Sights` child fills nothing
+    sight_rear: [rearsight, sightrear, ironsightrear, rearironsight]
     magazine: [mag, magazine, drummag, cell, battery]
     underbarrel: [foregrip, bipod]
     laser_light: [laser, flashlight]
@@ -415,7 +432,6 @@ attachment_rules:
       scope: [sniper, rifle, smg, lmg, shotgun, launcher]
       carry_handle_scope: [rifle, smg, lmg]
       reflex: [pistol, revolver, smg, rifle, shotgun, lmg, launcher, utility_gun]
-      iron: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
       default: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, launcher, utility_gun]
     muzzle:
       suppressor: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
@@ -428,6 +444,11 @@ attachment_rules:
       laser: [pistol, revolver, smg, rifle, shotgun, utility_gun]
       light: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
       default: [pistol, revolver, smg, rifle, shotgun, utility_gun]
+    # A2: the archetypes of the former optic.iron row
+    sight_front:
+      default: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
+    sight_rear:
+      default: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
     magazine:
       standard: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
       extended: [pistol, smg, rifle, shotgun, sniper, lmg, utility_gun]
@@ -445,6 +466,54 @@ attachment_rules:
     fit_bore_penalty: 0.1
     generic_tokens: [wep, sm, attachment, attach, separate, mod, accessory, part, small, medium, med, large, big, huge, tiny,
                      mini, long, short, left, right, front, rear, top, bottom, alt, clean]
+  # Setting gate (A2, spec 5.1): full pack id -> setting word. A candidate that is not an override needs the part's pack and the host's
+  # pack in ONE setting; a pack absent from this map is a setting of its own (matches only itself). This is not the record `genre`
+  # (pack_settings.yaml). It lives inside attachment_rules, so editing it moves attach_rules_digest and never rules_digest.
+  attach_genre_by_pack:
+    POLYGON_Military: modern
+    POLYGON_BattleRoyale: modern
+    POLYGON_Police_Station: modern
+    POLYGON_Heist: modern
+    POLYGON_Shops: modern
+    POLYGON_Palm_City: modern
+    POLYGON_Gang_Warfare: modern
+    POLYGON_Spy_Kit: modern
+    POLYGON_Town: modern
+    POLYGON_City: modern
+    POLYGON_Military_Warehouse_Map: modern
+    POLYGON_Apocalypse: apocalypse
+    POLYGON_Apocalypse_Wasteland: apocalypse
+    POLYGON_SciFi_City: scifi
+    POLYGON_SciFi_Worlds: scifi
+    POLYGON_CyberCity: scifi
+    POLYGON_SciFi_Horror: scifi
+    POLYGON_SciFi_Space: scifi
+    POLYGON_SciFi_Outpost_Map: scifi
+    POLYGON_War: historical
+    POLYGON_Pirate: historical
+    POLYGON_War_Map: historical
+  # Sight seat probe (A2, spec 4.6; parameters, not contract). 5 mm bins along host forward; a bin's height is the highest `up` of
+  # the vertices within max(side_min_m, side_frac x side extent) of the centre; the receiver run is the bins within receiver_tol_m
+  # of the highest bin, the rail run continues it forward within rail_tol_m; the seats sit rear_inset_m inside the receiver run's
+  # rear end and front_inset_m inside the rail run's front end; fewer than min_receiver_bins, or a front seat less than
+  # min_separation_m ahead of the rear seat, refuses both seats.
+  sight_probe:
+    bin_m: 0.005
+    receiver_tol_m: 0.006
+    rail_tol_m: 0.030
+    rear_inset_m: 0.010
+    front_inset_m: 0.008
+    min_receiver_bins: 3
+    min_separation_m: 0.060
+    side_min_m: 0.008
+    side_frac: 0.10
+    # added by the live gates of 4.6 item 6: the side centre is the median side coordinate of the surface within ridge_tol_m of the
+    # highest point (not the middle of the bounding box, which a stock or a side pouch skews off the barrel line); a seat's height
+    # is the median of up to five vertical rays (the seat and the points seat_ray_m ahead, behind and to each side), and a seat whose
+    # three rays along the bore miss the host, or whose hits spread over seat_flat_tol_m (a cliff or a hole under it), refuses the host.
+    ridge_tol_m: 0.008
+    seat_ray_m: 0.003
+    seat_flat_tol_m: 0.006
 
 # archetype -> hold_class (spec 3.4.2). `none` = not hand-held.
 hold_by_archetype:

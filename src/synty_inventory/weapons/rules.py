@@ -47,7 +47,17 @@ RULE_SET_KEYS = ("role", "kind", "archetype", "component", "carrier", "ammo")
 # existing component slot. The spec calls the negative list `not_tokens`; the engine's key is `tokens_none`, kept here.
 ATTACH_MATCH_KEYS = ("tokens_any", "tokens_all", "tokens_none", "component_slot")
 ATTACH_NEVER_KEYS = ("tokens_any", "packs_any")
-ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affinity", "attach_compat")
+ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affinity", "attach_compat",
+                   "attach_genre_by_pack", "sight_probe")  # A2: the setting-gate map and the sight seat probe parameters
+# A row may carry a `reason` (a review reason) instead of a `set`: it classifies no slot (iron sight with no decided side, spec 3.3)
+ATTACH_ROW_REASONS = ("sight_side_unsure",)
+# sight_probe parameters (docs/weapon_attachments.md 4.6): name -> (type, minimum, maximum); metres unless a count
+SIGHT_PROBE_PARAMS = {
+    "bin_m": (float, 0.001, 0.05), "receiver_tol_m": (float, 0.0, 0.05), "rail_tol_m": (float, 0.0, 0.2),
+    "rear_inset_m": (float, 0.0, 0.1), "front_inset_m": (float, 0.0, 0.1), "min_receiver_bins": (int, 1, 100),
+    "min_separation_m": (float, 0.0, 1.0), "side_min_m": (float, 0.0, 0.1), "side_frac": (float, 0.0, 1.0),
+    "ridge_tol_m": (float, 0.0, 0.1), "seat_ray_m": (float, 0.0, 0.05), "seat_flat_tol_m": (float, 0.0, 0.1),  # live-calibrated (4.6 item 6)
+}
 # W8c compatibility tables (docs/weapon_attachments.md 5.1). The score bands per tier are the spec's; the tunable base and
 # bonus values must keep every reachable score inside the band of their tier (checked at load).
 COMPAT_SCORE_BANDS = {"same_pack_fit": (0.6, 0.9), "cross_pack_fit": (0.3, 0.6)}
@@ -379,7 +389,10 @@ def _check_attachment_rules(val) -> list[str]:
                 if not (isinstance(cs_list, list) and cs_list and set(cs_list) <= set(COMPONENT_SLOTS)):
                     errors.append(f"{where}.match.component_slot: must be one or a list of {list(COMPONENT_SLOTS)}")
             s = row.get("set")
-            if not isinstance(s, dict) or set(s) != {"slot", "kind"}:
+            if "reason" in row:  # a reason row sets no slot (A2): exactly one of `set` and `reason`
+                if s is not None or row["reason"] not in ATTACH_ROW_REASONS:
+                    errors.append(f"{where}: carries either set or reason, and a reason is one of {list(ATTACH_ROW_REASONS)}")
+            elif not isinstance(s, dict) or set(s) != {"slot", "kind"}:
                 errors.append(f"{where}.set: must be a mapping with exactly slot and kind")
             elif s["slot"] not in ATTACH_SLOTS:
                 errors.append(f"{where}.set.slot: {s['slot']!r} not in {list(ATTACH_SLOTS)}")
@@ -402,6 +415,41 @@ def _check_attachment_rules(val) -> list[str]:
         errors.extend(_check_attach_affinity(val["attach_affinity"]))
     if val.get("attach_compat") is not None:
         errors.extend(_check_attach_compat(val["attach_compat"]))
+    if val.get("attach_genre_by_pack") is not None:
+        errors.extend(_check_genre_by_pack(val["attach_genre_by_pack"]))
+    if val.get("sight_probe") is not None:
+        errors.extend(_check_sight_probe(val["sight_probe"]))
+    return errors
+
+
+def _check_genre_by_pack(val) -> list[str]:
+    """``attach_genre_by_pack``: full pack id -> lower-case setting word (spec 5.1)."""
+    where = "attachment_rules.attach_genre_by_pack"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping pack id -> setting word"]
+    errors = []
+    for pack, setting in val.items():
+        if not isinstance(pack, str) or not pack:
+            errors.append(f"{where}: pack ids must be non-empty strings")
+        elif not isinstance(setting, str) or not setting or setting != setting.lower():
+            errors.append(f"{where}.{pack}: the setting must be a non-empty lower-case word")
+    return errors
+
+
+def _check_sight_probe(val) -> list[str]:
+    """``sight_probe``: the numeric parameters of the sight seat probe (spec 4.6); every one is required."""
+    where = "attachment_rules.sight_probe"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping"]
+    errors = []
+    for key in val:
+        if key not in SIGHT_PROBE_PARAMS:
+            errors.append(f"{where}.{key}: unknown key (allowed: {', '.join(SIGHT_PROBE_PARAMS)})")
+    for key, (typ, lo, hi) in SIGHT_PROBE_PARAMS.items():
+        v = val.get(key)
+        ok = (isinstance(v, int) and not isinstance(v, bool)) if typ is int else _is_num(v)
+        if not ok or not (lo <= v <= hi):
+            errors.append(f"{where}.{key}: must be {'an integer' if typ is int else 'a number'} from {lo} to {hi}")
     return errors
 
 

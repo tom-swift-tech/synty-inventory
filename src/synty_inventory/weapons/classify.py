@@ -85,11 +85,11 @@ def tokenize_id(asset_id: str, rules: dict | None = None) -> list[str]:
     return out
 
 
-def raw_tokens(asset_id: str) -> set[str]:
-    """Lower-cased `_`/camelCase tokens of an id with NO alias step, digits dropped, plus the joins of 2-3 neighbours.
+def split_tokens(asset_id: str) -> list[str]:
+    """Lower-cased `_`/camelCase tokens of an id in order, NO alias step and NO joins, digits dropped.
 
-    The attachment table (docs/weapon_attachments.md 3.3) needs the words the alias table folds together (scope versus
-    reflex, drum versus mag), and the joins let `Red_Dot` / `RedDot` reach `reddot` and `Fore_Grip` reach `foregrip`.
+    The plain sequence the sight-pair keys are built from (docs/weapon_attachments.md 3.5): `raw_tokens` adds joins that
+    would make `Front_Canted` and `FrontCanted` differ from their parts.
     """
     seq: list[str] = []
     for segment in _SEGMENT_SPLIT_RE.split(asset_id):
@@ -97,10 +97,39 @@ def raw_tokens(asset_id: str) -> set[str]:
             tok = part.lower()
             if not tok.isdigit():
                 seq.append(tok)
+    return seq
+
+
+def raw_tokens(asset_id: str) -> set[str]:
+    """Lower-cased `_`/camelCase tokens of an id with NO alias step, digits dropped, plus the joins of 2-3 neighbours.
+
+    The attachment table (docs/weapon_attachments.md 3.3) needs the words the alias table folds together (scope versus
+    reflex, drum versus mag), and the joins let `Red_Dot` / `RedDot` reach `reddot` and `Fore_Grip` reach `foregrip`.
+    """
+    seq = split_tokens(asset_id)
     out = set(seq)
     for n in (2, 3):
         out.update("".join(seq[i : i + n]) for i in range(len(seq) - n + 1))
     return out
+
+
+def _first_attachment_row(asset_id: str, pack_id: str, role: str, component: dict | None, rules: dict) -> dict | None:
+    """The first ``attachment_rules.rows`` row a `part` record matches, or None (a ``never`` row beats every row)."""
+    if role != "part":
+        return None
+    table = attachment_rules(rules)
+    tokens = raw_tokens(asset_id)
+    if "iron" in tokens and "sight" in tokens:
+        # A2 (spec 3.3): "an iron-sight name" is `ironsight` OR `iron` with `sight`; the pair gets the joined token so the
+        # iron-sight rows are written once. (`Iron_Post_Sight` has no neighbouring iron+sight join.)
+        tokens = tokens | {"ironsight"}
+    ctx = {"id": asset_id, "tokens": tokens, "pack": pack_id, "component_slot": (component or {}).get("slot")}
+    if any(match_conditions(row["match"], ctx) for row in table["never"]):
+        return None
+    for row in table["rows"]:
+        if match_conditions(row["match"], ctx):
+            return row
+    return None
 
 
 def classify_attachment(asset_id: str, pack_id: str, role: str, component: dict | None, rules: dict) -> dict | None:
@@ -109,18 +138,18 @@ def classify_attachment(asset_id: str, pack_id: str, role: str, component: dict 
     Runs on the final classification (after the part rules and any override), reads only the id tokens, the pack and
     ``component.slot``, and never changes ``component``. A part matching a ``never`` row (vehicle accessories) is not an
     attachment whatever else it matches; a part no row matches stays None (rack and rail segments, bayonets, stocks).
+    A ``reason`` row (an iron-sight name without a decided side, A2) classifies no slot: see `attachment_reason`.
     """
-    if role != "part":
+    row = _first_attachment_row(asset_id, pack_id, role, component, rules)
+    if row is None or "set" not in row:
         return None
-    table = attachment_rules(rules)
-    ctx = {"id": asset_id, "tokens": raw_tokens(asset_id), "pack": pack_id,
-           "component_slot": (component or {}).get("slot")}
-    if any(match_conditions(row["match"], ctx) for row in table["never"]):
-        return None
-    for row in table["rows"]:
-        if match_conditions(row["match"], ctx):
-            return {"slot": row["set"]["slot"], "kind": row["set"]["kind"], "rule": row["name"]}
-    return None
+    return {"slot": row["set"]["slot"], "kind": row["set"]["kind"], "rule": row["name"]}
+
+
+def attachment_reason(asset_id: str, pack_id: str, role: str, component: dict | None, rules: dict) -> str | None:
+    """The review reason of a matched ``reason`` row (``sight_side_unsure``), else None; the part keeps ``attachment: null``."""
+    row = _first_attachment_row(asset_id, pack_id, role, component, rules)
+    return row.get("reason") if row is not None else None
 
 
 # spec 3.4.3
