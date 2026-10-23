@@ -556,6 +556,32 @@ attachment_rules:
       width_min_m: 0.010
       width_max_m: 0.030
       min_pos: 0.6
+  # Anchor measurement (A4, W8l, spec 3.4 steps 1a and 3b; read by weapons/attach.py, parameters not contract). Inside attachment_rules, like the
+  # tables above: it moves attach_rules_digest and never rules_digest.
+  #   foot_depths_m  the rungs of the foot slab: the first is the 4 mm slab of step 1, the others are tried when a slab only cut a LIP.
+  #   lip_min_m, lip_max_m, lip_growth  a slab extent (along forward or right) is a lip when it is within lip_min_m .. lip_max_m (a line contact
+  #                  of extent 0 is no lip) and the next rung is at least lip_growth times as large on that axis; while any axis is a lip the next rung
+  #                  is used, so at most len(foot_depths_m) - 1 steps. A thin foot that stays thin (an iron-sight post) is a foot.
+  #   free_end       slot -> kinds whose forward sign comes from where the free end (the outer 25 % along up, away from the foot) sits against the
+  #                  foot along the long horizontal axis, when that displacement is at least min_displacement_m (step 3b; a banana magazine leans
+  #                  toward the muzzle). Not generic: an optic's free end is its top, a drum and a foregrip have no ground truth.
+  anchor:
+    foot_depths_m: [0.004, 0.008, 0.016]
+    lip_min_m: 0.001
+    lip_max_m: 0.0045
+    lip_growth: 2.0
+    free_end:
+      min_displacement_m: 0.010
+      kinds:
+        magazine: [standard]
+        underbarrel: [bipod]
+  # Slots whose same_pack_fit candidate needs no family_overlap (A4, spec 5.1): the part names no gun. laser_light (no labelled pair yet), magazine
+  # and optic (their names carry the family) are left out on purpose. Inside attachment_rules: moves attach_rules_digest, never rules_digest.
+  family_free_slots: [sight_front, sight_rear, muzzle, underbarrel]
+  # Optic seat lift (A4, spec 4.2): a child_node optic mount is lifted to the host surface under the baked scope's footprint when that surface
+  # is above the scope's underside by 0 .. lift_cap_m (a bigger lift means a hump or a handle was hit, not a receiver top: the seat stays).
+  optic_seat:
+    lift_cap_m: 0.030
 
 # archetype -> hold_class (spec 3.4.2). `none` = not hand-held.
 hold_by_archetype:

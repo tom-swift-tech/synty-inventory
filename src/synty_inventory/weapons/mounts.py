@@ -53,6 +53,14 @@ Judgment calls, stated once (the spec fixes only the 0.5 / 0.4 muzzle values):
 * Confidence literals: ``child_node`` 0.9 (0.6 when several children compete), ``override`` 1.0, muzzle probe 0.8 with a
   ring / 0.5 with ``face_extent`` / 0.4 ``bounds_fallback``, ``none`` 0.0. A host whose selected node, or the chosen
   child, carries a rotation or scale (NB-15) caps the slot at 0.4.
+* A4 (W8l, spec 4.2 "A4 on the child seat"), two corrections of a ``child_node`` seat. (item 5) A slot with EXACTLY two measured children
+  whose sorted AABB extents are twins (spec 5.1 tolerance), whose anchor points differ by at most 1 mm along host forward and along host up and
+  by more than 5 mm along the third axis, is a mirrored pair (the two legs of a bipod): the mount's ``point`` is the midpoint of the two anchor
+  points, ``child_node`` the lower name, ``seats`` and ``occupied_by`` as for any pair. (item 4) A ``child_node`` ``optic`` mount is LIFTED when
+  the host surface under the baked scope's footprint stands above the scope's underside (the model nests the scope in the receiver): the
+  surface is the probe mesh of 4.6 item 1 sampled at 2.5 mm, the rectangle the AABB of the occupying child(ren) on the two axes across host up,
+  and the ``point`` coordinate along up becomes the highest sample when the lift is above zero and at most ``optic_seat.lift_cap_m`` (a bigger lift
+  is a hump or a handle, not a receiver top: the seat stays). Nothing else of the mount moves. Each ``seats`` frame lifts for its own child.
 * A1 (W8f). A slot that lists more than one measured child also carries ``seats`` (``{node: {point, forward, up, span_m}}``, one
   frame per listed child built exactly like the mount's own seat), whatever rung won, because a baked twin of the SMALLER child
   must be placed on that child's frame; the larger one stays ``child_node`` and the mount's own seat. A slot with one listed
@@ -70,10 +78,10 @@ import numpy as np
 from ..naming import SKIP_STEM_RE
 from ..sources.glb_geometry import load_triangles, node_world_matrices
 from ..sources.glb_measure import NodeSel, node_selected, read_glb_json
-from . import ATTACH_SLOTS, SIGHT_SLOTS
+from . import ATTACH_SLOTS, SIGHT_SLOTS, TWIN_ABS_TOL_M, TWIN_REL_TOL
 from .attach import measure_anchor
 from .classify import raw_tokens
-from .mount_probe import fused_front_posts, sight_profile, sight_seats
+from .mount_probe import fused_front_posts, sight_profile, sight_seats, surface_samples
 from .rules import attachment_rules
 
 # the slots whose baked children are not part of the surface the sight probe reads (spec 4.6 item 1; A3 added the last three)
@@ -360,14 +368,18 @@ def _child_mount(slot: str, node: str, names: list[str], measured: dict, axes: d
     return mount
 
 
-def _measure_children(vertices: Callable, slot: str, names) -> dict:
-    """``{name: (anchor, footprint, volume)}`` of the children whose anchor can be measured (``attach.measure_anchor``)."""
+def _measure_children(vertices: Callable, slot: str, names, params: dict | None = None) -> dict:
+    """``{name: (anchor, footprint, volume)}`` of the children whose anchor can be measured (``attach.measure_anchor``).
+
+    A child is measured without a kind (a host child keeps the section forward, spec 3.4 step 3b) but with the rules' anchor table, so its
+    ``point`` and ``span_m`` follow the foot ladder (step 1a) exactly like a part's.
+    """
     out = {}
     for name in sorted(set(names)):
         v = vertices(name)
         if v is None:
             continue
-        got = measure_anchor(v, slot)
+        got = measure_anchor(v, slot, params=params)
         if got["anchor"] is not None:
             out[name] = (got["anchor"], got["footprint"], _volume(v))
     return out
@@ -376,6 +388,85 @@ def _measure_children(vertices: Callable, slot: str, names) -> dict:
 def _seat(measured: dict) -> str:
     """The larger child by AABB volume; the lower name breaks a tie, so the choice is deterministic."""
     return min(measured, key=lambda n: (-measured[n][2], n))
+
+
+# -- A4 corrections of the child seat (W8l) ----------------------------------------------------------------
+
+_MIRROR_ALIGN_M = 0.001  # a mirrored pair agrees within 1 mm along host forward and along host up ...
+_MIRROR_APART_M = 0.005  # ... and is more than 5 mm apart along the third axis
+_LIFT_GRAIN_M = 0.00005  # half the 1e-4 rounding of a coordinate: a "lift" below it is rounding noise, not a lift
+_LIFT_TOL_M = 1e-6  # a lift of exactly the cap still lifts: the mesh is float32, whose noise at 0.1 m (7.5e-9) is beyond the 1e-9 of _EPS
+
+
+def _same_extents(a: np.ndarray, b: np.ndarray) -> bool:
+    """Spec 5.1 twin test on two meshes: the sorted AABB extents agree within ``max(3 %, 0.8 mm)`` per axis."""
+    xs, ys = np.sort(a.max(axis=0) - a.min(axis=0)), np.sort(b.max(axis=0) - b.min(axis=0))
+    return all(abs(float(x) - float(y)) <= max(TWIN_REL_TOL * max(float(x), float(y)), TWIN_ABS_TOL_M) for x, y in zip(xs, ys))
+
+
+def mirrored_point(listed: list[str], measured: dict, vertices: Callable, axes: dict) -> list[float] | None:
+    """The midpoint of the two anchor points when ``listed`` is a mirrored pair of children (spec 4.2 A4, item 5), else None.
+
+    Exactly two measured children with equal sorted extents (twin tolerance), anchor points within 1 mm of each other along host forward and
+    along host up and more than 5 mm apart along the third axis. The left and right leg of a bipod seat a whole bipod on the centre line.
+    """
+    if len(listed) != 2:
+        return None
+    a, b = sorted(listed)
+    va, vb = vertices(a), vertices(b)
+    if va is None or vb is None or not _same_extents(va, vb):
+        return None
+    pa, pb = np.asarray(measured[a][0]["point"], dtype=np.float64), np.asarray(measured[b][0]["point"], dtype=np.float64)
+    f_i, u_i = "xyz".index(axes["forward"][1]), "xyz".index(axes["up"][1])
+    third = ({0, 1, 2} - {f_i, u_i}).pop()
+    d = np.abs(pa - pb)
+    if d[f_i] > _MIRROR_ALIGN_M + _EPS or d[u_i] > _MIRROR_ALIGN_M + _EPS or d[third] <= _MIRROR_APART_M + _EPS:
+        return None
+    return [_r(c) for c in (pa + pb) / 2.0]
+
+
+def lifted_point(point: list[float], names, samples: np.ndarray, vertices: Callable, axes: dict, cap: float) -> list[float]:
+    """``point`` with its coordinate along host up raised to the highest ``samples`` over the AABB of ``names`` (spec 4.2 A4, item 4).
+
+    The rectangle is the union AABB of the named children on the two axes across host up; the lift is the highest sample's up coordinate
+    minus ``point``'s. It applies when above zero (more than the rounding grain) and at most ``cap``; otherwise the point is returned as it was.
+    """
+    u_i, u_s = "xyz".index(axes["up"][1]), (1.0 if axes["up"][0] == "+" else -1.0)
+    boxes = [vertices(n) for n in names]
+    if not len(samples) or any(b is None for b in boxes):
+        return point
+    lo, hi = np.min([b.min(axis=0) for b in boxes], axis=0), np.max([b.max(axis=0) for b in boxes], axis=0)
+    inside = np.ones(len(samples), dtype=bool)
+    for a in (i for i in range(3) if i != u_i):
+        inside &= (samples[:, a] >= lo[a] - _EPS) & (samples[:, a] <= hi[a] + _EPS)
+    if not inside.any():
+        return point
+    top = float((u_s * samples[inside, u_i]).max())
+    lift = top - u_s * point[u_i]
+    if not (_LIFT_GRAIN_M < lift <= cap + _LIFT_TOL_M):
+        return point
+    out = list(point)
+    out[u_i] = _r(u_s * top)
+    return out
+
+
+def lift_optic_seat(mounts: dict, path, glb_node: NodeSel, scale: float, axes: dict, tables: dict, vertices: Callable) -> None:
+    """Lift the ``child_node`` ``optic`` mount (and each of its ``seats``) to the host surface under the baked scope, in place (spec 4.2 A4, item 4).
+
+    The surface is the sight probe's mesh (4.6 item 1: the host minus the ``occupied_by`` nodes of ``PROBE_DROP_SLOTS``) sampled at 2.5 mm.
+    No ``optic_seat`` table, an optic that is not a ``child_node``, or a mesh that cannot be decoded leave the mount as it is.
+    """
+    cap = (tables.get("optic_seat") or {}).get("lift_cap_m")
+    mount = mounts["optic"]
+    if cap is None or mount["source"] != "child_node":
+        return
+    mesh = _load_mesh(path, glb_node, scale, frozenset(n for s in PROBE_DROP_SLOTS for n in mounts[s]["occupied_by"]))
+    if mesh is None:
+        return
+    samples = surface_samples(mesh[0], mesh[1])
+    mount["point"] = lifted_point(mount["point"], mount["occupied_by"], samples, vertices, axes, cap)
+    for name, frame in (mount.get("seats") or {}).items():
+        frame["point"] = lifted_point(frame["point"], [name], samples, vertices, axes, cap)
 
 
 # -- the muzzle probe rung --------------------------------------------------------------------------------
@@ -532,7 +623,8 @@ def build_mounts(
             occupied = sorted(set(by_slot[slot]) | ({forced} if forced else set()))
             mounts[slot] = resolve_slot(None, None, _muzzle_mount(path, glb_node, scale, verts, axes, occupied, cap, probe))
             continue
-        measured = measured_by_slot[slot] = _measure_children(vertices, slot, by_slot[slot] + ([forced] if forced else []))
+        measured = measured_by_slot[slot] = _measure_children(vertices, slot, by_slot[slot] + ([forced] if forced else []),
+                                                              tables.get("anchor"))
         if forced is not None and forced not in measured:
             problems.append(f"child_unmeasured: {slot}: {forced}")
             forced = None
@@ -542,12 +634,16 @@ def build_mounts(
             override_rung = _child_mount(slot, forced, sorted(set(listed) | {forced}), measured, axes,
                                          _child_cap(cap, candidates, forced), "override", False)
         if listed:
-            seat = _seat({n: measured[n] for n in listed})
+            middle = mirrored_point(listed, measured, vertices, axes)  # A4 item 5: a mirrored pair seats at its midpoint, on the lower name
+            seat = listed[0] if middle is not None else _seat({n: measured[n] for n in listed})
             child_rung = _child_mount(slot, seat, listed, measured, axes, _child_cap(cap, candidates, seat),
                                       "child_node", len(listed) > 1)
+            if middle is not None:
+                child_rung["point"] = middle
         mounts[slot] = resolve_slot(override_rung, child_rung, None)
     fused_post = _probe_sights(mounts, path, glb_node, scale, axes, tables, cap, verts)
     refuse_baked(mounts, baked_children(candidates, host_id, tables, vertices, verts, axes, host_volume), fused_post)
+    lift_optic_seat(mounts, path, glb_node, scale, axes, tables, vertices)  # A4 item 4, last: it reads the settled occupied_by of every probe-dropped slot
     return {"mounts": mounts, "problems": problems,
             "child_extents": _child_extents(mounts, vertices, measured_by_slot, axes)}
 

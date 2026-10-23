@@ -17,7 +17,6 @@ import re
 
 import numpy as np
 
-_FOOT_SLAB_M = 0.004  # the foot slab: vertices within 4 mm of the contact extreme (spec 3.4 step 1)
 _MIN_POINTS = 3  # distinct points (0.1 mm dedupe) a slab or a face needs
 _DEDUPE_M = 1e-4
 _WINDOW_FRAC = 0.25  # outer share of the length whose cross-section decides a sign (spec 3.4 step 3)
@@ -27,6 +26,16 @@ _EPS = 1e-9
 _AXES = "xyz"
 _SIGNED_AXIS_RE = re.compile(r"^[+-][xyz]$")
 _FOOT_AT_BOTTOM = ("optic", "laser_light", "sight_front", "sight_rear")  # the others hang from a +Y foot; the sights stand on the receiver like an optic (A2)
+
+# A4 (W8l): the numbers of attachment_rules.anchor (spec 3.4 steps 1a and 3b). The build threads the table of the rules in force; these are
+# the same numbers for a caller that passes none (the shipped weapon_rules.yaml carries them, a test pins the two equal). Parameters, not contract.
+DEFAULT_ANCHOR_PARAMS = {
+    "foot_depths_m": [0.004, 0.008, 0.016],  # step 1 slab, then the two rungs of the lip ladder (1a)
+    "lip_min_m": 0.001,  # a slab extent below this is a line contact (a flashlight), not a lip
+    "lip_max_m": 0.0045,  # a slab extent up to this can be a lip: the slab is cutting a ridge, a rim or a stub
+    "lip_growth": 2.0,  # ... when the next rung is at least this many times as large on that axis
+    "free_end": {"min_displacement_m": 0.010, "kinds": {"magazine": ["standard"], "underbarrel": ["bipod"]}},  # 3b
+}
 
 
 def _r(x) -> float:
@@ -105,9 +114,50 @@ def _result(point, forward, up, foot_source, forward_source, symmetric, v, foot,
     }
 
 
-def _slab(v: np.ndarray, low: bool) -> np.ndarray:
+def _slab(v: np.ndarray, low: bool, depth: float) -> np.ndarray:
     y = v[:, 1]
-    return v[y <= float(y.min()) + _FOOT_SLAB_M + _EPS] if low else v[y >= float(y.max()) - _FOOT_SLAB_M - _EPS]
+    return v[y <= float(y.min()) + depth + _EPS] if low else v[y >= float(y.max()) - depth - _EPS]
+
+
+def _is_lip(slab: np.ndarray, deeper: np.ndarray, axes: tuple[int, ...], p: dict) -> bool:
+    """Spec 3.4 step 1a: some axis of ``slab`` is a lip, i.e. thin but not a line (``lip_min_m`` .. ``lip_max_m``) AND the next rung is at
+    least ``lip_growth`` times as large on that axis. A thin foot that stays thin (an iron-sight post) is a foot; a line contact has extent 0."""
+    for a in axes:
+        e = float(slab[:, a].max() - slab[:, a].min())
+        e_next = float(deeper[:, a].max() - deeper[:, a].min())
+        if p["lip_min_m"] - _EPS <= e <= p["lip_max_m"] + _EPS and e_next >= p["lip_growth"] * e - _EPS:
+            return True
+    return False
+
+
+def _foot_slab(v: np.ndarray, low: bool, axis: int, p: dict) -> np.ndarray:
+    """The slab of the first rung of ``foot_depths_m`` that is not a lip along ``forward`` (``axis``) or ``right`` (the other horizontal axis)."""
+    depths = p["foot_depths_m"]
+    right = 0 if axis == 2 else 2
+    rung = 0
+    slab = _slab(v, low, depths[0])
+    while rung + 1 < len(depths):
+        deeper = _slab(v, low, depths[rung + 1])
+        if not _is_lip(slab, deeper, (axis, right), p):
+            break
+        slab, rung = deeper, rung + 1
+    return slab
+
+
+def _free_end_sign(v: np.ndarray, slab: np.ndarray, low: bool, axis: int, p: dict) -> int | None:
+    """Spec 3.4 step 3b: +1 / -1 for the side of ``axis`` that the free end leans to, or None below ``min_displacement_m``.
+
+    The free end is the outer ``_WINDOW_FRAC`` of the extent along ``up`` at the end away from the foot; the displacement is the midpoint of its
+    AABB along ``axis`` minus the midpoint of the foot slab's AABB (the slab the ladder chose) along the same axis.
+    """
+    y = v[:, 1]
+    lo, hi = float(y.min()), float(y.max())
+    win = _WINDOW_FRAC * (hi - lo)
+    free = v[y >= hi - win - _EPS] if low else v[y <= lo + win + _EPS]
+    disp = (float(free[:, axis].min()) + float(free[:, axis].max())) / 2.0 - (float(slab[:, axis].min()) + float(slab[:, axis].max())) / 2.0
+    if abs(disp) < p["free_end"]["min_displacement_m"] - _EPS:
+        return None
+    return 1 if disp > 0 else -1
 
 
 def _slab_centre(slab: np.ndarray, low: bool) -> np.ndarray:
@@ -115,10 +165,10 @@ def _slab_centre(slab: np.ndarray, low: bool) -> np.ndarray:
     return np.array([(lo[0] + hi[0]) / 2.0, lo[1] if low else hi[1], (lo[2] + hi[2]) / 2.0])
 
 
-def _foot_anchor(v: np.ndarray, slot: str, forward_override) -> dict:
+def _foot_anchor(v: np.ndarray, slot: str, forward_override, kind, p: dict) -> dict:
     expected_low = slot in _FOOT_AT_BOTTOM
     for attempt, low in enumerate((expected_low, not expected_low)):
-        slab = _slab(v, low)
+        slab = _slab(v, low, p["foot_depths_m"][0])
         if len(_distinct(slab)) >= _MIN_POINTS:
             break
     else:
@@ -127,8 +177,13 @@ def _foot_anchor(v: np.ndarray, slot: str, forward_override) -> dict:
     up = _unit(1, 1 if low else -1)
     ext = v.max(axis=0) - v.min(axis=0)
     axis = 2 if ext[2] >= ext[0] else 0
+    slab = _foot_slab(v, low, axis, p)  # A4 item 3: one rung deeper when the 4 mm slab only cut a lip
     sign, decided = _end_sign(*_end_sections(v, axis))
     forward_source, symmetric = ("section", False) if decided else ("authored", True)
+    if kind in (p["free_end"].get("kinds") or {}).get(slot, ()):  # A4 item 1: the pairs of attachment_rules.anchor.free_end only
+        leaning = _free_end_sign(v, slab, low, axis, p)
+        if leaning is not None:
+            sign, forward_source, symmetric = leaning, "free_end", False
     forced = _override_sign(forward_override, axis)
     if forced is not None:
         sign, forward_source, symmetric = forced, "override", False
@@ -165,11 +220,15 @@ def _muzzle_anchor(v: np.ndarray, forward_override) -> dict:
     return _result(point, forward, up, "measured", forward_source, symmetric, v, face, mate_d)
 
 
-def measure_anchor(vertices, slot: str, forward_override=None) -> dict:
+def measure_anchor(vertices, slot: str, forward_override=None, kind: str | None = None, params: dict | None = None) -> dict:
+    """The anchor and footprint of one mesh (spec 3.4). ``kind`` (A4, item 1) is the part's kind within ``slot``: only a part measures with it,
+    a host's baked child is measured without (it keeps step 3). ``params`` is ``attachment_rules.anchor`` (default: ``DEFAULT_ANCHOR_PARAMS``)."""
     v = np.asarray(vertices, dtype=np.float64).reshape(-1, 3)
     if not len(v):
         return _unmeasured()
-    return _muzzle_anchor(v, forward_override) if slot == "muzzle" else _foot_anchor(v, slot, forward_override)
+    if slot == "muzzle":
+        return _muzzle_anchor(v, forward_override)
+    return _foot_anchor(v, slot, forward_override, kind, params or DEFAULT_ANCHOR_PARAMS)
 
 
 def frame_matrix(frame: dict) -> np.ndarray:

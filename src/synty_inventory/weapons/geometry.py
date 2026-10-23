@@ -610,13 +610,14 @@ def measure_weapon_detail(
     glb: Path, glb_node: NodeSel, scale: float, archetype: str, kind: str | None, role: str, rules: dict,
     *, hold_class: str | None = None, genre: str | None = None, forward_override: str | None = None,
     head_lead: bool = False, attach_slot: str | None = None, mount_overrides: dict | None = None,
-    with_mounts: bool = False, host_id: str | None = None,
+    with_mounts: bool = False, host_id: str | None = None, attach_kind: str | None = None,
 ) -> dict:
     """``{'geometry': block | None, 'flags': [...], 'reasons': [...], 'warning': str | None}`` (spec 3.5).
 
     ``attach_slot`` (W8a: the part is an attachment seated in this slot) adds the key ``attach`` = ``attach.measure_anchor``
     of the same decoded vertices (the anchor, the footprint and the reasons they imply); ``forward_override`` then also
-    fixes the anchor's forward sign. Without a slot the result has no such key.
+    fixes the anchor's forward sign. Without a slot the result has no such key. ``attach_kind`` (A4, W8l) is the part's kind in that slot: the
+    free-end forward of ``attachment_rules.anchor.free_end`` reads it (a host's baked children are measured without one, in ``mounts.py``).
 
     ``with_mounts`` (W8b, off by default so a bare measurement is the W7 dict byte for byte) makes an eligible host
     (``mounts.eligible``: whole, ranged, one_hand / long_gun) add the keys ``mounts`` (the ``geometry.mounts`` block of
@@ -841,7 +842,8 @@ def measure_weapon_detail(
     }
     out = {"geometry": geometry, "flags": sorted(flags), "reasons": sorted(reasons), "warning": warning}
     if attach_slot is not None:
-        out["attach"] = measure_anchor(verts, attach_slot, forward_override)
+        out["attach"] = measure_anchor(verts, attach_slot, forward_override, kind=attach_kind,
+                                       params=attachment_rules(rules).get("anchor"))
     if with_mounts and eligible(role, kind, hold_class):
         built = build_mounts(glb, glb_node, scale, rules, verts=verts, axes={"forward": forward, "up": up},
                              transformed=transformed, probe=muzzle_probe, overrides=mount_overrides, host_id=host_id)
@@ -911,7 +913,7 @@ _PROBE_CODE_DIGEST = code_digest((Path(__file__).parent / "mount_probe.py").read
 
 def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, forward_override=None,
                         *, head_lead: bool = False, attach_slot: str | None = None,
-                        mount_overrides: dict | None = None, host_id: str | None = None) -> str:
+                        mount_overrides: dict | None = None, host_id: str | None = None, attach_kind: str | None = None) -> str:
     # the measurement depends on the classification context, not only on the file (spec 3.5 says file + versions;
     # deviation reported): a rules or override change that flips archetype/kind/hold must not serve stale geometry
     fp = {
@@ -930,6 +932,9 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
         # same idea for an attachment part (W8a): absent for every other record, so no existing fingerprint changes. The
         # attachment version and the digest of attach.py keep a stale anchor from surviving an algorithm change or a bump
         fp["as"], fp["av"], fp["ad"] = attach_slot, _pkg.WEAPON_ATTACH_VERSION, _ATTACH_CODE_DIGEST
+        # A4 (W8l): the anchor now depends on the part's kind (the free-end forward) and on the anchor table (foot ladder, free-end pairs), so
+        # both are inputs; a code change moves `ad`, a parameter or kind change moves these two
+        fp["ak"], fp["ap"] = attach_kind, attachment_rules(rules).get("anchor")
     if eligible(role, kind, hold_class):
         # W8b: only an eligible host carries mounts, so only its fingerprint changes. The attachment version is read at call
         # time (a bump must miss the cache, AC78) and WEAPON_GEOMETRY_VERSION stays untouched (D-12). The child vocabulary
@@ -946,6 +951,9 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
             # whole baked_sights table, so the glass / body / handle lists, the handle height fraction and every fused_post parameter move the
             # key; the fused front post detector itself lives in mount_probe.py (pd) and its caller in mounts.py (md)
             "hn": tables.get("attach_host_never"), "bs": tables.get("baked_sights"), "hi": host_id,
+            # A4 (W8l): a child's anchor follows the foot ladder (`ap`, the anchor table), and the optic seat lift and the mirrored pair live in
+            # mounts.py (`md`): the cap of the lift (`os`) is an input
+            "ap": tables.get("anchor"), "os": tables.get("optic_seat"),
         }
         if mount_overrides:
             fp["mv"]["mo"] = mount_overrides
@@ -956,7 +964,7 @@ def measure_cached(
     threejs_v2_dir: Path, glb_rel: str, glb_node: NodeSel, scale: float, archetype: str, kind: str | None,
     role: str, rules: dict, cache: dict, *, hold_class: str | None = None, genre: str | None = None,
     forward_override: str | None = None, head_lead: bool = False, attach_slot: str | None = None,
-    mount_overrides: dict | None = None, host_id: str | None = None,
+    mount_overrides: dict | None = None, host_id: str | None = None, attach_kind: str | None = None,
 ) -> tuple[dict, bool]:
     """``(detail, was_cached)``. Entry id = relative GLB path + node tag + scale tag (as ``glb_measure``); the
     entry is valid while ``mtime:size`` and its version (``WEAPON_GEOMETRY_VERSION`` + the digest of this file) match, and holds one result per
@@ -973,7 +981,7 @@ def measure_cached(
     cache_id += scale_cache_tag(scale)
     version = f"{_pkg.WEAPON_GEOMETRY_VERSION}+{_CODE_DIGEST}"
     fp = _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules, forward_override, head_lead=head_lead,
-                             attach_slot=attach_slot, mount_overrides=mount_overrides, host_id=host_id)
+                             attach_slot=attach_slot, mount_overrides=mount_overrides, host_id=host_id, attach_kind=attach_kind)
     entry = cache.get(cache_id)
     if not entry or entry.get("key") != key or entry.get("version") != version:
         entry = {"key": key, "version": version, "by_inputs": {}}
@@ -984,7 +992,7 @@ def measure_cached(
     detail = measure_weapon_detail(
         abs_path, glb_node, scale, archetype, kind, role, rules, hold_class=hold_class, genre=genre,
         forward_override=forward_override, head_lead=head_lead, attach_slot=attach_slot, mount_overrides=mount_overrides,
-        with_mounts=True, host_id=host_id,
+        with_mounts=True, host_id=host_id, attach_kind=attach_kind,
     )
     entry["by_inputs"][fp] = deepcopy(detail)
     return detail, False
