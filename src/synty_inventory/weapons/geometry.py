@@ -942,7 +942,9 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
             # A2: the sight seat probe is an input too, its code (pd) and its parameters (sp)
             "pd": _PROBE_CODE_DIGEST, "sp": tables.get("sight_probe"),
             # A3: the excluded-host table and the baked-sight tokens are inputs, and so is the host's name (it decides the exclusion
-            # and is the stem the baked-sight detector strips); the detector's code is part of mounts.py (md)
+            # and is the stem the baked-sight detector strips); the detector's code is part of mounts.py (md). Addendum 3 (W8j): `bs` is the
+            # whole baked_sights table, so the glass / body / handle lists, the handle height fraction and every fused_post parameter move the
+            # key; the fused front post detector itself lives in mount_probe.py (pd) and its caller in mounts.py (md)
             "hn": tables.get("attach_host_never"), "bs": tables.get("baked_sights"), "hi": host_id,
         }
         if mount_overrides:

@@ -90,6 +90,7 @@ def test_ac94_a_sight_that_shares_a_name_token_keeps_family_overlap_in_its_signa
 
 PX = "FAKE_Excl"
 FLARE, BRIEFCASE, PROP, PLAIN = ("SM_Wep_Pistol_Flare_01", "SM_Wep_Prop_Briefcase_Flaregun_01", "SM_Wep_Rifle_Prop_01", "SM_Wep_Rifle_Plain_01")
+SCOPED = "SM_Wep_Rifle_Scoped_01"  # W8j: the reference for the optic mount of the excluded hosts (a baked scope; PLAIN no longer has one)
 EXCLUDED = (FLARE, BRIEFCASE, PROP)
 SCOPE_AT = (0.0, 0.10, -0.05)
 
@@ -98,7 +99,11 @@ def excl_world():
     def host(name):
         return X.rifle(name, [("Scope", A.optic(), SCOPE_AT)])  # a baked scope, so the optic mount is a child_node that must not move
 
-    return {PX: {"parts": {X.SIGHT_FRONT: W.sight_part, X.SIGHT_REAR: W.sight_part}, "hosts": {h: host(h) for h in (*EXCLUDED, PLAIN)}}}
+    # W8j (item 8 A): a baked Scope is a body child and refuses both sight slots of its host, so PLAIN, the one host whose sight slots must
+    # stay probe seats, is a bare rifle and SCOPED carries the reference optic mount
+    hosts = {h: host(h) for h in (*EXCLUDED, SCOPED)}
+    hosts[PLAIN] = X.rifle(PLAIN)
+    return {PX: {"parts": {X.SIGHT_FRONT: W.sight_part, X.SIGHT_REAR: W.sight_part}, "hosts": hosts}}
 
 
 @pytest.fixture(scope="module")
@@ -115,8 +120,10 @@ def test_ac95_a_flare_gun_a_briefcase_flaregun_and_a_prop_have_both_sight_seats_
 
 
 def test_ac95_their_optic_mount_is_unchanged_and_the_plain_host_is_seated_by_the_probe(excl):
-    plain = excl[f"{PX}/{PLAIN}"]["geometry"]["mounts"]
-    assert plain["sight_front"]["source"] == plain["sight_rear"]["source"] == "probe"
+    plain = excl[f"{PX}/{SCOPED}"]["geometry"]["mounts"]  # the optic reference (see excl_world)
+    assert plain["optic"]["source"] == "child_node"
+    bare = excl[f"{PX}/{PLAIN}"]["geometry"]["mounts"]
+    assert bare["sight_front"]["source"] == bare["sight_rear"]["source"] == "probe"
     for host in EXCLUDED:
         m = excl[f"{PX}/{host}"]["geometry"]["mounts"]
         assert m["optic"]["source"] == "child_node" and m["optic"]["occupied_by"] == [f"{host}_Scope"]
@@ -141,7 +148,10 @@ def test_ac95_an_add_override_still_lists_the_pair_as_override(tmp_path):
 
 def test_ac95_the_shipped_table_lists_flare_flaregun_and_prop_for_both_sight_slots():
     table = load_rules()["attachment_rules"]["attach_host_never"]
-    assert table == {"sight_front": ["flare", "flaregun", "prop"], "sight_rear": ["flare", "flaregun", "prop"]}
+    # W8j (item 8 E): the sight slots also list the water, watergun and toy names, and the optic slot those three
+    assert table == {"optic": ["water", "watergun", "toy"],
+                     "sight_front": ["flare", "flaregun", "prop", "water", "watergun", "toy"],
+                     "sight_rear": ["flare", "flaregun", "prop", "water", "watergun", "toy"]}
 
 
 @pytest.mark.parametrize("asset_id,slots", [

@@ -20,6 +20,9 @@ from the top profile of the gun, and a host the probe cannot decide stays ``none
    ridge can be narrower than the footprint) or whose hits spread more than ``seat_flat_tol_m`` (a cliff or a hole under the
    seat, where a sight has nothing to stand on): the numeric gates of 4.6 item 6 hold by construction.
 
+A3 addendum 3 (W8j, item 8 D) adds ``fused_front_posts`` to the same module: the fused front post detector reads the same side window of the
+same surface samples (``sight_profile``), so the probe mesh is decoded and sampled once.
+
 Judgment call (reported): the spec says "the vertices whose side coordinate is within ...", but a low-poly top face has
 vertices only at its ends, so every bin between them would be empty and every host refused. The profile therefore reads
 the surface: each triangle is sampled on a barycentric grid no coarser than ``_SAMPLE_M`` and the samples stand in for
@@ -34,6 +37,7 @@ _SAMPLE_M = 0.0025  # triangle sampling pitch: half the default bin, so no bin a
 _MAX_GRID = 400  # a triangle edge longer than 400 x _SAMPLE_M (1 m) is capped; no gun part has one
 _CHUNK_POINTS = 1_000_000  # samples built per numpy block
 _EPS = 1e-9
+_FUSED_MIN_BINS = 12  # a host with fewer populated bins has no profile to judge a post against (spec 4.6 item 8 D)
 
 
 def _r(x) -> float:
@@ -85,10 +89,12 @@ def _top_up(tri: np.ndarray, f: float, s: float) -> float | None:
     return float((l1 * tri[:, 0, 2] + l2 * tri[:, 1, 2] + l3 * tri[:, 2, 2])[hit].max())
 
 
-def sight_seats(vertices: np.ndarray, triangles: np.ndarray, axes: dict, params: dict) -> dict | None:
-    """``{"sight_rear": [x, y, z], "sight_front": [x, y, z]}`` in the mesh's own axes, or None when the probe refuses (step 5).
+def sight_profile(vertices: np.ndarray, triangles: np.ndarray, axes: dict, params: dict) -> dict | None:
+    """The side window of the top profile (step 2): ``{"fc", "uc", "s_mid"}`` or None when the mesh has no surface.
 
-    ``axes`` is the host's ``{forward, up}`` signed axes (``"-z"``, ``"+y"``); ``params`` is ``attachment_rules.sight_probe``.
+    ``fc`` / ``uc`` are the signed forward / up coordinates of the surface samples within ``max(side_min_m, side_frac x side extent)`` of
+    the side centre ``s_mid`` (the median side coordinate of the samples within ``ridge_tol_m`` of the highest point). Both the seat
+    probe (``sight_seats``) and the fused front post detector (``fused_front_posts``, A3 addendum 3) read it, so the surface is sampled once.
     """
     samples = surface_samples(vertices, triangles)
     if not len(samples):
@@ -104,7 +110,75 @@ def sight_seats(vertices: np.ndarray, triangles: np.ndarray, axes: dict, params:
     near = np.abs(sc - s_mid) <= window + _EPS
     if not near.any():
         return None
-    fc, uc, sc = fc[near], uc[near], sc[near]
+    return {"fc": fc[near], "uc": uc[near], "s_mid": s_mid}
+
+
+def fused_runs(profile: dict, fused: dict, f_range: tuple[float, float]) -> list[dict]:
+    """Every raised run of the top profile whose width fits the fused front post window, with its position (A3 addendum 3, spec 4.6 item 8 D).
+
+    The profile is binned in ``fused["bin_m"]`` along forward (bin height = highest ``up`` of the window, as in step 2). The baseline of a
+    populated bin is the median height of the populated bins whose BIN INDEX lies within ``half_bins`` of it (a hollow stretch has fewer
+    neighbours, it does not widen the window). A bin hits when it stands ``rise_m`` or more over its baseline; contiguous hits form a run, and
+    one empty bin between two hits is bridged (the next populated bin index is at most 2 further). A run is kept when its width (bins x
+    ``bin_m``) is within ``width_min_m`` .. ``width_max_m`` (inclusive); ``pos`` is its centre's place in the host's forward extent
+    ``f_range`` = (min, max) over the full host mesh. A host with fewer than 12 populated bins has none. Returns
+    ``[{"pos", "width_m", "rise_m", "centre_f"}]`` in forward order; ``fused_front_posts`` applies ``min_pos``.
+    """
+    fc, uc = profile["fc"], profile["uc"]
+    bin_m = fused["bin_m"]
+    f_lo = float(fc.min())
+    index = np.floor((fc - f_lo) / bin_m + _EPS).astype(np.int64)
+    height = np.full(int(index.max()) + 1, -np.inf)
+    np.maximum.at(height, index, uc)
+    idx = np.flatnonzero(np.isfinite(height))
+    if len(idx) < _FUSED_MIN_BINS:
+        return []
+    hv = height[idx]
+    half = fused["half_bins"]
+    lo = np.searchsorted(idx, idx - half, side="left")
+    hi = np.searchsorted(idx, idx + half, side="right")
+    base = np.array([np.median(hv[a:b]) for a, b in zip(lo, hi)])
+    hit = (hv - base) >= fused["rise_m"] - _EPS
+    f_min, f_max = f_range
+    runs: list[dict] = []
+    q = 0
+    while q < len(idx):
+        if not hit[q]:
+            q += 1
+            continue
+        k = q
+        while k + 1 < len(idx) and hit[k + 1] and idx[k + 1] - idx[k] <= 2:
+            k += 1
+        width = int(idx[k] - idx[q] + 1) * bin_m
+        if fused["width_min_m"] - _EPS <= width <= fused["width_max_m"] + _EPS:
+            centre = f_lo + (int(idx[q]) + int(idx[k]) + 1) / 2.0 * bin_m
+            runs.append({"pos": _r((centre - f_min) / (f_max - f_min)) if f_max - f_min > _EPS else 0.0, "width_m": _r(width),
+                         "rise_m": _r(float((hv[q : k + 1] - base[q : k + 1]).max())), "centre_f": _r(centre)})
+        q = k + 1
+    return runs
+
+
+def fused_front_posts(profile: dict, fused: dict, f_range: tuple[float, float]) -> list[dict]:
+    """The runs of ``fused_runs`` that stand at ``min_pos`` or more of the host's forward extent: the fused front posts.
+
+    A fused rear sight is NOT looked for (the same test in the rear half fires on rail teeth, hammers and receiver steps; spec 4.6 item 8 D).
+    """
+    return [r for r in fused_runs(profile, fused, f_range) if r["pos"] >= fused["min_pos"] - 1e-6]
+
+
+def sight_seats(vertices: np.ndarray, triangles: np.ndarray, axes: dict, params: dict, profile: dict | None = None) -> dict | None:
+    """``{"sight_rear": [x, y, z], "sight_front": [x, y, z]}`` in the mesh's own axes, or None when the probe refuses (step 5).
+
+    ``axes`` is the host's ``{forward, up}`` signed axes (``"-z"``, ``"+y"``); ``params`` is ``attachment_rules.sight_probe``. ``profile`` is
+    the ``sight_profile`` of the same mesh when the caller already has it (it is computed here otherwise).
+    """
+    profile = profile if profile is not None else sight_profile(vertices, triangles, axes, params)
+    if profile is None:
+        return None
+    f_i, u_i = "xyz".index(axes["forward"][1]), "xyz".index(axes["up"][1])
+    f_s, u_s = (1.0 if axes["forward"][0] == "+" else -1.0), (1.0 if axes["up"][0] == "+" else -1.0)
+    s_i = ({0, 1, 2} - {f_i, u_i}).pop()
+    fc, uc, s_mid = profile["fc"], profile["uc"], profile["s_mid"]
     bin_m = params["bin_m"]
     f_lo = float(fc.min())
     index = np.floor((fc - f_lo) / bin_m + _EPS).astype(np.int64)

@@ -224,8 +224,10 @@ def test_ac68_mount_missing_needs_a_compatible_attachment_for_that_slot(world):
     assert M.mount_reasons(m) == est  # compatibility inference is W8c: the build passes nothing
     assert M.mount_reasons(m, {"optic"}) == est | {"mount_missing"}
     assert M.mount_reasons(m, {"muzzle"}) == est  # the muzzle slot is a probe, not none
-    assert M.mount_reasons(mounts(world, MOUNT), {"optic"}) == est  # the optic has a child
-    assert M.mount_reasons(mounts(world, MOUNT), {"underbarrel", "laser_light"}) == est | {"mount_missing"}
+    # A3 addendum 3 (W8j, item 8 A): MOUNT's baked Scope child is a BODY child, so both its sight slots are slot_disabled (no probe seat,
+    # so no mount_estimated); the optic still has its child
+    assert M.mount_reasons(mounts(world, MOUNT), {"optic"}) == set()
+    assert M.mount_reasons(mounts(world, MOUNT), {"underbarrel", "laser_light"}) == {"mount_missing"}
     assert M.mount_reasons(None, {"optic"}) == set()
     assert "mount_missing" not in rec(world, PLAIN)["review"]["reasons"]
 

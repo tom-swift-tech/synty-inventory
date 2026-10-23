@@ -20,12 +20,16 @@ Per slot the sources are tried in the order ``override > child_node > probe > no
   not the rail either). Confidence 0.5 (0.4 on a transformed node), ``span_m`` null, review reason
   ``mount_estimated``; a host the probe refuses has both slots ``none`` / ``probe_unavailable``. Rules without a ``sight_probe``
   table run no probe (the slots stay ``no_child_no_probe``).
-* A3 (W8i), two ways a sight slot is refused (``none`` / ``slot_disabled``, which the slot veto of compat.py turns into "no
-  candidate"): ``attachment_rules.attach_host_never`` (a flare gun or a prop: ``excluded_slots``) and a BAKED sight child (spec 4.6
-  item 7, ``baked_sight_sides``): a host child named ``Sight_01`` / ``Sights`` / ``CarryHandle`` that the sided ``child_tokens`` do not
-  see. The side is the child's position along the host's forward axis; only a slot the probe actually seated is refused, so no
-  existing reason (``child_node``, ``override``, ``probe_unavailable``, ``no_child_no_probe``) changes. A table hit never
-  overrules an explicit id override of the slot (the human wins, as everywhere in D-3).
+* A3 (W8i) and addendum 3 (W8j, spec 4.6 item 8), ways a slot is refused (``none`` / ``slot_disabled``, which the slot veto of compat.py
+  turns into "no candidate"). They run in this order after the ladder above resolved every slot, and none of them touches an ``override``
+  mount, a slot that is already ``none`` (its reason stays) or an id override of the slot (the human wins):
+  (E) ``attachment_rules.attach_host_never`` (flare guns, props, toy and water guns: ``excluded_slots``; it may name ``optic`` too, a
+  baked scope child included); then, from the host's baked children (``baked_children``), (A) a BODY child (a separate optic node, which
+  can be hidden) refuses both sight slots and keeps ``optic``; (B) a GLASS-ONLY host (a glass sheet child and no body child: the optic body
+  is fused into the host and cannot be hidden) refuses ``optic`` and both sight slots; (C) a baked iron sight child (named
+  ``Sight_01`` / ``Sights``, or sided), a carry handle child, or a fused front post (``mount_probe.fused_front_posts`` on the sight
+  probe's own mesh) refuses BOTH sight slots, half a pair is never offered. A sight slot is only changed when the probe seated it, so a
+  sided ``child_node`` keeps its seat; the ``optic`` slot of (B) is changed whatever its source (a glass ``child_node`` stops being a seat).
 * ``override``: categorical (D-5). ``{"source": "child_node", "child": <node name>}`` seats the slot on that node,
   ``{"source": "none"}`` disables it. The mapping is passed in by the caller (W8c loads it from the committed file); a
   named node that is not a mesh node of the host is reported in ``problems`` (``child_not_found``) and the ladder goes on.
@@ -67,7 +71,7 @@ from ..sources.glb_measure import NodeSel, node_selected, read_glb_json
 from . import ATTACH_SLOTS, SIGHT_SLOTS
 from .attach import measure_anchor
 from .classify import raw_tokens
-from .mount_probe import sight_seats
+from .mount_probe import fused_front_posts, sight_profile, sight_seats
 from .rules import attachment_rules
 
 # the slots whose baked children are not part of the surface the sight probe reads (spec 4.6 item 1; A3 added the last three)
@@ -201,44 +205,89 @@ def excluded_slots(host_id: str, tables: dict) -> list[str]:
     return [s for s in ATTACH_SLOTS if tokens & set(never.get(s) or ())]
 
 
-def baked_sight_sides(candidates, host_id: str, tables: dict, vertices: Callable, verts: np.ndarray, axes: dict,
-                      host_volume: float) -> set[str]:
-    """The sight slots whose side already carries a baked iron sight or carry handle child of the host (A3, spec 4.6 item 7).
+def baked_children(candidates, host_id: str, tables: dict, vertices: Callable, verts: np.ndarray, axes: dict,
+                   host_volume: float) -> dict[str, list[str]]:
+    """The host's baked optic and iron sight children by class (A3 spec 4.6 item 7 and addendum 3 item 8), sorted node names per class.
 
-    A child (``candidates``: the host's mesh nodes) is a baked sight when its name tokens, minus the tokens of the host's own
-    name (``SM_Wep_Rifle_Assault_Sight_01`` on host ``SM_Wep_Rifle_Assault_01`` leaves ``sight``; the host's own words never make
-    a child a sight) include one of ``baked_sights.tokens`` while the child's full name has none of ``not_tokens`` (a host word never
-    lifts a veto), or include one of ``rear_tokens`` (a carry
-    handle is a rear sight). A child that names its side (``frontsight``, ``rearsight``: the sided ``child_node`` of 4.2) is not
-    looked at, and neither is the body of the gun. Side: the centre of the child's bounding box along the host's forward axis
-    against the middle of the host's extent on that axis, strictly on the muzzle side = ``sight_front``, otherwise ``sight_rear``;
-    a carry handle is always ``sight_rear``. ``vertices`` is the memoised per-child loader of ``build_mounts`` (a child is decoded
-    once); a child that cannot be decoded has no position and is skipped.
+    ``candidates`` are the host's mesh nodes. Name tokens are ``raw_tokens`` (whole words); a child's tokens MINUS those of the host's own
+    name (``SM_Wep_Rifle_Assault_Sight_01`` on host ``SM_Wep_Rifle_Assault_01`` leaves ``sight``) decide a positive, and the child's FULL
+    name decides a veto or a glass child (a host word never makes a child a sight, and never lifts a veto). Classes:
+
+    * ``glass``: a token of ``baked_sights.glass_tokens`` (``Scope_Glass_01`` is glass); ``body``: a token of ``body_tokens`` and no glass token.
+    * ``handle``: a carry handle, i.e. a ``rear_tokens`` token (``carryhandle``, ``carry``, at any height), or a ``handle_tokens`` token
+      with none of ``handle_not_tokens`` (``ChargeHandle``, ``PumpHandle``...) whose bounding box centre along ``up`` lies above
+      ``handle_min_height_frac`` of the host's extent along ``up`` (a lower handle is a grip, a guard or a lever).
+    * ``iron``: a token of ``tokens`` and none of ``not_tokens``, or a child that names its side (the sided ``child_node`` of 4.2: since
+      addendum 3 it counts as a baked sight too, the pair is refused as a whole).
+
+    The body of the gun and a child that cannot be decoded are not children. ``vertices`` is the memoised per-child loader of
+    ``build_mounts`` (a child is decoded once, and only when its name can be one of the classes).
     """
+    out: dict[str, list[str]] = {"glass": [], "body": [], "handle": [], "iron": []}
     spec = tables.get("baked_sights")
     if not spec or not len(verts):
-        return set()
+        return out
     sight, veto, rear_only = set(spec.get("tokens") or ()), set(spec.get("not_tokens") or ()), set(spec.get("rear_tokens") or ())
-    f_i, f_s = "xyz".index(axes["forward"][1]), (1.0 if axes["forward"][0] == "+" else -1.0)
-    host_f = f_s * verts[:, f_i]
-    middle = (float(host_f.min()) + float(host_f.max())) / 2.0
+    glass_t, body_t = set(spec.get("glass_tokens") or ()), set(spec.get("body_tokens") or ())
+    handle_t, handle_not = set(spec.get("handle_tokens") or ()), set(spec.get("handle_not_tokens") or ())
+    frac = spec.get("handle_min_height_frac")
+    u_i, u_s = "xyz".index(axes["up"][1]), (1.0 if axes["up"][0] == "+" else -1.0)
+    host_u = u_s * verts[:, u_i]
+    u_lo, u_hi = float(host_u.min()), float(host_u.max())
     own = raw_tokens(host_id)
-    sides: set[str] = set()
     for name in sorted(candidates):
-        if set(matching_slots(name, tables)) & set(SIGHT_SLOTS):
-            continue  # a sided child: the child_node of 4.2, unchanged
         full = raw_tokens(name)
         tokens = full - own  # the host's own words never make a child a sight ...
+        glass = bool(full & glass_t)
+        body = bool(tokens & body_t) and not glass
         carry = bool(tokens & rear_only)
-        if not (carry or (tokens & sight and not full & veto)):  # ... and never lift a veto word either (host Glass_Rifle, child Sight_Glass)
+        handle_word = bool(tokens & handle_t) and not full & handle_not and frac is not None  # its height is judged below
+        iron = bool(set(matching_slots(name, tables)) & set(SIGHT_SLOTS)) or bool(tokens & sight and not full & veto)  # ... nor lift a veto word
+        if not (glass or body or carry or handle_word or iron):
             continue
         v = vertices(name)
         if v is None or (host_volume > _EPS and _volume(v) >= _BODY_FRAC * host_volume):
-            continue
-        child_f = f_s * v[:, f_i]
-        centre = (float(child_f.min()) + float(child_f.max())) / 2.0
-        sides.add("sight_front" if centre > middle and not carry else "sight_rear")
-    return sides
+            continue  # undecodable, or the body of the gun
+        high = False
+        if handle_word and not carry and u_hi - u_lo > _EPS:
+            centre_u = u_s * (float(v[:, u_i].min()) + float(v[:, u_i].max())) / 2.0
+            high = (centre_u - u_lo) / (u_hi - u_lo) > frac
+        if glass:
+            out["glass"].append(name)
+        elif body:
+            out["body"].append(name)
+        elif carry or high:
+            out["handle"].append(name)
+        elif iron:
+            out["iron"].append(name)
+    return out
+
+
+def refuse_baked(mounts: dict, found: dict[str, list[str]], fused_post: bool) -> None:
+    """Rules (A), (B), (C) of spec 4.6 item 8 as slot rewrites, in place (``found`` from ``baked_children``).
+
+    (A) a body child: both sight slots go; (B) glass children and no body child: ``optic`` and both sight slots go; (C) a baked iron sight
+    or carry handle child, or a fused front post: both sight slots go. A SIGHT slot is only changed when the probe seated it (a sided
+    ``child_node`` baked sight is replaced and not doubled, so it keeps its seat; judgment call, reported: this keeps the W8h hide fixture, a
+    host with a scope child AND sided sight children, valid); the ``optic`` slot of (B) is changed whatever its source, a glass child that
+    was its ``child_node`` included. An ``override`` mount is never touched and a slot that is already ``none`` keeps its reason.
+    """
+    def refuse(slot: str, *, probe_only: bool = True) -> None:
+        source = mounts[slot]["source"]
+        if source in ("override", "none") or (probe_only and source != "probe"):
+            return
+        mounts[slot] = none_mount("slot_disabled")
+
+    if found["glass"] and not found["body"]:
+        refuse("optic", probe_only=False)
+        for slot in SIGHT_SLOTS:
+            refuse(slot)
+    elif found["body"]:
+        for slot in SIGHT_SLOTS:
+            refuse(slot)
+    if found["iron"] or found["handle"] or fused_post:
+        for slot in SIGHT_SLOTS:
+            refuse(slot)
 
 
 def _load(path, selection, glb_node, scale, drop: frozenset[str] = frozenset()) -> np.ndarray | None:
@@ -382,23 +431,33 @@ def _sight_probe_mount(point, axes: dict, slot: str, cap: float | None) -> dict:
     }
 
 
-def _probe_sights(mounts: dict, path, glb_node, scale, axes: dict, tables: dict, cap: float | None) -> None:
+def _probe_sights(mounts: dict, path, glb_node, scale, axes: dict, tables: dict, cap: float | None, verts: np.ndarray) -> bool:
     """Fill the sight slots that have neither a child nor an override from the seat probe (spec 4.6), in place.
 
     A slot disabled by an override stays disabled. The probe sees the host without the nodes already listed by
     ``optic``, ``sight_front``, ``sight_rear`` and, from A3, ``muzzle``, ``underbarrel`` and ``laser_light`` (a baked scope is not
     the rail, and neither is a baked suppressor, laser or foregrip: the A2 close-up showed the front seat on top of a baked
     suppressor). When it refuses, every slot it was to fill becomes ``none`` / ``probe_unavailable``.
+
+    Returns True when the fused front post detector (addendum 3, item 8 D) finds a post on that very mesh (same samples, same side window),
+    which is only asked when the probe seated something: a refused host keeps ``probe_unavailable`` and needs no judgement.
     """
     params = tables.get("sight_probe")
     open_slots = [s for s in SIGHT_SLOTS if mounts[s]["source"] == "none" and mounts[s]["reason"] == "no_child_no_probe"]
     if not params or not open_slots:
-        return
+        return False
     drop = frozenset(n for s in PROBE_DROP_SLOTS for n in mounts[s]["occupied_by"])
     mesh = _load_mesh(path, glb_node, scale, drop)
-    seats = sight_seats(mesh[0], mesh[1], axes, params) if mesh is not None else None
+    profile = sight_profile(mesh[0], mesh[1], axes, params) if mesh is not None else None
+    seats = sight_seats(mesh[0], mesh[1], axes, params, profile) if profile is not None else None
     for slot in open_slots:
         mounts[slot] = none_mount("probe_unavailable") if seats is None else _sight_probe_mount(seats[slot], axes, slot, cap)
+    fused = (tables.get("baked_sights") or {}).get("fused_post")
+    if seats is None or not fused or not len(verts):
+        return False
+    f_i, f_s = "xyz".index(axes["forward"][1]), (1.0 if axes["forward"][0] == "+" else -1.0)
+    host_f = f_s * verts[:, f_i]  # the forward extent of the FULL host mesh, not of the probe mesh
+    return bool(fused_front_posts(profile, fused, (float(host_f.min()), float(host_f.max()))))
 
 
 # -- the block --------------------------------------------------------------------------------------------
@@ -414,7 +473,7 @@ def build_mounts(
     axes, ``transformed`` the NB-15 flag of the selected node, ``probe`` the A0 muzzle probe
     (``geometry.muzzle_probe``; passed in because geometry imports this module), ``overrides`` the categorical mount
     overrides ``{slot: {"source": "child_node", "child": name} | {"source": "none"}}`` (W8c loads them; None = no
-    override). ``host_id`` is the host's asset id (A3: ``attach_host_never`` and the baked-sight detector read its name tokens;
+    override). ``host_id`` is the host's asset id (A3: ``attach_host_never`` and the baked-child classes read its name tokens;
     the GLB file stem when None). ``problems`` lists what could not be honoured (``child_not_found: <slot>: <name>``), never silently dropped.
     """
     tables = attachment_rules(rules)
@@ -473,10 +532,8 @@ def build_mounts(
             child_rung = _child_mount(slot, seat, listed, measured, axes, _child_cap(cap, candidates, seat),
                                       "child_node", len(listed) > 1)
         mounts[slot] = resolve_slot(override_rung, child_rung, None)
-    _probe_sights(mounts, path, glb_node, scale, axes, tables, cap)
-    for slot in sorted(baked_sight_sides(candidates, host_id, tables, vertices, verts, axes, host_volume)):
-        if mounts[slot]["source"] == "probe":  # only a seat the probe set: a none, child_node or override slot keeps its reason
-            mounts[slot] = none_mount("slot_disabled")
+    fused_post = _probe_sights(mounts, path, glb_node, scale, axes, tables, cap, verts)
+    refuse_baked(mounts, baked_children(candidates, host_id, tables, vertices, verts, axes, host_volume), fused_post)
     return {"mounts": mounts, "problems": problems,
             "child_extents": _child_extents(mounts, vertices, measured_by_slot, axes)}
 
