@@ -295,10 +295,11 @@ def test_w2e_a_later_correction_keeps_forward_and_confidence_cap_on_the_entry(en
                                               "renamed_from": [OLD]}
 
 
-def test_w2e_a_correction_file_cannot_carry_forward_or_confidence_cap(env):
+def test_w2e_a_correction_file_cannot_carry_confidence_cap(env):
+    # W8d: `forward` became a correction key (the review page's flip); confidence_cap stays hand-written only
     before = env.bytes()
-    code, out = env.apply(corr({"target": {"id": H.SWORD_02}, "set": {"genre": "scifi"}, "forward": "+z"}))
-    assert code == 6 and "forward" in out["error"] and env.bytes() == before
+    code, out = env.apply(corr({"target": {"id": H.SWORD_02}, "set": {"genre": "scifi"}, "confidence_cap": 0.5}))
+    assert code == 6 and "confidence_cap" in out["error"] and env.bytes() == before
 
 
 def test_ac33_renamed_from_equal_to_a_live_record_id_exits_6_and_writes_nothing(env):

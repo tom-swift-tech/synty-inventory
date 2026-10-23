@@ -1,0 +1,2639 @@
+{
+ "generated_from": {
+  "filter": {
+   "engines": [
+    "all"
+   ],
+   "frame": "item",
+   "game": "ref",
+   "roles": [
+    "whole"
+   ]
+  },
+  "geometry_version": 5,
+  "overrides_digest": "7d8dd8ce21b0f42b",
+  "packs": [
+   {
+    "asset_count": 35,
+    "pack": "FAKE_Attach",
+    "scanned_at": "2026-01-01T00:00:00+00:00"
+   },
+   {
+    "asset_count": 14,
+    "pack": "FAKE_CompA",
+    "scanned_at": "2026-01-01T00:00:00+00:00"
+   },
+   {
+    "asset_count": 2,
+    "pack": "FAKE_CompB",
+    "scanned_at": "2026-01-01T00:00:00+00:00"
+   },
+   {
+    "asset_count": 10,
+    "pack": "FAKE_Mount",
+    "scanned_at": "2026-01-01T00:00:00+00:00"
+   }
+  ],
+  "rules_digest": "7b9829af37328fe7",
+  "tool": "synty-inventory 0.1.0",
+  "weapon_version": 1
+ },
+ "schema_version": 1,
+ "weapons": [
+  {
+   "ammo": null,
+   "archetype": "grenade",
+   "asset_id": "SM_Wep_Grenade_Frag_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_grenade_frag",
+   "files": {
+    "glb": "glb/FAKE_Attach/SM_Wep_Grenade_Frag_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Grenade_Frag_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Grenade_Frag_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "width_axis"
+    },
+    "bounds": {
+     "max": [
+      0.02,
+      0.1,
+      0.65
+     ],
+     "min": [
+      -0.02,
+      0.0,
+      -0.25
+     ],
+     "pivot": "corner",
+     "size": [
+      0.04,
+      0.1,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": null,
+    "muzzle_source": null,
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": null,
+    "support_r_m": null,
+    "support_source": null,
+    "tip": [
+     0.0,
+     0.055,
+     0.65
+    ],
+    "triangles": 48
+   },
+   "hints": {
+    "ammo_family": "grenade",
+    "inventory_cells": [
+     3,
+     1
+    ],
+    "quality_tier": 2,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "light"
+   },
+   "hold_class": "thrown",
+   "id": "FAKE_Attach/SM_Wep_Grenade_Frag_01",
+   "kind": "thrown",
+   "pack": "FAKE_Attach",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.52,
+    "matched_rule": "grenade",
+    "reasons": [
+     "axes_unexpected",
+     "colourway_unknown",
+     "low_confidence"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "pistol",
+   "asset_id": "SM_Wep_Pistol_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_pistol",
+   "files": {
+    "glb": "glb/FAKE_Attach/SM_Wep_Pistol_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Pistol_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Pistol_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.02,
+      0.1,
+      0.65
+     ],
+     "min": [
+      -0.02,
+      0.0,
+      -0.25
+     ],
+     "pivot": "corner",
+     "size": [
+      0.04,
+      0.1,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.055,
+     0.65
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": null,
+    "support_r_m": null,
+    "support_source": null,
+    "tip": null,
+    "triangles": 48
+   },
+   "hints": {
+    "ammo_family": "handgun",
+    "inventory_cells": [
+     3,
+     1
+    ],
+    "quality_tier": 2,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "light"
+   },
+   "hold_class": "one_hand",
+   "id": "FAKE_Attach/SM_Wep_Pistol_01",
+   "kind": "ranged",
+   "pack": "FAKE_Attach",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.67,
+    "matched_rule": "pistol",
+    "reasons": [
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "rifle",
+   "asset_id": "SM_Wep_Rifle_Assault_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_rifle_assault",
+   "files": {
+    "glb": "glb/FAKE_Attach/SM_Wep_Rifle_Assault_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Rifle_Assault_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Rifle_Assault_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.02,
+      0.1,
+      0.65
+     ],
+     "min": [
+      -0.02,
+      0.0,
+      -0.25
+     ],
+     "pivot": "corner",
+     "size": [
+      0.04,
+      0.1,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.055,
+     0.65
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": [
+     0.0,
+     0.05,
+     0.308
+    ],
+    "support_r_m": 0.02,
+    "support_source": "proportion",
+    "tip": null,
+    "triangles": 48
+   },
+   "hints": {
+    "ammo_family": "rifle",
+    "inventory_cells": [
+     3,
+     1
+    ],
+    "quality_tier": 3,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "long_gun",
+   "id": "FAKE_Attach/SM_Wep_Rifle_Assault_01",
+   "kind": "ranged",
+   "pack": "FAKE_Attach",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.9,
+    "matched_rule": "rifle",
+    "reasons": [
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "sword",
+   "asset_id": "SM_Wep_Sword_Long_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_sword_long",
+   "files": {
+    "glb": "glb/FAKE_Attach/SM_Wep_Sword_Long_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Sword_Long_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Sword_Long_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "width_axis"
+    },
+    "bounds": {
+     "max": [
+      0.02,
+      0.1,
+      0.65
+     ],
+     "min": [
+      -0.02,
+      0.0,
+      -0.25
+     ],
+     "pivot": "corner",
+     "size": [
+      0.04,
+      0.1,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.05,
+     0.02
+    ],
+    "grip_r_m": 0.05,
+    "grip_source": "handle",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": null,
+    "muzzle_source": null,
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": null,
+    "support_r_m": null,
+    "support_source": null,
+    "tip": [
+     0.0,
+     0.055,
+     0.65
+    ],
+    "triangles": 48
+   },
+   "hints": {
+    "ammo_family": null,
+    "inventory_cells": [
+     3,
+     1
+    ],
+    "quality_tier": 3,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "melee_one",
+   "id": "FAKE_Attach/SM_Wep_Sword_Long_01",
+   "kind": "melee",
+   "pack": "FAKE_Attach",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.78,
+    "matched_rule": "sword",
+    "reasons": [
+     "axes_unexpected",
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "pistol",
+   "asset_id": "SM_Wep_Pistol_Gamma_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_pistol_gamma",
+   "files": {
+    "glb": "glb/FAKE_CompA/SM_Wep_Pistol_Gamma_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Pistol_Gamma_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Pistol_Gamma_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.03,
+      0.1,
+      0.65
+     ],
+     "min": [
+      -0.03,
+      -0.08,
+      -0.25
+     ],
+     "pivot": "other",
+     "size": [
+      0.06,
+      0.18,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.055,
+     0.65
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": null,
+    "support_r_m": null,
+    "support_source": null,
+    "tip": null,
+    "triangles": 66
+   },
+   "hints": {
+    "ammo_family": "handgun",
+    "inventory_cells": [
+     3,
+     2
+    ],
+    "quality_tier": 3,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "light"
+   },
+   "hold_class": "one_hand",
+   "id": "FAKE_CompA/SM_Wep_Pistol_Gamma_01",
+   "kind": "ranged",
+   "pack": "FAKE_CompA",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.67,
+    "matched_rule": "pistol",
+    "reasons": [
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "rifle",
+   "asset_id": "SM_Wep_Rifle_Alpha_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_rifle_alpha",
+   "files": {
+    "glb": "glb/FAKE_CompA/SM_Wep_Rifle_Alpha_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Rifle_Alpha_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Rifle_Alpha_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+y",
+     "forward_source": "pivot",
+     "up": "+z",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.03,
+      0.02,
+      0.65
+     ],
+     "min": [
+      -0.03,
+      -0.2,
+      -0.25
+     ],
+     "pivot": "other",
+     "size": [
+      0.06,
+      0.22,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     -0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      -1,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ],
+     [
+      0,
+      1,
+      0
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "y",
+    "muzzle": [
+     0.0,
+     -0.055,
+     0.65
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": [
+     0.0,
+     -0.09,
+     0.308
+    ],
+    "support_r_m": null,
+    "support_source": "proportion",
+    "tip": null,
+    "triangles": 120
+   },
+   "hints": {
+    "ammo_family": "rifle",
+    "inventory_cells": [
+     3,
+     2
+    ],
+    "quality_tier": 4,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "long_gun",
+   "id": "FAKE_CompA/SM_Wep_Rifle_Alpha_01",
+   "kind": "ranged",
+   "pack": "FAKE_CompA",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.75,
+    "matched_rule": "rifle",
+    "reasons": [
+     "axes_unexpected",
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "rifle",
+   "asset_id": "SM_Wep_Rifle_Beta_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_rifle_beta",
+   "files": {
+    "glb": "glb/FAKE_CompA/SM_Wep_Rifle_Beta_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Rifle_Beta_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Rifle_Beta_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.033,
+      0.188,
+      0.65
+     ],
+     "min": [
+      -0.033,
+      0.0,
+      -0.25
+     ],
+     "pivot": "corner",
+     "size": [
+      0.066,
+      0.188,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.055,
+     0.65
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": [
+     0.0,
+     0.094,
+     0.308
+    ],
+    "support_r_m": null,
+    "support_source": "proportion",
+    "tip": null,
+    "triangles": 60
+   },
+   "hints": {
+    "ammo_family": "rifle",
+    "inventory_cells": [
+     3,
+     2
+    ],
+    "quality_tier": 3,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "long_gun",
+   "id": "FAKE_CompA/SM_Wep_Rifle_Beta_01",
+   "kind": "ranged",
+   "pack": "FAKE_CompA",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.9,
+    "matched_rule": "rifle",
+    "reasons": [
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "rifle",
+   "asset_id": "SM_Wep_Rifle_Epsilon_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_rifle_epsilon",
+   "files": {
+    "glb": "glb/FAKE_CompA/SM_Wep_Rifle_Epsilon_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Rifle_Epsilon_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Rifle_Epsilon_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.03,
+      0.18,
+      0.73
+     ],
+     "min": [
+      -0.03,
+      0.0,
+      -0.25
+     ],
+     "pivot": "corner",
+     "size": [
+      0.06,
+      0.18,
+      0.98
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.98,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.055,
+     0.73
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2551,
+    "support": [
+     0.0,
+     0.054,
+     0.3576
+    ],
+    "support_r_m": 0.02,
+    "support_source": "proportion",
+    "tip": null,
+    "triangles": 168
+   },
+   "hints": {
+    "ammo_family": "rifle",
+    "inventory_cells": [
+     4,
+     2
+    ],
+    "quality_tier": 4,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "long_gun",
+   "id": "FAKE_CompA/SM_Wep_Rifle_Epsilon_01",
+   "kind": "ranged",
+   "pack": "FAKE_CompA",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.9,
+    "matched_rule": "rifle",
+    "reasons": [
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "rifle",
+   "asset_id": "SM_Wep_Rifle_Delta_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_rifle_delta",
+   "files": {
+    "glb": "glb/FAKE_CompB/SM_Wep_Rifle_Delta_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Rifle_Delta_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Rifle_Delta_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.02,
+      0.1,
+      0.65
+     ],
+     "min": [
+      -0.02,
+      0.0,
+      -0.25
+     ],
+     "pivot": "corner",
+     "size": [
+      0.04,
+      0.1,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.055,
+     0.65
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": [
+     0.0,
+     0.05,
+     0.308
+    ],
+    "support_r_m": null,
+    "support_source": "proportion",
+    "tip": null,
+    "triangles": 72
+   },
+   "hints": {
+    "ammo_family": "rifle",
+    "inventory_cells": [
+     3,
+     1
+    ],
+    "quality_tier": 3,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "long_gun",
+   "id": "FAKE_CompB/SM_Wep_Rifle_Delta_01",
+   "kind": "ranged",
+   "pack": "FAKE_CompB",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.9,
+    "matched_rule": "rifle",
+    "reasons": [
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "grenade",
+   "asset_id": "SM_Wep_Grenade_Mount_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_grenade_mount",
+   "files": {
+    "glb": "glb/FAKE_Mount/SM_Wep_Grenade_Mount_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Grenade_Mount_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Grenade_Mount_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [
+    "forward_by_fallback"
+   ],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "-z",
+     "forward_source": "section",
+     "up": "+y",
+     "up_source": "width_axis"
+    },
+    "bounds": {
+     "max": [
+      0.03,
+      0.17,
+      0.1
+     ],
+     "min": [
+      -0.03,
+      0.0,
+      -0.1
+     ],
+     "pivot": "center_bottom",
+     "size": [
+      0.06,
+      0.17,
+      0.2
+     ]
+    },
+    "butt": [
+     0.0,
+     0.14,
+     -0.1
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      -1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      -1
+     ]
+    ],
+    "length_m": 0.2,
+    "long_axis": "z",
+    "muzzle": null,
+    "muzzle_source": null,
+    "node_offset": null,
+    "pivot_frac": 0.5,
+    "support": null,
+    "support_r_m": null,
+    "support_source": null,
+    "tip": [
+     0.0,
+     0.115,
+     0.1
+    ],
+    "triangles": 48
+   },
+   "hints": {
+    "ammo_family": "grenade",
+    "inventory_cells": [
+     1,
+     2
+    ],
+    "quality_tier": 2,
+    "size_basis": "measured",
+    "size_class": "small",
+    "weight_class": "light"
+   },
+   "hold_class": "thrown",
+   "id": "FAKE_Mount/SM_Wep_Grenade_Mount_01",
+   "kind": "thrown",
+   "pack": "FAKE_Mount",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.62,
+    "matched_rule": "grenade",
+    "reasons": [
+     "axes_unexpected",
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "pistol",
+   "asset_id": "SM_Wep_Pistol_Mount_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_pistol_mount",
+   "files": {
+    "glb": "glb/FAKE_Mount/SM_Wep_Pistol_Mount_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Pistol_Mount_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Pistol_Mount_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.03,
+      0.12,
+      0.65
+     ],
+     "min": [
+      -0.03,
+      -0.08,
+      -0.25
+     ],
+     "pivot": "other",
+     "size": [
+      0.06,
+      0.2,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.055,
+     0.65
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": null,
+    "support_r_m": null,
+    "support_source": null,
+    "tip": null,
+    "triangles": 96
+   },
+   "hints": {
+    "ammo_family": "handgun",
+    "inventory_cells": [
+     3,
+     2
+    ],
+    "quality_tier": 3,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "light"
+   },
+   "hold_class": "one_hand",
+   "id": "FAKE_Mount/SM_Wep_Pistol_Mount_01",
+   "kind": "ranged",
+   "pack": "FAKE_Mount",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.67,
+    "matched_rule": "pistol",
+    "reasons": [
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "rifle",
+   "asset_id": "SM_Wep_Rifle_Double_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_rifle_double",
+   "files": {
+    "glb": "glb/FAKE_Mount/SM_Wep_Rifle_Double_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Rifle_Double_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Rifle_Double_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.02,
+      0.1,
+      0.65
+     ],
+     "min": [
+      -0.02,
+      -0.14,
+      -0.25
+     ],
+     "pivot": "other",
+     "size": [
+      0.04,
+      0.24,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.055,
+     0.65
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": [
+     0.0,
+     -0.02,
+     0.308
+    ],
+    "support_r_m": null,
+    "support_source": "proportion",
+    "tip": null,
+    "triangles": 96
+   },
+   "hints": {
+    "ammo_family": "rifle",
+    "inventory_cells": [
+     3,
+     2
+    ],
+    "quality_tier": 3,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "long_gun",
+   "id": "FAKE_Mount/SM_Wep_Rifle_Double_01",
+   "kind": "ranged",
+   "pack": "FAKE_Mount",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.9,
+    "matched_rule": "rifle",
+    "reasons": [
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "rifle",
+   "asset_id": "SM_Wep_Rifle_Fall_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_rifle_fall",
+   "files": {
+    "glb": "glb/FAKE_Mount/SM_Wep_Rifle_Fall_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Rifle_Fall_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Rifle_Fall_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.02,
+      0.1,
+      0.65
+     ],
+     "min": [
+      -0.02,
+      0.0,
+      -0.25
+     ],
+     "pivot": "corner",
+     "size": [
+      0.04,
+      0.1,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.075,
+     0.65
+    ],
+    "muzzle_source": "bounds_fallback",
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": [
+     0.0,
+     0.05,
+     0.308
+    ],
+    "support_r_m": null,
+    "support_source": "proportion",
+    "tip": null,
+    "triangles": 18
+   },
+   "hints": {
+    "ammo_family": "rifle",
+    "inventory_cells": [
+     3,
+     1
+    ],
+    "quality_tier": 3,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "long_gun",
+   "id": "FAKE_Mount/SM_Wep_Rifle_Fall_01",
+   "kind": "ranged",
+   "pack": "FAKE_Mount",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.9,
+    "matched_rule": "rifle",
+    "reasons": [
+     "colourway_unknown",
+     "muzzle_fallback"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "rifle",
+   "asset_id": "SM_Wep_Rifle_Hull_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_rifle_hull",
+   "files": {
+    "glb": "glb/FAKE_Mount/SM_Wep_Rifle_Hull_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Rifle_Hull_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Rifle_Hull_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.02,
+      0.1,
+      0.65
+     ],
+     "min": [
+      -0.02,
+      0.0,
+      -0.25
+     ],
+     "pivot": "corner",
+     "size": [
+      0.04,
+      0.1,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.055,
+     0.65
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": [
+     0.0,
+     0.05,
+     0.308
+    ],
+    "support_r_m": null,
+    "support_source": "proportion",
+    "tip": null,
+    "triangles": 72
+   },
+   "hints": {
+    "ammo_family": "rifle",
+    "inventory_cells": [
+     3,
+     1
+    ],
+    "quality_tier": 3,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "long_gun",
+   "id": "FAKE_Mount/SM_Wep_Rifle_Hull_01",
+   "kind": "ranged",
+   "pack": "FAKE_Mount",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.9,
+    "matched_rule": "rifle",
+    "reasons": [
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "rifle",
+   "asset_id": "SM_Wep_Rifle_Mount_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_rifle_mount",
+   "files": {
+    "glb": "glb/FAKE_Mount/SM_Wep_Rifle_Mount_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Rifle_Mount_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Rifle_Mount_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.03,
+      0.18,
+      0.65
+     ],
+     "min": [
+      -0.03,
+      -0.12,
+      -0.25
+     ],
+     "pivot": "other",
+     "size": [
+      0.06,
+      0.3,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.055,
+     0.65
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": [
+     0.0,
+     0.03,
+     0.308
+    ],
+    "support_r_m": null,
+    "support_source": "proportion",
+    "tip": null,
+    "triangles": 132
+   },
+   "hints": {
+    "ammo_family": "rifle",
+    "inventory_cells": [
+     3,
+     2
+    ],
+    "quality_tier": 4,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "long_gun",
+   "id": "FAKE_Mount/SM_Wep_Rifle_Mount_01",
+   "kind": "ranged",
+   "pack": "FAKE_Mount",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.9,
+    "matched_rule": "rifle",
+    "reasons": [
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "rifle",
+   "asset_id": "SM_Wep_Rifle_Muzz_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_rifle_muzz",
+   "files": {
+    "glb": "glb/FAKE_Mount/SM_Wep_Rifle_Muzz_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Rifle_Muzz_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Rifle_Muzz_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.02,
+      0.1,
+      0.73
+     ],
+     "min": [
+      -0.02,
+      0.0,
+      -0.25
+     ],
+     "pivot": "corner",
+     "size": [
+      0.04,
+      0.1,
+      0.98
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.98,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.055,
+     0.73
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2551,
+    "support": [
+     0.0,
+     0.054,
+     0.3576
+    ],
+    "support_r_m": 0.02,
+    "support_source": "proportion",
+    "tip": null,
+    "triangles": 132
+   },
+   "hints": {
+    "ammo_family": "rifle",
+    "inventory_cells": [
+     4,
+     1
+    ],
+    "quality_tier": 4,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "long_gun",
+   "id": "FAKE_Mount/SM_Wep_Rifle_Muzz_01",
+   "kind": "ranged",
+   "pack": "FAKE_Mount",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.9,
+    "matched_rule": "rifle",
+    "reasons": [
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "rifle",
+   "asset_id": "SM_Wep_Rifle_Plain_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_rifle_plain",
+   "files": {
+    "glb": "glb/FAKE_Mount/SM_Wep_Rifle_Plain_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Rifle_Plain_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Rifle_Plain_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.02,
+      0.1,
+      0.65
+     ],
+     "min": [
+      -0.02,
+      0.0,
+      -0.25
+     ],
+     "pivot": "corner",
+     "size": [
+      0.04,
+      0.1,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.055,
+     0.65
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": [
+     0.0,
+     0.05,
+     0.308
+    ],
+    "support_r_m": null,
+    "support_source": "proportion",
+    "tip": null,
+    "triangles": 24
+   },
+   "hints": {
+    "ammo_family": "rifle",
+    "inventory_cells": [
+     3,
+     1
+    ],
+    "quality_tier": 3,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "long_gun",
+   "id": "FAKE_Mount/SM_Wep_Rifle_Plain_01",
+   "kind": "ranged",
+   "pack": "FAKE_Mount",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.9,
+    "matched_rule": "rifle",
+    "reasons": [
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "rifle",
+   "asset_id": "SM_Wep_Rifle_Shared_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_rifle_shared",
+   "files": {
+    "glb": "glb/FAKE_Mount/shared.glb",
+    "glb_node": "Rifle_Shared",
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Rifle_Shared_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Rifle_Shared_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [
+    "origin_outside_bounds",
+    "shared_glb_node"
+   ],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      1.03,
+      0.18,
+      0.65
+     ],
+     "min": [
+      0.97,
+      0.0,
+      -0.25
+     ],
+     "pivot": "other",
+     "size": [
+      0.06,
+      0.18,
+      0.9
+     ]
+    },
+    "butt": [
+     1.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     1.0,
+     0.081,
+     0.02
+    ],
+    "grip_r_m": null,
+    "grip_source": "proportion",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": [
+     1.0,
+     0.055,
+     0.65
+    ],
+    "muzzle_source": "face",
+    "node_offset": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "pivot_frac": 0.2778,
+    "support": [
+     1.0,
+     0.09,
+     0.308
+    ],
+    "support_r_m": null,
+    "support_source": "proportion",
+    "tip": null,
+    "triangles": 108
+   },
+   "hints": {
+    "ammo_family": "rifle",
+    "inventory_cells": [
+     3,
+     2
+    ],
+    "quality_tier": 3,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "long_gun",
+   "id": "FAKE_Mount/SM_Wep_Rifle_Shared_01",
+   "kind": "ranged",
+   "pack": "FAKE_Mount",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.9,
+    "matched_rule": "rifle",
+    "reasons": [
+     "colourway_unknown",
+     "origin_outside_bounds"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  },
+  {
+   "ammo": null,
+   "archetype": "rifle",
+   "asset_id": "SM_Wep_Rifle_Tilt_01",
+   "carrier": null,
+   "component": null,
+   "duplicate_of": null,
+   "family": "sm_wep_rifle_tilt",
+   "files": {
+    "glb": "glb/FAKE_Mount/SM_Wep_Rifle_Tilt_01.glb",
+    "glb_node": null,
+    "godot_scene": null,
+    "unity_materials": [],
+    "unity_mesh": "Meshes/SM_Wep_Rifle_Tilt_01.fbx",
+    "unity_prefab": "Prefabs/SM_Wep_Rifle_Tilt_01.prefab",
+    "unreal_uasset": null
+   },
+   "flags": [],
+   "genre": "modern",
+   "genre_source": "pack",
+   "geometry": {
+    "axes": {
+     "forward": "+z",
+     "forward_source": "pivot",
+     "up": "+y",
+     "up_source": "fixed"
+    },
+    "bounds": {
+     "max": [
+      0.1,
+      0.18,
+      0.65
+     ],
+     "min": [
+      -0.1,
+      0.0,
+      -0.25
+     ],
+     "pivot": "corner",
+     "size": [
+      0.2,
+      0.18,
+      0.9
+     ]
+    },
+    "butt": [
+     0.0,
+     0.05,
+     -0.25
+    ],
+    "frame": "item",
+    "grip": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "grip_r_m": null,
+    "grip_source": "pivot",
+    "item_basis": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "length_m": 0.9,
+    "long_axis": "z",
+    "muzzle": [
+     0.0,
+     0.055,
+     0.65
+    ],
+    "muzzle_source": "face",
+    "node_offset": null,
+    "pivot_frac": 0.2778,
+    "support": [
+     0.0,
+     0.09,
+     0.308
+    ],
+    "support_r_m": null,
+    "support_source": "proportion",
+    "tip": null,
+    "triangles": 108
+   },
+   "hints": {
+    "ammo_family": "rifle",
+    "inventory_cells": [
+     3,
+     2
+    ],
+    "quality_tier": 3,
+    "size_basis": "measured",
+    "size_class": "large",
+    "weight_class": "medium"
+   },
+   "hold_class": "long_gun",
+   "id": "FAKE_Mount/SM_Wep_Rifle_Tilt_01",
+   "kind": "ranged",
+   "pack": "FAKE_Mount",
+   "provenance": {
+    "archetype": "rules",
+    "genre": "pack_settings",
+    "geometry": "measured",
+    "hints": "rules",
+    "hold_class": "rules",
+    "kind": "rules"
+   },
+   "renamed_from": [],
+   "review": {
+    "candidate_source": "catalog",
+    "confidence": 0.9,
+    "matched_rule": "rifle",
+    "reasons": [
+     "colourway_unknown"
+    ],
+    "status": "auto"
+   },
+   "role": "whole",
+   "schema_version": 1,
+   "visuals": {
+    "icon": null,
+    "icon_input_sha": null,
+    "thumb": null,
+    "variants": []
+   }
+  }
+ ]
+}
