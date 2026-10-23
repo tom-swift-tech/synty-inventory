@@ -28,8 +28,10 @@ Per slot the sources are tried in the order ``override > child_node > probe > no
   can be hidden) refuses both sight slots and keeps ``optic``; (B) a GLASS-ONLY host (a glass sheet child and no body child: the optic body
   is fused into the host and cannot be hidden) refuses ``optic`` and both sight slots; (C) a baked iron sight child (named
   ``Sight_01`` / ``Sights``, or sided), a carry handle child, or a fused front post (``mount_probe.fused_front_posts`` on the sight
-  probe's own mesh) refuses BOTH sight slots, half a pair is never offered. A sight slot is only changed when the probe seated it, so a
-  sided ``child_node`` keeps its seat; the ``optic`` slot of (B) is changed whatever its source (a glass ``child_node`` stops being a seat).
+  probe's own mesh) refuses BOTH sight slots, half a pair is never offered. A sight slot is only changed when the probe seated it OR it is
+  ``none`` with a pending reason (``probe_unavailable``, ``no_child_no_probe``: addendum 3b, W8k, item 9, so a baked host has no pending
+  sight entries), so a sided ``child_node`` keeps its seat; the ``optic`` slot of (B) is changed whatever its source (a glass ``child_node``
+  stops being a seat).
 * ``override``: categorical (D-5). ``{"source": "child_node", "child": <node name>}`` seats the slot on that node,
   ``{"source": "none"}`` disables it. The mapping is passed in by the caller (W8c loads it from the committed file); a
   named node that is not a mesh node of the host is reported in ``problems`` (``child_not_found``) and the ladder goes on.
@@ -76,6 +78,8 @@ from .rules import attachment_rules
 
 # the slots whose baked children are not part of the surface the sight probe reads (spec 4.6 item 1; A3 added the last three)
 PROBE_DROP_SLOTS = ("optic", "sight_front", "sight_rear", "muzzle", "underbarrel", "laser_light")
+# the reasons of a sight slot the probe could not seat, which compat turns into a pending entry (spec 4.6 item 9): the baked-sight rules reach them
+PENDING_SIGHT_REASONS = ("probe_unavailable", "no_child_no_probe")
 HOST_HOLDS = ("one_hand", "long_gun")  # with role whole and kind ranged: the hosts that carry mounts (4.1)
 
 CONF_CHILD = 0.9
@@ -267,15 +271,23 @@ def refuse_baked(mounts: dict, found: dict[str, list[str]], fused_post: bool) ->
     """Rules (A), (B), (C) of spec 4.6 item 8 as slot rewrites, in place (``found`` from ``baked_children``).
 
     (A) a body child: both sight slots go; (B) glass children and no body child: ``optic`` and both sight slots go; (C) a baked iron sight
-    or carry handle child, or a fused front post: both sight slots go. A SIGHT slot is only changed when the probe seated it (a sided
-    ``child_node`` baked sight is replaced and not doubled, so it keeps its seat; judgment call, reported: this keeps the W8h hide fixture, a
-    host with a scope child AND sided sight children, valid); the ``optic`` slot of (B) is changed whatever its source, a glass child that
-    was its ``child_node`` included. An ``override`` mount is never touched and a slot that is already ``none`` keeps its reason.
+    or carry handle child, or a fused front post: both sight slots go. A SIGHT slot is only changed when the probe seated it or when it is
+    ``none`` with a PENDING reason (``probe_unavailable``, or ``no_child_no_probe`` when the rules carry no probe table; spec 4.6 item 9,
+    addendum 3b: compat turns such a slot into a pending entry, a promise a baked host cannot keep). A sided ``child_node`` baked sight is
+    replaced and not doubled, so it keeps its seat (judgment call, reported: this keeps the W8h hide fixture, a host with a scope child AND
+    sided sight children, valid); the ``optic`` slot of (B) is changed whatever its source, a glass child that was its ``child_node``
+    included. An ``override`` mount is never touched and a slot that is already ``none`` / ``slot_disabled`` keeps its reason.
     """
     def refuse(slot: str, *, probe_only: bool = True) -> None:
-        source = mounts[slot]["source"]
-        if source in ("override", "none") or (probe_only and source != "probe"):
+        mount = mounts[slot]
+        source = mount["source"]
+        if source == "override":
             return
+        if source == "none":
+            if not (probe_only and mount["reason"] in PENDING_SIGHT_REASONS):
+                return  # `slot_disabled` (an override, a host name or a rule) keeps its reason; so does an `optic` that is none
+        elif probe_only and source != "probe":
+            return  # a `child_node` sight keeps its seat
         mounts[slot] = none_mount("slot_disabled")
 
     if found["glass"] and not found["body"]:
@@ -439,8 +451,10 @@ def _probe_sights(mounts: dict, path, glb_node, scale, axes: dict, tables: dict,
     the rail, and neither is a baked suppressor, laser or foregrip: the A2 close-up showed the front seat on top of a baked
     suppressor). When it refuses, every slot it was to fill becomes ``none`` / ``probe_unavailable``.
 
-    Returns True when the fused front post detector (addendum 3, item 8 D) finds a post on that very mesh (same samples, same side window),
-    which is only asked when the probe seated something: a refused host keeps ``probe_unavailable`` and needs no judgement.
+    Returns True when the fused front post detector (addendum 3, item 8 D) finds a post on that very mesh (same samples, same side window).
+    Since addendum 3b (W8k, item 9) it is asked whenever the mesh yields a profile, a host the probe refused to seat included: the slot reason
+    stays ``probe_unavailable`` here, and ``refuse_baked`` turns it into ``slot_disabled`` when the detector (or a baked child) says so. No
+    profile (no mesh, no surface) or no ``sight_probe`` table means no detection.
     """
     params = tables.get("sight_probe")
     open_slots = [s for s in SIGHT_SLOTS if mounts[s]["source"] == "none" and mounts[s]["reason"] == "no_child_no_probe"]
@@ -453,7 +467,7 @@ def _probe_sights(mounts: dict, path, glb_node, scale, axes: dict, tables: dict,
     for slot in open_slots:
         mounts[slot] = none_mount("probe_unavailable") if seats is None else _sight_probe_mount(seats[slot], axes, slot, cap)
     fused = (tables.get("baked_sights") or {}).get("fused_post")
-    if seats is None or not fused or not len(verts):
+    if profile is None or not fused or not len(verts):
         return False
     f_i, f_s = "xyz".index(axes["forward"][1]), (1.0 if axes["forward"][0] == "+" else -1.0)
     host_f = f_s * verts[:, f_i]  # the forward extent of the FULL host mesh, not of the probe mesh
