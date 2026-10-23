@@ -185,3 +185,177 @@ def build(tmp_path: Path, *, meshes: dict | None = None, cache: dict | None = No
     kw.setdefault("geometry_cache", {} if cache is None else cache)
     directory, excluded = WFX.build(cat, pack_settings=PACK_SETTINGS, **kw)
     return directory, excluded, cat, root
+
+
+# -- W8b: host mounts (docs/weapon_attachments.md 4 and the AC66 to AC68, AC84 fixtures) -----------------------------
+#
+# A second pack, FAKE_Mount, written by ``write_mount_world`` next to the W8a one (the W8a counts stay as they were). Every
+# host is a Z-long gun, z -0.25..0.65 with the origin at z 0 (so +z is forward and +y is up): a body box x +-0.02, y 0..0.10,
+# z -0.25..0.35 and a barrel of 0.30 m ending at z 0.65, centred on (x 0, y 0.055). Children are baked as child nodes of the
+# host's root node, moved by a translation only (a rotation only in the NB-15 host). The expected seats are LITERALS worked out
+# by hand: a child's foot centre (its own mesh) plus the child node's translation.
+#
+#   scope    optic(): foot centre (0.005, 0, 0.05), foot 0.06 long   -> at (0, 0.10, 0.10): seat (0.005, 0.10, 0.15), span 0.06
+#   mag      box x +-0.01, y -0.12..0, z +-0.02: top face centre (0, 0, 0), 0.04 long -> at (0, 0, -0.05): seat (0, 0, -0.05)
+#   trigger  a small box, never a mount (child_never)
+#   round barrel: outer ring r 0.0125 (16 points), bore ring r 0.0065 (12 points) at the muzzle face -> bore_d 0.0130 (the
+#            outer ring alone would give 0.025); the square barrel of the plain host has four corners at r 0.01414: no ring,
+#            face extent 2 * 0.01414 = 0.0283
+#   brake    a 0.08 m round tube from z 0.65 to 0.73 on the barrel end: the bare-gun muzzle is its face (z 0.73), the seat
+#            (barrel end) is z 0.65
+
+MOUNT_PACK = "FAKE_Mount"
+MOUNT_SETTINGS = {MOUNT_PACK: {"setting": "military", "era": "modern"}}
+MOUNT_SHARED_GLB = f"glb/{MOUNT_PACK}/shared.glb"
+BORE_D_M, FACE_EXTENT_M, BRAKE_LENGTH_M = 0.0130, 0.0283, 0.08
+BARREL_END_Z, BRAKE_FACE_Z = 0.65, 0.73
+UP, DOWN, FORWARD = [0.0, 1.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]
+
+SCOPE_AT, SCOPE_SEAT, SCOPE_SPAN = (0.0, 0.10, 0.10), (0.005, 0.10, 0.15), 0.06
+MAG_AT, MAG_SEAT, MAG_SPAN = (0.0, 0.0, -0.05), (0.0, 0.0, -0.05), 0.04
+BIG_MAG_AT, BIG_MAG_SEAT, BIG_MAG_SPAN = (0.0, 0.0, 0.10), (0.0, 0.0, 0.10), 0.06  # x +-0.012, y -0.14..0, z +-0.03
+SMALL_MAG_AT, SMALL_MAG_SEAT, SMALL_MAG_SPAN = (0.0, 0.0, -0.10), (0.0, 0.0, -0.10), 0.04  # x +-0.01, y -0.08..0, z +-0.02
+FOREGRIP_AT, FOREGRIP_SEAT = (0.0, 0.0, 0.03), (0.005, 0.0, 0.08)  # flip_y(optic()): foot at the top, centre (0.005, 0, 0.05)
+LASER_AT, LASER_SEAT = (0.0, 0.04, 0.0), (0.005, 0.04, 0.05)
+YAWED_SCOPE_AT, YAWED_SCOPE_SEAT = (0.0, 0.10, 0.0), (0.05, 0.10, -0.005)  # optic() yawed +90 degrees: (x, z) -> (z, -x)
+_ROT_Y_90 = [0.0, 0.7071067811865476, 0.0, 0.7071067811865476]
+
+# host asset id -> expected hold class
+MOUNT_HOSTS = {
+    "SM_Wep_Rifle_Mount_01": "long_gun",   # (a) scope + mag + trigger children, round barrel with a bore ring
+    "SM_Wep_Rifle_Double_01": "long_gun",  # two magazines: a small one that sorts first, a large one that sorts last
+    "SM_Wep_Rifle_Plain_01": "long_gun",   # (c) no child at all; a square barrel (no ring)
+    "SM_Wep_Pistol_Mount_01": "one_hand",  # foregrip and laser children
+    "SM_Wep_Grenade_Mount_01": "thrown",   # (d) not a host, whatever its children are called
+    "SM_Wep_Rifle_Muzz_01": "long_gun",    # (g) a baked brake child 0.08 m long
+    "SM_Wep_Rifle_Fall_01": "long_gun",    # the barrel ends in one apex: the muzzle probe falls back to the bounds
+    "SM_Wep_Rifle_Hull_01": "long_gun",    # its only "optic" child is a collision hull
+    "SM_Wep_Rifle_Tilt_01": "long_gun",    # the scope child is yawed 90 degrees (NB-15)
+    "SM_Wep_Rifle_Shared_01": "long_gun",  # lives in the shared GLB under glb_node "Rifle_Shared"
+}
+
+
+def tube(z0: float, z1: float, r_out: float = 0.0125, r_in: float = 0.0065, n_out: int = 16, n_in: int = 12,
+         centre=(0.0, 0.055)):
+    """A round barrel along z: an outer ring at each end and a bore ring at ``z1`` (the muzzle face)."""
+    cx, cy = centre
+
+    def ring(z, r, n):
+        return [(cx + r * np.cos(2 * np.pi * k / n), cy + r * np.sin(2 * np.pi * k / n), z) for k in range(n)]
+
+    verts = np.array(ring(z0, r_out, n_out) + ring(z1, r_out, n_out) + ring(z1, r_in, n_in), dtype=np.float64)
+    a, b, c = 0, n_out, 2 * n_out  # first index of the rings at z0, the outer ring at z1 and the bore ring
+    tris = []
+    for k in range(n_out):
+        k2 = (k + 1) % n_out
+        tris += [[a + k, a + k2, b + k2], [a + k, b + k2, b + k]]
+        tris.append([b + k, b + k2, c + (k * n_in) // n_out])
+    tris += [[c + j, c + (j + 1) % n_in, b + (j * n_out) // n_in] for j in range(n_in)]
+    return verts, np.array(tris, dtype=np.int64)
+
+
+def host_body(muzzle: str = "round"):
+    """Body box plus a barrel: ``round`` (bore ring), ``square`` (four corners) or ``apex`` (one vertex at the end)."""
+    body = G.box((-0.02, 0.0, -0.25), (0.02, 0.10, 0.35))
+    if muzzle == "round":
+        barrel = tube(0.35, BARREL_END_Z)
+    elif muzzle == "square":
+        barrel = G.loft(2, [(0.35, 0.01, 0.01, 0, 0.055), (BARREL_END_Z, 0.01, 0.01, 0, 0.055)])
+    else:
+        barrel = G.loft(2, [(0.35, 0.01, 0.01, 0, 0.055), (BARREL_END_Z, 0, 0, 0, 0.055)])
+    return G.merge(body, barrel)
+
+
+def mag_box(x: float, y: float, z: float):
+    """A magazine hanging from a flat top at y 0: x +-x, y -y..0, z +-z."""
+    return G.box((-x, -y, -z), (x, 0.0, z))
+
+
+def _child(host: str, suffix: str, mesh, at=(0.0, 0.0, 0.0), rotation=None) -> dict:
+    node = {"name": f"{host}_{suffix}", "mesh": mesh, "translation": list(at)}
+    if rotation is not None:
+        node["rotation"] = rotation
+    return node
+
+
+def mount_roots(host: str) -> list[dict]:
+    """The GLB root nodes of one mount host: its own node (the body mesh) with the baked children below it."""
+    def body(muzzle="round"):
+        return {"name": host, "mesh": host_body(muzzle)}
+
+    if host == "SM_Wep_Rifle_Mount_01":
+        kids = [_child(host, "Scope", optic(), SCOPE_AT), _child(host, "Mag", mag_box(0.01, 0.12, 0.02), MAG_AT),
+                _child(host, "Trigger", G.box((-0.003, -0.03, -0.01), (0.003, 0.0, 0.01)), (0.0, 0.0, 0.12))]
+        return [{**body(), "children": kids}]
+    if host == "SM_Wep_Rifle_Double_01":
+        kids = [_child(host, "Mag_A_Small", mag_box(0.01, 0.08, 0.02), SMALL_MAG_AT),
+                _child(host, "Mag_B_Large", mag_box(0.012, 0.14, 0.03), BIG_MAG_AT)]
+        return [{**body(), "children": kids}]
+    if host == "SM_Wep_Rifle_Plain_01":
+        return [body("square")]
+    if host == "SM_Wep_Pistol_Mount_01":
+        kids = [_child(host, "Foregrip", flip_y(optic()), FOREGRIP_AT), _child(host, "Laser", optic(), LASER_AT)]
+        return [{**body("square"), "children": kids}]
+    if host == "SM_Wep_Grenade_Mount_01":
+        return [{"name": host, "mesh": G.box((-0.03, 0.0, -0.04), (0.03, 0.09, 0.04)),
+                 "children": [_child(host, "Scope", optic(), (0.0, 0.09, 0.0))]}]
+    if host == "SM_Wep_Rifle_Muzz_01":
+        return [{**body(), "children": [_child(host, "Brake", tube(BARREL_END_Z, BRAKE_FACE_Z))]}]
+    if host == "SM_Wep_Rifle_Fall_01":
+        return [body("apex")]
+    if host == "SM_Wep_Rifle_Hull_01":
+        return [{**body(), "children": [_child(host, "Scope_Collision", optic(), SCOPE_AT)]}]
+    if host == "SM_Wep_Rifle_Tilt_01":
+        return [{**body(), "children": [_child(host, "Scope", optic(), YAWED_SCOPE_AT, _ROT_Y_90)]}]
+    raise KeyError(host)
+
+
+def shared_mount_roots() -> list[dict]:
+    """Two rifles in one GLB. ``Rifle_Shared`` (selected) is an empty parent with a body and a scope child; ``Other_Rifle``
+    carries a magazine and a scope that the selected host must not see."""
+    return [
+        {"name": "Rifle_Shared", "translation": [1.0, 0.0, 0.0], "children": [
+            {"name": "Rifle_Shared_Body", "mesh": host_body()},
+            {"name": "Rifle_Shared_Scope", "mesh": optic(), "translation": list(SCOPE_AT)}]},
+        {"name": "Other_Rifle", "translation": [-1.0, 0.0, 0.0], "children": [
+            {"name": "Other_Rifle_Body", "mesh": host_body()},
+            {"name": "Other_Rifle_Scope", "mesh": optic(), "translation": list(SCOPE_AT)},
+            {"name": "Other_Rifle_Mag", "mesh": mag_box(0.01, 0.12, 0.02), "translation": list(MAG_AT)}]},
+    ]
+
+
+def _mount_catalog_doc() -> dict:
+    assets = []
+    for aid in sorted(MOUNT_HOSTS):
+        shared = aid == "SM_Wep_Rifle_Shared_01"
+        asset = MC._asset(MOUNT_PACK, aid, glb=MOUNT_SHARED_GLB if shared else "own")
+        if shared:
+            asset["files"]["glb_node"] = "Rifle_Shared"
+        assets.append(asset)
+    return {
+        "pack_id": MOUNT_PACK, "engine": "Unity", "origin": "fixture", "style": "synthetic", "units": "meters",
+        "version": MC.S.CATALOG_VERSION, "scanned_at": MC.SCANNED_AT, "grid": dict(MC.S.DEFAULT_GRID),
+        "conventions": dict(MC.S.DEFAULT_CONVENTIONS), "asset_count": len(assets), "assets": assets,
+    }
+
+
+def write_mount_world(tmp_path: Path, *, roots: dict | None = None) -> tuple[Path, Path]:
+    """``(catalogs_dir, threejs_v2_root)`` for FAKE_Mount; ``roots`` overrides ``{host id: [root node specs]}``."""
+    cat, root = tmp_path / "catalogs", tmp_path / "threejs"
+    cat.mkdir(parents=True, exist_ok=True)
+    (cat / f"{MOUNT_PACK}.json").write_bytes((json.dumps(_mount_catalog_doc(), indent=2, sort_keys=True) + "\n").encode("utf-8"))
+    for aid in sorted(MOUNT_HOSTS):
+        if aid == "SM_Wep_Rifle_Shared_01":
+            G.write_glb(root / MOUNT_SHARED_GLB, shared_mount_roots())
+            continue
+        G.write_glb(root / "glb" / MOUNT_PACK / f"{aid}.glb", (roots or {}).get(aid) or mount_roots(aid))
+    return cat, root
+
+
+def build_mount_world(tmp_path: Path, *, roots: dict | None = None, cache: dict | None = None, **kw):
+    """``(directory, excluded, catalogs_dir, threejs_root)``: FAKE_Mount built with geometry."""
+    cat, root = write_mount_world(tmp_path, roots=roots)
+    kw.setdefault("threejs_v2_dir", root)
+    kw.setdefault("geometry_cache", {} if cache is None else cache)
+    directory, excluded = WFX.build(cat, pack_settings=MOUNT_SETTINGS, **kw)
+    return directory, excluded, cat, root

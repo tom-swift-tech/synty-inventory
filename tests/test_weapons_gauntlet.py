@@ -360,6 +360,7 @@ def test_a_directory_that_disagrees_with_a_forward_override_fails_the_gold_check
     w = make_world(tmp_path, overrides=FWD)
     axes = rec(w["dir"], RIFLE)["geometry"]["axes"]
     axes["forward"], axes["forward_source"] = "+z", "pivot"  # the natural measurement, as if the override were lost
+    rec(w["dir"], RIFLE)["geometry"]["mounts"]["muzzle"]["up"] = [0.0, 0.0, 1.0]  # the muzzle mount follows axes.forward (W8b)
     save(w)
     r = gate(w)
     assert r["ok"] is False and failing(r) == ["gold"]

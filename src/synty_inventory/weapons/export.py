@@ -55,6 +55,9 @@ ENGINE_FILE_KEYS = {
 ENGINE_LABEL = {"godot": "godot", "unity": "unity", "threejs": "glb", "all": "all"}
 PUBLIC_KEYS = ("archetype", "family", "genre", "geometry", "hints", "id", "kind", "role", "visuals")
 _POINTS = ("tip", "butt", "muzzle", "grip", "support")
+# W8b: the host mounts and the review reasons they add exist only in the directory. The default export is byte-identical to
+# W7's (D-10, INV-19), so the projection drops them; `--attachments` (W8d) is where they come back.
+_MOUNT_REASONS = ("mount_ambiguous", "mount_estimated", "mount_missing")
 _HEX16 = re.compile(r"^[0-9a-f]{16}$")
 _DRIVE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]")
 _PUBLIC_APPROVAL_KEY = "weapons_public_icons_approved"
@@ -137,6 +140,9 @@ def _private_record(rec: dict, engines: set[str], frame: str) -> dict:
     out["files"] = _filter_files(rec["files"], engines)
     if frame == "item" and rec["geometry"] is not None:
         out["geometry"] = bake_item_frame(rec["geometry"])
+    if out["geometry"] is not None:
+        out["geometry"].pop("mounts", None)  # after the bake: bake_item_frame deep-copies the whole block
+    out["review"]["reasons"] = [r for r in out["review"]["reasons"] if r not in _MOUNT_REASONS]
     return out
 
 

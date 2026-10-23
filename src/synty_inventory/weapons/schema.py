@@ -28,6 +28,8 @@ from . import (
     GENRES,
     HOLD_CLASSES,
     KINDS,
+    MOUNT_NONE_REASONS,
+    MOUNT_SOURCES,
     NON_WEAPON_ROLES,
     PROVENANCES,
     REASONS,
@@ -103,6 +105,32 @@ ATTACHMENT_SCHEMA = {
 _HOST_HOLDS = ("one_hand", "long_gun")  # hosts that carry mounts (docs/weapon_attachments.md 4.1)
 _FRAME_TOL = 1e-3  # INV-18: unit length and mutual orthogonality
 
+_MOUNT = {
+    # one slot of geometry.mounts (docs/weapon_attachments.md 4.1); the cross-field rules (INV-15 to INV-18) are in _check_mounts
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["source", "point", "forward", "up", "span_m", "span_source", "occupied_by", "child_node", "bore_d_m",
+                 "bore_source", "confidence", "reason"],
+    "properties": {
+        "source": _enum(MOUNT_SOURCES),
+        "point": _VEC3_NULL, "forward": _VEC3_NULL, "up": _VEC3_NULL,
+        "span_m": {"anyOf": [_METRES, {"type": "null"}]},
+        "span_source": _enum(("child_foot", "probe"), nullable=True),
+        "occupied_by": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "child_node": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+        "bore_d_m": {"anyOf": [_METRES, {"type": "null"}]},
+        "bore_source": _enum(("ring", "face_extent"), nullable=True),
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "reason": _enum(MOUNT_NONE_REASONS, nullable=True),
+    },
+}
+MOUNTS_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": list(ATTACH_SLOTS),
+    "properties": {slot: _MOUNT for slot in ATTACH_SLOTS},
+}
+
 GEOMETRY_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -140,6 +168,8 @@ GEOMETRY_SCHEMA = {
         "support_r_m": _NUM_NULL,
         "support_source": _enum(("proportion",), nullable=True),
         "triangles": {"type": "integer", "minimum": 0},
+        # W8b: optional, so a W7 / W8a directory still validates and the default export (which drops it) too
+        "mounts": {"anyOf": [MOUNTS_SCHEMA, {"type": "null"}]},
     },
 }
 
@@ -344,6 +374,66 @@ def _check_attachment(att: dict, role: str, where: str) -> list[str]:
     return errs
 
 
+def _check_mount(slot: str, m: dict, geom: dict, where: str) -> list[str]:
+    """INV-15 to INV-18 for one slot of ``geometry.mounts``."""
+    errs: list[str] = []
+    here = f"{where}.geometry.mounts.{slot}"
+    src = m["source"]
+    coords = [m[k] is None for k in ("point", "forward", "up", "span_m")]
+    if (src == "none") != all(coords) or (src != "none" and any(coords[:3])):
+        errs.append(f"{here}: coordinates are null exactly when source is none (INV-15)")
+    if (src == "none") != (m["reason"] is not None):
+        errs.append(f"{here}.reason: set exactly when source is none (INV-15)")
+    if (m["span_m"] is None) != (m["span_source"] is None):
+        errs.append(f"{here}.span_source: null exactly when span_m is")
+    if src != "none" and not any(coords[:3]):
+        errs += _frame_errors(m, here)
+    occ = m["occupied_by"]
+    if occ != sorted(set(occ)):
+        errs.append(f"{here}.occupied_by: must be sorted and duplicate-free (INV-16)")
+    probe_muzzle = slot == "muzzle" and src == "probe"
+    if occ and src not in ("child_node", "override") and not probe_muzzle:
+        errs.append(f"{here}.occupied_by: non-empty only for child_node or override, or a probe muzzle (INV-16)")
+    seated = src in ("child_node", "override")
+    if seated != (m["child_node"] is not None):
+        errs.append(f"{here}.child_node: set exactly for source child_node or override (INV-16)")
+    elif seated and m["child_node"] not in occ:
+        errs.append(f"{here}.occupied_by: must contain child_node {m['child_node']!r} (INV-16)")
+    if (m["bore_d_m"] is None) != (m["bore_source"] is None):
+        errs.append(f"{here}.bore_source: null exactly when bore_d_m is")
+    if m["bore_d_m"] is not None and not probe_muzzle:
+        errs.append(f"{here}.bore_d_m: only the probe muzzle carries a bore")
+    if slot == "muzzle" and src not in ("probe", "none"):
+        errs.append(f"{here}.source: the muzzle seat always comes from the probe (or the slot is none)")
+    if probe_muzzle and not any(coords[:3]):
+        muzzle = geom["muzzle"]
+        if muzzle is None:
+            errs.append(f"{here}: a probe muzzle needs geometry.muzzle (a ranged, non-bow host)")
+        elif not occ and m["point"] != muzzle:
+            errs.append(f"{here}.point: with no occupied_by the seat is geometry.muzzle exactly (AC67)")
+        axes = geom["axes"]
+        for key, want in (("up", axes["forward"]), ("forward", axes["up"])):
+            vec = [0.0, 0.0, 0.0]
+            vec["xyz".index(want[1])] = 1.0 if want[0] == "+" else -1.0
+            if m[key] != vec:
+                errs.append(f"{here}.{key}: must be the host's axes.{'forward' if key == 'up' else 'up'} {want}")
+    return errs
+
+
+def _check_mounts(rec: dict, geom: dict, where: str) -> list[str]:
+    """``geometry.mounts`` is non-null exactly for an eligible host (whole, ranged, one_hand / long_gun; D-9)."""
+    mounts = geom["mounts"]
+    host = rec["role"] == "whole" and rec["kind"] == "ranged" and rec["hold_class"] in _HOST_HOLDS
+    if (mounts is None) == host:
+        return [f"{where}.geometry.mounts: non-null exactly for a whole, ranged one_hand / long_gun host (D-9)"]
+    if mounts is None:
+        return []
+    errs: list[str] = []
+    for slot in ATTACH_SLOTS:
+        errs += _check_mount(slot, mounts[slot], geom, where)
+    return errs
+
+
 def check_record(rec: dict, where: str) -> list[str]:
     """Cross-field rules of spec 4.1 for one record that already passed the structural schema."""
     errs: list[str] = []
@@ -380,6 +470,8 @@ def check_record(rec: dict, where: str) -> list[str]:
     no_tier = role in NON_WEAPON_ROLES or arch == "unknown"
     if (hints["quality_tier"] is None) != no_tier:
         errs.append(f"{where}.hints.quality_tier: null exactly when role is part/ammo/carrier or archetype unknown")
+    if geom is not None and "mounts" in geom:
+        errs += _check_mounts(rec, geom, where)
     if geom is not None:
         if (geom["muzzle"] is None) != (kind != "ranged" or arch == "bow"):
             errs.append(f"{where}.geometry.muzzle: present exactly for ranged, non-bow records")

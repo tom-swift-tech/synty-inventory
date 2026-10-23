@@ -1,7 +1,7 @@
 """W8a: the geometry cache and the attachment anchor (AC78, parts half; docs/weapon_attachments.md 3.5).
 
 An anchor is cached with the rest of a part's measurement, keyed by the part's slot and the attachment version, so a bump of
-``WEAPON_ATTACH_VERSION`` re-measures exactly the attachment parts and a bump of ``WEAPON_GEOMETRY_VERSION`` re-measures all.
+``WEAPON_ATTACH_VERSION`` re-measures exactly the attachment parts (and, since W8b, the eligible hosts, whose mounts it keys) and a bump of ``WEAPON_GEOMETRY_VERSION`` re-measures all.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from synty_inventory.weapons.overrides import empty_overrides  # noqa: E402
 from synty_inventory.weapons.rules import load_rules  # noqa: E402
 
 N_ATTACHMENTS = 24  # the fixture parts whose expected slot/kind is not None (w8a_attach.PARTS); counted again below
+N_ELIGIBLE_HOSTS = 2  # the assault rifle and the pistol: whole, ranged, long_gun / one_hand (W8b mounts)
 
 
 @pytest.fixture(scope="module")
@@ -71,14 +72,16 @@ def test_ac78_a_cache_hit_gives_the_same_directory_as_a_fresh_recompute_and_surv
     assert len(attachments(hit)) == N_ATTACHMENTS
 
 
-def test_ac78_an_attach_version_bump_remeasures_exactly_the_attachment_parts(world, monkeypatch):
+def test_ac78_an_attach_version_bump_remeasures_exactly_the_attachment_parts_and_the_eligible_hosts(world, monkeypatch):
     cache: dict = {}
     d1, _, s1 = run(world, cache)
     monkeypatch.setattr(pkg, "WEAPON_ATTACH_VERSION", pkg.WEAPON_ATTACH_VERSION + 1)
     d2, _, s2 = run(world, cache)
-    assert s2["decoded"] == N_ATTACHMENTS  # every part with a slot, and no host, no other part
-    assert s2["cached"] == s1["decoded"] - N_ATTACHMENTS
-    # the anchors themselves are unchanged by the bump; only the header version moves
+    # every part with a slot, plus the hosts whose mounts the version now keys (W8b); no melee, no other part
+    assert s2["decoded"] == N_ATTACHMENTS + N_ELIGIBLE_HOSTS
+    assert s2["cached"] == s1["decoded"] - N_ATTACHMENTS - N_ELIGIBLE_HOSTS
+    # the anchors and the host geometry are unchanged by the bump; only the header version moves
+    assert [w["geometry"] for w in d2["weapons"]] == [w["geometry"] for w in d1["weapons"]]
     assert [w.get("attachment") for w in d2["weapons"]] == [w.get("attachment") for w in d1["weapons"]]
     assert d2["attach_version"] == d1["attach_version"] + 1
 
