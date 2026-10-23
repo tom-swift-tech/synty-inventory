@@ -1,6 +1,48 @@
 {
   "globs": {},
   "ids": {
+    "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_01": {
+      "note": "W8h silhouette sheet (scratchpad w8h_iron_sheet.png), lead ruling 2026-10-23: front view shows a V-notch on top",
+      "set": {
+        "attachment_kind": "notch",
+        "attachment_slot": "sight_rear"
+      }
+    },
+    "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_04": {
+      "note": "W8h silhouette sheet (scratchpad w8h_iron_sheet.png), lead ruling 2026-10-23: front view shows a hexagonal ring on a post (peep aperture)",
+      "set": {
+        "attachment_kind": "aperture",
+        "attachment_slot": "sight_rear"
+      }
+    },
+    "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_05": {
+      "note": "W8h silhouette sheet (scratchpad w8h_iron_sheet.png), lead ruling 2026-10-23: front view shows a crenellated notch on top",
+      "set": {
+        "attachment_kind": "notch",
+        "attachment_slot": "sight_rear"
+      }
+    },
+    "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_07": {
+      "note": "W8h silhouette sheet (scratchpad w8h_iron_sheet.png), lead ruling 2026-10-23: front view shows an octagonal ring on a post (peep aperture)",
+      "set": {
+        "attachment_kind": "aperture",
+        "attachment_slot": "sight_rear"
+      }
+    },
+    "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_09": {
+      "note": "W8h silhouette sheet (scratchpad w8h_iron_sheet.png), lead ruling 2026-10-23: front view shows a V-notch above a wide bar",
+      "set": {
+        "attachment_kind": "notch",
+        "attachment_slot": "sight_rear"
+      }
+    },
+    "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_10": {
+      "note": "W8h silhouette sheet (scratchpad w8h_iron_sheet.png), lead ruling 2026-10-23: front view shows a single T-topped post",
+      "set": {
+        "attachment_kind": "post",
+        "attachment_slot": "sight_front"
+      }
+    },
     "POLYGON_Apocalypse/SM_Wep_RocketLauncher_01": {
       "confidence_cap": 0.55,
       "note": "direction ambiguous (pivot says -z, convention says +z); for Tom to confirm in review"
