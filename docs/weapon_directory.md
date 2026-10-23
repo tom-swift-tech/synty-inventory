@@ -865,6 +865,8 @@ carrier} or archetype `unknown` (§3.6); all float fields rounded to 1e-4 (confi
 
 > **PATCH (T4 attachments, 2026-10-22, DRAFT): two additive record fields.** A part record may carry a nullable top-level `attachment` block (`slot`, `kind`, `anchor`, `footprint`, `compatible_hosts`, `pending_hosts`) and an eligible ranged `whole` record may carry `geometry.mounts` (one frame per slot: `optic`, `muzzle`, `underbarrel`, `laser_light`, `magazine`, each with `source`, `point`, `forward`, `up`, `span_m`, `occupied_by`). Both are specified in [weapon_attachments.md](weapon_attachments.md) §3 and §4, are absent from the default export (that output stays byte-identical, `--attachments` turns them on), and leave `schema_version` 1 and `component` untouched.
 
+> **PATCH (T4 attachments A2, 2026-10-23, DRAFT): sight slots, pairs, setting gate.** `ATTACH_SLOTS` gains `sight_front` and `sight_rear` (iron sights leave `optic`; the kind `iron` is gone), so `geometry.mounts` has seven slot keys; `attachment` gains `pair` (the partner of a front/rear set, or null); a compatibility entry of an optic may carry `hides_slots`; and no candidate other than an override pairs a part with a host of another setting (`attachment_rules.attach_genre_by_pack`, which is not the record `genre`). All of it is additive and absent from the default export. See [weapon_attachments.md](weapon_attachments.md) §3.3, §3.5, §4.2, §4.3, §5.1 and §13.1.
+
 ### 4.2 `weapon-directory/1` (`directory.json`)
 
 ```json
