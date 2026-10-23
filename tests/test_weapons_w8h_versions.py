@@ -30,16 +30,16 @@ def snapshot(directory, *, attachments):
 
 
 def test_ac93_the_version_constants():
-    assert pkg.WEAPON_ATTACH_VERSION == 5
+    assert pkg.WEAPON_ATTACH_VERSION == 6
     assert pkg.WEAPON_GEOMETRY_VERSION == 5
 
 
-def test_ac93_the_directory_header_and_the_attachments_export_record_attach_version_5(tmp_path):
+def test_ac93_the_directory_header_and_the_attachments_export_record_attach_version_6(tmp_path):
     directory = W.build(tmp_path, WORLD)[0]
-    assert directory["attach_version"] == 5 and directory["geometry_version"] == 5
+    assert directory["attach_version"] == 6 and directory["geometry_version"] == 5
     assert len(directory["attach_rules_digest"]) == 16
     gf = snapshot(directory, attachments=True)["generated_from"]
-    assert gf["attach_version"] == 5 and gf["attach_rules_digest"] == directory["attach_rules_digest"]
+    assert gf["attach_version"] == 6 and gf["attach_rules_digest"] == directory["attach_rules_digest"]
 
 
 def test_ac93_the_default_export_header_has_neither_attach_key(tmp_path):
