@@ -146,9 +146,6 @@
         "laser_light": {
           "source": "none"
         },
-        "magazine": {
-          "source": "none"
-        },
         "muzzle": {
           "source": "none"
         },
@@ -165,7 +162,7 @@
           "source": "none"
         }
       },
-      "note": "Tom, 2026-10-24: 'SM_Wep_Preset_A_Sniper_01 appears to have built in scope and silencer so no attachments needed' (draw #2 cards d17, d46); every slot refused, magazine included"
+      "note": "Tom, 2026-10-24: 'SM_Wep_Preset_A_Sniper_01 appears to have built in scope and silencer so no attachments needed' (draw #2 cards d17, d46); every slot refused except the magazine, which Tom reopened (same day, newer ruling, draw #2 card d17 A_Mag_02 labelled yes): 'preset guns can take other magazines (size rule still applies). Keep refusing extra scopes and sights where one is built in'"
     },
     "POLYGON_Military/SM_Wep_Sniper_01": {
       "mounts": {

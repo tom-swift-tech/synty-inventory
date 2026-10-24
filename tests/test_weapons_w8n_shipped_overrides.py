@@ -2,8 +2,9 @@
 
 * ``POLYGON_BattleRoyale/SM_Wep_Sniper_Heavy_01`` takes no barrel attachments ("takes no barrel attachments"): its ``muzzle`` slot is refused. The
   underbarrel and laser seats are NOT touched (listed for Tom to confirm);
-* ``POLYGON_Military/SM_Wep_Preset_A_Sniper_01`` takes nothing at all ("built in scope and silencer so no attachments needed"): all seven slots are
-  refused. The B preset beside it is the control and keeps its slots;
+* ``POLYGON_Military/SM_Wep_Preset_A_Sniper_01`` takes no attachment but a magazine ("built in scope and silencer so no attachments needed"; then "preset
+  guns can take other magazines (size rule still applies). Keep refusing extra scopes and sights where one is built in"): six slots are refused, the magazine
+  is left to the build (the override file carries no magazine entry). The B preset beside it is the control and keeps its slots;
 * ``POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_03`` is forward ``-z`` (Tom marked the as-placed scope "backwards" and the flipped one "ok", draw #2 o1/o2): the
   override beats the authored twin, so the part's exported anchor forward is the flipped one.
 
@@ -93,9 +94,11 @@ def test_the_heavy_sniper_keeps_the_underbarrel_seat_it_had(shipped):
     assert listed(shipped, BR, "SM_Wep_Attachment_Foregrip_01") == [HEAVY]  # Tom confirms whether the underbarrel goes too; this override leaves it
 
 
-def test_the_a_sniper_preset_refuses_every_slot(shipped, bare):
-    assert refused_slots(shipped, MIL, PRESET_A) == ALL
+def test_the_a_sniper_preset_refuses_every_slot_but_the_magazine(shipped, bare):
+    assert refused_slots(shipped, MIL, PRESET_A) == ["optic", "muzzle", "underbarrel", "laser_light", "sight_front", "sight_rear"]
     assert refused_slots(bare, MIL, PRESET_A) == []
+    mag = lambda by: by[f"{MIL}/{PRESET_A}"]["geometry"]["mounts"]["magazine"]  # noqa: E731
+    assert mag(shipped) == mag(bare) and mag(shipped)["source"] != "override"  # the override file leaves the magazine slot as the build made it
     assert listed(shipped, MIL, "SM_Wep_Mod_Silencer_01") == [PRESET_B]
     assert listed(shipped, MIL, "SM_Wep_Mod_Foregrip_01") == [PRESET_B]
 
