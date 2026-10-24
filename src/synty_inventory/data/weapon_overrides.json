@@ -55,6 +55,14 @@
       "forward": "+z",
       "note": "forward: warhead/muzzle end is +z; visual check 2026-10-16: the pivot/section sign points at the stock; no shape rule separates it"
     },
+    "POLYGON_BattleRoyale/SM_Wep_Attachment_Silencer_01": {
+      "compatible": {
+        "remove": [
+          "POLYGON_BattleRoyale/SM_Wep_Pistol_Revolver_01"
+        ]
+      },
+      "note": "Tom: no (round-3 card g02); an Apocalypse revolver silencer was a yes (h46); lead ruling 2026-10-24"
+    },
     "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_02": {
       "mounts": {
         "optic": {
@@ -103,6 +111,14 @@
       "confidence_cap": 0.55,
       "note": "siege engine facing ambiguous in the icon; for Tom to confirm in review"
     },
+    "POLYGON_Military/SM_Wep_Mod_Bipod_03": {
+      "compatible": {
+        "remove": [
+          "POLYGON_Military/SM_Wep_MachineGun_Bandit_01"
+        ]
+      },
+      "note": "Tom: no (round-3 card c129); its siblings Bipod_01 and Bipod_02 on the same host were yes; lead ruling 2026-10-24"
+    },
     "POLYGON_Military/SM_Wep_Preset_A_Rifle_03": {
       "mounts": {
         "optic": {
@@ -116,6 +132,17 @@
         }
       },
       "note": "W8j census review, lead ruling 2026-10-23: fused carry handle on the receiver (census sheet #089)"
+    },
+    "POLYGON_Military/SM_Wep_Sniper_01": {
+      "mounts": {
+        "sight_front": {
+          "source": "none"
+        },
+        "sight_rear": {
+          "source": "none"
+        }
+      },
+      "note": "Tom: iron sights do not belong on this scopeless bolt sniper (round-3 cards c161, c172, c173, c179, 4 of 4 no); lead ruling 2026-10-24: per-host override, not a sniper affinity rule"
     },
     "POLYGON_SciFi_Space/SM_Wep_Rifle_01": {
       "mounts": {
@@ -155,6 +182,10 @@
         }
       },
       "note": "W8j census review, lead ruling 2026-10-23: fused top housing slab with a window (census sheet #192, dev manager call)"
+    },
+    "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_03": {
+      "forward": "-z",
+      "note": "forward: Tom labelled the scope backwards on Sniper_01 (held-out card h02, 2026-10-24); lead ruling 2026-10-24; NOTE the authored twin on Sniper_03 shows the same orientation as the derived one, so this flips every non-twin entry of the part"
     },
     "POLYGON_SciFi_Worlds/SM_Wep_Shotgun_03": {
       "mounts": {
