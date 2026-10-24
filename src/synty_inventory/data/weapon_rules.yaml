@@ -555,6 +555,10 @@ attachment_rules:
   #             of hosts that arrive with their parts on (a Preset_* prefab). Such a host refuses each slot one of its own baked children fills (the
   #             measured children decide, so no preset is listed by hand); every slot no child fills stays open.
   attach_filled_hosts: [preset]
+  #   attach_filled_open (Tom, 2026-10-24: "preset guns can take other magazines (size rule still applies). Keep refusing extra scopes and sights where
+  #             one is built in"): the slots that stay open on such a host although a baked child fills them. The baked magazine is hidden through
+  #             occupied_by (W8g) where another one seats, and the foot-length fit decides; optic, sights and the other filled slots stay refused.
+  attach_filled_open: [magazine]
   attach_host_class:
     launcher: [launcher, rpg, rocket, missile]
     fixed_heavy: [minigun]
