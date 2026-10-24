@@ -324,15 +324,21 @@ def refuse_filled(mounts: dict, found: dict[str, list[str]], host_id: str, table
     device, a foregrip, a laser, a sided iron sight; the muzzle's seat is still the probe's, but a device on it fills it), and ``optic`` when
     the host carries an optic body or glass child (``baked_children``). The rule reads the host's own measured children, never a per-host list;
     a slot no child fills stays open, and an ``override`` mount is never touched (the human wins). A refused slot is ``none`` /
-    ``slot_disabled`` like every other refusal, so the slot veto of compat.py removes its candidates (an authored twin of a built-in magazine
-    included: the preset already has that magazine).
+    ``slot_disabled`` like every other refusal, so the slot veto of compat.py removes its candidates (an authored twin of a built-in
+    muzzle device or foregrip included: the preset already has it).
+
+    ``attachment_rules.attach_filled_open`` names the slots that stay open although a baked child fills them (Tom, 2026-10-24: "preset guns can
+    take other magazines (size rule still applies)": ``magazine``). The baked child stays in ``occupied_by``, so the existing hide (W8g) removes it
+    where a replacement part seats, and the foot-length rule decides the fit; the authored twin of the baked
+    magazine is a candidate again too (it seats where the baked one stood; a pair a human refuses is an id override).
     """
     hosts = set(tables.get("attach_filled_hosts") or ())
     if not hosts or not raw_tokens(host_id) & hosts:
         return
+    keep = set(tables.get("attach_filled_open") or ())
     for slot in ATTACH_SLOTS:
         m = mounts[slot]
-        if m["source"] == "override" or m["source"] == "none":
+        if slot in keep or m["source"] == "override" or m["source"] == "none":
             continue
         if m["occupied_by"] or (slot == "optic" and (found["glass"] or found["body"])):
             mounts[slot] = none_mount("slot_disabled")
