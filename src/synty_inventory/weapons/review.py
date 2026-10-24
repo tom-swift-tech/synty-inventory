@@ -211,6 +211,8 @@ def _attach_entry(rec: dict, previews: dict) -> dict:
         row = {"host": e["host"], "tier": e["tier"], "score": e["score"], "pending": False}
         if e.get("hides_slots"):  # A2: the optic covers the rear sight on this host (spec 4.3); absent otherwise
             row["hides_slots"] = list(e["hides_slots"])
+        if e.get("seat_setback_m"):  # A6 (W8n): the silencer sits this far back over the host's muzzle end (13.7 A6-2); absent otherwise
+            row["seat_setback_m"] = e["seat_setback_m"]
         hosts.append(row)
     for e in att["pending_hosts"]:
         hosts.append({"host": e["host"], "tier": e["tier"], "score": None, "pending": True})

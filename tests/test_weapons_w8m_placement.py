@@ -34,7 +34,7 @@ def world(tmp_path_factory):
     for key in H.ENV_KEYS:
         mp.delenv(key, raising=False)
     mp.setattr(export_mod, "_repo_root", lambda: None)  # the pytest tmp dir sits inside this checkout
-    directory, excluded, cat, root = W.build(tmp, M.world())
+    directory, excluded, cat, root = W.build(tmp, M.world(), rules=M.uncapped_rules())
     write_directory(cat, directory, excluded)
     out = tmp / "game_repo"
     out.mkdir()

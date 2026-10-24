@@ -21,9 +21,9 @@ from ..schema import migrate_catalog
 from . import ATTACH_KINDS, InputError, SchemaError, digest, to_text, write_text_lf
 from .candidates import evaluate_candidate
 from .classify import attachment_reason, classify, classify_attachment, tokenize_id
-from .attach import hidden_nodes, settle_applies
+from .attach import hidden_nodes, setback_applies, setback_of, settle_applies
 from .compat import apply_compat
-from .geometry import measure_cached, pass2_inputs, settle_cached
+from .geometry import measure_cached, muzzle_stub_cached, pass2_inputs, settle_cached
 from .hints import build_group_stats, derive_hints
 from .mounts import mount_reasons
 from .overrides import effective_override, load_overrides
@@ -241,7 +241,7 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
             threejs_v2_dir, files["glb"], node, scale, cls["archetype"], cls["kind"], cls["role"], rules, cache,
             hold_class=cls["hold_class"], genre=cls["genre"], forward_override=forward_override,
             head_lead=head_lead, attach_slot=attach["slot"] if attach else None, mount_overrides=mount_overrides,
-            host_id=asset["id"], attach_kind=attach["kind"] if attach else None,
+            host_id=asset["id"], attach_kind=attach["kind"] if attach else None, host_pack=pack_id,
         )
         stats["cached" if cached else "decoded"] += 1
         measured = pass2_inputs(detail)
@@ -309,7 +309,7 @@ def _stored_shifts(records: list[dict]) -> dict[tuple[str, str], float]:
             for e in r["attachment"].get("compatible_hosts") or [] if "seat_shift_m" in e}
 
 
-def _apply_contact(records: list[dict], rules: dict, threejs_v2_dir: Path | None, cache: dict, stats: dict, stored: dict) -> None:
+def _apply_contact(records: list[dict], rules: dict, threejs_v2_dir: Path | None, cache: dict, stats: dict, stored: dict) -> int:
     """A5 (W8m, spec 5.4): the post-pass after compatibility. Every entry of compatible_hosts of an optic or underbarrel part that
     attach.settle_applies selects gets seat_shift_m when settle_cached finds one; the key is absent otherwise (compat builds the
     entries without it, so an entry that finds none needs no removal). The pairs are walked host by host, so each host mesh is decoded once.
@@ -317,10 +317,17 @@ def _apply_contact(records: list[dict], rules: dict, threejs_v2_dir: Path | None
     A pair whose meshes cannot be read now (no threejs_v2 root, a missing or undecodable GLB) keeps the value its record carried before the
     build (stored: a partial build's carried-over parts), the way compat keeps a stored relation for a host it cannot measure. stats
     counts the pairs by how they were settled (computed, cached, kept), apart from geometry_stats.
+
+    A6 (W8n, 13.7 A6-4): an entry whose settled ``|seat_shift_m|`` exceeds ``contact.cap_m`` is REMOVED from ``compatible_hosts`` (not pending
+    either: the seat of that host is wrong by more than a foot can excuse). The cap reads the value whichever way it was found (computed, cached
+    or kept); a tier that is never keyed (twin, override) is never removed. A part that loses its last cross-pack entry loses the review reason
+    ``compat_cross_pack``, which compat set before the removal. Returns the number of entries removed.
     """
     params = attachment_rules(rules).get("contact")
     if not params:  # a custom rules file without the table: no rule, no key
-        return
+        return 0
+    cap = params.get("cap_m")
+    capped: dict[str, set[str]] = {}  # part id -> the hosts whose entry the cap removes
     by_id = {r["id"]: r for r in records}
     work = []
     for part in records:
@@ -345,6 +352,70 @@ def _apply_contact(records: list[dict], rules: dict, threejs_v2_dir: Path | None
         stats[how] += 1
         if shift is not None:
             entry["seat_shift_m"] = shift
+            if cap is not None and abs(shift) > cap + 1e-9:
+                capped.setdefault(part["id"], set()).add(entry["host"])
+    removed = 0
+    for part in records:  # collected first, applied after the walk: the loop above reads the lists it would shrink
+        gone = capped.get(part["id"])
+        if not gone:
+            continue
+        att = part["attachment"]
+        kept = [e for e in att["compatible_hosts"] if e["host"] not in gone]
+        removed += len(att["compatible_hosts"]) - len(kept)
+        att["compatible_hosts"] = kept
+        if not any(e["tier"] == "cross_pack_fit" for e in kept + att["pending_hosts"]):
+            part["review"]["reasons"] = [x for x in part["review"]["reasons"] if x != "compat_cross_pack"]
+    return removed
+
+
+def _stored_setbacks(records: list[dict]) -> dict[tuple[str, str], float]:
+    """(part id, host id) -> seat_setback_m of the pairs the records carry now (those a partial build carries over from its base)."""
+    return {(r["id"], e["host"]): e["seat_setback_m"] for r in records if r.get("attachment")
+            for e in r["attachment"].get("compatible_hosts") or [] if "seat_setback_m" in e}
+
+
+def _apply_muzzle_seat(records: list[dict], rules: dict, threejs_v2_dir: Path | None, cache: dict, stats: dict, stored: dict) -> None:
+    """A6 (W8n, 13.7 A6-2): the post-pass after compatibility and the contact pass. Every entry of a suppressor's ``compatible_hosts`` that
+    ``attach.setback_applies`` selects (a probe muzzle mount with nothing baked on it, tier not twin or override) gets ``seat_setback_m`` when the
+    host's muzzle end and the part's length ask for one (``attach.setback_of``); the key is absent otherwise (compat builds the entries without it).
+
+    The host's muzzle end is measured once per host (``geometry.muzzle_stub_cached``: the silhouette is the host's, the part only brings its
+    length ``footprint.height_m``). A host whose mesh cannot be read now (no threejs_v2 root, a missing or undecodable GLB) keeps the value each
+    carried record had (``stored``, like the contact pass). ``stats`` counts the hosts read (computed, cached) and the pairs kept.
+    """
+    params = attachment_rules(rules).get("muzzle_seat")
+    if not params:  # a custom rules file without the table: no rule, no key
+        return
+    by_id = {r["id"]: r for r in records}
+    work = []
+    for part in records:
+        att = part.get("attachment")
+        length = ((att or {}).get("footprint") or {}).get("height_m")
+        if not att or att["slot"] != "muzzle" or att["kind"] != "suppressor" or not length:
+            continue
+        for entry in att["compatible_hosts"]:
+            host = by_id.get(entry["host"])
+            mount = (((host or {}).get("geometry") or {}).get("mounts") or {}).get("muzzle")
+            if setback_applies(att["slot"], att["kind"], entry["tier"], mount):
+                work.append((entry["host"], part["id"], host, entry, mount, float(length)))
+    seen: dict[str, tuple] = {}
+    memo: dict = {}
+    for host_id, part_id, host, entry, mount, length in sorted(work, key=lambda w: w[:2]):
+        if host_id not in seen:
+            got, how = None, "unavailable"
+            if threejs_v2_dir is not None and (host.get("files") or {}).get("glb"):
+                got, how = muzzle_stub_cached(threejs_v2_dir, host["files"], mount, list(mount.get("occupied_by") or []), params, cache, memo)
+            if how != "unavailable":
+                stats[how] += 1
+            seen[host_id] = (got, how)
+        got, how = seen[host_id]
+        if how == "unavailable":
+            setback = stored.get((part_id, host_id))
+            stats["kept"] += 1
+        else:
+            setback = setback_of(got["stub"], got["dev"], length, params) if got else None
+        if setback is not None:
+            entry["seat_setback_m"] = setback
 
 
 def _mark_duplicates(records: list[dict]) -> None:
@@ -462,6 +533,7 @@ def build_directory_report(
     cache = geometry_cache if geometry_cache is not None else {}
     geo_stats = {"decoded": 0, "cached": 0}
     contact_stats = {"computed": 0, "cached": 0, "kept": 0}  # A5: the pairs of the contact post-pass, apart from geo_stats (which tests pin)
+    setback_stats = {"computed": 0, "cached": 0, "kept": 0}  # A6: the HOSTS the silencer seat read (computed, cached) and the pairs it kept
     can_measure = measure and threejs_v2_dir is not None
     skipped_for_root = False
     listing_cache: dict = {}  # Alts directory listings, shared by every record of the build (fast over ~2,700)
@@ -572,9 +644,11 @@ def build_directory_report(
         child_extents.update(_carried_child_extents(docs, set(selected), records, rules, overrides, settings, threejs_v2_dir, cache))
     # W8c: compatibility needs every host's mounts, so it is a post-pass over ALL records (carried-over ones included)
     stored_shifts = _stored_shifts(records)  # compat rebuilds every entry; a pair that cannot be settled now keeps its carried value
+    stored_setbacks = _stored_setbacks(records)
     apply_pairs(records, overrides)  # A2: sight sets, before compatibility (a set candidate needs both members' lists)
     warnings.extend(apply_compat(records, rules, overrides, child_extents=child_extents))
-    _apply_contact(records, rules, threejs_v2_dir if can_measure else None, cache, contact_stats, stored_shifts)  # A5: after compat, it needs the entries
+    contact_capped = _apply_contact(records, rules, threejs_v2_dir if can_measure else None, cache, contact_stats, stored_shifts)  # A5: after compat, it needs the entries
+    _apply_muzzle_seat(records, rules, threejs_v2_dir if can_measure else None, cache, setback_stats, stored_setbacks)  # A6: after the contact pass
     excluded.sort(key=lambda e: e["id"])
     pack_rows.sort(key=lambda p: p["pack"])
 
@@ -619,6 +693,8 @@ def build_directory_report(
                               if with_glb else 1.0),
         "geometry_stats": dict(geo_stats),
         "contact_stats": dict(contact_stats),
+        "contact_capped": contact_capped,  # A6: the entries the contact cap removed
+        "setback_stats": dict(setback_stats),
         "stale_overrides": _stale_overrides(overrides, all_ids, set(selected), partial=partial),
         "warnings": sorted(warnings),
     }

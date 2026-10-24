@@ -203,15 +203,24 @@ def matching_slots(name: str, tables: dict) -> list[str]:
 
 
 def excluded_slots(host_id: str, tables: dict) -> list[str]:
-    """The slots ``attachment_rules.attach_host_never`` refuses for host ``host_id`` (A3, spec 7), in ATTACH_SLOTS order.
+    """The slots ``attachment_rules.attach_host_never`` and, A6 (W8n), the host classes refuse for host ``host_id`` (A3, spec 7), in ATTACH_SLOTS order.
 
     The host's tokens are those of its asset id (the id after the pack) as ``raw_tokens`` makes them: split on ``_`` and
     camelCase, digits dropped, plus the joins of two or three neighbours (so ``Flare_Gun`` reaches ``flaregun``). A token is a
     whole word: ``Properly`` is not ``prop``. No table, no exclusion.
+
+    A6 (W8n, 13.7 A6-1): ``attach_host_class`` maps a class to host name tokens (the same tokens) and ``attach_class_never`` a class to the
+    slots it refuses; a host whose tokens hit a class is refused those slots, a host in several classes the union, and the union with
+    ``attach_host_never`` is the answer. An empty class row refuses nothing (a switched-off row); a host in no class is a firearm.
     """
     never = tables.get("attach_host_never") or {}
     tokens = raw_tokens(host_id)
-    return [s for s in ATTACH_SLOTS if tokens & set(never.get(s) or ())]
+    refused = set()  # A6 (W8n): the slots of every class the host's tokens hit, joined with the slot rows above (a host in several classes: the union)
+    class_never = tables.get("attach_class_never") or {}
+    for name, class_tokens in (tables.get("attach_host_class") or {}).items():
+        if tokens & set(class_tokens or ()):
+            refused.update(class_never.get(name) or ())
+    return [s for s in ATTACH_SLOTS if s in refused or tokens & set(never.get(s) or ())]
 
 
 def baked_children(candidates, host_id: str, tables: dict, vertices: Callable, verts: np.ndarray, axes: dict,
@@ -485,7 +494,8 @@ def _sight_probe_mount(point, axes: dict, slot: str, cap: float | None) -> dict:
     }
 
 
-def _probe_sights(mounts: dict, path, glb_node, scale, axes: dict, tables: dict, cap: float | None, verts: np.ndarray) -> bool:
+def _probe_sights(mounts: dict, path, glb_node, scale, axes: dict, tables: dict, cap: float | None, verts: np.ndarray,
+                  host_key: str | None = None) -> bool:
     """Fill the sight slots that have neither a child nor an override from the seat probe (spec 4.6), in place.
 
     A slot disabled by an override stays disabled. The probe sees the host without the nodes already listed by
@@ -497,8 +507,13 @@ def _probe_sights(mounts: dict, path, glb_node, scale, axes: dict, tables: dict,
     Since addendum 3b (W8k, item 9) it is asked whenever the mesh yields a profile, a host the probe refused to seat included: the slot reason
     stays ``probe_unavailable`` here, and ``refuse_baked`` turns it into ``slot_disabled`` when the detector (or a baked child) says so. No
     profile (no mesh, no surface) or no ``sight_probe`` table means no detection.
+
+    A6 (W8n, 13.7 A6-4 d2): ``sight_probe.receiver_tol_by_host`` maps ``"<pack>/<host id>"`` to a receiver tolerance used for that host only
+    (``host_key`` is its key); every other host reads ``receiver_tol_m``.
     """
     params = tables.get("sight_probe")
+    if params and host_key is not None and host_key in (params.get("receiver_tol_by_host") or {}):
+        params = {**params, "receiver_tol_m": params["receiver_tol_by_host"][host_key]}
     open_slots = [s for s in SIGHT_SLOTS if mounts[s]["source"] == "none" and mounts[s]["reason"] == "no_child_no_probe"]
     if not params or not open_slots:
         return False
@@ -521,7 +536,7 @@ def _probe_sights(mounts: dict, path, glb_node, scale, axes: dict, tables: dict,
 
 def build_mounts(
     path, glb_node: NodeSel, scale: float, rules: dict, *, verts: np.ndarray, axes: dict, transformed: bool = False,
-    probe: Callable, overrides: dict | None = None, host_id: str | None = None,
+    probe: Callable, overrides: dict | None = None, host_id: str | None = None, host_pack: str | None = None,
 ) -> dict:
     """``{"mounts": block, "problems": [str], "child_extents": {...}}`` for one eligible host (spec 4).
 
@@ -530,7 +545,8 @@ def build_mounts(
     (``geometry.muzzle_probe``; passed in because geometry imports this module), ``overrides`` the categorical mount
     overrides ``{slot: {"source": "child_node", "child": name} | {"source": "none"}}`` (W8c loads them; None = no
     override). ``host_id`` is the host's asset id (A3: ``attach_host_never`` and the baked-child classes read its name tokens;
-    the GLB file stem when None). ``problems`` lists what could not be honoured (``child_not_found: <slot>: <name>``), never silently dropped.
+    the GLB file stem when None). ``host_pack`` (A6) is the host's pack id, so the sight probe finds the host's ``"<pack>/<host id>"`` key in
+    ``receiver_tol_by_host``; without it no per-host tolerance applies. ``problems`` lists what could not be honoured (``child_not_found: <slot>: <name>``), never silently dropped.
     """
     tables = attachment_rules(rules)
     overrides = overrides or {}
@@ -592,7 +608,7 @@ def build_mounts(
             if middle is not None:
                 child_rung["point"] = middle
         mounts[slot] = resolve_slot(override_rung, child_rung, None)
-    fused_post = _probe_sights(mounts, path, glb_node, scale, axes, tables, cap, verts)
+    fused_post = _probe_sights(mounts, path, glb_node, scale, axes, tables, cap, verts, f"{host_pack}/{host_id}" if host_pack else None)
     refuse_baked(mounts, baked_children(candidates, host_id, tables, vertices, verts, axes, host_volume), fused_post)
     return {"mounts": mounts, "problems": problems,
             "child_extents": _child_extents(mounts, vertices, measured_by_slot, axes)}

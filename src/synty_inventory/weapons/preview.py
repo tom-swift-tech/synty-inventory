@@ -152,7 +152,8 @@ def build_job(pair: dict, part: dict, host: dict, threejs_dir: Path) -> dict:
     the mount as before. A2: an optic whose entry carries ``hides_slots`` (spec 4.3) also hides the nodes of those slots (the rear
     sight it covers), by the same whole-slot rule (``attach.hidden_nodes``, which settle to contact uses too). A5: an entry that carries
     ``seat_shift_m`` (spec 5.4) places the part ``translate(seat_shift_m * frame.up) @ place(anchor, frame)``, so every picture shows the
-    settled pair; an entry without the key is placed as before.
+    settled pair; an entry without the key is placed as before. A6 (W8n, 13.7 A6-2): an entry that carries ``seat_setback_m`` also moves the part back
+    along the bore, ``translate(-seat_setback_m * frame.up) @ place(anchor, frame)`` (the same frame logic as the shift; a muzzle entry has no shift).
     """
     slot = pair["slot"]
     anchor = part["attachment"]["anchor"]
@@ -170,6 +171,9 @@ def build_job(pair: dict, part: dict, host: dict, threejs_dir: Path) -> dict:
     shift = (entry or {}).get("seat_shift_m")
     if shift:  # translate(shift * up) on the left moves the placed part along the frame's up, in the host's space
         matrix[:3, 3] += float(shift) * np.asarray(frame["up"], dtype=np.float64)
+    setback = (entry or {}).get("seat_setback_m")
+    if setback:  # a silencer sits back over the host's exposed muzzle end: toward the host, against the mount's up
+        matrix[:3, 3] -= float(setback) * np.asarray(frame["up"], dtype=np.float64)
     return {
         **pair,
         "host_glb": Path(threejs_dir) / host["files"]["glb"], "host_nodes": _selection(host["files"].get("glb_node")),

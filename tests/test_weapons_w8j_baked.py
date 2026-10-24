@@ -379,7 +379,8 @@ def test_ac101_an_id_override_of_the_optic_slot_beats_the_name_rule(names):
 def test_ac101_excluded_slots_reads_whole_name_tokens_for_the_optic_row():
     tables = load_rules()["attachment_rules"]
     assert M.excluded_slots(TOY, tables) == ["optic", "sight_front", "sight_rear"]
-    assert M.excluded_slots("SM_Wep_WaterPistol_01", tables) == ["optic", "sight_front", "sight_rear"]
+    # A6 (W8n): water is a tool-class token (attach_host_class) and the tool class refuses all seven slots, on top of the optic row's tokens
+    assert M.excluded_slots("SM_Wep_WaterPistol_01", tables) == ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]
     assert M.excluded_slots("SM_Wep_Pistol_Flare_01", tables) == ["sight_front", "sight_rear"]
     assert M.excluded_slots("SM_Wep_Waterfall_Rifle_01", tables) == []
     assert M.excluded_slots("SM_Wep_Rifle_Toyota_01", tables) == []
@@ -458,7 +459,7 @@ def test_ac103_the_versions_and_digests():
     import synty_inventory.weapons as pkg
     from synty_inventory.weapons.rules import attach_rules_digest, weapon_rules_digest
 
-    assert pkg.WEAPON_ATTACH_VERSION == 9 and pkg.WEAPON_GEOMETRY_VERSION == 5
+    assert pkg.WEAPON_ATTACH_VERSION == 10 and pkg.WEAPON_GEOMETRY_VERSION == 5
     assert weapon_rules_digest(load_rules()) == "7b9829af37328fe7"  # the W7 digest: the attachment tables are not part of it
     base = attach_rules_digest(load_rules())
     assert attach_rules_digest(_rules_with(fused_post={**load_rules()["attachment_rules"]["baked_sights"]["fused_post"], "rise_m": 0.009})) != base

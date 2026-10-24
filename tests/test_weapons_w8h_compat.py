@@ -47,9 +47,17 @@ def hide_world():
                    "parts": {SCOPE: A.optic, SHORT: short_optic, FRONT: A.optic}}}
 
 
+def uncapped_rules() -> dict:
+    """A6 (W8n): the short optic below is seated 60 mm off the host (the clamp) by the contact pass, which the 30 mm settle cap now removes from
+    ``compatible_hosts``. These AC90 cases are about hides_slots, so they build with the cap raised to the clamp (the cap is tested in test_weapons_w8n_cap.py)."""
+    rules = W.sight_rules()
+    rules["attachment_rules"]["contact"]["cap_m"] = rules["attachment_rules"]["contact"]["clamp_m"]
+    return rules
+
+
 @pytest.fixture(scope="module")
 def hide_dir(tmp_path_factory):
-    directory, _, _, root = W.build(tmp_path_factory.mktemp("w8h_hide"), hide_world())
+    directory, _, _, root = W.build(tmp_path_factory.mktemp("w8h_hide"), hide_world(), rules=uncapped_rules())
     return directory, root
 
 

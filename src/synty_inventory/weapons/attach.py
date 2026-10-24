@@ -354,3 +354,117 @@ def settle_pair(samples, host_v, host_t, up, params: dict) -> tuple[float | None
         return d, None
     shift = _r(-min(max(d, -params["clamp_m"]), params["clamp_m"]))
     return d, (shift if shift != 0.0 else None)
+
+
+# -- the silencer seat (A6, W8n; docs/weapon_attachments.md 13.7 A6-2) ----------------------------------------------------
+#
+# A probe muzzle mount sits at the barrel tip, so a suppressor starts where the barrel ends and leaves a built-in brake, flash hider or
+# shroud stub exposed behind it. The pair therefore moves back along the bore by ``d`` (the entry key ``seat_setback_m``). ``d`` comes from
+# a radial silhouette of the host's muzzle end (``muzzle_silhouette``), read for its shroud and its devices (``muzzle_stub``), and from the
+# part's own length (``setback_of``). All numbers are ``attachment_rules.muzzle_seat``; the three below are not parameters of it.
+
+_MUZZLE_AHEAD_M = 0.10  # the silhouette also reads this far PAST the tip (a probe point can sit a little behind the mesh end)
+_STUB_DEVICE_MARGIN_M = 0.010  # with no shroud, the stub is the rearmost device's rear face plus this
+_REF_WINDOW_BINS = 10  # the reference radius: the median of this many bins at a time (windows with fewer than 5 populated bins are skipped)
+_REF_MIN_POPULATED = 5
+
+
+def setback_applies(slot: str, kind: str | None, tier: str, mount: dict | None) -> bool:
+    """Which pairs get a ``seat_setback_m`` (13.7 A6-2): a ``suppressor`` of the ``muzzle`` slot, not an authored entry (tier neither ``twin`` nor
+    ``override``), on a host whose muzzle mount is the probe's (``source == "probe"``) with nothing baked on it (empty ``occupied_by``, no
+    ``child_node``). A mount an override made, or a seat taken from a baked child, is never moved."""
+    if slot != "muzzle" or kind != "suppressor" or tier in ("twin", "override") or not mount:
+        return False
+    if mount.get("source") != "probe" or mount.get("occupied_by") or mount.get("child_node"):
+        return False
+    return mount.get("point") is not None and mount.get("up") is not None
+
+
+def muzzle_silhouette(samples, point, up, params: dict) -> np.ndarray:
+    """The silhouette radius per ``bin_m`` bin along the bore at the host's muzzle end: ``[(range_m + 0.10) / bin_m]`` metres, 0 for an empty bin.
+
+    ``samples`` are the host's surface samples (``mount_probe.surface_samples`` at ``sample_pitch_m``), ``point`` the muzzle mount point P and
+    ``up`` its bore direction u. For a sample v: ``s = (v - P).u`` (0 at the tip, negative behind) and ``r`` its distance from the bore line; the
+    samples with ``-range_m < s < 0.10`` and ``r < radius_cap_m`` are kept (a wider thing is the receiver or a magazine, not the muzzle end).
+    Bin ``i`` holds ``[-range_m + i * bin_m, -range_m + (i + 1) * bin_m)`` and its value is the largest ``r`` in it.
+    """
+    v = np.asarray(samples, dtype=np.float64).reshape(-1, 3)
+    p = np.asarray(point, dtype=np.float64)
+    u = np.asarray(up, dtype=np.float64)
+    u = u / np.linalg.norm(u)
+    d = v - p
+    s = d @ u
+    r = np.linalg.norm(d - np.outer(s, u), axis=1)
+    keep = (s > -params["range_m"]) & (s < _MUZZLE_AHEAD_M) & (r < params["radius_cap_m"])
+    s, r = s[keep], r[keep]
+    bin_m = params["bin_m"]
+    n = int(round((params["range_m"] + _MUZZLE_AHEAD_M) / bin_m))
+    sil = np.zeros(n)
+    for i in range(n):
+        lo = -params["range_m"] + i * bin_m
+        k = (s >= lo) & (s < lo + bin_m)
+        if k.any():
+            sil[i] = r[k].max()
+    return sil
+
+
+def muzzle_stub(sil, params: dict) -> tuple[float, float] | None:
+    """``(stub, dev_rear_near)`` in metres from a ``muzzle_silhouette``, or None when the host has no barrel to read (no 10-bin window holds
+    5 populated bins in the last ``window_m``).
+
+    ``r_ref``, the thinnest sustained radius, is the minimum over every 10-bin window inside ``s`` in ``[-window_m, 0]`` of the window's
+    median over its populated bins. A bin is wide when its silhouette exceeds ``ref_ratio * r_ref``. Walking from the tip backwards, a run is a
+    maximal group of wide bins in which a single empty or narrow bin does not split it (a run of fewer than ``run_min_bins`` bins is noise and
+    ignored); its front and rear distances are measured from the tip at the bins' lower edges. A run shorter than ``device_max_m`` is a DEVICE
+    (brake, hider, gas block, stud); the first run of ``device_max_m`` or more is the shroud and ends the walk: ``stub`` is its front distance.
+    With no such run ``stub`` is the rearmost device's rear distance plus 10 mm, or 0 with no device. ``dev_rear_near`` is the largest rear
+    distance among the devices whose rear face lies within ``device_reach_m`` of the tip (0 when none): a device further back is a gas block or a
+    sling stud and must not pull the sleeve over it.
+    """
+    sil = np.asarray(sil, dtype=np.float64)
+    bin_m = params["bin_m"]
+    s = -params["range_m"] + np.arange(len(sil)) * bin_m
+    win = np.where((s >= -params["window_m"]) & (s <= 0.0))[0]
+    if not len(win):
+        return None
+    meds = []
+    for a in range(win[0], win[-1] - (_REF_WINDOW_BINS - 1)):
+        seg = sil[a:a + _REF_WINDOW_BINS]
+        seg = seg[seg > 0]
+        if len(seg) >= _REF_MIN_POPULATED:
+            meds.append(float(np.median(seg)))
+    if not meds:
+        return None
+    wide = sil > params["ref_ratio"] * min(meds)
+    runs = []  # (front distance from the tip, rear distance, length)
+    i = int(win[-1])
+    while i >= win[0]:
+        if wide[i]:
+            k = i
+            while k - 1 >= win[0] and (wide[k - 1] or (k - 2 >= win[0] and wide[k - 2])):
+                k -= 1
+            if i - k + 1 >= params["run_min_bins"]:
+                runs.append((-float(s[i]), -float(s[k]), (i - k + 1) * bin_m))
+            i = k - 1
+        else:
+            i -= 1
+    dev_rear = dev_near = 0.0
+    stub = None
+    for front, rear, length in sorted(runs, key=lambda run: run[0]):
+        if length < params["device_max_m"]:
+            dev_rear = max(dev_rear, rear)
+            if rear <= params["device_reach_m"]:
+                dev_near = max(dev_near, rear)
+            continue
+        stub = front
+        break
+    if stub is None:
+        stub = (dev_rear + _STUB_DEVICE_MARGIN_M) if dev_rear else 0.0
+    return stub, dev_near
+
+
+def setback_of(stub: float, dev_rear_near: float, length: float, params: dict) -> float | None:
+    """``seat_setback_m`` of one pair, or None for no key: ``d = min(stub, max(cover * L, dev_rear_near + device_cover_m), max_frac * L)`` with
+    ``L`` the part's length along the bore (``footprint.height_m``), rounded to 1e-4; a ``d`` of ``dead_m`` or less writes no key."""
+    d = _r(min(stub, max(params["cover"] * length, dev_rear_near + params["device_cover_m"]), params["max_frac"] * length))
+    return d if d > params["dead_m"] + _EPS else None

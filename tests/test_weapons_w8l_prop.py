@@ -71,7 +71,7 @@ def test_the_other_tokens_keep_their_slots():
     tables = load_rules()["attachment_rules"]
     assert M.excluded_slots("SM_Wep_Pistol_Flare_01", tables) == ["sight_front", "sight_rear"]
     assert M.excluded_slots("SM_Wep_ToyGun_Rifle_01", tables) == ["optic", "sight_front", "sight_rear"]
-    assert M.excluded_slots("SM_Wep_Watergun_01", tables) == ["optic", "sight_front", "sight_rear"]
+    assert M.excluded_slots("SM_Wep_Watergun_01", tables) == ALL_SLOTS  # A6 (W8n): water is a tool-class token, and the tool class refuses all seven
 
 
 # --- a built directory -----------------------------------------------------------------------------------------------
