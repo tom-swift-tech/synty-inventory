@@ -29,6 +29,7 @@ from . import (
     HOLD_CLASSES,
     KINDS,
     ROLES,
+    SEAT_SETBACK_MAX_M,
     SEAT_SHIFT_MAX_M,
     SchemaError,
     WEIGHT_CLASSES,
@@ -52,7 +53,8 @@ ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affin
                    "attach_genre_by_pack", "sight_probe",  # A2: the setting-gate map and the sight seat probe parameters
                    "attach_host_never", "baked_sights",  # A3 (W8i): hosts that get no seat for a slot, and the baked-sight child tokens
                    "anchor", "family_free_slots",  # A4 (W8l): the foot ladder and free-end forward, the name-generic slots
-                   "contact")  # A5 (W8m): settle to contact (spec 5.4)
+                   "contact",  # A5 (W8m): settle to contact (spec 5.4)
+                   "attach_host_class", "attach_class_never", "muzzle_seat")  # A6 (W8n): host classes (13.7 A6-1), the silencer seat (A6-2)
 BAKED_SIGHT_KEYS = ("tokens", "not_tokens", "rear_tokens")  # attachment_rules.baked_sights (docs/weapon_attachments.md 4.6 item 7): required
 # A3 addendum 3 (W8j, item 8): optional name-token lists (empty allowed, an absent list switches that part of the rule off), the carry-handle
 # height fraction and the fused front post parameters (name -> (type, minimum, maximum); metres unless a count or a fraction)
@@ -71,6 +73,7 @@ SIGHT_PROBE_PARAMS = {
     "min_separation_m": (float, 0.0, 1.0), "side_min_m": (float, 0.0, 0.1), "side_frac": (float, 0.0, 1.0),
     "ridge_tol_m": (float, 0.0, 0.1), "seat_ray_m": (float, 0.0, 0.05), "seat_flat_tol_m": (float, 0.0, 0.1),  # live-calibrated (4.6 item 6)
 }
+SIGHT_PROBE_RECEIVER_TOL_BY_HOST_MAX_M = 0.03  # A6 (W8n): the largest per-host receiver tolerance (the optional `receiver_tol_by_host` map)
 # A4 (W8l) anchor parameters (docs/weapon_attachments.md 3.4 steps 1a and 3b): name -> (minimum, maximum), every one required; metres unless a ratio.
 ANCHOR_PARAMS = {"lip_min_m": (0.0, 0.05), "lip_max_m": (0.0, 0.05), "lip_growth": (1.0, 100.0)}
 ANCHOR_FREE_END_KEYS = ("min_displacement_m", "kinds")
@@ -78,12 +81,23 @@ ANCHOR_MAX_RUNGS = 8  # foot_depths_m is a short ladder, not a profile
 # A5 (W8m) contact parameters (docs/weapon_attachments.md 5.4): name -> (minimum, maximum) in metres, every one required. The clamp's upper bound is
 # the schema's bound for the entry key `seat_shift_m` (SEAT_SHIFT_MAX_M), so a table can never write a value the export check refuses.
 CONTACT_SLOTS = ("optic", "underbarrel")  # the only slots the rule can name: the key lives on these parts' entries
-CONTACT_PARAMS = {"slab_m": (0.0005, 0.05), "pitch_m": (0.0005, 0.05), "dead_m": (0.0, 0.05), "clamp_m": (0.0005, SEAT_SHIFT_MAX_M), "reach_m": (0.01, 5.0)}
+CONTACT_PARAMS = {"slab_m": (0.0005, 0.05), "pitch_m": (0.0005, 0.05), "dead_m": (0.0, 0.05), "clamp_m": (0.0005, SEAT_SHIFT_MAX_M), "reach_m": (0.01, 5.0),
+                  "cap_m": (0.0005, SEAT_SHIFT_MAX_M)}  # A6 (W8n): cap_m, an entry settled further than this is not listed (cap_m <= clamp_m)
+# A6 (W8n) silencer seat parameters (docs/weapon_attachments.md 13.7 A6-2): name -> (type, minimum, maximum), every one required. `window_m` is the stretch behind
+# the tip the shroud walk covers; the key it makes (`seat_setback_m`, bound SEAT_SETBACK_MAX_M) can never be longer than the window plus 10 mm.
+MUZZLE_SEAT_PARAMS = {
+    "cover": (float, 0.01, 1.0), "device_cover_m": (float, 0.0, 0.05), "device_reach_m": (float, 0.0, 0.3), "max_frac": (float, 0.01, 1.0),
+    "dead_m": (float, 0.0, 0.05), "window_m": (float, 0.01, 0.18), "bin_m": (float, 0.0005, 0.02), "ref_ratio": (float, 1.0, 10.0),
+    "run_min_bins": (int, 1, 50), "device_max_m": (float, 0.0, 0.2), "sample_pitch_m": (float, 0.0005, 0.02), "range_m": (float, 0.05, 1.0),
+    "radius_cap_m": (float, 0.005, 0.2),
+}
 # W8c compatibility tables (docs/weapon_attachments.md 5.1). The score bands per tier are the spec's; the tunable base and
 # bonus values must keep every reachable score inside the band of their tier (checked at load).
 COMPAT_SCORE_BANDS = {"same_pack_fit": (0.6, 0.9), "cross_pack_fit": (0.3, 0.6)}
 COMPAT_FIXED_TIERS = ("override", "twin")
 COMPAT_NUMBER_KEYS = ("fit_span_bonus", "fit_bore_bonus", "fit_bore_penalty")
+# A6 (W8n) magazine parameters (13.7 A6-3), optional in the table (compat.py has the defaults): name -> (minimum, maximum), metres or a ratio
+COMPAT_MAGAZINE_KEYS = {"drum_min_m": (0.01, 1.0), "fit_span_min": (0.0, 1.0)}
 REQUIRED_TOP = (
     "version", "token_aliases", "candidates", "rules", "hold_by_archetype", "genre_by_archetype",
     "plausible_length_m", "axes_expected", "grip_proportion", "size_class_cuts_m", "weight_by_archetype",
@@ -450,6 +464,12 @@ def _check_attachment_rules(val) -> list[str]:
         errors.extend(_check_family_free_slots(val["family_free_slots"]))
     if val.get("contact") is not None:
         errors.extend(_check_contact(val["contact"]))
+    if val.get("attach_host_class") is not None:
+        errors.extend(_check_host_class(val["attach_host_class"]))
+    if val.get("attach_class_never") is not None:
+        errors.extend(_check_class_never(val["attach_class_never"], val.get("attach_host_class")))
+    if val.get("muzzle_seat") is not None:
+        errors.extend(_check_muzzle_seat(val["muzzle_seat"]))
     return errors
 
 
@@ -523,6 +543,65 @@ def _check_contact(val) -> list[str]:
             errors.append(f"{where}.{key}: must be a number from {lo} to {hi}")
     if not errors and val["dead_m"] >= val["clamp_m"]:
         errors.append(f"{where}: dead_m must be below clamp_m")
+    if not errors and val["cap_m"] > val["clamp_m"]:
+        errors.append(f"{where}: cap_m must not exceed clamp_m")  # a pair settled past the clamp is clamped, so a larger cap could never bite
+    return errors
+
+
+def _check_muzzle_seat(val) -> list[str]:
+    """``muzzle_seat``: the parameters of the silencer seat (A6, 13.7 A6-2); every key is required and in range."""
+    where = "attachment_rules.muzzle_seat"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping with {', '.join(MUZZLE_SEAT_PARAMS)}"]
+    errors: list[str] = []
+    for key in val:
+        if key not in MUZZLE_SEAT_PARAMS:
+            errors.append(f"{where}.{key}: unknown key (allowed: {', '.join(MUZZLE_SEAT_PARAMS)})")
+    for key, (typ, lo, hi) in MUZZLE_SEAT_PARAMS.items():
+        v = val.get(key)
+        ok = (isinstance(v, int) and not isinstance(v, bool)) if typ is int else _is_num(v)
+        if not ok or not (lo <= v <= hi):
+            errors.append(f"{where}.{key}: must be {'an integer' if typ is int else 'a number'} from {lo} to {hi}")
+    if not errors:
+        if val["window_m"] > val["range_m"]:
+            errors.append(f"{where}: window_m must not exceed range_m")
+        if val["window_m"] + 0.010 > SEAT_SETBACK_MAX_M:
+            errors.append(f"{where}.window_m: the longest set-back (window_m + 10 mm) must stay within {SEAT_SETBACK_MAX_M}")
+        if val["device_reach_m"] > val["window_m"]:
+            errors.append(f"{where}: device_reach_m must not exceed window_m")
+    return errors
+
+
+def _check_host_class(val) -> list[str]:
+    """``attach_host_class``: ``{class: [host name tokens]}`` (A6, 13.7 A6-1), tokens as in ``attach_host_never``. A host whose name has one of
+    them is in the class; the class refuses the slots ``attach_class_never`` lists for it."""
+    where = "attachment_rules.attach_host_class"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping class -> [host name tokens]"]
+    errors: list[str] = []
+    for name, tokens in val.items():
+        if not isinstance(name, str) or not name or name != name.lower():
+            errors.append(f"{where}.{name}: a class name must be a non-empty lower-case string")
+        else:
+            _check_str_list(tokens, f"{where}.{name}", errors, lower=True)
+    return errors
+
+
+def _check_class_never(val, classes) -> list[str]:
+    """``attach_class_never``: ``{class: [refused slots]}`` (A6, 13.7 A6-1). Every class has to be one ``attach_host_class`` defines; the list may be
+    empty (a class switched off), its slots are distinct slots."""
+    where = "attachment_rules.attach_class_never"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping class -> [slots]"]
+    errors: list[str] = []
+    known = classes if isinstance(classes, dict) else {}
+    for name, slots in val.items():
+        if name not in known:
+            errors.append(f"{where}.{name}: not a class of attach_host_class")
+        elif not isinstance(slots, list) or not all(isinstance(s, str) and s in ATTACH_SLOTS for s in slots):
+            errors.append(f"{where}.{name}: must be a list of slots from {list(ATTACH_SLOTS)} (may be empty)")
+        elif len(set(slots)) != len(slots):
+            errors.append(f"{where}.{name}: slots must be distinct")
     return errors
 
 
@@ -622,13 +701,23 @@ def _check_sight_probe(val) -> list[str]:
         return [f"{where}: must be a mapping"]
     errors = []
     for key in val:
-        if key not in SIGHT_PROBE_PARAMS:
-            errors.append(f"{where}.{key}: unknown key (allowed: {', '.join(SIGHT_PROBE_PARAMS)})")
+        if key not in SIGHT_PROBE_PARAMS and key != "receiver_tol_by_host":
+            errors.append(f"{where}.{key}: unknown key (allowed: {', '.join(SIGHT_PROBE_PARAMS)}, receiver_tol_by_host)")
     for key, (typ, lo, hi) in SIGHT_PROBE_PARAMS.items():
         v = val.get(key)
         ok = (isinstance(v, int) and not isinstance(v, bool)) if typ is int else _is_num(v)
         if not ok or not (lo <= v <= hi):
             errors.append(f"{where}.{key}: must be {'an integer' if typ is int else 'a number'} from {lo} to {hi}")
+    by_host = val.get("receiver_tol_by_host")
+    if "receiver_tol_by_host" in val:  # A6 (W8n): optional, {"<pack>/<host id>": tolerance in metres}, the tolerance of that host only
+        if not isinstance(by_host, dict):
+            errors.append(f"{where}.receiver_tol_by_host: must be a mapping '<pack>/<host id>' -> metres")
+        else:
+            for host, tol in by_host.items():
+                if not isinstance(host, str) or host.count("/") != 1 or not all(host.split("/")):
+                    errors.append(f"{where}.receiver_tol_by_host.{host}: the key must be '<pack>/<host id>'")
+                elif not _is_num(tol) or not (0 < tol <= SIGHT_PROBE_RECEIVER_TOL_BY_HOST_MAX_M):
+                    errors.append(f"{where}.receiver_tol_by_host.{host}: must be a number above 0 and at most {SIGHT_PROBE_RECEIVER_TOL_BY_HOST_MAX_M}")
     return errors
 
 
@@ -661,8 +750,11 @@ def _check_attach_compat(val) -> list[str]:
         return [f"{where}: must be a mapping"]
     errors: list[str] = []
     for key in val:
-        if key not in ("tier_score", "base", "generic_tokens", *COMPAT_NUMBER_KEYS):
+        if key not in ("tier_score", "base", "generic_tokens", *COMPAT_NUMBER_KEYS, *COMPAT_MAGAZINE_KEYS):
             errors.append(f"{where}.{key}: unknown key")
+    for key, (lo, hi) in COMPAT_MAGAZINE_KEYS.items():
+        if key in val and not (_is_num(val[key]) and lo <= val[key] <= hi):
+            errors.append(f"{where}.{key}: must be a number from {lo} to {hi}")
     nums = {}
     for key in COMPAT_NUMBER_KEYS:
         if key in val and not (_is_num(val[key]) and 0 <= val[key] <= 0.5):

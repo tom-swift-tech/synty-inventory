@@ -27,7 +27,7 @@ from ..sources.glb_geometry import load_triangles, node_world_matrices
 from ..sources.glb_measure import NodeSel, _cache_key, node_cache_tag, node_selected, read_glb_json
 from ..sources.glb_scale import scale_cache_tag
 from . import digest, write_text_lf
-from .attach import measure_anchor, place, settle_pair
+from .attach import measure_anchor, muzzle_silhouette, muzzle_stub, place, settle_pair
 from .mount_probe import surface_samples
 from .mounts import build_mounts, eligible
 from .rules import attachment_rules
@@ -611,7 +611,7 @@ def measure_weapon_detail(
     glb: Path, glb_node: NodeSel, scale: float, archetype: str, kind: str | None, role: str, rules: dict,
     *, hold_class: str | None = None, genre: str | None = None, forward_override: str | None = None,
     head_lead: bool = False, attach_slot: str | None = None, mount_overrides: dict | None = None,
-    with_mounts: bool = False, host_id: str | None = None, attach_kind: str | None = None,
+    with_mounts: bool = False, host_id: str | None = None, attach_kind: str | None = None, host_pack: str | None = None,
 ) -> dict:
     """``{'geometry': block | None, 'flags': [...], 'reasons': [...], 'warning': str | None}`` (spec 3.5).
 
@@ -627,6 +627,7 @@ def measure_weapon_detail(
     ``directory.py`` decides what the record carries. ``measure_cached`` and ``measure_weapon`` ask for them.
     ``mount_overrides`` is the categorical per-slot override mapping (W8c supplies it; None = none). ``host_id`` (A3, W8i) is the
     asset id of an eligible host: ``attach_host_never`` and the baked-sight detector read its name tokens (default: the GLB file stem).
+    ``host_pack`` (A6, W8n) is its pack id: with it the sight probe finds the host's ``"<pack>/<host id>"`` key in ``sight_probe.receiver_tol_by_host``.
 
     ``flags``/``reasons`` hold only what the measurement adds (``forward_by_fallback``, ``origin_outside_bounds``;
     ``axes_unexpected``, ``muzzle_fallback``, ``origin_outside_bounds``, ``node_transform``) -- or, when the mesh
@@ -847,7 +848,7 @@ def measure_weapon_detail(
                                        params=attachment_rules(rules).get("anchor"))
     if with_mounts and eligible(role, kind, hold_class):
         built = build_mounts(glb, glb_node, scale, rules, verts=verts, axes={"forward": forward, "up": up},
-                             transformed=transformed, probe=muzzle_probe, overrides=mount_overrides, host_id=host_id)
+                             transformed=transformed, probe=muzzle_probe, overrides=mount_overrides, host_id=host_id, host_pack=host_pack)
         out["mounts"], out["mount_problems"] = built["mounts"], built["problems"]
         out["child_extents"] = built["child_extents"]  # W8c twin evidence: beside the block, never in the record
     return out
@@ -914,7 +915,8 @@ _PROBE_CODE_DIGEST = code_digest((Path(__file__).parent / "mount_probe.py").read
 
 def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, forward_override=None,
                         *, head_lead: bool = False, attach_slot: str | None = None,
-                        mount_overrides: dict | None = None, host_id: str | None = None, attach_kind: str | None = None) -> str:
+                        mount_overrides: dict | None = None, host_id: str | None = None, attach_kind: str | None = None,
+                        host_pack: str | None = None) -> str:
     # the measurement depends on the classification context, not only on the file (spec 3.5 says file + versions;
     # deviation reported): a rules or override change that flips archetype/kind/hold must not serve stale geometry
     fp = {
@@ -952,6 +954,9 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
             # whole baked_sights table, so the glass / body / handle lists, the handle height fraction and every fused_post parameter move the
             # key; the fused front post detector itself lives in mount_probe.py (pd) and its caller in mounts.py (md)
             "hn": tables.get("attach_host_never"), "bs": tables.get("baked_sights"), "hi": host_id,
+            # A6 (W8n): the host classes (and the slots they refuse) are inputs like `hn`, and so is the host's pack (the key of the per-host receiver
+            # tolerance of the sight probe, whose table `sp` already carries)
+            "hc": tables.get("attach_host_class"), "kn": tables.get("attach_class_never"), "hp": host_pack,
             # A4 (W8l): a child's anchor follows the foot ladder (`ap`, the anchor table), and the mirrored pair lives in mounts.py (`md`).
             # A5 (W8m, item 2) retired the optic seat lift and its `os` input: the mounts source changed, so `md` moves the key
             "ap": tables.get("anchor"),
@@ -965,7 +970,7 @@ def measure_cached(
     threejs_v2_dir: Path, glb_rel: str, glb_node: NodeSel, scale: float, archetype: str, kind: str | None,
     role: str, rules: dict, cache: dict, *, hold_class: str | None = None, genre: str | None = None,
     forward_override: str | None = None, head_lead: bool = False, attach_slot: str | None = None,
-    mount_overrides: dict | None = None, host_id: str | None = None, attach_kind: str | None = None,
+    mount_overrides: dict | None = None, host_id: str | None = None, attach_kind: str | None = None, host_pack: str | None = None,
 ) -> tuple[dict, bool]:
     """``(detail, was_cached)``. Entry id = relative GLB path + node tag + scale tag (as ``glb_measure``); the
     entry is valid while ``mtime:size`` and its version (``WEAPON_GEOMETRY_VERSION`` + the digest of this file) match, and holds one result per
@@ -982,7 +987,8 @@ def measure_cached(
     cache_id += scale_cache_tag(scale)
     version = f"{_pkg.WEAPON_GEOMETRY_VERSION}+{_CODE_DIGEST}"
     fp = _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules, forward_override, head_lead=head_lead,
-                             attach_slot=attach_slot, mount_overrides=mount_overrides, host_id=host_id, attach_kind=attach_kind)
+                             attach_slot=attach_slot, mount_overrides=mount_overrides, host_id=host_id, attach_kind=attach_kind,
+                             host_pack=host_pack)
     entry = cache.get(cache_id)
     if not entry or entry.get("key") != key or entry.get("version") != version:
         entry = {"key": key, "version": version, "by_inputs": {}}
@@ -993,7 +999,7 @@ def measure_cached(
     detail = measure_weapon_detail(
         abs_path, glb_node, scale, archetype, kind, role, rules, hold_class=hold_class, genre=genre,
         forward_override=forward_override, head_lead=head_lead, attach_slot=attach_slot, mount_overrides=mount_overrides,
-        with_mounts=True, host_id=host_id, attach_kind=attach_kind,
+        with_mounts=True, host_id=host_id, attach_kind=attach_kind, host_pack=host_pack,
     )
     entry["by_inputs"][fp] = deepcopy(detail)
     return detail, False
@@ -1080,3 +1086,62 @@ def settle_cached(
     _, shift = settle_pair(samples @ m[:3, :3].T + m[:3, 3], host_v, host_t, mount["up"], params)
     entry["by_inputs"][fp] = {"shift": shift}
     return shift, "computed"
+
+
+# -- the silencer seat, per host (A6, W8n; spec 13.7 A6-2) ------------------------------------------------------------------------
+
+
+def _muzzle_samples(root: Path, host_files: dict, hide: list[str], pitch: float, memo: dict):
+    """The host's render mesh (collision nodes and the ``hide`` nodes dropped) sampled every ``pitch`` metres, or None when it cannot be read.
+    The caller's ``memo`` keeps the last host meshes of one build, so a pass that walks host by host decodes each host once."""
+    hosts = memo.setdefault("muzzle_hosts", {})
+    h_glb, h_node, h_scale, _ = _glb_ids(host_files)
+    hk = (str(root / h_glb), node_cache_tag(h_node), h_scale, tuple(hide), pitch)
+    if hk not in hosts:
+        drop = frozenset(hide)
+        got = load_triangles(root / h_glb, h_node, exclude=lambda n: _collision(n) or n in drop, scale=h_scale)
+        samples = None
+        if got is not None and len(got[0]) and len(got[1]) and np.isfinite(got[0]).all():
+            samples = surface_samples(np.asarray(got[0], dtype=np.float64), np.asarray(got[1]), pitch)
+        while len(hosts) >= _SETTLE_MEMO_HOSTS:
+            hosts.pop(next(iter(hosts)))
+        hosts[hk] = samples
+    return hosts[hk]
+
+
+def muzzle_stub_cached(
+    threejs_v2_dir: Path, host_files: dict, mount: dict, hide: list[str], params: dict, cache: dict, memo: dict | None = None,
+) -> tuple[dict | None, str]:
+    """``(result, how)`` of one host's muzzle end: ``result`` is ``{"stub": metres, "dev": metres}`` (``attach.muzzle_stub``) or None when the host has
+    no barrel to read; ``how`` is ``cached``, ``computed`` or ``unavailable`` (the file is missing or undecodable: nothing is stored, the caller
+    keeps whatever it had).
+
+    The result is the host's alone (every suppressor on it shares it; the part only brings its length), so it is cached beside the measurements, in
+    the same ``cache`` dict: entry id ``muz|<host id>`` (the id of ``measure_cached``), valid while the file's ``mtime:size`` and the version
+    (``WEAPON_GEOMETRY_VERSION`` + the digest of this file) match, one result per fingerprint of the question: the mount's point and up, the hidden
+    nodes, the ``muzzle_seat`` table, the attach version and the digests of ``attach.py`` (the silhouette) and ``mount_probe.py`` (the sampler). A cache
+    hit therefore equals a recompute, and a build with nothing changed reads no mesh. A "no barrel" result is cached too (``null``)."""
+    memo = memo if memo is not None else {}
+    h_glb, _, _, h_id = _glb_ids(host_files)
+    h_key = _cache_key(threejs_v2_dir / h_glb)
+    if h_key is None:
+        return None, "unavailable"
+    cache_id = f"muz|{h_id}"
+    version = f"{_pkg.WEAPON_GEOMETRY_VERSION}+{_CODE_DIGEST}"
+    fp = digest({
+        "mt": {k: mount[k] for k in ("point", "up")}, "hide": list(hide), "ms": params,
+        "av": _pkg.WEAPON_ATTACH_VERSION, "ad": _ATTACH_CODE_DIGEST, "pd": _PROBE_CODE_DIGEST,
+    })
+    entry = cache.get(cache_id)
+    if not entry or entry.get("key") != h_key or entry.get("version") != version:
+        entry = {"key": h_key, "version": version, "by_inputs": {}}
+        cache[cache_id] = entry
+    if fp in entry["by_inputs"]:
+        return deepcopy(entry["by_inputs"][fp]), "cached"
+    samples = _muzzle_samples(threejs_v2_dir, host_files, list(hide), float(params["sample_pitch_m"]), memo)
+    if samples is None:
+        return None, "unavailable"
+    got = muzzle_stub(muzzle_silhouette(samples, mount["point"], mount["up"], params), params)
+    result = None if got is None else {"stub": got[0], "dev": got[1]}
+    entry["by_inputs"][fp] = deepcopy(result)
+    return result, "computed"

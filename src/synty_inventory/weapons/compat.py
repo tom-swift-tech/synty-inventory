@@ -24,6 +24,11 @@ same_pack_fit, cross_pack_fit and the pending list, which are one candidate list
   sight slots, ``muzzle`` and ``underbarrel``: a silencer or a foregrip names no gun), read through ``_params``; nothing else changes (every
   veto, ``fit_span`` and ``fit_bore`` stay), and ``magazine`` / ``optic`` / ``laser_light`` keep the name test.
 * ``cross_pack_fit``: another pack, ``affinity`` AND a measured fit, no veto (0.3 to 0.6, reason ``compat_cross_pack``).
+* A6 (W8n, 13.7 A6-3), magazines only. (i) DRUM BY SHAPE: a magazine whose smaller body side (``min(length_m, width_m)`` of the footprint) is at least
+  ``attach_compat.drum_min_m`` (0.11) reads the ``drum`` row of ``attach_affinity`` for its affinity, whatever its name or its classified kind; the
+  record's ``kind`` is not touched. (ii) LOWER BOUND: a ``same_pack_fit`` or ``cross_pack_fit`` magazine whose ``foot_length_m / span_m`` is below
+  ``attach_compat.fit_span_min`` (0.75) is not listed (a foot far smaller than the well), whatever the span's source; a part or a seat without
+  the number is not judged, and the ``twin`` and ``override`` tiers are never touched. The ``fit_span`` buckets above are unchanged.
 
 Signals: ``family_overlap`` (the names share a token once generic ones are gone), ``affinity`` (the slot x kind table
 ``attach_affinity`` lists the host's archetype), ``mount_available`` (the host's seat is not ``none``), ``fit_span`` (the
@@ -80,6 +85,7 @@ HIDES_MARGIN_M = 0.010  # an optic hides the rear sight when its placed extent, 
 _DEFAULTS = {
     "tier_score": {"override": 1.0, "twin": 0.95}, "base": {"same_pack_fit": 0.7, "cross_pack_fit": 0.4},
     "fit_span_bonus": 0.1, "fit_bore_bonus": 0.1, "fit_bore_penalty": 0.1, "generic_tokens": [],
+    "drum_min_m": 0.11, "fit_span_min": 0.75,  # A6 (W8n): a magazine this thick on both sides is a drum; a foot under this share of the well is vetoed
 }
 
 
@@ -226,7 +232,8 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
               twin_replaces: list[str] | None = None) -> dict | None:
     """The compatibility entry of ``part`` on ``host`` or None; ``entry["listed"]`` says compatible (True) or pending (False).
 
-    ``part`` is ``{id, pack, slot, kind, flags, tokens, foot_length_m, mate_d_m, setting, extent_m?}``, ``host`` a ``_host_view``.
+    ``part`` is ``{id, pack, slot, kind, flags, tokens, foot_length_m, mate_d_m, setting, extent_m?, body_min_m?}``, ``host`` a ``_host_view``.
+    ``body_min_m`` (A6) is the smaller of the footprint's length and width: a magazine at ``drum_min_m`` or more reads the drum affinity row.
     ``verdict`` is the override verdict for this pair (``add`` / ``remove`` / None), ``twin`` whether the host has a twin child.
     ``twin_replaces`` (A1) is the one child a ``twin`` entry replaces; without it a twin entry copies the slot's ``occupied_by``.
     """
@@ -242,7 +249,10 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
     bore = fit_bore(part["mate_d_m"], mount) if available else None
     same_pack = host["pack"] == part["pack"]
     family = bool(part["tokens"] & host["tokens"])
-    affine = host["archetype"] in affinity_archetypes(affinity, slot, part["kind"])
+    kind = part["kind"]
+    if slot == "magazine" and (part.get("body_min_m") or 0.0) >= params["drum_min_m"]:
+        kind = "drum"  # A6 (i): by shape, whatever the name or the classified kind; used for the affinity lookup only
+    affine = host["archetype"] in affinity_archetypes(affinity, slot, kind)
     veto = disabled or span == "veto" or ("mech_scale" in host["flags"] and "mech_scale" not in part["flags"])
 
     if verdict == "add":
@@ -258,6 +268,9 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
         tier = "cross_pack_fit"  # no seat to measure against: pending on affinity alone (judgment call in the docstring)
     else:
         return None
+    if (slot == "magazine" and tier in ("same_pack_fit", "cross_pack_fit") and available and mount.get("span_m")
+            and part["foot_length_m"] is not None and part["foot_length_m"] / mount["span_m"] < params["fit_span_min"]):
+        return None  # A6 (ii): a foot far smaller than the well; not listed, not pending (a pending candidate has no seat to measure against)
 
     signals = {tier} if tier in ("override", "twin") else set()
     for name, holds in (("family_overlap", family), ("affinity", affine), ("mount_available", available),
@@ -307,6 +320,7 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
                 "tokens": name_tokens(rec["asset_id"], generic), "setting": setting_of(genre_by_pack, rec["pack"]),
                 "foot_length_m": (att["footprint"] or {}).get("foot_length_m"),
                 "mate_d_m": (att["footprint"] or {}).get("mate_d_m"),
+                "body_min_m": min((att["footprint"] or {}).get("length_m", 0.0), (att["footprint"] or {}).get("width_m", 0.0)) if att["footprint"] else None,
                 "extent_m": forward_extent(rec) if att["slot"] == "optic" else None}
         extents = sorted_extents(att["footprint"])
         eff = effective_override(rec["id"], overrides) if overrides else None

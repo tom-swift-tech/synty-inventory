@@ -34,6 +34,7 @@ from . import (
     PROVENANCES,
     REASONS,
     ROLES,
+    SEAT_SETBACK_MAX_M,
     SEAT_SHIFT_MAX_M,
     SIGHT_SLOTS,
     SIZE_CLASSES_W,
@@ -99,6 +100,9 @@ ATTACHMENT_SCHEMA = {
                 "hides_slots": {"type": "array", "items": {"const": "sight_rear"}, "minItems": 1, "maxItems": 1},
                 # A5 (W8m), spec 5.4: present only on an optic or underbarrel entry whose pair was settled to contact, metres along the mount's up
                 "seat_shift_m": {"type": "number", "minimum": -SEAT_SHIFT_MAX_M, "maximum": SEAT_SHIFT_MAX_M},
+                # A6 (W8n), 13.7 A6-2: present only on a suppressor entry (muzzle slot) that sits back over the host's exposed muzzle end, metres
+                # toward the host along the mount's up, above 0
+                "seat_setback_m": {"type": "number", "exclusiveMinimum": 0, "maximum": SEAT_SETBACK_MAX_M},
             },
         }},
         "pending_hosts": {"type": "array", "items": {
@@ -378,7 +382,8 @@ def _frame_errors(frame: dict, where: str) -> list[str]:
 
 def _pair_hides_errors(att: dict, here: str) -> list[str]:
     """A2: ``pair`` is non-null only in the sight slots (spec 3.5); ``hides_slots`` only on an optic part's entries (spec 4.3); A5:
-    ``seat_shift_m`` only on an optic or underbarrel part's entries (spec 5.4)."""
+    ``seat_shift_m`` only on an optic or underbarrel part's entries (spec 5.4); A6: ``seat_setback_m`` only on a suppressor's entries of the
+    muzzle slot, and never on an authored (twin or override) entry (13.7 A6-2)."""
     errs = []
     if att["pair"] is not None and att["slot"] not in SIGHT_SLOTS:
         errs.append(f"{here}.pair: non-null only for the sight slots {list(SIGHT_SLOTS)}, not {att['slot']}")
@@ -386,6 +391,11 @@ def _pair_hides_errors(att: dict, here: str) -> list[str]:
         errs.append(f"{here}.compatible_hosts: hides_slots is for optic entries only")
     if att["slot"] not in ("optic", "underbarrel") and any("seat_shift_m" in h for h in att["compatible_hosts"]):
         errs.append(f"{here}.compatible_hosts: seat_shift_m is for optic and underbarrel entries only")
+    if att["slot"] != "muzzle" or att["kind"] != "suppressor":
+        if any("seat_setback_m" in h for h in att["compatible_hosts"]):
+            errs.append(f"{here}.compatible_hosts: seat_setback_m is for suppressor entries of the muzzle slot only")
+    elif any("seat_setback_m" in h and h["tier"] in ("twin", "override") for h in att["compatible_hosts"]):
+        errs.append(f"{here}.compatible_hosts: seat_setback_m is never on a twin or override entry")
     return errs
 
 
