@@ -316,6 +316,28 @@ def refuse_baked(mounts: dict, found: dict[str, list[str]], fused_post: bool) ->
             refuse(slot)
 
 
+def refuse_filled(mounts: dict, found: dict[str, list[str]], host_id: str, tables: dict) -> None:
+    """A6 (W8n, Tom 2026-10-24: "presets only refuse the slots their built-in parts already fill; other slots stay open"), in place.
+
+    A host whose name tokens hit ``attachment_rules.attach_filled_hosts`` (the ``preset`` token: a Preset_* prefab is a gun with its parts
+    already on it) refuses every slot a baked child of its own fills: a slot whose mount lists a child in ``occupied_by`` (a magazine, a muzzle
+    device, a foregrip, a laser, a sided iron sight; the muzzle's seat is still the probe's, but a device on it fills it), and ``optic`` when
+    the host carries an optic body or glass child (``baked_children``). The rule reads the host's own measured children, never a per-host list;
+    a slot no child fills stays open, and an ``override`` mount is never touched (the human wins). A refused slot is ``none`` /
+    ``slot_disabled`` like every other refusal, so the slot veto of compat.py removes its candidates (an authored twin of a built-in magazine
+    included: the preset already has that magazine).
+    """
+    hosts = set(tables.get("attach_filled_hosts") or ())
+    if not hosts or not raw_tokens(host_id) & hosts:
+        return
+    for slot in ATTACH_SLOTS:
+        m = mounts[slot]
+        if m["source"] == "override" or m["source"] == "none":
+            continue
+        if m["occupied_by"] or (slot == "optic" and (found["glass"] or found["body"])):
+            mounts[slot] = none_mount("slot_disabled")
+
+
 def _load(path, selection, glb_node, scale, drop: frozenset[str] = frozenset()) -> np.ndarray | None:
     """Finite world vertices of the nodes named ``selection`` (``None``: the host's own ``glb_node`` selection), or None."""
     got = load_triangles(path, selection if selection is not None else glb_node,
@@ -609,7 +631,9 @@ def build_mounts(
                 child_rung["point"] = middle
         mounts[slot] = resolve_slot(override_rung, child_rung, None)
     fused_post = _probe_sights(mounts, path, glb_node, scale, axes, tables, cap, verts, f"{host_pack}/{host_id}" if host_pack else None)
-    refuse_baked(mounts, baked_children(candidates, host_id, tables, vertices, verts, axes, host_volume), fused_post)
+    found = baked_children(candidates, host_id, tables, vertices, verts, axes, host_volume)
+    refuse_baked(mounts, found, fused_post)
+    refuse_filled(mounts, found, host_id, tables)
     return {"mounts": mounts, "problems": problems,
             "child_extents": _child_extents(mounts, vertices, measured_by_slot, axes)}
 

@@ -45,7 +45,8 @@ def pid(name: str, pack: str = PACK) -> str:
 
 NAILGUN, PISTOL, ROCKET = "SM_Wep_Zulu_Nailgun_01", "SM_Wep_Zulu_Pistol_01", "SM_Wep_Zulu_Rocket_Launcher_01"
 FLAME, STUN, PROP, RIFLE = "SM_Wep_Zulu_Flamethrower_01", "SM_Wep_Zulu_Stungun_01", "SM_Wep_Zulu_Rifle_Prop_01", "SM_Wep_Zulu_Rifle_01"
-CLASS_HOSTS = (NAILGUN, PISTOL, ROCKET, FLAME, STUN, PROP, RIFLE)
+MINIGUN = "SM_Wep_Zulu_Minigun_01"
+CLASS_HOSTS = (NAILGUN, PISTOL, ROCKET, FLAME, STUN, PROP, RIFLE, MINIGUN)
 C_SILENCER, C_MAG, C_LASER, C_FOREGRIP, C_SCOPE, C_SIGHT = (
     "SM_Wep_Zulu_Silencer_01", "SM_Wep_Zulu_Mag_01", "SM_Wep_Zulu_Flashlight_01", "SM_Wep_Zulu_Foregrip_01", "SM_Wep_Zulu_Scope_01",
     "SM_Wep_Zulu_IronSight_Front_01")
@@ -180,3 +181,31 @@ def tooth_host():
 
 def sight_world() -> dict:
     return {PACK: {"hosts": {n: W.host_node(n, tooth_host()) for n in (TOOTH_HOST, TOOTH_TWIN)}, "parts": {C_SIGHT: W.sight_part}}}
+
+
+# -- A6: presets refuse the slots their built-in parts fill -------------------------------------------------------------------
+# Tom, 2026-10-24: "presets only refuse the slots their built-in parts already fill; other slots stay open." Synthetic hosts, one family word
+# (Zulu), the W8h box rifle. A Preset_* host bakes children by name (the child names are the shipped child_tokens: Mag, Silencer, Foregrip, Scope).
+
+PRE_FULL, PRE_MAG, PRE_BARE = "SM_Wep_Zulu_Preset_Rifle_01", "SM_Wep_Zulu_Preset_Rifle_02", "SM_Wep_Zulu_Preset_Rifle_03"
+PRE_CONTROL = "SM_Wep_Zulu_Rifle_Full_01"  # the same four children on a host that is not a preset
+PRESET_HOSTS = (PRE_FULL, PRE_MAG, PRE_BARE, PRE_CONTROL)
+PRESET_PARTS = (C_SILENCER, C_MAG, C_LASER, C_FOREGRIP, C_SCOPE)
+
+
+def _pre_kids(host: str, which=("Mag", "Silencer", "Foregrip", "Scope")):
+    meshes = {"Mag": (A.mag_box(0.01, 0.12, 0.02), (0.0, 0.0, -0.1)), "Silencer": (A.suppressor(), (0.0, 0.046, 0.65)),
+              "Foregrip": (M.grip_part(), (0.0, 0.0, 0.2)), "Scope": (A.optic(), (0.0, 0.10, 0.1))}
+    return [W.kid(host, name, *meshes[name]) for name in which]
+
+
+def preset_world() -> dict:
+    """Four hosts: a preset with a magazine, a suppressor, a foregrip and a scope baked on; a preset with only a magazine; a bare preset; and a
+    control that bakes the first preset's four children but is not a preset."""
+    hosts = {PRE_FULL: W.host_node(PRE_FULL, W.box_rifle(), _pre_kids(PRE_FULL)),
+             PRE_MAG: W.host_node(PRE_MAG, W.box_rifle(), _pre_kids(PRE_MAG, ("Mag",))),
+             PRE_BARE: W.host_node(PRE_BARE, W.box_rifle()),
+             PRE_CONTROL: W.host_node(PRE_CONTROL, W.box_rifle(), _pre_kids(PRE_CONTROL))}
+    return {PACK: {"hosts": hosts,
+                   "parts": {C_SILENCER: A.suppressor, C_MAG: lambda: A.mag_box(0.01, 0.12, 0.02), C_LASER: lambda: A.flip_y(A.optic()),
+                             C_FOREGRIP: M.grip_part, C_SCOPE: A.optic}}}

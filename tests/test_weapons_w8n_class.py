@@ -35,12 +35,13 @@ ALL = ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front
 
 def test_the_shipped_class_rows_are_the_specified_literals():
     assert TABLES["attach_host_class"] == {
-        "launcher": ["launcher", "rpg", "rocket", "missile"],
+        "launcher": ["launcher", "rpg", "rocket", "missile"], "fixed_heavy": ["minigun"],
         "tool": ["nailgun", "nail", "glue", "paint", "syringe", "welder", "water", "watergun", "waterpistol",
                  "flamethrower", "flamer", "flame", "flaregun", "stungun"],
     }
     assert TABLES["attach_class_never"] == {
-        "launcher": ["muzzle", "optic"], "tool": ["muzzle", "optic", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]}
+        "launcher": ["muzzle", "optic"], "tool": ["muzzle", "optic", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"],
+        "fixed_heavy": ["muzzle", "optic", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]}
     assert validate_rules(load_rules()) == []
 
 
@@ -55,12 +56,17 @@ def test_a_tool_class_token_refuses_all_seven_slots(host):
     assert M.excluded_slots(host, TABLES) == ALL
 
 
+@pytest.mark.parametrize("host", ["SM_Wep_Minigun_01", "SM_Wep_Minigun_Clean_01", "SM_Wep_Mini_Gun_01", "SM_Wep_Veh_MiniGun_01"])
+def test_a_minigun_refuses_all_seven_slots(host):  # Tom, 2026-10-24: "minigun doesn't take any attachments"
+    assert M.excluded_slots(host, TABLES) == ALL
+
+
 @pytest.mark.parametrize("host", ["SM_Wep_Launcher_01", "SM_Wep_Grenade_Launcher_01", "SM_Wep_RPG_01", "SM_Wep_Rocket_01", "SM_Wep_Missile_01"])
 def test_a_launcher_class_token_refuses_the_optic_and_the_muzzle_and_nothing_else(host):
     assert M.excluded_slots(host, TABLES) == ["optic", "muzzle"]
 
 
-@pytest.mark.parametrize("host", ["SM_Wep_Rifle_Nailed_01", "SM_Wep_Painted_Rifle_01", "SM_Wep_Rocketeer_01", "SM_Wep_Launching_01", "SM_Wep_Rifle_01"])
+@pytest.mark.parametrize("host", ["SM_Wep_Miniguns_01", "SM_Wep_Rifle_Nailed_01", "SM_Wep_Painted_Rifle_01", "SM_Wep_Rocketeer_01", "SM_Wep_Launching_01", "SM_Wep_Rifle_01"])
 def test_a_class_token_is_a_whole_word_not_a_prefix(host):
     assert M.excluded_slots(host, TABLES) == []
 
@@ -149,9 +155,9 @@ def test_a_firearm_keeps_every_slot(built, host):
     assert m["muzzle"]["source"] == "probe" and m["sight_front"]["source"] == "probe"
 
 
-@pytest.mark.parametrize("host", [N.FLAME, N.STUN])
-def test_the_flame_thrower_and_the_stun_gun_are_tools_and_refuse_every_slot(built, host):
-    assert all(refused(m) for m in mounts_of(built, host).values())  # Tom: "Nothing, like the nail gun"
+@pytest.mark.parametrize("host", [N.FLAME, N.STUN, N.MINIGUN])
+def test_the_flame_thrower_the_stun_gun_and_the_minigun_refuse_every_slot(built, host):
+    assert all(refused(m) for m in mounts_of(built, host).values())  # Tom: "Nothing, like the nail gun"; "minigun doesn't take any attachments"
 
 
 def test_the_prop_host_keeps_its_existing_whole_name_refusal(built):
@@ -160,11 +166,11 @@ def test_the_prop_host_keeps_its_existing_whole_name_refusal(built):
 
 def test_no_part_lists_a_refused_slot_of_a_class_host(built):
     comp, pend = hosts_of(built, N.C_SILENCER)
-    assert comp == {N.PISTOL: "same_pack_fit", N.RIFLE: "same_pack_fit"}  # not the nailgun, rocket launcher, stun gun or prop
+    assert comp == {N.PISTOL: "same_pack_fit", N.RIFLE: "same_pack_fit"}  # not the nailgun, rocket launcher, stun gun, minigun or prop
     assert pend == {N.NAILGUN: "override"}  # the id override's `add` still lists the pair; the seat is none, so it is pending
     for part in (N.C_LASER, N.C_SIGHT):
         comp, pend = hosts_of(built, part)
-        assert not {N.NAILGUN, N.ROCKET, N.PROP, N.FLAME, N.STUN} & (set(comp) | set(pend)), part
+        assert not {N.NAILGUN, N.ROCKET, N.PROP, N.FLAME, N.STUN, N.MINIGUN} & (set(comp) | set(pend)), part
     comp, pend = hosts_of(built, N.C_MAG)  # the one open slot of the nailgun: its id-override magazine seat, a twin of the baked child
     assert comp == {N.NAILGUN: "twin"} and pend == {N.PISTOL: "same_pack_fit", N.RIFLE: "same_pack_fit"}
     comp, pend = hosts_of(built, N.C_SCOPE)
@@ -219,8 +225,8 @@ def _part(name, slot, kind):  # pack POLYGON_Heist (the same setting as the host
 def test_an_unmeasured_launcher_or_tool_host_gets_no_pending_pair_for_a_slot_its_class_refuses():
     from synty_inventory.weapons import compat
     hosts = [_unmeasured("SM_Wep_Launcher_Preset_01", "launcher"), _unmeasured("SM_Wep_Stungun_Preset_01", "utility_gun"),
-             _unmeasured("SM_Wep_Rifle_Preset_01", "rifle")]
+             _unmeasured("SM_Wep_Minigun_Preset_01", "heavy_gun"), _unmeasured("SM_Wep_Rifle_Preset_01", "rifle")]
     got = compat.compute(hosts + [_part("SM_Wep_Scope_01", "optic", "scope"), _part("SM_Wep_Foregrip_01", "underbarrel", "foregrip")], load_rules())["parts"]
     pending = lambda part: sorted(e["host"] for e in got[f"POLYGON_Heist/{part}"]["pending"])
-    assert pending("SM_Wep_Scope_01") == ["POLYGON_Military/SM_Wep_Rifle_Preset_01"]  # not the launcher (optic refused), not the stun gun (every slot refused)
+    assert pending("SM_Wep_Scope_01") == ["POLYGON_Military/SM_Wep_Rifle_Preset_01"]  # not the launcher (optic refused), not the stun gun or the minigun (every slot refused)
     assert pending("SM_Wep_Foregrip_01") == ["POLYGON_Military/SM_Wep_Launcher_Preset_01", "POLYGON_Military/SM_Wep_Rifle_Preset_01"]  # a launcher keeps its foregrip

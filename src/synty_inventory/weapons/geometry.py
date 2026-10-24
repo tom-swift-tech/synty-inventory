@@ -957,6 +957,8 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
             # A6 (W8n): the host classes (and the slots they refuse) are inputs like `hn`, and so is the host's pack (the key of the per-host receiver
             # tolerance of the sight probe, whose table `sp` already carries)
             "hc": tables.get("attach_host_class"), "kn": tables.get("attach_class_never"), "hp": host_pack,
+            # A6 (W8n, Tom 2026-10-24): the hosts that refuse the slots their built-in parts fill are an input like `hc`
+            "fh": tables.get("attach_filled_hosts"),
             # A4 (W8l): a child's anchor follows the foot ladder (`ap`, the anchor table), and the mirrored pair lives in mounts.py (`md`).
             # A5 (W8m, item 2) retired the optic seat lift and its `os` input: the mounts source changed, so `md` moves the key
             "ap": tables.get("anchor"),

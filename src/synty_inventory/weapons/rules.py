@@ -54,7 +54,8 @@ ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affin
                    "attach_host_never", "baked_sights",  # A3 (W8i): hosts that get no seat for a slot, and the baked-sight child tokens
                    "anchor", "family_free_slots",  # A4 (W8l): the foot ladder and free-end forward, the name-generic slots
                    "contact",  # A5 (W8m): settle to contact (spec 5.4)
-                   "attach_host_class", "attach_class_never", "muzzle_seat")  # A6 (W8n): host classes (13.7 A6-1), the silencer seat (A6-2)
+                   "attach_host_class", "attach_class_never", "muzzle_seat",  # A6 (W8n): host classes (13.7 A6-1), the silencer seat (A6-2)
+                   "attach_filled_hosts")  # A6 (W8n, Tom 2026-10-24): hosts that refuse each slot a built-in part already fills (presets)
 BAKED_SIGHT_KEYS = ("tokens", "not_tokens", "rear_tokens")  # attachment_rules.baked_sights (docs/weapon_attachments.md 4.6 item 7): required
 # A3 addendum 3 (W8j, item 8): optional name-token lists (empty allowed, an absent list switches that part of the rule off), the carry-handle
 # height fraction and the fused front post parameters (name -> (type, minimum, maximum); metres unless a count or a fraction)
@@ -470,6 +471,8 @@ def _check_attachment_rules(val) -> list[str]:
         errors.extend(_check_class_never(val["attach_class_never"], val.get("attach_host_class")))
     if val.get("muzzle_seat") is not None:
         errors.extend(_check_muzzle_seat(val["muzzle_seat"]))
+    if val.get("attach_filled_hosts") is not None:
+        _check_str_list(val["attach_filled_hosts"], "attachment_rules.attach_filled_hosts", errors, lower=True)
     return errors
 
 
