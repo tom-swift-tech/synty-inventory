@@ -91,6 +91,14 @@
       },
       "note": "W8j census review, lead ruling 2026-10-23: fused carry handle (census sheet #044)"
     },
+    "POLYGON_BattleRoyale/SM_Wep_Sniper_Heavy_01": {
+      "mounts": {
+        "muzzle": {
+          "source": "none"
+        }
+      },
+      "note": "Tom, 2026-10-24: 'SM_Wep_Sniper_Heavy_01 takes no barrel attachments' (draw #2 card d33); read as the muzzle slot, the underbarrel and laser seats are left for Tom to confirm"
+    },
     "POLYGON_Dark_Fortress/SM_Prop_Ballista_01": {
       "confidence_cap": 0.55,
       "note": "siege engine facing ambiguous in the icon; for Tom to confirm in review"
@@ -132,6 +140,32 @@
         }
       },
       "note": "W8j census review, lead ruling 2026-10-23: fused carry handle on the receiver (census sheet #089)"
+    },
+    "POLYGON_Military/SM_Wep_Preset_A_Sniper_01": {
+      "mounts": {
+        "laser_light": {
+          "source": "none"
+        },
+        "magazine": {
+          "source": "none"
+        },
+        "muzzle": {
+          "source": "none"
+        },
+        "optic": {
+          "source": "none"
+        },
+        "sight_front": {
+          "source": "none"
+        },
+        "sight_rear": {
+          "source": "none"
+        },
+        "underbarrel": {
+          "source": "none"
+        }
+      },
+      "note": "Tom, 2026-10-24: 'SM_Wep_Preset_A_Sniper_01 appears to have built in scope and silencer so no attachments needed' (draw #2 cards d17, d46); every slot refused, magazine included"
     },
     "POLYGON_Military/SM_Wep_Sniper_01": {
       "mounts": {
