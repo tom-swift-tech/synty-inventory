@@ -38,7 +38,7 @@ def test_the_rules_digest_stays_and_the_attach_digest_moves():
 
 @pytest.mark.parametrize("edit", [
     lambda t: t["attach_host_class"].update(launcher=["launcher"]),
-    lambda t: t["attach_class_never"].update(special=["muzzle"]),
+    lambda t: t["attach_class_never"].update(launcher=["muzzle"]),
     lambda t: t["attach_compat"].update(fit_span_min=0.7),
     lambda t: t["attach_compat"].update(drum_min_m=0.12),
     lambda t: t["contact"].update(cap_m=0.02),

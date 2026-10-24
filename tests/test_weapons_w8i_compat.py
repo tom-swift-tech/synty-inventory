@@ -162,7 +162,7 @@ def test_ac95_the_shipped_table_lists_flare_flaregun_and_prop_for_both_sight_slo
     ("SM_Wep_Pistol_Flare_01", ["sight_front", "sight_rear"]),
     ("SM_Prop_Briefcase_Flaregun_01", ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]),  # A5 item 0
     ("SM_Wep_Rifle_Prop_01", ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]),  # A5 item 0
-    ("SM_Wep_Flare_Gun_01", ["sight_front", "sight_rear"]),  # `flare` hits
+    ("SM_Wep_Flare_Gun_01", ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]),  # A6 (W8n): `flaregun` is a tool token; the join of `flare` and `gun`
     ("SM_Wep_Rifle_Properly_01", []),  # a token, not a substring
     ("SM_Wep_Rifle_Assault_01", []),
 ])

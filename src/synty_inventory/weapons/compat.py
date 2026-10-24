@@ -66,7 +66,7 @@ from fnmatch import fnmatchcase
 
 from . import ATTACH_SLOTS, COMPAT_TIERS, TWIN_ABS_TOL_M, TWIN_REL_TOL
 from .classify import _CAMEL_RE, _SEGMENT_SPLIT_RE
-from .mounts import eligible, mount_reasons
+from .mounts import eligible, excluded_slots, mount_reasons
 from .overrides import compatible_verdict, effective_override
 from .rules import attachment_rules
 
@@ -191,11 +191,14 @@ def setting_of(genre_by_pack: dict | None, pack: str):
     return ("setting", word) if word else ("pack", pack)
 
 
-def _host_view(rec: dict, generic, genre_by_pack: dict | None = None) -> dict:
+def _host_view(rec: dict, generic, genre_by_pack: dict | None = None, tables: dict | None = None) -> dict:
     mounts = (rec.get("geometry") or {}).get("mounts") or {}
+    # A6 (W8n, 13.7 A6-1): a host with no measured mounts (a prefab-only preset) has no `slot_disabled` seat to veto its pairs, so the slots its name
+    # refuses (attach_host_never and the host classes) are carried here and read as disabled. A measured host already has them as its mounts.
+    refused = frozenset(excluded_slots(rec["asset_id"], tables)) if tables and not mounts else frozenset()
     return {"id": rec["id"], "pack": rec["pack"], "archetype": rec["archetype"], "flags": set(rec["flags"]),
             "mounts": mounts, "tokens": name_tokens(rec["asset_id"], generic),
-            "setting": setting_of(genre_by_pack, rec["pack"])}
+            "setting": setting_of(genre_by_pack, rec["pack"]), "refused": refused}
 
 
 def forward_extent(rec: dict) -> tuple[float, float] | None:
@@ -244,7 +247,7 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
     slot = part["slot"]
     mount = host["mounts"].get(slot)
     available = mount is not None and mount["source"] != "none"
-    disabled = mount is not None and mount["source"] == "none" and mount.get("reason") == "slot_disabled"
+    disabled = (mount is not None and mount["source"] == "none" and mount.get("reason") == "slot_disabled") or slot in host.get("refused", ())
     span = fit_span(part["foot_length_m"], mount) if available else None
     bore = fit_bore(part["mate_d_m"], mount) if available else None
     same_pack = host["pack"] == part["pack"]
@@ -306,7 +309,7 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
     genre_by_pack = tables.get("attach_genre_by_pack") or {}
     child_extents = child_extents or {}
     prev_twins = prev_twins or {}
-    hosts = [_host_view(r, generic, genre_by_pack) for r in sorted(records, key=lambda r: r["id"])
+    hosts = [_host_view(r, generic, genre_by_pack, tables) for r in sorted(records, key=lambda r: r["id"])
              if eligible(r["role"], r["kind"], r["hold_class"])]
     host_ids = [h["id"] for h in hosts]
     parts: dict[str, dict] = {}
