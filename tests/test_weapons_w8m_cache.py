@@ -1,6 +1,6 @@
 """W8m: versions, the contact rules table and the pair cache (docs/weapon_attachments.md 5.4 "Cache", AC78, AC116).
 
-The expected values are LITERALS from the spec (attach version 9, geometry version 5, rules digest 7b9829af37328fe7), never read from the constants
+The expected values are LITERALS from the spec (attach version 10, geometry version 5, rules digest 7b9829af37328fe7), never read from the constants
 under test. World: ``w8m_world`` (pack FAKE_W8M).
 """
 
@@ -28,7 +28,7 @@ from synty_inventory.weapons.rules import attach_rules_digest, load_rules, valid
 
 
 def test_ac116_the_versions_and_the_digests():
-    assert pkg.WEAPON_ATTACH_VERSION == 9 and pkg.WEAPON_GEOMETRY_VERSION == 5
+    assert pkg.WEAPON_ATTACH_VERSION == 10 and pkg.WEAPON_GEOMETRY_VERSION == 5
     rules = load_rules()
     assert weapon_rules_digest(rules) == "7b9829af37328fe7"  # `contact` sits inside attachment_rules: rules_digest never moves
     assert len(attach_rules_digest(rules)) == 16
@@ -46,7 +46,8 @@ def test_ac116_the_contact_table_moves_the_attach_digest_only():
 
 def test_ac116_the_shipped_contact_table_is_the_specified_one():
     assert load_rules()["attachment_rules"]["contact"] == {
-        "slots": ["optic", "underbarrel"], "slab_m": 0.004, "pitch_m": 0.0025, "dead_m": 0.003, "clamp_m": 0.06, "reach_m": 0.5}
+        "slots": ["optic", "underbarrel"], "slab_m": 0.004, "pitch_m": 0.0025, "dead_m": 0.003, "clamp_m": 0.06, "reach_m": 0.5,
+        "cap_m": 0.03}  # A6 (W8n): the cap, 30 mm
 
 
 # --- the contact table validates ---------------------------------------------------------------------------------------------
@@ -161,7 +162,7 @@ def test_the_contact_table_the_attach_version_and_the_code_digests_are_in_the_fi
         _, _, r = run(tree, cache, rules)
         assert r["contact_stats"]["computed"] == n and r["contact_stats"]["cached"] == 0, name
         monkeypatch.undo()
-    monkeypatch.setattr(pkg, "WEAPON_ATTACH_VERSION", 10)
+    monkeypatch.setattr(pkg, "WEAPON_ATTACH_VERSION", 11)
     _, _, r = run(tree, cache, rules)
     assert r["contact_stats"]["computed"] == n, "WEAPON_ATTACH_VERSION is in the pair fingerprint"
 

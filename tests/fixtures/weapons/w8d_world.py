@@ -45,6 +45,9 @@ def world_rules() -> dict:
     and the W8 fixture packs and its tests judge cross-pack candidates, which a gate would otherwise remove."""
     rules = C.compat_rules()
     rules["attachment_rules"]["attach_genre_by_pack"] = {pack: "fixture" for pack in (*PACK_SETTINGS, "FAKE_Generic")}  # FAKE_Generic has no pack setting (AC5)
+    # A6 (W8n): the magazine lower bound (attach_compat.fit_span_min, 13.7 A6-3) is off in this world. Its cross-pack magazine pair (a 0.04 m foot over a
+    # 0.06 m well, ratio 0.667) is the one the export, preview and review tests pin; the bound itself is tested in test_weapons_w8n_magazine.py.
+    rules["attachment_rules"]["attach_compat"]["fit_span_min"] = 0.0
     return rules
 ROT_HOST = C.H[C.ALPHA]  # FAKE_CompA/SM_Wep_Rifle_Alpha_01
 ATTACH_PACKS = (A.PACK, A.MOUNT_PACK, C.PACK_A, C.PACK_B)  # the packs that carry attachment parts and hosts

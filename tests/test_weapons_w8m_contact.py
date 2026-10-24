@@ -26,7 +26,7 @@ from synty_inventory.weapons import attach, directory as dirmod  # noqa: E402
 
 @pytest.fixture(scope="module")
 def built(tmp_path_factory):
-    directory, _, _, root = W.build(tmp_path_factory.mktemp("w8m_contact"), M.world())
+    directory, _, _, root = W.build(tmp_path_factory.mktemp("w8m_contact"), M.world(), rules=M.uncapped_rules())
     return SimpleNamespace(directory=directory, by_id=W.by_id(directory), root=root)
 
 

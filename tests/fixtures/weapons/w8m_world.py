@@ -42,6 +42,15 @@ SIGHT_PART = "SM_Wep_IronSight_Front_01"
 OTHER_PARTS = (MAG_PART, LASER_PART, SILENCER_PART, SIGHT_PART)  # (xi): slots that never get a key
 
 
+def uncapped_rules() -> dict:
+    """The shipped rules with the A6 settle cap (``contact.cap_m``, 30 mm) raised to the clamp (60 mm): the W8m cases that pin a clamped or a deep
+    shift (Far59, Far90, UbSunk) keep their literals, because with the cap off nothing is removed from ``compatible_hosts``. The cap itself
+    is tested in test_weapons_w8n_cap.py."""
+    rules = W.sight_rules()
+    rules["attachment_rules"]["contact"]["cap_m"] = rules["attachment_rules"]["contact"]["clamp_m"]
+    return rules
+
+
 def host_id(case: str) -> str:
     return f"SM_Wep_Rifle_{case}_01"
 

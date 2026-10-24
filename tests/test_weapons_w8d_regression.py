@@ -122,7 +122,7 @@ def test_counts_and_digests_equal_the_w7_report(built, reference):
     assert (built["rules_digest"], built["geometry_version"]) == ("7b9829af37328fe7", 5)
     assert built["overrides_digest"] == reference["overrides_digest"]
     assert set(built) - set(reference) == NEW_HEADER and not set(reference) - set(built)
-    assert built["attach_version"] == 9 and len(built["attach_rules_digest"]) == 16
+    assert built["attach_version"] == 10 and len(built["attach_rules_digest"]) == 16
 
 
 def test_every_pre_existing_field_is_equal_and_review_moves_only_by_the_attachment_reasons(built, reference):
@@ -133,7 +133,7 @@ def test_every_pre_existing_field_is_equal_and_review_moves_only_by_the_attachme
 def test_the_diff_is_not_vacuous_and_the_new_fields_are_present(built, reference):
     ref_by = {w["id"]: w for w in reference["weapons"]}
     moved = [w["id"] for w in built["weapons"] if w["review"] != ref_by[w["id"]]["review"]]
-    assert len(moved) == 81  # records whose reasons gained an attachment reason (12 of them also move in confidence); A2: +39 hosts with a sight probe seat (mount_estimated); A3 (W8i): -3 (the Prop_Pistol, Flare_Gun and Prop_Rifle hosts are slot_disabled, no mount_estimated) and +1 (Pistol_Mount is now seated: its baked laser child is out of the probe mesh); A3 addendum 3 (W8j): -4 (the Alpha, Mount, Shared and Tilt hosts carry a baked Scope body child, so both their sight slots are slot_disabled, no mount_estimated); A4 (W8l): +1 (FAKE_CompA Alpha has no underbarrel seat and the foregrip part now lists it, family-free, so it gains mount_missing; the five FAKE_Modern hosts that gain it already moved by mount_estimated)
+    assert len(moved) == 80  # records whose reasons gained an attachment reason (12 of them also move in confidence); A2: +39 hosts with a sight probe seat (mount_estimated); A3 (W8i): -3 (the Prop_Pistol, Flare_Gun and Prop_Rifle hosts are slot_disabled, no mount_estimated) and +1 (Pistol_Mount is now seated: its baked laser child is out of the probe mesh); A3 addendum 3 (W8j): -4 (the Alpha, Mount, Shared and Tilt hosts carry a baked Scope body child, so both their sight slots are slot_disabled, no mount_estimated); A4 (W8l): +1 (FAKE_CompA Alpha has no underbarrel seat and the foregrip part now lists it, family-free, so it gains mount_missing; the five FAKE_Modern hosts that gain it already moved by mount_estimated); A6 (W8n): -1 (the FAKE_Modern Nail_Gun host is a tool-class host, slot_disabled on all seven slots, so no mount_estimated)
     assert sum(1 for w in built["weapons"] if w["review"]["confidence"] != ref_by[w["id"]]["review"]["confidence"]) == 12
     assert sum(1 for w in built["weapons"] if "attachment" in w) == 56  # every part record carries the key
     assert sum(1 for w in built["weapons"] if w.get("attachment")) == 39  # 39 non-null blocks (A2: the iron-sight part is sight_side_unsure, no block)
