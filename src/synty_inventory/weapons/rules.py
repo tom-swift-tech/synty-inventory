@@ -56,7 +56,7 @@ ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affin
                    "contact",  # A5 (W8m): settle to contact (spec 5.4)
                    "attach_host_class", "attach_class_never", "muzzle_seat",  # A6 (W8n): host classes (13.7 A6-1), the silencer seat (A6-2)
                    "attach_filled_hosts", "attach_filled_open",  # A6 (W8n, Tom 2026-10-24): hosts that refuse each slot a built-in part already fills (presets); the slots that stay open
-                   "cross_pack_never", "tokenless_family_free_slots")  # A7 (W8o): slot -> host archetypes a cross-pack suppressor never takes (R-c); the slots a name-less part passes the family test on (A7-4)
+                   "cross_pack_never", "tokenless_family_free_slots", "attach_mount")  # A7 (W8o): slot -> host archetypes a cross-pack suppressor never takes (R-c); the slots a name-less part passes the family test on (A7-4)
 BAKED_SIGHT_KEYS = ("tokens", "not_tokens", "rear_tokens")  # attachment_rules.baked_sights (docs/weapon_attachments.md 4.6 item 7): required
 # A3 addendum 3 (W8j, item 8): optional name-token lists (empty allowed, an absent list switches that part of the rule off), the carry-handle
 # height fraction and the fused front post parameters (name -> (type, minimum, maximum); metres unless a count or a fraction)
@@ -468,6 +468,8 @@ def _check_attachment_rules(val) -> list[str]:
         errors.extend(_check_family_free_slots(val["tokenless_family_free_slots"], "tokenless_family_free_slots"))
     if val.get("cross_pack_never") is not None:
         errors.extend(_check_cross_pack_never(val["cross_pack_never"]))
+    if val.get("attach_mount") is not None:
+        errors.extend(_check_attach_mount(val["attach_mount"]))
     if val.get("contact") is not None:
         errors.extend(_check_contact(val["contact"]))
     if val.get("attach_host_class") is not None:
@@ -643,6 +645,18 @@ def _check_cross_pack_never(val) -> list[str]:
             errors.append(f"{where}.{slot}: unknown archetype(s) {sorted(set(archetypes) - set(ARCHETYPES))}")
         elif len(set(archetypes)) != len(archetypes):
             errors.append(f"{where}.{slot}: archetypes must be distinct")
+    return errors
+
+
+def _check_attach_mount(val) -> list[str]:
+    """``attach_mount``: ``{peel_bore_d_m: [lo, hi]}`` (A7-3, spec 13.8), the bore diameters (metres) a muzzle face peel may accept: ``0 < lo < hi <= 0.2``."""
+    where = "attachment_rules.attach_mount"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping"]
+    errors = [f"{where}.{key}: unknown key (allowed: peel_bore_d_m)" for key in val if key != "peel_bore_d_m"]
+    rng = val.get("peel_bore_d_m")
+    if not (isinstance(rng, list) and len(rng) == 2 and all(_is_num(v) for v in rng) and 0 < rng[0] < rng[1] <= 0.2):
+        errors.append(f"{where}.peel_bore_d_m: required, a list of two numbers lo, hi with 0 < lo < hi <= 0.2")
     return errors
 
 

@@ -100,6 +100,7 @@ CONF_NONE = 0.0
 _BODY_FRAC = 0.9  # a node this large against the whole host is the body, not a baked child
 _RING_BIN_M = 0.001  # radial histogram bin of the bore estimator (spec 4.2)
 _RING_MIN_POINTS = 6
+_PEEL_MAX_DROP = 0.70  # A7-3: the most of the muzzle face the peel may drop to find a ring (spec 13.8)
 _EPS = 1e-9
 # slot -> sign of the host's up axis that the mount's `up` takes (spec 4.2): optic out of the receiver, the others hang below
 _UP_SIGN = {"optic": 1, "sight_front": 1, "sight_rear": 1, "underbarrel": -1, "magazine": -1, "laser_light": -1}
@@ -480,14 +481,48 @@ def bore_diameter(face: np.ndarray, forward_axis: int) -> tuple[float | None, st
     return _r(2.0 * float(radius.max())), "face_extent"
 
 
+def peel_face(face: np.ndarray, forward_axis: int, bore_range) -> list[float] | None:
+    """A7-3 (spec 13.8): the lateral centroid of the muzzle face once the peel finds a bore ring, or None when it is not accepted.
+
+    ``face`` has no ring (``bore_diameter`` says ``face_extent``): the point farthest from the centroid of the rest (in the plane normal to
+    the forward axis; first index on a tie) is dropped, one at a time, until ``bore_diameter`` sees a ring or fewer than ``_RING_MIN_POINTS``
+    points are left. The ring is accepted when at most ``_PEEL_MAX_DROP`` of the face was dropped and its diameter lies in ``bore_range``
+    (``[lo, hi]`` metres, both inclusive). The result holds the two lateral coordinates, in axis order (the points the ring test passed on).
+    """
+    lat = [i for i in range(3) if i != forward_axis]
+    sub = face
+    while len(sub) >= _RING_MIN_POINTS:
+        diameter, source = bore_diameter(sub, forward_axis)
+        if source == "ring":
+            lo, hi = bore_range
+            if (len(face) - len(sub)) / len(face) <= _PEEL_MAX_DROP and lo <= diameter <= hi:
+                return [float(c) for c in sub[:, lat].mean(axis=0)]
+            return None
+        pts = sub[:, lat]
+        sub = np.delete(sub, int(np.argmax(np.linalg.norm(pts - pts.mean(axis=0), axis=1))), axis=0)
+    return None
+
+
 def _muzzle_mount(path, glb_node, scale, verts, axes: dict, occupied: list[str], cap: float | None,
-                  probe: Callable) -> dict:
-    """The A0 probe on the host minus ``occupied`` (the whole host when it is empty), as a mount (spec 4.2)."""
+                  probe: Callable, peel=None) -> dict:
+    """The A0 probe on the host minus ``occupied`` (the whole host when it is empty), as a mount (spec 4.2).
+
+    ``peel`` (A7-3) is the ``attach_mount.peel_bore_d_m`` range, None = no peel. A probe point that is the mean of a face with no bore ring
+    (``face_extent``) is moved sideways to the centroid of the ring the peel finds in it; the forward coordinate, ``bore_d_m``, ``bore_source``
+    and the confidence stay as the unpeeled face gave them.
+    """
     reduced = verts if not occupied else _load(path, None, glb_node, scale, frozenset(occupied))
     if reduced is None:
         return none_mount("probe_unavailable")
     point, muzzle_source, face = probe(reduced, axes["forward"], axes["up"])
-    bore, bore_source = bore_diameter(face, "xyz".index(axes["forward"][1]))
+    f_i = "xyz".index(axes["forward"][1])
+    bore, bore_source = bore_diameter(face, f_i)
+    if peel is not None and muzzle_source == "face" and bore_source == "face_extent":
+        centre = peel_face(face, f_i, peel)
+        if centre is not None:
+            point = [float(c) for c in point]
+            for i, c in zip([i for i in range(3) if i != f_i], centre):
+                point[i] = c
     conf = CONF_FALLBACK if muzzle_source == "bounds_fallback" else (CONF_RING if bore_source == "ring" else CONF_FACE_EXTENT)
     if cap is not None:
         conf = min(conf, cap)
@@ -616,7 +651,8 @@ def build_mounts(
         if slot == "muzzle":
             # the matching children only fill occupied_by; the seat is the probe's, whatever else is baked on
             occupied = sorted(set(by_slot[slot]) | ({forced} if forced else set()))
-            mounts[slot] = resolve_slot(None, None, _muzzle_mount(path, glb_node, scale, verts, axes, occupied, cap, probe))
+            mounts[slot] = resolve_slot(None, None, _muzzle_mount(path, glb_node, scale, verts, axes, occupied, cap, probe,
+                                                           (tables.get("attach_mount") or {}).get("peel_bore_d_m")))
             continue
         measured = measured_by_slot[slot] = _measure_children(vertices, slot, by_slot[slot] + ([forced] if forced else []),
                                                               tables.get("anchor"))
