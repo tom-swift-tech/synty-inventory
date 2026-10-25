@@ -634,11 +634,6 @@ attachment_rules:
   # `suppressor` by the spec, there is no key for it. Same-pack suppressors on these hosts are untouched. Empty or absent = no rule.
   cross_pack_never:
     muzzle: [shotgun]
-  # A7-3 (13.8): a muzzle face with no bore ring (bore_source face_extent) is peeled: its farthest-from-centroid points are dropped one at a time until a ring
-  # shows; the mount point then moves sideways to the centroid of the points left. Accepted only when at most 70 % of the face was dropped and the ring
-  # diameter (metres, both ends inclusive) lies in peel_bore_d_m. Inside attachment_rules: moves attach_rules_digest, never rules_digest. Absent = no peel.
-  attach_mount:
-    peel_bore_d_m: [0.006, 0.035]
   # Settle to contact (A5, spec 5.4): the parts of these slots get a per-pair `seat_shift_m` on their compatible_hosts entries, found by casting the
   # part's contact face (the 4 mm slab at its extreme, sampled every 2.5 mm) onto the host's outer surface along the mount's up. A pair within dead_m
   # (3 mm) of the surface is left alone, a bigger offset is closed up to clamp_m, a host surface further than reach_m is ignored. Inside

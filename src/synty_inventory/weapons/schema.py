@@ -369,12 +369,6 @@ def _schema_errors(schema: dict, doc, prefix: str = "") -> list[str]:
     return out
 
 
-def _peeled_point(m: dict, muzzle: list, forward: str) -> bool:
-    """A7-3 (W8o, 13.8): a muzzle face with no bore ring (``bore_source`` ``face_extent``) may sit sideways of ``geometry.muzzle``; the forward coordinate never moves."""
-    f_i = "xyz".index(forward[1])
-    return m["bore_source"] == "face_extent" and m["point"][f_i] == muzzle[f_i]
-
-
 def _frame_errors(frame: dict, where: str) -> list[str]:
     """INV-18: unit forward and up, orthogonal to each other (right = up x forward is then right-handed by construction)."""
     f, u = frame["forward"], frame["up"]
@@ -510,7 +504,7 @@ def _check_mount(slot: str, m: dict, geom: dict, where: str) -> list[str]:
         muzzle = geom["muzzle"]
         if muzzle is None:
             errs.append(f"{here}: a probe muzzle needs geometry.muzzle (a ranged, non-bow host)")
-        elif not occ and m["point"] != muzzle and not _peeled_point(m, muzzle, geom["axes"]["forward"]):
+        elif not occ and m["point"] != muzzle:
             errs.append(f"{here}.point: with no occupied_by the seat is geometry.muzzle exactly (AC67)")
         axes = geom["axes"]
         for key, want in (("up", axes["forward"]), ("forward", axes["up"])):
