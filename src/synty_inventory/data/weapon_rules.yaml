@@ -470,6 +470,12 @@ attachment_rules:
     # never touched, and a pair without a span or a foot length is not judged.
     drum_min_m: 0.11
     fit_span_min: 0.75
+    # Cross-pack size gate (A7-2 R-a, 13.8): a cross_pack_fit pair on one of these slots whose seat names a baked child with recorded extents is dropped
+    # (listed or pending) when max over the three sorted extents of |part / child - 1| exceeds the slot's number. Never twin, override or same_pack_fit;
+    # a slot absent here, or a host with no recorded child, is not checked. These were set on Tom's draw #1 and draw #2 labels (the largest labelled
+    # yes is 0.33 for magazine and optic, 0.38 for underbarrel), so they are FITTED, not validated: the control strata of draw #3 (A7-5) are the
+    # out-of-sample check. The same numbers gate the tokenless waiver below (A7-4).
+    cross_pack_size_tol: {magazine: 0.35, optic: 0.35, underbarrel: 0.45}
     generic_tokens: [wep, sm, attachment, attach, separate, mod, accessory, part, small, medium, med, large, big, huge, tiny,
                      mini, long, short, left, right, front, rear, top, bottom, alt, clean]
   # Setting gate (A2, spec 5.1): full pack id -> setting word. A candidate that is not an override needs the part's pack and the host's
@@ -620,6 +626,14 @@ attachment_rules:
   # Slots whose same_pack_fit candidate needs no family_overlap (A4, spec 5.1): the part names no gun. laser_light (no labelled pair yet), magazine
   # and optic (their names carry the family) are left out on purpose. Inside attachment_rules: moves attach_rules_digest, never rules_digest.
   family_free_slots: [sight_front, sight_rear, muzzle, underbarrel]
+  # A7-4 (13.8): a part with NO name tokens (every word generic) can never share a family token with a host. On these slots it passes the same_pack_fit
+  # family test anyway, but only when the host seat is a baked child (child_node) and the part is within cross_pack_size_tol of that child. A pair without
+  # a seat is neither listed nor pending; magazine and laser_light stay out. Remove the row to withdraw the waiver (draw #3 does the check).
+  tokenless_family_free_slots: [optic]
+  # A7-2 R-c (13.8): slot -> host archetypes on which a cross_pack_fit part of kind `suppressor` is vetoed (listed and pending). The kind is fixed to
+  # `suppressor` by the spec, there is no key for it. Same-pack suppressors on these hosts are untouched. Empty or absent = no rule.
+  cross_pack_never:
+    muzzle: [shotgun]
   # Settle to contact (A5, spec 5.4): the parts of these slots get a per-pair `seat_shift_m` on their compatible_hosts entries, found by casting the
   # part's contact face (the 4 mm slab at its extreme, sampled every 2.5 mm) onto the host's outer surface along the mount's up. A pair within dead_m
   # (3 mm) of the surface is left alone, a bigger offset is closed up to clamp_m, a host surface further than reach_m is ignored. Inside

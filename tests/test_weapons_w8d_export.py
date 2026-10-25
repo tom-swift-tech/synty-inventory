@@ -158,7 +158,7 @@ def test_with_attachments_the_same_snapshot_differs_only_by_the_added_keys(world
     assert strip_added(doc_of(att)) == doc_of(plain)
     got = doc_of(att)
     gf = got["generated_from"]
-    assert gf["attach_version"] == 11 and len(gf["attach_rules_digest"]) == 16
+    assert gf["attach_version"] == 12 and len(gf["attach_rules_digest"]) == 16
     assert gf["attach_rules_digest"] != gf["rules_digest"] == "7b9829af37328fe7" and gf["geometry_version"] == 5
     assert gf["filter"]["attachments"] is True
     assert sorted(gf) == ["attach_rules_digest", "attach_version", "filter", "geometry_version", "overrides_digest", "packs",
@@ -276,7 +276,7 @@ def hosts_of(rec, key="compatible_hosts"):
 
 def test_min_compat_tier_filters_compatible_and_pending_hosts_and_pending_are_ids_sorted_by_tier_then_host(world, capsys):
     # Rifle_Mag_01 in the directory: twin Alpha, Mount_01; cross_pack_fit Double_01; pending Beta + Epsilon (same_pack_fit), then
-    # cross_pack_fit candidates (Delta, Pistol_Mount, Fall, Hull, Muzz, Plain, Shared, Tilt, ...)
+    # cross_pack_fit candidates (Delta, Fall, Hull, Muzz, Plain, Shared, Tilt, ...; no pistol host: A7-2 R-b)
     expect = {
         "override": ([], []),
         "twin": ([("SM_Wep_Rifle_Alpha_01", "twin"), ("SM_Wep_Rifle_Mount_01", "twin")], []),
@@ -284,22 +284,28 @@ def test_min_compat_tier_filters_compatible_and_pending_hosts_and_pending_are_id
                           ["FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]),
     }
     for tier, (compat, pending) in expect.items():
-        _, _, out = export(world, capsys, "--roles", "all", "--attachments", "--min-compat-tier", tier, name=f"t_{tier}.json")
+        # A7-1: the two cuts are separate flags now; this loop sets both to the tier, the old single-cut behaviour
+        _, _, out = export(world, capsys, "--roles", "all", "--attachments", "--min-compat-tier", tier, "--pending-min-tier", tier,
+                           name=f"t_{tier}.json")
         rec = by_id(doc_of(out))[MAG]
         assert hosts_of(rec) == compat, tier
         assert rec["attachment"]["pending_hosts"] == pending, tier
-    _, _, out = export(world, capsys, "--roles", "all", "--attachments", "--min-compat-tier", "cross_pack_fit", name="t_cross.json")
+    _, _, out = export(world, capsys, "--roles", "all", "--attachments", "--min-compat-tier", "cross_pack_fit", "--pending-min-tier", "cross_pack_fit",
+                       name="t_cross.json")
     rec = by_id(doc_of(out))[MAG]
     assert hosts_of(rec)[-1] == ("SM_Wep_Rifle_Double_01", "cross_pack_fit") and len(rec["attachment"]["compatible_hosts"]) == 3
     pending = rec["attachment"]["pending_hosts"]
     assert pending[:2] == ["FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]  # same_pack_fit before cross
-    assert all(isinstance(p, str) for p in pending) and len(pending) == 12
+    # A7-2 R-b: 12 -> 10. Rifle_Mag_01 names a rifle, so its cross-pack pairs on the two pistol hosts (Attach/Pistol_01 and Mount/Pistol_Mount_01) are gone
+    assert all(isinstance(p, str) for p in pending) and len(pending) == 10
+    assert not [p for p in pending if "Pistol" in p]
     tail = pending[2:]
     assert tail == sorted(tail)  # one tier left: ordered by host id
-    # the default (same_pack_fit) keeps the cross-pack candidate off both lists (AC75's second half)
+    # A7-1: the default lists the cross-pack candidate that has a seat (compatible_hosts reaches cross_pack_fit) and keeps the seatless ones off
+    # pending_hosts (the pending cut stays at same_pack_fit); the old default kept the cross-pack candidate off both lists (AC75's second half)
     _, _, default = export(world, capsys, "--roles", "all", "--attachments", name="t_default.json")
-    assert not [h for h in hosts_of(by_id(doc_of(default))[MAG]) if h[1] == "cross_pack_fit"]
-    assert not [p for p in by_id(doc_of(default))[MAG]["attachment"]["pending_hosts"] if "Delta" in p]
+    assert [h for h in hosts_of(by_id(doc_of(default))[MAG]) if h[1] == "cross_pack_fit"] == [("SM_Wep_Rifle_Double_01", "cross_pack_fit")]
+    assert by_id(doc_of(default))[MAG]["attachment"]["pending_hosts"] == ["FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]
 
 
 def test_hosts_outside_the_exported_set_are_dropped_unless_keep_foreign_hosts(world, capsys):

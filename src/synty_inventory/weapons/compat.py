@@ -24,6 +24,14 @@ same_pack_fit, cross_pack_fit and the pending list, which are one candidate list
   sight slots, ``muzzle`` and ``underbarrel``: a silencer or a foregrip names no gun), read through ``_params``; nothing else changes (every
   veto, ``fit_span`` and ``fit_bore`` stay), and ``magazine`` / ``optic`` / ``laser_light`` keep the name test.
 * ``cross_pack_fit``: another pack, ``affinity`` AND a measured fit, no veto (0.3 to 0.6, reason ``compat_cross_pack``).
+* A7 (W8o, 13.8). (A7-1) ``cross_pack_fit`` joins ``DEFAULT_TIERS``; ``DEFAULT_PENDING_TIERS`` (override, twin, same_pack_fit) is the default cut of
+  the export's ``pending_hosts`` and keeps the old meaning of the ``mount_missing`` loop. (A7-2) three precision rules on the ``cross_pack_fit`` tier
+  only: R-a, a part on a slot of ``attach_compat.cross_pack_size_tol`` whose sorted extents deviate from the smallest-deviation baked child its seat
+  replaces by more than the slot's tolerance is dropped (listed or pending: a pending pair has no seat, so it is not checked); R-b, a part named
+  after a gun class (``GUN_CLASS_WORDS``) is vetoed on a host of the other group (``HANDGUN_CLASSES`` or not), a handgun-named part staying
+  allowed on an ``smg``; R-c, ``attachment_rules.cross_pack_never`` (slot -> host archetypes) vetoes a ``suppressor`` part. (A7-4) a part with NO
+  name tokens passes the ``same_pack_fit`` family test on a slot of ``tokenless_family_free_slots`` when its seat is a ``child_node`` and its
+  deviation from the baked child is within the slot's ``cross_pack_size_tol``; every other test of the tier is unchanged.
 * A6 (W8n, 13.7 A6-3), magazines only. (i) DRUM BY SHAPE: a magazine whose smaller body side (``min(length_m, width_m)`` of the footprint) is at least
   ``attach_compat.drum_min_m`` (0.11) reads the ``drum`` row of ``attach_affinity`` for its affinity, whatever its name or its classified kind; the
   record's ``kind`` is not touched. (ii) LOWER BOUND: a ``same_pack_fit`` or ``cross_pack_fit`` magazine whose ``foot_length_m / span_m`` is below
@@ -77,7 +85,10 @@ FIT_SPAN_FITS = 1.0  # foot_length / span <= 1.0 adds the span bonus
 FIT_SPAN_NEUTRAL_MAX = 1.5  # up to 1.5 neutral; above it a PROBE span vetoes, a child_foot span stays neutral-or-worse
 FIT_BORE_REL_TOL = 0.35  # |mate_d - bore_d| <= 0.35 * bore_d adds the bore bonus, otherwise it subtracts the penalty
 SCORE_BANDS = {"same_pack_fit": (0.6, 0.9), "cross_pack_fit": (0.3, 0.6)}  # spec 5.1 table
-DEFAULT_TIERS = ("override", "twin", "same_pack_fit")  # what the default export lists (D-11)
+DEFAULT_TIERS = ("override", "twin", "same_pack_fit", "cross_pack_fit")  # what the default export lists in compatible_hosts (A7-1; D-11 superseded)
+DEFAULT_PENDING_TIERS = ("override", "twin", "same_pack_fit")  # the default cut of pending_hosts (A7-1, D-13) and what `mount_missing` counts
+GUN_CLASS_WORDS = frozenset({"pistol", "revolver", "smg", "rifle", "shotgun", "sniper", "lmg"})  # A7-2 R-b: the archetype words a part's name can carry
+HANDGUN_CLASSES = frozenset({"pistol", "revolver"})  # A7-2 R-b: the handgun group; every other archetype is "long"
 COMPAT_REASONS = ("compat_cross_pack", "mount_missing", "twin_multi")  # the reasons this pass owns
 HIDES_MARGIN_M = 0.010  # an optic hides the rear sight when its placed extent, widened by 10 mm each way, contains the seat (spec 4.3)
 
@@ -86,6 +97,7 @@ _DEFAULTS = {
     "tier_score": {"override": 1.0, "twin": 0.95}, "base": {"same_pack_fit": 0.7, "cross_pack_fit": 0.4},
     "fit_span_bonus": 0.1, "fit_bore_bonus": 0.1, "fit_bore_penalty": 0.1, "generic_tokens": [],
     "drum_min_m": 0.11, "fit_span_min": 0.75,  # A6 (W8n): a magazine this thick on both sides is a drum; a foot under this share of the well is vetoed
+    "cross_pack_size_tol": {},  # A7-2 R-a: slot -> max per-axis deviation from the baked child; empty = no slot is checked
 }
 
 
@@ -120,6 +132,24 @@ def matched_child(extents, children: dict) -> str | None:
     gaps = [(max(abs(a - b) for a, b in zip(sorted(extents), row["extents"])), name)
             for name, row in children.items() if is_twin(extents, row["extents"])]
     return min(gaps)[1] if gaps else None
+
+
+def child_deviation(part_extents, mount: dict | None, children: dict | None) -> float | None:
+    """A7-2: how far a part's sorted extents are from the baked child its seat replaces, or None when no child has recorded extents.
+
+    Per child named in ``mount["occupied_by"]`` that is a key of ``children`` (``{node: {"extents": sorted, ...}}``) the deviation is
+    ``max over the three sorted extents of |part_i / child_i - 1|`` (a child with a zero extent is skipped); the SMALLEST over those children is returned.
+    """
+    if part_extents is None or not mount or not children:
+        return None
+    best = None
+    for node in mount.get("occupied_by") or ():
+        row = children.get(node)
+        if not row or len(row["extents"]) != 3 or any(c == 0 for c in row["extents"]):
+            continue
+        dev = max(abs(p / c - 1.0) for p, c in zip(sorted(part_extents), row["extents"]))
+        best = dev if best is None else min(best, dev)
+    return best
 
 
 def fit_span(foot_length_m, mount: dict | None) -> str | None:
@@ -182,6 +212,8 @@ def _params(tables: dict) -> dict:
     got = tables.get("attach_compat") or {}
     out = {k: got.get(k, v) if not isinstance(v, dict) else {**v, **(got.get(k) or {})} for k, v in _DEFAULTS.items()}
     out["family_free_slots"] = frozenset(tables.get("family_free_slots") or ())  # A4: the slots whose same_pack_fit needs no family_overlap
+    out["tokenless_family_free_slots"] = frozenset(tables.get("tokenless_family_free_slots") or ())  # A7-4: the slots a name-less part passes the family test on, size-gated
+    out["cross_pack_never"] = {slot: frozenset(archs or ()) for slot, archs in (tables.get("cross_pack_never") or {}).items()}  # A7-2 R-c: slot -> host archetypes
     return out
 
 
@@ -191,14 +223,15 @@ def setting_of(genre_by_pack: dict | None, pack: str):
     return ("setting", word) if word else ("pack", pack)
 
 
-def _host_view(rec: dict, generic, genre_by_pack: dict | None = None, tables: dict | None = None) -> dict:
+def _host_view(rec: dict, generic, genre_by_pack: dict | None = None, tables: dict | None = None, children: dict | None = None) -> dict:
     mounts = (rec.get("geometry") or {}).get("mounts") or {}
     # A6 (W8n, 13.7 A6-1): a host with no measured mounts (a prefab-only preset) has no `slot_disabled` seat to veto its pairs, so the slots its name
     # refuses (attach_host_never and the host classes) are carried here and read as disabled. A measured host already has them as its mounts.
     refused = frozenset(excluded_slots(rec["asset_id"], tables)) if tables and not mounts else frozenset()
     return {"id": rec["id"], "pack": rec["pack"], "archetype": rec["archetype"], "flags": set(rec["flags"]),
             "mounts": mounts, "tokens": name_tokens(rec["asset_id"], generic),
-            "setting": setting_of(genre_by_pack, rec["pack"]), "refused": refused}
+            "setting": setting_of(genre_by_pack, rec["pack"]), "refused": refused,
+            "children": children or {}}  # A7-2: {slot: {baked child node: {"extents": sorted, ...}}} of this build's measurement (empty: none recorded)
 
 
 def forward_extent(rec: dict) -> tuple[float, float] | None:
@@ -237,6 +270,8 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
 
     ``part`` is ``{id, pack, slot, kind, flags, tokens, foot_length_m, mate_d_m, setting, extent_m?, body_min_m?}``, ``host`` a ``_host_view``.
     ``body_min_m`` (A6) is the smaller of the footprint's length and width: a magazine at ``drum_min_m`` or more reads the drum affinity row.
+    ``extents`` (A7) is the part's sorted footprint extents and the host's ``children`` the recorded baked children per slot; a part or host without
+    them is simply not size-checked.
     ``verdict`` is the override verdict for this pair (``add`` / ``remove`` / None), ``twin`` whether the host has a twin child.
     ``twin_replaces`` (A1) is the one child a ``twin`` entry replaces; without it a twin entry copies the slot's ``occupied_by``.
     """
@@ -248,6 +283,8 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
     mount = host["mounts"].get(slot)
     available = mount is not None and mount["source"] != "none"
     disabled = (mount is not None and mount["source"] == "none" and mount.get("reason") == "slot_disabled") or slot in host.get("refused", ())
+    deviation = child_deviation(part.get("extents"), mount, (host.get("children") or {}).get(slot)) if available else None  # A7: None without a recorded child
+    size_tol = params["cross_pack_size_tol"].get(slot)  # A7: None = this slot is not size-checked
     span = fit_span(part["foot_length_m"], mount) if available else None
     bore = fit_bore(part["mate_d_m"], mount) if available else None
     same_pack = host["pack"] == part["pack"]
@@ -264,13 +301,24 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
         return None
     elif twin:
         tier = "twin"
-    elif same_pack and (family or slot in params["family_free_slots"]) and affine:  # A3 / A4: a sight, a muzzle device and a foregrip name no gun
+    elif same_pack and (family or slot in params["family_free_slots"] or (  # A3 / A4: a sight, a muzzle device and a foregrip name no gun
+            not part["tokens"] and slot in params["tokenless_family_free_slots"] and available and mount["source"] == "child_node"
+            and deviation is not None and size_tol is not None and deviation <= size_tol)) and affine:  # A7-4: a name-less part, seat and size decide
         tier = "same_pack_fit"
     elif not same_pack and affine and (
             not available or (bore != "bad" and (span in ("fits", "neutral") or bore == "good"))):
         tier = "cross_pack_fit"  # no seat to measure against: pending on affinity alone (judgment call in the docstring)
     else:
         return None
+    if tier == "cross_pack_fit":  # A7-2: three precision rules, this tier only (twin, override and same_pack_fit carry name or authored evidence)
+        named = part["tokens"] & GUN_CLASS_WORDS
+        if any((t in HANDGUN_CLASSES) != (host["archetype"] in HANDGUN_CLASSES)
+               and not (t in HANDGUN_CLASSES and host["archetype"] == "smg") for t in named):
+            return None  # R-b: a handgun part on a long gun or the reverse (a pistol part on an smg stays: machine pistols)
+        if part["kind"] == "suppressor" and host["archetype"] in params["cross_pack_never"].get(slot, ()):
+            return None  # R-c: pending too; the kind is fixed to `suppressor` by the spec
+        if available and size_tol is not None and deviation is not None and deviation > size_tol:
+            return None  # R-a: the wrong size for the baked child it replaces; a pending pair has no seat and is not checked
     if (slot == "magazine" and tier in ("same_pack_fit", "cross_pack_fit") and available and mount.get("span_m")
             and part["foot_length_m"] is not None and part["foot_length_m"] / mount["span_m"] < params["fit_span_min"]):
         return None  # A6 (ii): a foot far smaller than the well; not listed, not pending (a pending candidate has no seat to measure against)
@@ -309,7 +357,7 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
     genre_by_pack = tables.get("attach_genre_by_pack") or {}
     child_extents = child_extents or {}
     prev_twins = prev_twins or {}
-    hosts = [_host_view(r, generic, genre_by_pack, tables) for r in sorted(records, key=lambda r: r["id"])
+    hosts = [_host_view(r, generic, genre_by_pack, tables, child_extents.get(r["id"])) for r in sorted(records, key=lambda r: r["id"])
              if eligible(r["role"], r["kind"], r["hold_class"])]
     host_ids = [h["id"] for h in hosts]
     parts: dict[str, dict] = {}
@@ -326,6 +374,7 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
                 "body_min_m": min((att["footprint"] or {}).get("length_m", 0.0), (att["footprint"] or {}).get("width_m", 0.0)) if att["footprint"] else None,
                 "extent_m": forward_extent(rec) if att["slot"] == "optic" else None}
         extents = sorted_extents(att["footprint"])
+        part["extents"] = extents  # A7-2: the size evidence against a host's baked child
         eff = effective_override(rec["id"], overrides) if overrides else None
         sources = (eff or {}).get("compat_sources") or []
         for src in sources:
@@ -360,7 +409,7 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
             reasons.add("compat_cross_pack")
         parts[rec["id"]] = {"compatible": listed, "pending": pending, "reasons": reasons}
         for e in pending:
-            if e["tier"] in DEFAULT_TIERS:
+            if e["tier"] in DEFAULT_PENDING_TIERS:  # A7-1: the old default set, so the `mount_missing` reasons do not move
                 host_slots.setdefault(e["host"], set()).add(part["slot"])
     return {"parts": parts, "host_slots": host_slots, "problems": sorted(problems)}
 
@@ -473,7 +522,7 @@ def apply_compat(records: list[dict], rules: dict, overrides: dict | None = None
 # -- the export view (W8d wires these behind --attachments; D-11, C-23) -------------------------------------
 
 
-def export_compatible(entries: list[dict], min_tier: str = "same_pack_fit") -> list[dict]:
+def export_compatible(entries: list[dict], min_tier: str = "cross_pack_fit") -> list[dict]:
     """``compatible_hosts`` entries at or above ``min_tier`` (the order is kept)."""
     return [e for e in entries if tier_rank(e["tier"]) <= tier_rank(min_tier)]
 

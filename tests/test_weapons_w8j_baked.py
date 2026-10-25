@@ -459,7 +459,7 @@ def test_ac103_the_versions_and_digests():
     import synty_inventory.weapons as pkg
     from synty_inventory.weapons.rules import attach_rules_digest, weapon_rules_digest
 
-    assert pkg.WEAPON_ATTACH_VERSION == 11 and pkg.WEAPON_GEOMETRY_VERSION == 5
+    assert pkg.WEAPON_ATTACH_VERSION == 12 and pkg.WEAPON_GEOMETRY_VERSION == 5
     assert weapon_rules_digest(load_rules()) == "7b9829af37328fe7"  # the W7 digest: the attachment tables are not part of it
     base = attach_rules_digest(load_rules())
     assert attach_rules_digest(_rules_with(fused_post={**load_rules()["attachment_rules"]["baked_sights"]["fused_post"], "rise_m": 0.009})) != base

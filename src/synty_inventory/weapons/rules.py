@@ -55,7 +55,8 @@ ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affin
                    "anchor", "family_free_slots",  # A4 (W8l): the foot ladder and free-end forward, the name-generic slots
                    "contact",  # A5 (W8m): settle to contact (spec 5.4)
                    "attach_host_class", "attach_class_never", "muzzle_seat",  # A6 (W8n): host classes (13.7 A6-1), the silencer seat (A6-2)
-                   "attach_filled_hosts", "attach_filled_open")  # A6 (W8n, Tom 2026-10-24): hosts that refuse each slot a built-in part already fills (presets); the slots that stay open
+                   "attach_filled_hosts", "attach_filled_open",  # A6 (W8n, Tom 2026-10-24): hosts that refuse each slot a built-in part already fills (presets); the slots that stay open
+                   "cross_pack_never", "tokenless_family_free_slots")  # A7 (W8o): slot -> host archetypes a cross-pack suppressor never takes (R-c); the slots a name-less part passes the family test on (A7-4)
 BAKED_SIGHT_KEYS = ("tokens", "not_tokens", "rear_tokens")  # attachment_rules.baked_sights (docs/weapon_attachments.md 4.6 item 7): required
 # A3 addendum 3 (W8j, item 8): optional name-token lists (empty allowed, an absent list switches that part of the rule off), the carry-handle
 # height fraction and the fused front post parameters (name -> (type, minimum, maximum); metres unless a count or a fraction)
@@ -463,6 +464,10 @@ def _check_attachment_rules(val) -> list[str]:
         errors.extend(_check_anchor(val["anchor"]))
     if val.get("family_free_slots") is not None:
         errors.extend(_check_family_free_slots(val["family_free_slots"]))
+    if val.get("tokenless_family_free_slots") is not None:
+        errors.extend(_check_family_free_slots(val["tokenless_family_free_slots"], "tokenless_family_free_slots"))
+    if val.get("cross_pack_never") is not None:
+        errors.extend(_check_cross_pack_never(val["cross_pack_never"]))
     if val.get("contact") is not None:
         errors.extend(_check_contact(val["contact"]))
     if val.get("attach_host_class") is not None:
@@ -612,12 +617,33 @@ def _check_class_never(val, classes) -> list[str]:
     return errors
 
 
-def _check_family_free_slots(val) -> list[str]:
-    """``family_free_slots``: the slots whose same_pack_fit candidate needs no ``family_overlap`` (A4, spec 5.1); a list of distinct slots, may be empty."""
-    where = "attachment_rules.family_free_slots"
+def _check_family_free_slots(val, name: str = "family_free_slots") -> list[str]:
+    """``family_free_slots``: the slots whose same_pack_fit candidate needs no ``family_overlap`` (A4, spec 5.1); a list of distinct slots, may be empty.
+
+    ``tokenless_family_free_slots`` (A7-4, the slots a part with no name tokens passes the family test on, size-gated) has the same shape.
+    """
+    where = f"attachment_rules.{name}"
     if not isinstance(val, list) or not all(isinstance(s, str) and s in ATTACH_SLOTS for s in val):
         return [f"{where}: must be a list of slots from {list(ATTACH_SLOTS)}"]
     return [f"{where}: slots must be distinct"] if len(set(val)) != len(val) else []
+
+
+def _check_cross_pack_never(val) -> list[str]:
+    """``cross_pack_never``: ``{slot: [host archetypes]}`` (A7-2 R-c); a cross_pack_fit suppressor of the slot is vetoed on those hosts. Empty = no rule."""
+    where = "attachment_rules.cross_pack_never"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping slot -> [host archetypes]"]
+    errors: list[str] = []
+    for slot, archetypes in val.items():
+        if slot not in ATTACH_SLOTS:
+            errors.append(f"{where}.{slot}: not in {list(ATTACH_SLOTS)}")
+        elif not (isinstance(archetypes, list) and all(isinstance(a, str) for a in archetypes)):
+            errors.append(f"{where}.{slot}: must be a list of archetypes")
+        elif not set(archetypes) <= set(ARCHETYPES):
+            errors.append(f"{where}.{slot}: unknown archetype(s) {sorted(set(archetypes) - set(ARCHETYPES))}")
+        elif len(set(archetypes)) != len(archetypes):
+            errors.append(f"{where}.{slot}: archetypes must be distinct")
+    return errors
 
 
 def _check_host_never(val) -> list[str]:
@@ -757,8 +783,11 @@ def _check_attach_compat(val) -> list[str]:
         return [f"{where}: must be a mapping"]
     errors: list[str] = []
     for key in val:
-        if key not in ("tier_score", "base", "generic_tokens", *COMPAT_NUMBER_KEYS, *COMPAT_MAGAZINE_KEYS):
+        if key not in ("tier_score", "base", "generic_tokens", "cross_pack_size_tol", *COMPAT_NUMBER_KEYS, *COMPAT_MAGAZINE_KEYS):
             errors.append(f"{where}.{key}: unknown key")
+    tol = val.get("cross_pack_size_tol")  # A7-2 R-a: slot -> max deviation from the baked child; absent or empty = no slot is size-checked
+    if tol is not None and not (isinstance(tol, dict) and all(k in ATTACH_SLOTS and _is_num(v) and v > 0 for k, v in tol.items())):
+        errors.append(f"{where}.cross_pack_size_tol: must map slots from {list(ATTACH_SLOTS)} to numbers above 0")
     for key, (lo, hi) in COMPAT_MAGAZINE_KEYS.items():
         if key in val and not (_is_num(val[key]) and lo <= val[key] <= hi):
             errors.append(f"{where}.{key}: must be a number from {lo} to {hi}")

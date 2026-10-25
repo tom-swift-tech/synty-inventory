@@ -336,8 +336,10 @@ def register(sub) -> None:
     # act only together with `--attachments`)
     ex.add_argument("--attachments", action="store_true",
                     help="also emit host mounts and the attachment part records (default off: the output is the W7 one)")
-    ex.add_argument("--min-compat-tier", dest="min_compat_tier", choices=COMPAT_TIERS, default="same_pack_fit",
-                    help="drop compatible_hosts / pending_hosts below this tier (with --attachments)")
+    ex.add_argument("--min-compat-tier", dest="min_compat_tier", choices=COMPAT_TIERS, default=None,
+                    help="drop compatible_hosts below this tier (with --attachments; default cross_pack_fit)")
+    ex.add_argument("--pending-min-tier", dest="pending_min_tier", choices=COMPAT_TIERS, default=None,
+                    help="drop pending_hosts below this tier (with --attachments; default same_pack_fit: pending cross-pack pairs have no seat to measure)")
     ex.add_argument("--keep-foreign-hosts", dest="keep_foreign_hosts", action="store_true",
                     help="keep hosts that are not in the exported set (with --attachments)")
     ex.set_defaults(func=lambda a, c: _not_built(a, c, "export"))

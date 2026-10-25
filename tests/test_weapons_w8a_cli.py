@@ -55,9 +55,10 @@ def test_attach_preview_is_registered_and_wants_a_built_directory(cfg, capsys, m
 def test_the_export_attachment_flags_parse_with_their_defaults():
     base = ["weapons", "export", "--game", "g", "--packs", "A", "--out", "o.json"]
     args = build_parser().parse_args(base)
-    assert args.attachments is False and args.min_compat_tier == "same_pack_fit" and args.keep_foreign_hosts is False
-    args = build_parser().parse_args(base + ["--attachments", "--min-compat-tier", "twin", "--keep-foreign-hosts"])
-    assert args.attachments is True and args.min_compat_tier == "twin" and args.keep_foreign_hosts is True
+    # A7-1 (W8o): both tier flags default to None and are resolved by the export (compatible cross_pack_fit, pending same_pack_fit with --attachments)
+    assert args.attachments is False and args.min_compat_tier is None and args.pending_min_tier is None and args.keep_foreign_hosts is False
+    args = build_parser().parse_args(base + ["--attachments", "--min-compat-tier", "twin", "--pending-min-tier", "cross_pack_fit", "--keep-foreign-hosts"])
+    assert args.attachments is True and args.min_compat_tier == "twin" and args.pending_min_tier == "cross_pack_fit" and args.keep_foreign_hosts is True
     with pytest.raises(SystemExit):
         build_parser().parse_args(base + ["--min-compat-tier", "bogus"])
 

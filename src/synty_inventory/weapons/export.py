@@ -172,11 +172,12 @@ def _bake_mounts(rows: list[tuple[int, int]], mounts: dict) -> dict:
     return {slot: (m if m["point"] is None else _bake_mount(rows, m)) for slot, m in mounts.items()}
 
 
-def _export_attachment(att: dict, rows, *, min_tier: str, host_ids: set[str], keep_foreign: bool) -> dict:
+def _export_attachment(att: dict, rows, *, min_tier: str, host_ids: set[str], keep_foreign: bool,
+                       pending_min_tier: str = "same_pack_fit") -> dict:
     """The export form of an ``attachment`` block (C-19, C-23).
 
-    ``compatible_hosts`` and ``pending_hosts`` are cut at ``min_tier`` by the same rule (``compat.export_compatible`` /
-    ``export_pending``); a host outside the exported set is dropped unless ``keep_foreign``; ``pending_hosts`` become ids
+    ``compatible_hosts`` is cut at ``min_tier`` and ``pending_hosts`` at ``pending_min_tier`` (A7-1: two cuts, the pending one
+    stricter by default) by the same rule (``compat.export_compatible`` / ``export_pending``); a host outside the exported set is dropped unless ``keep_foreign``; ``pending_hosts`` become ids
     sorted by (tier rank, host). The anchor is baked through ``rows`` (the part's OWN ``item_basis``) when given;
     ``footprint`` is scalars and never baked.
     """
@@ -184,7 +185,7 @@ def _export_attachment(att: dict, rows, *, min_tier: str, host_ids: set[str], ke
     listed = [e for e in att["compatible_hosts"] if keep_foreign or e["host"] in host_ids]
     pending = [e for e in att["pending_hosts"] if keep_foreign or e["host"] in host_ids]
     out["compatible_hosts"] = export_compatible(listed, min_tier)
-    out["pending_hosts"] = export_pending(pending, min_tier)
+    out["pending_hosts"] = export_pending(pending, pending_min_tier)
     if out.get("pair") is not None and not keep_foreign and out["pair"] not in host_ids:
         # A2 (judgment call, the spec is silent): a partner that is not in the exported set is cut like a foreign host, so the
         # snapshot never names a record it does not contain and INV-20 (symmetry) still holds inside it
@@ -195,7 +196,7 @@ def _export_attachment(att: dict, rows, *, min_tier: str, host_ids: set[str], ke
 
 
 def _private_record(rec: dict, engines: set[str], frame: str, attach: dict | None = None) -> dict:
-    """One full-profile snapshot record. ``attach`` (``--attachments``) is ``{min_tier, host_ids, keep_foreign}``; None
+    """One full-profile snapshot record. ``attach`` (``--attachments``) is ``{min_tier, pending_min_tier, host_ids, keep_foreign}``; None
     keeps the W7 projection: no ``attachment`` key, no ``geometry.mounts``."""
     out = deepcopy(rec)
     out.pop("attachment", None)  # W8d adds it back behind --attachments; the default output stays the W7 one (D-10)
@@ -219,12 +220,12 @@ def _private_record(rec: dict, engines: set[str], frame: str, attach: dict | Non
     return out
 
 
-def _attachment_scope(directory: dict, have: set[str], pack_ids, ids, min_tier: str) -> list[dict]:
+def _attachment_scope(directory: dict, have: set[str], pack_ids, ids, min_tier: str, pending_min_tier: str = "same_pack_fit") -> list[dict]:
     """The attachment part records ``--attachments`` adds to the exported set (spec 7: "added to the exported set").
 
     ``--packs``: every attachment part of those packs. ``--ids-file`` (judgment call: the file lists the weapons a game
     wants, not their accessories): the listed attachments plus the attachment parts of ANY pack that fit at least one
-    exported host at ``min_tier`` or above (compatible or pending), so a BONDED-style id list still gets its scopes.
+    exported host at ``min_tier`` (compatible) or ``pending_min_tier`` (pending) or above, so a BONDED-style id list still gets its scopes.
     ``have`` is the id set already chosen by role.
     """
     out = []
@@ -236,7 +237,7 @@ def _attachment_scope(directory: dict, have: set[str], pack_ids, ids, min_tier: 
             keep = w["pack"] in pack_ids
         else:
             hosts = {e["host"] for e in export_compatible(att["compatible_hosts"], min_tier)}
-            hosts |= {e["host"] for e in att["pending_hosts"] if export_pending([e], min_tier)}
+            hosts |= {e["host"] for e in att["pending_hosts"] if export_pending([e], pending_min_tier)}
             keep = w["id"] in ids or bool(hosts & have)
         if keep:
             out.append(w)
@@ -246,8 +247,8 @@ def _attachment_scope(directory: dict, have: set[str], pack_ids, ids, min_tier: 
 def export_snapshot(
     directory: dict, *, game: str, pack_ids: set[str] | None, ids: set[str] | None, roles: set[str],
     engines: set[str], frame: str, profile: str, pack_meta: dict[str, dict], rules_digest: str,
-    overrides_digest: str, attachments: bool = False, min_compat_tier: str = "same_pack_fit",
-    keep_foreign_hosts: bool = False,
+    overrides_digest: str, attachments: bool = False, min_compat_tier: str = "cross_pack_fit",
+    keep_foreign_hosts: bool = False, pending_min_tier: str = "same_pack_fit",
 ) -> dict:
     """The snapshot document (spec 3.10). ``engines`` holds CLI engine names (godot, unity, threejs, all).
 
@@ -265,8 +266,8 @@ def export_snapshot(
     if attachments:
         # (an ids file lists weapons: a part named in it is chosen by its role above, or here when its role was not asked)
         have = {w["id"] for w in chosen}
-        chosen += _attachment_scope(directory, have, pack_ids, ids, min_compat_tier)
-        attach = {"min_tier": min_compat_tier, "keep_foreign": keep_foreign_hosts,
+        chosen += _attachment_scope(directory, have, pack_ids, ids, min_compat_tier, pending_min_tier)
+        attach = {"min_tier": min_compat_tier, "pending_min_tier": pending_min_tier, "keep_foreign": keep_foreign_hosts,
                   "host_ids": {w["id"] for w in chosen}}
     chosen.sort(key=lambda w: w["id"])
     if profile == "public":
@@ -602,18 +603,24 @@ def cmd(args, cfg) -> int:
     from .directory import load_directory, weapons_dir
 
     attachments = bool(getattr(args, "attachments", False))
-    min_tier = getattr(args, "min_compat_tier", None) or "same_pack_fit"
+    raw_min, raw_pending = getattr(args, "min_compat_tier", None), getattr(args, "pending_min_tier", None)
     keep_foreign = bool(getattr(args, "keep_foreign_hosts", False))
     engine = args.engine
     engines = {engine}
     frame, profile = args.frame, args.profile
     if engine not in ENGINES or frame not in FRAMES or profile not in PROFILES:
         raise InputError("bad --engine, --frame or --profile value")
-    if min_tier not in COMPAT_TIERS:
-        raise InputError(f"--min-compat-tier {min_tier!r} not in {list(COMPAT_TIERS)}")
+    for flag, value in (("--min-compat-tier", raw_min), ("--pending-min-tier", raw_pending)):
+        if value is not None and value not in COMPAT_TIERS:
+            raise InputError(f"{flag} {value!r} not in {list(COMPAT_TIERS)}")
     # the attachment flags act only with --attachments; refusing them otherwise beats a silent no-op that looks like data
-    if not attachments and (keep_foreign or min_tier != "same_pack_fit"):
+    if not attachments and (keep_foreign or (raw_min is not None and raw_min != "same_pack_fit")):
         raise InputError("--min-compat-tier and --keep-foreign-hosts only act with --attachments")
+    if not attachments and raw_pending is not None:
+        raise InputError("--pending-min-tier only acts with --attachments")
+    # A7-1: with --attachments the compatible cut defaults to cross_pack_fit, the pending cut to same_pack_fit (D-13)
+    min_tier = raw_min or ("cross_pack_fit" if attachments else "same_pack_fit")
+    pending_min_tier = raw_pending or "same_pack_fit"
     if attachments and profile == "public":
         raise InputError("--attachments cannot be combined with --profile public (the public record has no geometry)")
     roles_arg = _csv(args.roles) or ["whole"]
@@ -680,7 +687,7 @@ def cmd(args, cfg) -> int:
         directory, game=args.game, pack_ids=pack_ids, ids=ids, roles=roles, engines=engines, frame=frame,
         profile=profile, pack_meta=pack_meta, rules_digest=directory["rules_digest"],
         overrides_digest=directory["overrides_digest"], attachments=attachments, min_compat_tier=min_tier,
-        keep_foreign_hosts=keep_foreign,
+        keep_foreign_hosts=keep_foreign, pending_min_tier=pending_min_tier,
     )
     copies: list = []
     warnings: list[str] = []
