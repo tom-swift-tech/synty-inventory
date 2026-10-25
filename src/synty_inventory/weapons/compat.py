@@ -139,6 +139,10 @@ def child_deviation(part_extents, mount: dict | None, children: dict | None) -> 
 
     Per child named in ``mount["occupied_by"]`` that is a key of ``children`` (``{node: {"extents": sorted, ...}}``) the deviation is
     ``max over the three sorted extents of |part_i / child_i - 1|`` (a child with a zero extent is skipped); the SMALLEST over those children is returned.
+
+    Each per-axis value is ROUNDED TO 2 DECIMALS before the max: every figure of docs 13.8 (the labelled deviations, the tolerances 0.35 / 0.45 and the
+    live counts 121 optic removals and +15 waivers) was measured that way, and the live directory has two optic pairs at 0.3508 and 0.3521 that the
+    spec counts as 0.35 (kept). R-a (``deviation > tol``) and the A7-4 waiver (``deviation <= tol``) both read this rounded value.
     """
     if part_extents is None or not mount or not children:
         return None
@@ -147,7 +151,7 @@ def child_deviation(part_extents, mount: dict | None, children: dict | None) -> 
         row = children.get(node)
         if not row or len(row["extents"]) != 3 or any(c == 0 for c in row["extents"]):
             continue
-        dev = max(abs(p / c - 1.0) for p, c in zip(sorted(part_extents), row["extents"]))
+        dev = max(round(abs(p / c - 1.0), 2) for p, c in zip(sorted(part_extents), row["extents"]))
         best = dev if best is None else min(best, dev)
     return best
 

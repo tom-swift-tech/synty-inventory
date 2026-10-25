@@ -141,6 +141,16 @@ def test_ac118_a_slot_with_no_tolerance_and_a_missing_table_check_nothing():
     assert cand(part(extents=scaled(1.8)), h, params({"magazine": 0.35})) is None  # the same part with the row: dropped
 
 
+def test_ac118_the_deviation_is_compared_at_two_decimals_an_optic_at_0_3508_is_kept_and_at_0_3601_dropped():
+    # the third axis of the baked optic is 0.20: 0.27016 / 0.20 - 1 = 0.3508 (reads 0.35), 0.27202 / 0.20 - 1 = 0.3601 (reads 0.36)
+    child, mount = [0.06, 0.08, 0.20], seat(span=0.06)
+    h = host("optic", children={"optic": kid(child)}, mount=mount)
+    assert listed(cand(part("optic", "scope", extents=[0.06, 0.08, 0.27016]), h, params(TOL)), CROSS)
+    assert cand(part("optic", "scope", extents=[0.06, 0.08, 0.27202]), h, params(TOL)) is None
+    assert compat.child_deviation([0.06, 0.08, 0.27016], mount, kid(child)) == 0.35
+    assert compat.child_deviation([0.06, 0.08, 0.27202], mount, kid(child)) == 0.36
+
+
 def test_ac118_the_deviation_helper_has_the_specified_numbers():
     mount = seat(occupied=("A", "B", "Missing"))
     rows = {**kid([0.1, 0.2, 0.4], "A"), **kid([0.1, 0.2, 0.3], "B")}
@@ -329,6 +339,15 @@ def test_ac121_the_waiver_needs_its_table_row_and_the_slots_tolerance_and_keeps_
     assert tokenless(kind="sniper_scope", archetype="pistol") is None  # affinity still decides
     assert tokenless(1.3, prm=params({"optic": 0.5}, NEVER, ["optic"])) is not None
     assert tokenless(1.4, prm=params({"optic": 0.3}, NEVER, ["optic"])) is None
+
+
+def test_ac121_the_waiver_compares_at_two_decimals_too_0_3508_is_waived_and_0_3601_is_not():
+    def got(third):
+        p = part("optic", "scope", pack="Q", tokens=(), extents=[0.06, 0.08, third])
+        h = host("optic", mount=seat(span=0.06), children={"optic": kid(OPTIC_CHILD)})
+        return cand(p, h, params(TOL, NEVER, ["optic"]))
+    assert listed(got(0.27016), SAME)
+    assert got(0.27202) is None
 
 
 def test_ac121_a_tokenless_part_on_another_pack_is_still_a_cross_pack_candidate_under_the_size_gate():
