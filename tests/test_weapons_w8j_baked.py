@@ -359,10 +359,22 @@ def test_ac101_a_word_that_only_starts_with_water_and_a_plain_host_are_not_exclu
         assert seated(m["sight_front"]) and seated(m["sight_rear"]), name
 
 
-def test_ac101_a_flare_pistol_still_loses_only_the_sight_slots(names):
+def test_ac101_a_flare_pistol_is_a_tool_host_and_loses_every_slot(names):
+    # A8 erratum (2026-10-26): `flare` alone is a tool token, so the host's baked scope child is no seat either (the shipped outcome for the real name)
     m = mounts(names, FLARE)
+    assert all(refused(m[s]) for s in (*SLOTS, "muzzle")), "flare pistol"
+    assert m["optic"]["child_node"] is None
+
+
+def test_ac101_the_sight_name_rule_alone_takes_the_sights_and_leaves_the_optic_child(tmp_path):
+    # the mechanism of the old test (attach_host_never `flare` for the sight slots only), built with a tool row without `flare`
+    rules = J.W.sight_rules()
+    rules["attachment_rules"]["attach_host_class"]["tool"] = [t for t in rules["attachment_rules"]["attach_host_class"]["tool"] if t != "flare"]
+    built = J.W.by_id(J.W.build(tmp_path, {PACK: {"hosts": {FLARE: rifle(FLARE, [("Fake_Scope_01", A.optic(), SCOPE_AT)])}, "parts": parts()}}, rules=rules)[0])
+    m = mounts(built, FLARE)
     assert m["optic"]["source"] == "child_node" and m["optic"]["occupied_by"] == [f"{FLARE}_Fake_Scope_01"]
     assert refused(m["sight_front"]) and refused(m["sight_rear"])
+    assert m["muzzle"]["source"] == "probe"
 
 
 def test_ac101_an_add_override_still_lists_the_pair_on_an_excluded_host(names):
@@ -381,7 +393,7 @@ def test_ac101_excluded_slots_reads_whole_name_tokens_for_the_optic_row():
     assert M.excluded_slots(TOY, tables) == ["optic", "sight_front", "sight_rear"]
     # A6 (W8n): water is a tool-class token (attach_host_class) and the tool class refuses all seven slots, on top of the optic row's tokens
     assert M.excluded_slots("SM_Wep_WaterPistol_01", tables) == ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]
-    assert M.excluded_slots("SM_Wep_Pistol_Flare_01", tables) == ["sight_front", "sight_rear"]
+    assert M.excluded_slots("SM_Wep_Pistol_Flare_01", tables) == ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]  # A8 erratum (2026-10-26): `flare` alone is a tool token
     assert M.excluded_slots("SM_Wep_Waterfall_Rifle_01", tables) == []
     assert M.excluded_slots("SM_Wep_Rifle_Toyota_01", tables) == []
 

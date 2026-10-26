@@ -356,4 +356,4 @@ def test_ac129_the_versions_and_the_digests():
     rules = load_rules()
     assert weapon_rules_digest(rules) == "7b9829af37328fe7"
     assert len(attach_rules_digest(rules)) == 16 and attach_rules_digest(rules) != A7_ATTACH_DIGEST
-    assert attach_rules_digest(rules) == "30827a8915c9584d"  # this build's value, pinned so a later edit of the shipped rows is a deliberate re-pin
+    assert attach_rules_digest(rules) == "bcd5dbd0b3d7a651"  # this build's value, pinned so a later edit of the shipped rows is a deliberate re-pin (A8 erratum 2026-10-26: the tool token `flare` moved it from 30827a8915c9584d)

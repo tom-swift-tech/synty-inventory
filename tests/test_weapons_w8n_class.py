@@ -37,7 +37,7 @@ def test_the_shipped_class_rows_are_the_specified_literals():
     assert TABLES["attach_host_class"] == {
         "launcher": ["launcher", "rpg", "rocket", "missile"], "fixed_heavy": ["minigun"],
         "tool": ["nailgun", "nail", "glue", "paint", "syringe", "welder", "water", "watergun", "waterpistol",
-                 "flamethrower", "flamer", "flame", "flaregun", "stungun"],
+                 "flamethrower", "flamer", "flame", "flare", "flaregun", "stungun"],  # A8 erratum (2026-10-26): `flare` alone
     }
     assert TABLES["attach_class_never"] == {
         "launcher": ["muzzle", "optic"], "tool": ["muzzle", "optic", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"],

@@ -544,6 +544,8 @@ attachment_rules:
   # they take no optic and no sight; the mount is `none` / `slot_disabled` whatever its source (a baked scope child included). An id override wins.
   # Addendum 5 (item 0): a prop (SM_Prop_Briefcase_Flaregun_01 is a briefcase) takes no attachment at all, so `prop` names every slot; the
   # briefcase listed silencers, a flashlight and six magazines before. The flare, water and toy tokens keep their slots.
+  # A8 erratum (2026-10-26): `flare` alone is a tool token, so Pistol_Flare_01 is refused every slot like the flare gun; word order was the bug.
+  # The flare tokens below stay in sight_front / sight_rear (the class union covers the rest).
   attach_host_never:
     optic: [water, watergun, toy, prop]
     sight_front: [flare, flaregun, prop, water, watergun, toy]
@@ -560,6 +562,7 @@ attachment_rules:
   #             muzzle affinity row omits `launcher` already; this survives an edit of that row). Foregrips on a launcher stay.
   #   tool      a nail gun is a tool, not a firearm: nothing attaches to it. Tom, 2026-10-24: flame throwers, flare guns and stun guns get "Nothing, like
   #             the nail gun", so their tokens are in this class (flamethrower, flamer, flame, flaregun, stungun).
+  #             A8 erratum (2026-10-26): `flare` alone is a tool token, so Pistol_Flare_01 is refused every slot like the flare gun; word order was the bug.
   #   fixed_heavy  Tom, 2026-10-24: "minigun doesn't take any attachments": every slot is refused (a minigun is not a tool, so it has its own class).
   #   attach_filled_hosts (Tom, 2026-10-24: "presets only refuse the slots their built-in parts already fill; other slots stay open"): host name tokens
   #             of hosts that arrive with their parts on (a Preset_* prefab). Such a host refuses each slot one of its own baked children fills (the
@@ -572,7 +575,7 @@ attachment_rules:
   attach_host_class:
     launcher: [launcher, rpg, rocket, missile]
     fixed_heavy: [minigun]
-    tool: [nailgun, nail, glue, paint, syringe, welder, water, watergun, waterpistol, flamethrower, flamer, flame, flaregun, stungun]
+    tool: [nailgun, nail, glue, paint, syringe, welder, water, watergun, waterpistol, flamethrower, flamer, flame, flare, flaregun, stungun]
   attach_class_never:
     launcher: [muzzle, optic]
     fixed_heavy: [muzzle, optic, underbarrel, magazine, laser_light, sight_front, sight_rear]

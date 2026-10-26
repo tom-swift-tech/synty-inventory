@@ -111,6 +111,15 @@ def excl(tmp_path_factory):
     return W.by_id(W.build(tmp_path_factory.mktemp("w8i_excl"), excl_world())[0])
 
 
+@pytest.fixture(scope="module")
+def excl_sights_only(tmp_path_factory):
+    # A8 erratum (2026-10-26): the shipped tool class now names `flare`, so the FLARE host loses every slot. The sight-slot NAME RULE alone (attach_host_never
+    # lists `flare` for the two sight slots; the other slots untouched) is the mechanism this test exercises, so it is built with a tool row without `flare`.
+    rules = W.sight_rules()
+    rules["attachment_rules"]["attach_host_class"]["tool"] = [t for t in rules["attachment_rules"]["attach_host_class"]["tool"] if t != "flare"]
+    return W.by_id(W.build(tmp_path_factory.mktemp("w8i_excl_sights"), excl_world(), rules=rules)[0])
+
+
 def test_ac95_a_flare_gun_a_briefcase_flaregun_and_a_prop_have_both_sight_seats_disabled(excl):
     for host in EXCLUDED:
         m = excl[f"{PX}/{host}"]["geometry"]["mounts"]
@@ -124,13 +133,21 @@ def test_ac95_their_optic_mount_is_unchanged_and_the_plain_host_is_seated_by_the
     assert plain["optic"]["source"] == "child_node"
     bare = excl[f"{PX}/{PLAIN}"]["geometry"]["mounts"]
     assert bare["sight_front"]["source"] == bare["sight_rear"]["source"] == "probe"
-    m = excl[f"{PX}/{FLARE}"]["geometry"]["mounts"]  # A5 item 0: a prop host loses every slot, only the flare pistol keeps optic and muzzle
+    # A5 item 0: a prop host loses every slot. A8 erratum (2026-10-26): so does the flare pistol, a tool host now (the shipped outcome for the real name)
+    for host in (FLARE, BRIEFCASE, PROP):
+        m = excl[f"{PX}/{host}"]["geometry"]["mounts"]
+        assert m["optic"]["source"] == m["muzzle"]["source"] == "none" and m["optic"]["reason"] == m["muzzle"]["reason"] == "slot_disabled", host
+
+
+def test_ac95_the_sight_name_rule_alone_leaves_the_optic_and_the_other_slots_of_the_host(excl_sights_only):
+    # the mechanism (shipped tool row minus `flare`): attach_host_never `flare` takes the two sight slots and no other
+    plain = excl_sights_only[f"{PX}/{SCOPED}"]["geometry"]["mounts"]
+    m = excl_sights_only[f"{PX}/{FLARE}"]["geometry"]["mounts"]
+    for slot in ("sight_front", "sight_rear"):
+        assert m[slot]["source"] == "none" and m[slot]["reason"] == "slot_disabled", slot
     assert m["optic"]["source"] == "child_node" and m["optic"]["occupied_by"] == [f"{FLARE}_Scope"]
     assert m["optic"]["point"] == plain["optic"]["point"] and m["optic"]["span_m"] == plain["optic"]["span_m"]
     assert m["muzzle"]["source"] == "probe"  # no other slot is touched
-    for host in (BRIEFCASE, PROP):
-        m = excl[f"{PX}/{host}"]["geometry"]["mounts"]
-        assert m["optic"]["source"] == m["muzzle"]["source"] == "none" and m["optic"]["reason"] == m["muzzle"]["reason"] == "slot_disabled", host
 
 
 def test_ac95_no_sight_candidate_lists_an_excluded_host_listed_or_pending(excl):
@@ -159,7 +176,7 @@ def test_ac95_the_shipped_table_lists_flare_flaregun_and_prop_for_both_sight_slo
 
 
 @pytest.mark.parametrize("asset_id,slots", [
-    ("SM_Wep_Pistol_Flare_01", ["sight_front", "sight_rear"]),
+    ("SM_Wep_Pistol_Flare_01", ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]),  # A8 erratum (2026-10-26): `flare` alone is a tool token
     ("SM_Prop_Briefcase_Flaregun_01", ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]),  # A5 item 0
     ("SM_Wep_Rifle_Prop_01", ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]),  # A5 item 0
     ("SM_Wep_Flare_Gun_01", ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]),  # A6 (W8n): `flaregun` is a tool token; the join of `flare` and `gun`
