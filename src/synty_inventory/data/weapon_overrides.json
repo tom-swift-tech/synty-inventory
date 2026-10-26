@@ -175,6 +175,14 @@
       },
       "note": "Tom: iron sights do not belong on this scopeless bolt sniper (round-3 cards c161, c172, c173, c179, 4 of 4 no); lead ruling 2026-10-24: per-host override, not a sniper affinity rule"
     },
+    "POLYGON_Police_Station/SM_Wep_Sniper_01": {
+      "mounts": {
+        "muzzle": {
+          "source": "none"
+        }
+      },
+      "note": "A8 erratum E2, lead ruling 2026-10-26 (Tom's rule: a built-in part fills its slot): the barrel ends in an integral can (hollow, radius 0.027-0.029 m over the last 21 cm vs 0.0139 m barrel; Tom labelled four silencers on it no, e33 e49 f20 f26); muzzle refused"
+    },
     "POLYGON_SciFi_Space/SM_Wep_Rifle_01": {
       "mounts": {
         "optic": {
@@ -231,6 +239,14 @@
         }
       },
       "note": "W8j census review, lead ruling 2026-10-23: twin tubes on top over the receiver (census sheet #207, dev manager call)"
+    },
+    "POLYGON_SciFi_Worlds/SM_Wep_Sniper_03": {
+      "mounts": {
+        "muzzle": {
+          "source": "none"
+        }
+      },
+      "note": "A8 erratum E2, lead ruling 2026-10-26: the slotted section ending at the muzzle is an integral can (radius 0.043 m over 0.19 m vs 0.023 m barrel); muzzle refused"
     },
     "POLYGON_War/SM_Wep_American_HeavyMachineGun_Tripod_01": {
       "note": "a tripod mount: no direction of its own",
