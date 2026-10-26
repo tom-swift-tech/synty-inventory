@@ -28,7 +28,7 @@ from synty_inventory.weapons.rules import attach_rules_digest, load_rules, valid
 
 
 def test_ac116_the_versions_and_the_digests():
-    assert pkg.WEAPON_ATTACH_VERSION == 12 and pkg.WEAPON_GEOMETRY_VERSION == 5
+    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 5
     rules = load_rules()
     assert weapon_rules_digest(rules) == "7b9829af37328fe7"  # `contact` sits inside attachment_rules: rules_digest never moves
     assert len(attach_rules_digest(rules)) == 16
@@ -162,7 +162,7 @@ def test_the_contact_table_the_attach_version_and_the_code_digests_are_in_the_fi
         _, _, r = run(tree, cache, rules)
         assert r["contact_stats"]["computed"] == n and r["contact_stats"]["cached"] == 0, name
         monkeypatch.undo()
-    monkeypatch.setattr(pkg, "WEAPON_ATTACH_VERSION", 13)
+    monkeypatch.setattr(pkg, "WEAPON_ATTACH_VERSION", 14)  # the shipped value is 13 (A8, W8p): any other value is a new fingerprint
     _, _, r = run(tree, cache, rules)
     assert r["contact_stats"]["computed"] == n, "WEAPON_ATTACH_VERSION is in the pair fingerprint"
 

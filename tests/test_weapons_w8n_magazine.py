@@ -76,7 +76,8 @@ def test_a_same_pack_magazine_under_three_quarters_of_the_well_is_not_listed(foo
 def test_a_cross_pack_magazine_is_judged_by_the_same_bound():
     assert cand(part(foot=0.09, pack="Q"), host(span=0.15)) is None
     got = cand(part(foot=0.12, pack="Q"), host(span=0.15))
-    assert got["tier"] == CROSS and got["listed"]
+    # A8-1 (W8p): a cross-pack magazine that passes the bound is parked in pending_hosts, not listed (the bound still runs first: 0.09 above is gone)
+    assert got == {"host": got["host"], "tier": CROSS, "listed": False}
 
 
 def test_a_twin_and_an_override_are_never_vetoed_by_the_bound():

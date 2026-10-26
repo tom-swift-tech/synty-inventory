@@ -4,10 +4,12 @@ docs/weapon_attachments.md 4.3 (C-21) and 11. ``place(anchor, mount) = T(mount) 
 
 Shared oracle provenance. ``tests/fixtures/weapons/mount_place.json`` is a byte-for-byte copy (sha256 pinned below) of
 ``addons/sit_weapons/fixtures/mount_place.json`` of the sit-capabilities repo (D:/Projects/games/sit-capabilities), branch
-``build/sit-weapons-T4W4``, commit ``5cd92cd40ed67d8c68794e65c992a443f9cc1aa5``, copied on 2026-10-22. No case is edited here;
-a disagreement with the oracle is reported to the lead, never fixed in the copy. The file carries four cases (the spec names the
-first three; DM-B added ``three_cycle``, the only one whose rotation is not its own transpose), and every case in the file is
-run, whatever their number.
+``build/sit-weapons-T4W4``, commit ``5cd92cd40ed67d8c68794e65c992a443f9cc1aa5``, copied on 2026-10-22; refreshed on 2026-10-26 (W8p, AC130)
+from sit-capabilities ``96810c713d89c64ce04e7f6953159c08a23d67f8`` (``sit_weapons`` 0.4.0), which added ``optic_shift`` and ``muzzle_setback``.
+No case is edited here; a disagreement with the oracle is reported to the lead, never fixed in the copy. The file carries six cases (the spec
+names the first three; DM-B added ``three_cycle``, the only one whose rotation is not its own transpose; 0.4.0 added the two ``seat_offset_m``
+cases), and every case in the file is run, whatever their number. ``seat_offset_m`` is a translation along the host frame's ``up`` applied after
+``place`` (positive = the pair's ``seat_shift_m``, negative = minus its ``seat_setback_m``; ``preview.build_job`` does the same arithmetic).
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ _spec.loader.exec_module(W)
 from synty_inventory.weapons.attach import place  # noqa: E402
 
 ORACLE_PATH = FIX / "mount_place.json"
-ORACLE_SHA256 = "06097936daab444c6583c524703d8a9fce339d503c8b3d922197b5f5d9e1ce6b"
+ORACLE_SHA256 = "43c8cf3b76d358caae34015482fac2e820e9b0adae0818c1d1b2c71cb529482e"  # sit-capabilities 96810c7 (W8p, AC130)
 ORACLE = json.loads(ORACLE_PATH.read_text(encoding="utf-8"))
 TOL_M, TOL_DEG = 0.0005, 0.1  # literals: 0.5 mm and 0.1 degrees (AC69)
 
@@ -80,9 +82,16 @@ def test_the_oracle_holds_the_three_named_cases_of_the_spec():
     assert {"muzzle_identity", "optic_part_authored_on_its_side", "underbarrel_hangs_down"} <= {c["name"] for c in ORACLE["cases"]}
 
 
+def test_ac130_the_oracle_carries_the_two_seat_offset_cases_of_sit_weapons_0_4_0():
+    cases = {c["name"]: c for c in ORACLE["cases"]}
+    assert {"optic_shift", "muzzle_setback"} <= set(cases)
+    assert (cases["optic_shift"]["seat_offset_m"], cases["muzzle_setback"]["seat_offset_m"]) == (0.005, -0.04)
+
+
 @pytest.mark.parametrize("case", ORACLE["cases"], ids=lambda c: c["name"])
 def test_ac69_place_reproduces_every_case_of_the_oracle(case):
     m = place(case["part"], case["host"])
+    m[:3, 3] += case.get("seat_offset_m", 0.0) * np.asarray(case["host"]["up"], dtype=float)  # sit_weapons 0.4.0 (AC130)
     assert np.allclose(m[:3, 3], case["origin"], atol=TOL_M, rtol=0)
     for k, column in enumerate(case["basis"]):  # `basis` lists the COLUMNS of the part transform
         assert angle_deg(m[:3, k], column) <= TOL_DEG, (case["name"], k)

@@ -476,6 +476,10 @@ attachment_rules:
     # yes is 0.33 for magazine and optic, 0.38 for underbarrel), so they are FITTED, not validated: the control strata of draw #3 (A7-5) are the
     # out-of-sample check. The same numbers gate the tokenless waiver below (A7-4).
     cross_pack_size_tol: {magazine: 0.35, optic: 0.35, underbarrel: 0.45}
+    # Unverified cross-pack slots (A8-1, 13.9; Tom 2026-10-26, draw #3: cross magazines 6 of 12 yes, R-a cannot separate them): a cross_pack_fit pair on
+    # one of these slots is routed to pending_hosts ({host, tier}) after R-a, R-b, R-c and the A6 foot test. The directory keeps it and a game opts in
+    # with `--pending-min-tier cross_pack_fit`. Optic, muzzle and underbarrel stay listed. Empty or absent = nothing moves.
+    cross_pack_unverified_slots: [magazine]
     generic_tokens: [wep, sm, attachment, attach, separate, mod, accessory, part, small, medium, med, large, big, huge, tiny,
                      mini, long, short, left, right, front, rear, top, bottom, alt, clean]
   # Setting gate (A2, spec 5.1): full pack id -> setting word. A candidate that is not an override needs the part's pack and the host's
@@ -630,9 +634,10 @@ attachment_rules:
   # family test anyway, but only when the host seat is a baked child (child_node) and the part is within cross_pack_size_tol of that child. A pair without
   # a seat is neither listed nor pending; magazine and laser_light stay out. Remove the row to withdraw the waiver (draw #3 does the check).
   tokenless_family_free_slots: [optic]
-  # A7-2 R-c (13.8): slot -> host archetypes on which a cross_pack_fit part of kind `suppressor` is vetoed (listed and pending). The kind is fixed to
-  # `suppressor` by the spec, there is no key for it. Same-pack suppressors on these hosts are untouched. Empty or absent = no rule.
-  cross_pack_never:
+  # A8-2 R-c (13.9; A7's cross_pack_never, renamed and made symmetric): slot -> host archetypes on which a part of kind `suppressor` is vetoed at EVERY tier
+  # (twin, same_pack_fit and cross_pack_fit, listed and pending) except `override` (a compatible.add names the pair by hand). Brakes, compensators and flash
+  # hiders are not suppressors and are untouched. The kind is fixed to `suppressor` by the spec, there is no key for it. Empty or absent = no rule.
+  suppressor_never:
     muzzle: [shotgun]
   # Settle to contact (A5, spec 5.4): the parts of these slots get a per-pair `seat_shift_m` on their compatible_hosts entries, found by casting the
   # part's contact face (the 4 mm slab at its extreme, sampled every 2.5 mm) onto the host's outer surface along the mount's up. A pair within dead_m

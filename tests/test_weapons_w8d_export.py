@@ -158,7 +158,7 @@ def test_with_attachments_the_same_snapshot_differs_only_by_the_added_keys(world
     assert strip_added(doc_of(att)) == doc_of(plain)
     got = doc_of(att)
     gf = got["generated_from"]
-    assert gf["attach_version"] == 12 and len(gf["attach_rules_digest"]) == 16
+    assert gf["attach_version"] == 13 and len(gf["attach_rules_digest"]) == 16
     assert gf["attach_rules_digest"] != gf["rules_digest"] == "7b9829af37328fe7" and gf["geometry_version"] == 5
     assert gf["filter"]["attachments"] is True
     assert sorted(gf) == ["attach_rules_digest", "attach_version", "filter", "geometry_version", "overrides_digest", "packs",
@@ -293,18 +293,19 @@ def test_min_compat_tier_filters_compatible_and_pending_hosts_and_pending_are_id
     _, _, out = export(world, capsys, "--roles", "all", "--attachments", "--min-compat-tier", "cross_pack_fit", "--pending-min-tier", "cross_pack_fit",
                        name="t_cross.json")
     rec = by_id(doc_of(out))[MAG]
-    assert hosts_of(rec)[-1] == ("SM_Wep_Rifle_Double_01", "cross_pack_fit") and len(rec["attachment"]["compatible_hosts"]) == 3
+    # A8-1 (W8p): the seated cross-pack magazine pair (Double_01) is a pending entry now, so compatible_hosts holds the two twins only
+    assert hosts_of(rec) == [("SM_Wep_Rifle_Alpha_01", "twin"), ("SM_Wep_Rifle_Mount_01", "twin")]
     pending = rec["attachment"]["pending_hosts"]
     assert pending[:2] == ["FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]  # same_pack_fit before cross
     # A7-2 R-b: 12 -> 10. Rifle_Mag_01 names a rifle, so its cross-pack pairs on the two pistol hosts (Attach/Pistol_01 and Mount/Pistol_Mount_01) are gone
-    assert all(isinstance(p, str) for p in pending) and len(pending) == 10
+    assert all(isinstance(p, str) for p in pending) and len(pending) == 11 and "FAKE_Mount/SM_Wep_Rifle_Double_01" in pending  # 10 + Double_01 (A8-1)
     assert not [p for p in pending if "Pistol" in p]
     tail = pending[2:]
     assert tail == sorted(tail)  # one tier left: ordered by host id
-    # A7-1: the default lists the cross-pack candidate that has a seat (compatible_hosts reaches cross_pack_fit) and keeps the seatless ones off
-    # pending_hosts (the pending cut stays at same_pack_fit); the old default kept the cross-pack candidate off both lists (AC75's second half)
+    # A7-1: the default cut of compatible_hosts reaches cross_pack_fit and the pending cut stays at same_pack_fit. A8-1 (W8p): a cross-pack MAGAZINE is
+    # unverified, so the default lists no cross-pack magazine in either list (it was Double_01 in compatible_hosts under A7)
     _, _, default = export(world, capsys, "--roles", "all", "--attachments", name="t_default.json")
-    assert [h for h in hosts_of(by_id(doc_of(default))[MAG]) if h[1] == "cross_pack_fit"] == [("SM_Wep_Rifle_Double_01", "cross_pack_fit")]
+    assert [h for h in hosts_of(by_id(doc_of(default))[MAG]) if h[1] == "cross_pack_fit"] == []
     assert by_id(doc_of(default))[MAG]["attachment"]["pending_hosts"] == ["FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]
 
 

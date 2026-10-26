@@ -3,13 +3,15 @@
 ``--labels`` names a ``weapon-attach-labels/1`` file (``{"schema": ..., "pairs": [{"part", "host", "fits"}]}``, ids and
 booleans only, INV-17). Every labelled pair is judged against the built directory:
 
-* a pair is PREDICTED to fit when its host is in the part's ``compatible_hosts`` or ``pending_hosts`` with a tier at or
-  above ``same_pack_fit`` (the default-export tiers, D-11). ``pending_hosts`` counts on purpose: they are the compatibility
-  the inference found, only the gun's seat is unknown (D-8), and a label says whether the part fits the gun, not whether the
-  directory can place it. The JSON names both lists in ``predicted_from``.
+* a pair is PREDICTED to fit by a VIEW, a rule over the two lists (A8, AC127; ``VIEWS`` names each rule and the JSON repeats it, with the tiers each
+  list is read at, as ``views.<name>.predicted_from``). ``pending_hosts`` counts on purpose: they are the compatibility the inference found, only the
+  gun's seat is unknown (D-8), and a label says whether the part fits the gun, not whether the directory can place it.
+    - ``default``: what the default export lists: ``compatible_hosts`` at any tier (``compat.DEFAULT_TIERS``) or ``pending_hosts`` at
+      ``compat.DEFAULT_PENDING_TIERS`` (override, twin, same_pack_fit). The ``--min-precision`` / ``--min-recall`` gates read it.
+    - ``with_cross_pack``: every tier of both lists. Reported, never gated (AC80c).
+    - ``same_pack_only``: ``same_pack_fit`` or better in either list (what ``default`` was before A8).
 * precision = TP / (TP + FP) over the predicted pairs, recall = TP / (TP + FN) over the labelled positives. A ratio with an
   empty denominator is ``null`` and fails any gate supplied for it (nothing was proved).
-* ``with_cross_pack`` repeats the numbers with ``cross_pack_fit`` counted as predicted. It is reported, never gated (AC80c).
 
 A pair whose part is not an attachment record, or whose host is not an eligible host of the directory, is listed under
 ``skipped`` and counted nowhere. Exit 0 when every supplied gate holds, 4 below one (``--min-precision``, ``--min-recall``),
@@ -23,13 +25,20 @@ from pathlib import Path
 
 from . import EXIT_COVERAGE, EXIT_OK, InputError, SchemaError
 from .cli import _catalogs, _emit, _guarded
-from .compat import tier_rank
+from . import COMPAT_TIERS
+from .compat import DEFAULT_PENDING_TIERS, DEFAULT_TIERS
 from .mounts import eligible
 from .overrides import well_formed_id
 
 LABELS_SCHEMA = "weapon-attach-labels/1"
 PAIR_KEYS = ("fits", "host", "part")
-DEFAULT_MAX_TIER = "same_pack_fit"
+# A8 (AC127): view -> the tiers a pair is predicted at, per list. The default view reads the export's own cuts (compat.DEFAULT_TIERS for the
+# compatible list, compat.DEFAULT_PENDING_TIERS for the pending one), so a change of the export moves the gated view with it.
+VIEWS = {
+    "default": {"compatible_hosts": tuple(DEFAULT_TIERS), "pending_hosts": tuple(DEFAULT_PENDING_TIERS)},
+    "with_cross_pack": {"compatible_hosts": tuple(COMPAT_TIERS), "pending_hosts": tuple(COMPAT_TIERS)},
+    "same_pack_only": {"compatible_hosts": tuple(DEFAULT_PENDING_TIERS), "pending_hosts": tuple(DEFAULT_PENDING_TIERS)},
+}
 
 
 def validate_labels(doc) -> list[str]:
@@ -92,8 +101,7 @@ def _scores(counts: dict) -> dict:
 def evaluate(directory: dict, pairs: list[dict], *, packs: set[str] | None = None) -> dict:
     """The metrics of ``pairs`` against the directory (pure). Ratios are exact floats; ``cmd`` rounds them for printing."""
     by_id = {w["id"]: w for w in directory["weapons"]}
-    default = {"tp": 0, "fp": 0, "fn": 0, "tn": 0}
-    cross = dict(default)
+    counts = {name: {"tp": 0, "fp": 0, "fn": 0, "tn": 0} for name in VIEWS}
     skipped: list[dict] = []
     used = 0
     for pair in sorted(pairs, key=lambda p: (p["part"], p["host"])):
@@ -107,14 +115,15 @@ def evaluate(directory: dict, pairs: list[dict], *, packs: set[str] | None = Non
             skipped.append({"part": pair["part"], "host": pair["host"], "reason": "host_not_an_eligible_host"})
             continue
         att = part["attachment"]
-        tiers = [e["tier"] for e in att["compatible_hosts"] + att["pending_hosts"] if e["host"] == pair["host"]]
+        found = {lst: [e["tier"] for e in att[lst] if e["host"] == pair["host"]] for lst in ("compatible_hosts", "pending_hosts")}
         used += 1
-        for counts, limit in ((default, DEFAULT_MAX_TIER), (cross, "cross_pack_fit")):
-            predicted = any(tier_rank(t) <= tier_rank(limit) for t in tiers)
+        for name, cuts in VIEWS.items():
+            predicted = any(t in cuts[lst] for lst, tiers in found.items() for t in tiers)
             key = ("tp" if pair["fits"] else "fp") if predicted else ("fn" if pair["fits"] else "tn")
-            counts[key] += 1
+            counts[name][key] += 1
+    default = counts["default"]
     return {"pairs": used, "positives": default["tp"] + default["fn"], "skipped": skipped,
-            "default": _scores(default), "with_cross_pack": _scores(cross)}
+            **{name: _scores(c) for name, c in counts.items()}}
 
 
 def _shown(block: dict) -> dict:
@@ -142,8 +151,9 @@ def cmd(args, cfg) -> int:
             failed.append({"gate": gate, "wanted": gates[gate], "got": None if got is None else round(got, 4)})
     _emit({
         "ok": not failed, "labels": Path(args.labels).name, "pairs": result["pairs"], "positives": result["positives"],
-        "max_tier": DEFAULT_MAX_TIER, "predicted_from": ["compatible_hosts", "pending_hosts"],
-        "default": _shown(result["default"]), "with_cross_pack": _shown(result["with_cross_pack"]),
+        "views": {name: {"predicted_from": {lst: list(tiers) for lst, tiers in cuts.items()}} for name, cuts in VIEWS.items()},
+        "predicted_from": ["compatible_hosts", "pending_hosts"],  # the lists read (unchanged); the tiers per view are in views.<name>.predicted_from
+        **{name: _shown(result[name]) for name in VIEWS},
         "gates": {k: v for k, v in gates.items() if v is not None}, "failed": failed, "skipped": result["skipped"],
     })
     return EXIT_COVERAGE if failed else EXIT_OK

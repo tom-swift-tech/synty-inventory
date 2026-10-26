@@ -56,7 +56,7 @@ ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affin
                    "contact",  # A5 (W8m): settle to contact (spec 5.4)
                    "attach_host_class", "attach_class_never", "muzzle_seat",  # A6 (W8n): host classes (13.7 A6-1), the silencer seat (A6-2)
                    "attach_filled_hosts", "attach_filled_open",  # A6 (W8n, Tom 2026-10-24): hosts that refuse each slot a built-in part already fills (presets); the slots that stay open
-                   "cross_pack_never", "tokenless_family_free_slots")  # A7 (W8o): slot -> host archetypes a cross-pack suppressor never takes (R-c); the slots a name-less part passes the family test on (A7-4)
+                   "suppressor_never", "tokenless_family_free_slots")  # A7 (W8o), A8-2 (W8p, renamed from cross_pack_never): slot -> host archetypes no suppressor takes at any tier but override (R-c); the slots a name-less part passes the family test on (A7-4)
 BAKED_SIGHT_KEYS = ("tokens", "not_tokens", "rear_tokens")  # attachment_rules.baked_sights (docs/weapon_attachments.md 4.6 item 7): required
 # A3 addendum 3 (W8j, item 8): optional name-token lists (empty allowed, an absent list switches that part of the rule off), the carry-handle
 # height fraction and the fused front post parameters (name -> (type, minimum, maximum); metres unless a count or a fraction)
@@ -466,8 +466,8 @@ def _check_attachment_rules(val) -> list[str]:
         errors.extend(_check_family_free_slots(val["family_free_slots"]))
     if val.get("tokenless_family_free_slots") is not None:
         errors.extend(_check_family_free_slots(val["tokenless_family_free_slots"], "tokenless_family_free_slots"))
-    if val.get("cross_pack_never") is not None:
-        errors.extend(_check_cross_pack_never(val["cross_pack_never"]))
+    if val.get("suppressor_never") is not None:
+        errors.extend(_check_suppressor_never(val["suppressor_never"]))
     if val.get("contact") is not None:
         errors.extend(_check_contact(val["contact"]))
     if val.get("attach_host_class") is not None:
@@ -628,9 +628,10 @@ def _check_family_free_slots(val, name: str = "family_free_slots") -> list[str]:
     return [f"{where}: slots must be distinct"] if len(set(val)) != len(val) else []
 
 
-def _check_cross_pack_never(val) -> list[str]:
-    """``cross_pack_never``: ``{slot: [host archetypes]}`` (A7-2 R-c); a cross_pack_fit suppressor of the slot is vetoed on those hosts. Empty = no rule."""
-    where = "attachment_rules.cross_pack_never"
+def _check_suppressor_never(val) -> list[str]:
+    """``suppressor_never``: ``{slot: [host archetypes]}`` (A8-2 R-c, the A7 key ``cross_pack_never`` renamed); a suppressor of the slot is vetoed on those
+    hosts at every tier except ``override``. Empty = no rule. The old key is an unknown-key error like any other."""
+    where = "attachment_rules.suppressor_never"
     if not isinstance(val, dict):
         return [f"{where}: must be a mapping slot -> [host archetypes]"]
     errors: list[str] = []
@@ -783,11 +784,17 @@ def _check_attach_compat(val) -> list[str]:
         return [f"{where}: must be a mapping"]
     errors: list[str] = []
     for key in val:
-        if key not in ("tier_score", "base", "generic_tokens", "cross_pack_size_tol", *COMPAT_NUMBER_KEYS, *COMPAT_MAGAZINE_KEYS):
+        if key not in ("tier_score", "base", "generic_tokens", "cross_pack_size_tol", "cross_pack_unverified_slots", *COMPAT_NUMBER_KEYS, *COMPAT_MAGAZINE_KEYS):
             errors.append(f"{where}.{key}: unknown key")
     tol = val.get("cross_pack_size_tol")  # A7-2 R-a: slot -> max deviation from the baked child; absent or empty = no slot is size-checked
     if tol is not None and not (isinstance(tol, dict) and all(k in ATTACH_SLOTS and _is_num(v) and v > 0 for k, v in tol.items())):
         errors.append(f"{where}.cross_pack_size_tol: must map slots from {list(ATTACH_SLOTS)} to numbers above 0")
+    unverified = val.get("cross_pack_unverified_slots")  # A8-1: slots whose cross_pack_fit pairs are pending only; absent or empty = nothing moves
+    if unverified is not None:
+        if not isinstance(unverified, list) or not all(isinstance(s, str) and s in ATTACH_SLOTS for s in unverified):
+            errors.append(f"{where}.cross_pack_unverified_slots: must be a list of slots from {list(ATTACH_SLOTS)}")
+        elif len(set(unverified)) != len(unverified):
+            errors.append(f"{where}.cross_pack_unverified_slots: slots must be distinct")
     for key, (lo, hi) in COMPAT_MAGAZINE_KEYS.items():
         if key in val and not (_is_num(val[key]) and lo <= val[key] <= hi):
             errors.append(f"{where}.{key}: must be a number from {lo} to {hi}")

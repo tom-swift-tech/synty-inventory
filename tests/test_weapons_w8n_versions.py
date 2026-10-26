@@ -27,7 +27,7 @@ BASE_ATTACH_DIGEST = "769ab6e4a3106c40"  # attach_rules_digest(load_rules()) at 
 
 
 def test_the_version_constants():
-    assert pkg.WEAPON_ATTACH_VERSION == 12 and pkg.WEAPON_GEOMETRY_VERSION == 5
+    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 5
 
 
 def test_the_rules_digest_stays_and_the_attach_digest_moves():
@@ -55,7 +55,7 @@ def test_every_new_table_moves_the_attach_digest_and_never_the_rules_digest(edit
 
 def test_the_header_of_a_built_directory_records_attach_version_10(tmp_path):
     directory, _, _, _ = W.build(tmp_path, N.mag_world())
-    assert directory["attach_version"] == 12 and directory["geometry_version"] == 5 and directory["rules_digest"] == "7b9829af37328fe7"
+    assert directory["attach_version"] == 13 and directory["geometry_version"] == 5 and directory["rules_digest"] == "7b9829af37328fe7"
     assert directory["attach_rules_digest"] == attach_rules_digest(W.sight_rules())
 
 

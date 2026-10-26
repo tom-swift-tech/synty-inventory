@@ -160,7 +160,9 @@ def test_an_attachment_tile_shows_slot_kind_tier_counts_and_reasons(world):
     assert (t["data-attach"], t["data-slot"], t["data-akind"], t["data-flipfrom"], t["data-flipto"]) == ("1", "magazine", "standard", "+z", "-z")
     text = " ".join("".join(t["_text"]).split())
     assert "magazine" in text and "standard" in text
-    assert "twin 2" in text and "cross_pack_fit 1" in text and "no mount 24" in text  # A7-2 R-b: 35 -> 24, the 11 pistol hosts a rifle-named magazine no longer takes
+    # A7-2 R-b: 35 -> 24, the 11 pistol hosts a rifle-named magazine no longer takes. A8-1 (W8p): the seated cross-pack pair (Double_01) is pending now: no
+    # `cross_pack_fit 1` tier chip any more and one more `no mount` host (25)
+    assert "twin 2" in text and "cross_pack_fit 1" not in text and "no mount 25" in text
     assert "compat_cross_pack" in text and "twin_multi" in text  # the review reasons are on the tile
     plain = world["page"].tile(FOOTLESS)
     assert plain["data-flipto"] == "" and plain["data-flipfrom"] == ""  # no measured anchor: nothing to flip
@@ -182,10 +184,12 @@ def test_the_embedded_data_lists_every_candidate_host_pending_ones_marked(world)
     mag = data["attachments"][MAG]
     assert mag["slot"] == "magazine" and mag["kind"] == "standard" and mag["flip"] == {"from": "+z", "to": "-z"}
     rows = [(h["host"], h["tier"], h["pending"]) for h in mag["hosts"]]
-    assert rows[:3] == [(ALPHA, "twin", False), (MOUNT_01, "twin", False), ("FAKE_Mount/SM_Wep_Rifle_Double_01", "cross_pack_fit", False)]
-    assert rows[3:5] == [("FAKE_CompA/SM_Wep_Rifle_Beta_01", "same_pack_fit", True), ("FAKE_CompA/SM_Wep_Rifle_Epsilon_01", "same_pack_fit", True)]
-    assert len(rows) == 27 and sum(1 for r in rows if r[2]) == 24  # 3 compatible, 24 with no mount (A7-2 R-b: the rifle-named Rifle_Mag_01 is no cross-pack candidate on the 11 pistol, revolver and handgun hosts, 38 -> 27; A5 item 0: two `SM_Prop_*` hosts dropped; A6 (W8n): the Nail_Gun, a tool-class host, dropped; Tom's two answers: one more tool-class host, a flame thrower, flare gun or stun gun, dropped)
-    assert [h["score"] for h in mag["hosts"][:3]] == [0.95, 0.95, 0.5] and mag["hosts"][3]["score"] is None
+    # A8-1 (W8p): the seated cross-pack pair Double_01 is a pending entry now (it was the third, listed row), among the sorted cross-pack pending rows
+    assert rows[:2] == [(ALPHA, "twin", False), (MOUNT_01, "twin", False)]
+    assert ("FAKE_Mount/SM_Wep_Rifle_Double_01", "cross_pack_fit", True) in rows and not [r for r in rows if r[1] == "cross_pack_fit" and not r[2]]
+    assert rows[2:4] == [("FAKE_CompA/SM_Wep_Rifle_Beta_01", "same_pack_fit", True), ("FAKE_CompA/SM_Wep_Rifle_Epsilon_01", "same_pack_fit", True)]
+    assert len(rows) == 27 and sum(1 for r in rows if r[2]) == 25  # 2 compatible (A8-1; 3 before), 24 with no mount (A7-2 R-b: the rifle-named Rifle_Mag_01 is no cross-pack candidate on the 11 pistol, revolver and handgun hosts, 38 -> 27; A5 item 0: two `SM_Prop_*` hosts dropped; A6 (W8n): the Nail_Gun, a tool-class host, dropped; Tom's two answers: one more tool-class host, a flame thrower, flare gun or stun gun, dropped)
+    assert [h["score"] for h in mag["hosts"][:2]] == [0.95, 0.95] and mag["hosts"][2]["score"] is None  # A8-1: no 0.5 cross-pack row
     assert data["attachments"][FOOTLESS]["flip"] is None
     assert data["kinds"]["magazine"] == ["standard", "extended", "drum", "cell", "other"]
 
@@ -305,7 +309,7 @@ def test_in_chromium_flip_slot_kind_hosts_and_mounts_round_trip_into_valid_corre
     assert page.locator("#att").is_visible() and page.locator("#mnt").is_hidden()
     assert page.locator("#b-flip").inner_text() == "Flip forward" and "+z" in page.locator("#p-flip").inner_text()
     rows = page.locator("#hosts label.hrow")
-    assert rows.count() == 27 and page.locator("#hosts label.hrow.dim").count() == 24  # A7-2 R-b: 38 and 35 less the 11 pistol hosts; A6 (W8n): the tool-class hosts (the Nail_Gun and one of the flame thrower, flare gun or stun gun hosts) are no candidate
+    assert rows.count() == 27 and page.locator("#hosts label.hrow.dim").count() == 25  # A8-1 (W8p): the seated cross-pack pair is pending, so 25 (24 before); A7-2 R-b: 38 and 35 less the 11 pistol hosts; A6 (W8n): the tool-class hosts (the Nail_Gun and one of the flame thrower, flare gun or stun gun hosts) are no candidate
     page.locator("#b-flip").click()
     assert page.locator("#b-flip").inner_text() == "Undo flip"
     host_row(page, MOUNT_01).locator("input").uncheck()  # remove an inferred host

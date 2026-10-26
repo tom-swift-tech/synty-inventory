@@ -2,7 +2,8 @@
 
 docs/weapon_attachments.md 7 and 11. The labels are ids and booleans only (``weapon-attach-labels/1``). Every number below is
 counted by hand from the tiers worked out in test_weapons_w8c_compat.py; "predicted" means the host is in the part's
-``compatible_hosts`` or ``pending_hosts`` at ``same_pack_fit`` or better.
+``compatible_hosts`` or ``pending_hosts`` at ``same_pack_fit`` or better (A8: the ``same_pack_only`` view; the fixture lists no cross entry in
+``compatible_hosts``, so its ``default`` numbers are the same).
 
   pair                     label   predicted                      outcome
   Scope - Alpha            fits    yes (twin)                     TP
@@ -116,7 +117,9 @@ def test_ac79_the_cli_prints_the_values_and_exits_0_at_the_gates(world, capsys, 
     assert code == 0 and out["ok"] is True and out["failed"] == []
     assert out["default"] == {"tp": 6, "fp": 2, "fn": 3, "tn": 2, "precision": 0.75, "recall": 0.6667}
     assert out["with_cross_pack"]["precision"] == 0.8 and out["with_cross_pack"]["recall"] == 0.8889
-    assert out["pairs"] == 13 and out["positives"] == 9 and out["max_tier"] == "same_pack_fit"
+    assert out["pairs"] == 13 and out["positives"] == 9 and "max_tier" not in out  # A8 (AC127): max_tier is replaced by the views object
+    assert out["views"]["default"]["predicted_from"]["pending_hosts"] == ["override", "twin", "same_pack_fit"]
+    assert out["same_pack_only"]["tp"] == 6  # A8: the old default stays as same_pack_only
     assert out["predicted_from"] == ["compatible_hosts", "pending_hosts"]
     assert out["gates"] == {"min_precision": 0.75, "min_recall": 0.66}
     assert len(out["skipped"]) == 3

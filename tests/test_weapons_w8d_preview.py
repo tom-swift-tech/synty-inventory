@@ -108,9 +108,11 @@ def test_the_plan_covers_every_twin_pair_and_all_five_slots_with_a_non_twin_samp
     # candidate). A3 (W8i): the sight_rear pair is new (a same-pack sight needs no family overlap) and took a cross_pack laser_light place.
     # A4 (W8l): a muzzle part needs no name overlap, so the FAKE_Attach Silencer (a part of the pistol host's own pack) gets its first
     # non-twin pair: 10 same_pack_fit pairs (3 optic, 6 muzzle, 1 sight_rear) precede 2 cross_pack_fit ones (magazine, laser_light), and the
-    # third cross_pack_fit pair (the second magazine) falls past the 12 cap
+    # third cross_pack_fit pair (the second magazine) falls past the 12 cap.
+    # A8-1 (W8p): a cross-pack magazine is pending (no seat, so nothing to preview); the 12 are the same 10 same_pack_fit pairs and the two
+    # cross_pack_fit laser_light parts (the flashlight and the laser mod), the magazine place going to the second laser_light.
     assert [p["slot"] for p in others] == ["optic", "muzzle", "sight_rear", "optic", "muzzle", "optic", "muzzle", "muzzle", "muzzle",
-                                           "muzzle", "magazine", "laser_light"]
+                                           "muzzle", "laser_light", "laser_light"]
     assert [p["tier"] for p in others] == ["same_pack_fit"] * 10 + ["cross_pack_fit"] * 2
     assert len({p["part"] for p in others}) == 12
     assert preview.plan_pairs(world.directory)[0] == pairs  # deterministic
@@ -119,24 +121,27 @@ def test_the_plan_covers_every_twin_pair_and_all_five_slots_with_a_non_twin_samp
 def test_the_plan_narrows_by_ids_packs_and_limit_and_names_unusable_pairs(world):
     mag = "FAKE_CompA/SM_Wep_Rifle_Mag_01"
     pairs, _ = preview.plan_pairs(world.directory, ids={mag})
-    assert [(p["host"].split("/")[1], p["tier"]) for p in pairs] == [
-        ("SM_Wep_Rifle_Alpha_01", "twin"), ("SM_Wep_Rifle_Mount_01", "twin"), ("SM_Wep_Rifle_Double_01", "cross_pack_fit")]
+    assert [(p["host"].split("/")[1], p["tier"]) for p in pairs] == [  # A8-1: the cross_pack_fit host (Double) is pending, so it has no preview
+        ("SM_Wep_Rifle_Alpha_01", "twin"), ("SM_Wep_Rifle_Mount_01", "twin")]
     assert len(preview.plan_pairs(world.directory, limit=5)[0]) == 5
     assert all(p["twin"] for p in preview.plan_pairs(world.directory, limit=5)[0])
     only_a, _ = preview.plan_pairs(world.directory, packs={"FAKE_CompA"})
-    assert len(only_a) == 19 and all(p["part"].startswith("FAKE_CompA/") for p in only_a)
+    assert len(only_a) == 18 and all(p["part"].startswith("FAKE_CompA/") for p in only_a)
     broken = json.loads(json.dumps(world.directory))
     recs = {w["id"]: w for w in broken["weapons"]}
     recs["FAKE_CompA/SM_Wep_Rifle_Alpha_01"]["geometry"]["mounts"]["magazine"].update(source="none", point=None, forward=None, up=None)
     recs["FAKE_Mount/SM_Wep_Rifle_Mount_01"]["files"]["glb"] = None
-    del recs["FAKE_Mount/SM_Wep_Rifle_Double_01"]
     broken["weapons"] = list(recs.values())
     pairs, skipped = preview.plan_pairs(broken, ids={mag})
-    assert pairs == [] and skipped == {"no_mount": 1, "host_unmeasured": 1, "host_missing": 1}
+    assert pairs == [] and skipped == {"no_mount": 1, "host_unmeasured": 1}
+    gone = json.loads(json.dumps(world.directory))
+    gone["weapons"] = [w for w in gone["weapons"] if w["id"] != "FAKE_Mount/SM_Wep_Rifle_Mount_01"]  # the host_missing reason (the A7 cross host it deleted is pending now)
+    pairs, skipped = preview.plan_pairs(gone, ids={mag})
+    assert [p["host"].split("/")[1] for p in pairs] == ["SM_Wep_Rifle_Alpha_01"] and skipped == {"host_missing": 1}
     recs[mag]["attachment"]["anchor"] = None
-    assert preview.plan_pairs(broken, ids={mag})[1] == {"anchor_unmeasured": 1, "host_unmeasured": 1, "host_missing": 1}
+    assert preview.plan_pairs(broken, ids={mag})[1] == {"anchor_unmeasured": 1, "host_unmeasured": 1}
     recs[mag]["files"]["glb"] = None
-    assert preview.plan_pairs(broken, ids={mag})[1] == {"part_unmeasured": 2, "host_missing": 1}  # the part is judged before the host's GLB
+    assert preview.plan_pairs(broken, ids={mag})[1] == {"part_unmeasured": 2}  # the part is judged before the host's GLB
 
 
 # --- what the renderer is told -----------------------------------------------------------------------------------------
@@ -232,6 +237,9 @@ def test_the_jobs_matrix_reproduces_the_shared_placement_oracle_including_the_th
         part = {"attachment": {"anchor": case["part"]}, "files": part_rec["files"]}
         host = {"geometry": {"mounts": {"optic": case["host"]}, "item_basis": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]},
                 "files": host_rec["files"]}
+        offset = case.get("seat_offset_m", 0.0)  # sit_weapons 0.4.0 (AC130): the directory names a positive one seat_shift_m, a negative one seat_setback_m
+        if offset:
+            part["attachment"]["compatible_hosts"] = [{"host": "h", **({"seat_shift_m": offset} if offset > 0 else {"seat_setback_m": -offset})}]
         pair = {"part": "p", "host": "h", "slot": "optic", "tier": "twin", "score": 1.0, "twin": True}
         m = np.asarray(preview.build_job(pair, part, host, world.root)["matrix"])
         assert np.allclose(m[:3, 3], case["origin"], atol=TOL_M, rtol=0), case["name"]
@@ -248,12 +256,12 @@ def test_render_pairs_writes_one_png_per_pair_an_index_and_an_optional_sheet(wor
     stub = StubRenderer()
     out = tmp_path / "pv"
     report = preview.render_pairs(stub, jobs, out, 64, sheet=True)
-    assert [j["host"] for j in stub.jobs] == [p["host"] for p in pairs] and report["rendered"] == 3 and report["failed"] == []
+    assert [j["host"] for j in stub.jobs] == [p["host"] for p in pairs] and report["rendered"] == 2 and report["failed"] == []  # A8-1: the cross-pack magazine host is pending, so 2 pairs
     names = sorted(p.name for p in out.iterdir())
-    assert names == sorted([e["file"] for e in report["pairs"]] + ["index.json", "sheet.png"]) and len(names) == 5
+    assert names == sorted([e["file"] for e in report["pairs"]] + ["index.json", "sheet.png"]) and len(names) == 4
     assert all(n.startswith("FAKE_CompA_SM_Wep_Rifle_Mag_01--") or n in ("index.json", "sheet.png") for n in names)
     index = json.loads((out / "index.json").read_text(encoding="utf-8"))
-    assert index["schema"] == "weapon-attach-preview/1" and [p["tier"] for p in index["pairs"]] == ["twin", "cross_pack_fit", "twin"]
+    assert index["schema"] == "weapon-attach-preview/1" and [p["tier"] for p in index["pairs"]] == ["twin", "twin"]
     assert {p["part"] for p in index["pairs"]} == {C.P[C.MAG]}
     png = (out / index["pairs"][0]["file"]).read_bytes()
     assert png[:8] == b"\x89PNG\r\n\x1a\n"
@@ -261,7 +269,7 @@ def test_render_pairs_writes_one_png_per_pair_an_index_and_an_optional_sheet(wor
     img = np.asarray(Image.open(out / index["pairs"][0]["file"]).convert("RGBA"))
     assert img.shape == (64, 64, 4) and img[..., 3].min() == 255
     assert tuple(img[0, 0, :3]) == preview.BACKGROUND and tuple(img[20, 20, :3]) == (200, 120, 40)
-    assert np.asarray(Image.open(out / "sheet.png")).shape == (128, 128, 4)  # 3 pictures: a 2 x 2 grid
+    assert np.asarray(Image.open(out / "sheet.png")).shape == (64, 128, 4)  # 2 pictures: one row of two
     assert b"\r\n" not in (out / "index.json").read_bytes()
 
 
@@ -277,13 +285,13 @@ def test_a_second_run_merges_into_the_index_and_a_failed_pair_is_listed_not_fata
     report = preview.render_pairs(StubRenderer(blank={scope}), jobs_of(mag)[:1] + jobs_of(scope)[:1], out, 64)
     assert report["rendered"] == 1 and report["failed"] == [{"part": scope, "host": jobs_of(scope)[0]["host"], "error": "blank_render"}]
     index = json.loads((out / "index.json").read_text(encoding="utf-8"))["pairs"]
-    assert len(index) == 3 and {p["part"] for p in index} == {mag}  # the earlier pairs are kept
+    assert len(index) == 2 and {p["part"] for p in index} == {mag}  # the earlier pairs are kept
     report = preview.render_pairs(StubRenderer(fail={scope}), jobs_of(scope)[:2], out, 64)
     assert report["rendered"] == 0 and [f["error"] for f in report["failed"]] == ["boom", "boom"]
-    assert len(json.loads((out / "index.json").read_text(encoding="utf-8"))["pairs"]) == 3
+    assert len(json.loads((out / "index.json").read_text(encoding="utf-8"))["pairs"]) == 2
     (out / index[0]["file"]).unlink()  # a PNG that went away drops out of the index at the next run
     preview.render_pairs(StubRenderer(), [], out, 64)
-    assert len(json.loads((out / "index.json").read_text(encoding="utf-8"))["pairs"]) == 2
+    assert len(json.loads((out / "index.json").read_text(encoding="utf-8"))["pairs"]) == 1
 
 
 def test_the_contact_sheet_is_a_grid_in_index_order_on_the_background():
@@ -342,7 +350,7 @@ def test_plan_prints_the_pairs_writes_nothing_and_needs_no_renderer(world, capsy
     wdir_default = Path(world.cat) / "weapons" / preview.DEFAULT_DIRNAME
     assert not wdir_default.exists()
     code, res = verb(world, capsys, "--plan", "--ids", C.P[C.MAG])
-    assert code == 0 and res["pairs"] == 3 and [p["tier"] for p in res["plan"]] == ["twin", "twin", "cross_pack_fit"]
+    assert code == 0 and res["pairs"] == 2 and [p["tier"] for p in res["plan"]] == ["twin", "twin"]
     assert verb(world, capsys, "--plan", "--ids", "FAKE_Fantasy/SM_Wep_Sword_01")[0] == 2  # not an attachment
     assert verb(world, capsys, "--plan", "--pack", "NOPE")[0] == 2
 
@@ -363,10 +371,9 @@ def test_the_verb_with_a_stub_renderer_writes_only_into_its_folder(world, capsys
     out = tmp_path / "pv"
     before = sorted(p.relative_to(world.tmp).as_posix() for p in world.tmp.rglob("*") if p.is_file())
     code, res = verb(world, capsys, "--out", str(out), "--ids", C.P[C.MAG], "--size", "64", "--sheet", cfg=cfg)
-    assert code == 0 and (res["rendered"], res["failed"], res["pairs"]) == (3, [], 3)
-    assert len([p for p in out.iterdir() if p.suffix == ".png"]) == 4 and (out / "index.json").is_file()  # 3 pairs + sheet.png
-    assert [j["host"] for j in stub.jobs] == [C.H[C.ALPHA], world.by_id[C.P[C.MAG]]["attachment"]["compatible_hosts"][1]["host"],
-                                              "FAKE_Mount/SM_Wep_Rifle_Double_01"]
+    assert code == 0 and (res["rendered"], res["failed"], res["pairs"]) == (2, [], 2)
+    assert len([p for p in out.iterdir() if p.suffix == ".png"]) == 3 and (out / "index.json").is_file()  # 2 pairs + sheet.png
+    assert [j["host"] for j in stub.jobs] == [C.H[C.ALPHA], world.by_id[C.P[C.MAG]]["attachment"]["compatible_hosts"][1]["host"]]
     after = sorted(p.relative_to(world.tmp).as_posix() for p in world.tmp.rglob("*") if p.is_file())
     assert after == before  # nothing else under the world (catalogs, packs, the directory) changed
 

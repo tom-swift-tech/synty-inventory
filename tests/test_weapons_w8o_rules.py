@@ -23,10 +23,16 @@ BASE_ATTACH_DIGEST = "2f23e707292a96c3"  # attach_rules_digest(load_rules()) at 
 
 
 def params(tol=None, never=None, tokenless=None):
-    """compat params with literal A7 tables (not the shipped ones); ``None`` = the table row is absent."""
+    """compat params with literal A7 tables (not the shipped ones); ``None`` = the table row is absent.
+
+    A8 (W8p): the W8o cases are about the A7 rules, so ``cross_pack_unverified_slots`` is pinned to an EMPTY row here (the shipped row routes a cross
+    magazine to ``pending_hosts``; test_weapons_w8p_rules.py covers that) and the R-c table is ``suppressor_never``, which is symmetric across tiers (the
+    cases below that call it A7's cross-only veto are re-pinned to say so).
+    """
     tables = dict(TABLES)
-    tables["attach_compat"] = {**TABLES["attach_compat"], "cross_pack_size_tol": {} if tol is None else tol}
-    tables["cross_pack_never"] = {} if never is None else never
+    tables["attach_compat"] = {**TABLES["attach_compat"], "cross_pack_size_tol": {} if tol is None else tol, "cross_pack_unverified_slots": []}
+    tables.pop("cross_pack_never", None)
+    tables["suppressor_never"] = {} if never is None else never
     tables["tokenless_family_free_slots"] = [] if tokenless is None else tokenless
     return compat._params(tables)
 
@@ -182,6 +188,7 @@ def test_ac118_compute_hands_the_hosts_child_extents_and_the_parts_footprint_to_
     rules = deepcopy(load_rules())
     rules["attachment_rules"]["attach_genre_by_pack"] = {"P": "s", "Q": "s"}
     rules["attachment_rules"]["attach_compat"]["cross_pack_size_tol"] = {"magazine": 0.35}
+    rules["attachment_rules"]["attach_compat"]["cross_pack_unverified_slots"] = []  # A8-1 (W8p) would park these in pending_hosts; this case is the A7 size gate
     evidence = {"Q/Gun_Alpha_01": {"magazine": {"Mag": {"extents": [0.02, 0.04, 0.10], "axes": [0.04, 0.02, 0.10], "seat": None}}}}
     parts = [mag("Wep_Zulu_Mag_Near", 1.3), mag("Wep_Zulu_Mag_Far", 1.4)]
     got = compat.compute([host_rec, *parts], rules, None, child_extents=evidence)["parts"]
@@ -270,9 +277,9 @@ def test_ac119_a_cross_pack_suppressor_on_a_shotgun_is_vetoed_listed_and_pending
 
 
 @pytest.mark.parametrize("ring", [True, False])
-def test_ac119_the_same_pack_suppressor_on_a_shotgun_still_is_a_candidate(ring):
-    got = muzzle("shotgun", pack="Q", ring=ring)
-    assert got is not None and got["tier"] == SAME and got["listed"] is ring
+def test_ac119_the_same_pack_suppressor_on_a_shotgun_is_no_candidate_since_a8(ring):
+    # A8-2 (W8p, 13.9) withdrew the A7 shape (cross_pack_fit only): the veto is symmetric now, so a same_pack_fit suppressor is dropped too
+    assert muzzle("shotgun", pack="Q", ring=ring) is None
 
 
 def test_ac119_with_the_table_row_removed_the_shotgun_suppressor_is_a_cross_candidate_again():
@@ -361,11 +368,12 @@ def test_ac121_a_tokenless_part_on_another_pack_is_still_a_cross_pack_candidate_
 
 def test_ac118_the_shipped_tables_are_the_specified_literals():
     assert TABLES["attach_compat"]["cross_pack_size_tol"] == {"magazine": 0.35, "optic": 0.35, "underbarrel": 0.45}
-    assert TABLES["cross_pack_never"] == {"muzzle": ["shotgun"]}
+    assert TABLES["suppressor_never"] == {"muzzle": ["shotgun"]} and "cross_pack_never" not in TABLES  # A8-2: renamed
+    assert TABLES["attach_compat"]["cross_pack_unverified_slots"] == ["magazine"]  # A8-1
     assert TABLES["tokenless_family_free_slots"] == ["optic"]
     prm = compat._params(TABLES)
     assert prm["cross_pack_size_tol"] == {"magazine": 0.35, "optic": 0.35, "underbarrel": 0.45}
-    assert prm["cross_pack_never"] == {"muzzle": frozenset({"shotgun"})} and prm["tokenless_family_free_slots"] == frozenset({"optic"})
+    assert prm["suppressor_never"] == {"muzzle": frozenset({"shotgun"})} and prm["tokenless_family_free_slots"] == frozenset({"optic"})
     assert compat.GUN_CLASS_WORDS == {"pistol", "revolver", "smg", "rifle", "shotgun", "sniper", "lmg"}
     assert compat.HANDGUN_CLASSES == {"pistol", "revolver"}
     assert validate_rules(load_rules()) == []
@@ -374,10 +382,10 @@ def test_ac118_the_shipped_tables_are_the_specified_literals():
 def test_a_rules_dict_without_the_new_tables_is_valid_and_drops_nothing():
     rules = deepcopy(load_rules())
     t = rules["attachment_rules"]
-    del t["attach_compat"]["cross_pack_size_tol"], t["cross_pack_never"], t["tokenless_family_free_slots"]
+    del t["attach_compat"]["cross_pack_size_tol"], t["attach_compat"]["cross_pack_unverified_slots"], t["suppressor_never"], t["tokenless_family_free_slots"]
     assert validate_rules(rules) == []
     prm = compat._params(attachment_rules(rules))
-    assert prm["cross_pack_size_tol"] == {} and prm["cross_pack_never"] == {} and prm["tokenless_family_free_slots"] == frozenset()
+    assert prm["cross_pack_size_tol"] == {} and prm["suppressor_never"] == {} and prm["tokenless_family_free_slots"] == frozenset()
     assert listed(cand(part(extents=scaled(3.0)), host(children={"magazine": kid()}), prm), CROSS)
 
 
@@ -387,10 +395,10 @@ def test_a_rules_dict_without_the_new_tables_is_valid_and_drops_nothing():
     (lambda t: t["attach_compat"].update(cross_pack_size_tol={"optic": -0.1}), "cross_pack_size_tol"),
     (lambda t: t["attach_compat"].update(cross_pack_size_tol={"optic": "0.3"}), "cross_pack_size_tol"),
     (lambda t: t["attach_compat"].update(cross_pack_size_tol=[0.3]), "cross_pack_size_tol"),
-    (lambda t: t.update(cross_pack_never={"barrel": ["shotgun"]}), "barrel"),
-    (lambda t: t.update(cross_pack_never={"muzzle": ["blaster"]}), "blaster"),
-    (lambda t: t.update(cross_pack_never={"muzzle": "shotgun"}), "cross_pack_never.muzzle"),
-    (lambda t: t.update(cross_pack_never=["shotgun"]), "cross_pack_never"),
+    (lambda t: t.update(suppressor_never={"barrel": ["shotgun"]}), "barrel"),
+    (lambda t: t.update(suppressor_never={"muzzle": ["blaster"]}), "blaster"),
+    (lambda t: t.update(suppressor_never={"muzzle": "shotgun"}), "suppressor_never.muzzle"),
+    (lambda t: t.update(suppressor_never=["shotgun"]), "suppressor_never"),
     (lambda t: t.update(tokenless_family_free_slots=["barrel"]), "tokenless_family_free_slots"),
     (lambda t: t.update(tokenless_family_free_slots=["optic", "optic"]), "distinct"),
     (lambda t: t.update(tokenless_family_free_slots="optic"), "tokenless_family_free_slots"),
@@ -405,13 +413,13 @@ def test_a_malformed_new_table_is_rejected(edit, needle):
 def test_empty_new_tables_are_valid():
     rules = deepcopy(load_rules())
     t = rules["attachment_rules"]
-    t["attach_compat"]["cross_pack_size_tol"], t["cross_pack_never"], t["tokenless_family_free_slots"] = {}, {}, []
+    t["attach_compat"]["cross_pack_size_tol"], t["suppressor_never"], t["tokenless_family_free_slots"] = {}, {}, []
     assert validate_rules(rules) == []
 
 
 @pytest.mark.parametrize("edit", [
     lambda t: t["attach_compat"]["cross_pack_size_tol"].update(optic=0.3),
-    lambda t: t["cross_pack_never"].update(muzzle=["shotgun", "rifle"]),
+    lambda t: t["suppressor_never"].update(muzzle=["shotgun", "rifle"]),
     lambda t: t.update(tokenless_family_free_slots=[]),
 ])
 def test_every_new_table_moves_the_attach_digest_and_never_the_rules_digest(edit):
@@ -423,7 +431,7 @@ def test_every_new_table_moves_the_attach_digest_and_never_the_rules_digest(edit
 
 
 def test_ac123_the_versions_and_the_digests():
-    assert pkg.WEAPON_ATTACH_VERSION == 12 and pkg.WEAPON_GEOMETRY_VERSION == 5
+    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 5  # A8 (W8p): 12 -> 13
     rules = load_rules()
     assert weapon_rules_digest(rules) == "7b9829af37328fe7"
     assert len(attach_rules_digest(rules)) == 16 and attach_rules_digest(rules) != BASE_ATTACH_DIGEST

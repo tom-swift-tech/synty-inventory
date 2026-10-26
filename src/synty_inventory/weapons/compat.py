@@ -29,9 +29,13 @@ same_pack_fit, cross_pack_fit and the pending list, which are one candidate list
   only: R-a, a part on a slot of ``attach_compat.cross_pack_size_tol`` whose sorted extents deviate from the smallest-deviation baked child its seat
   replaces by more than the slot's tolerance is dropped (listed or pending: a pending pair has no seat, so it is not checked); R-b, a part named
   after a gun class (``GUN_CLASS_WORDS``) is vetoed on a host of the other group (``HANDGUN_CLASSES`` or not), a handgun-named part staying
-  allowed on an ``smg``; R-c, ``attachment_rules.cross_pack_never`` (slot -> host archetypes) vetoes a ``suppressor`` part. (A7-4) a part with NO
+  allowed on an ``smg``; R-c (A7; symmetric since A8-2, below), ``attachment_rules.suppressor_never`` (slot -> host archetypes) vetoes a ``suppressor`` part. (A7-4) a part with NO
   name tokens passes the ``same_pack_fit`` family test on a slot of ``tokenless_family_free_slots`` when its seat is a ``child_node`` and its
   deviation from the baked child is within the slot's ``cross_pack_size_tol``; every other test of the tier is unchanged.
+* A8 (W8p, 13.9). (A8-1) ``attach_compat.cross_pack_unverified_slots`` (shipped: ``magazine``): a ``cross_pack_fit`` pair on such a slot is routed to
+  ``pending_hosts`` as ``{host, tier}`` AFTER R-a, R-b, R-c and the A6 foot test, so a pair those drop is dropped, not parked; ``reasons`` keeps
+  ``compat_cross_pack`` and ``mount_missing`` does not move. Every other tier and slot is untouched. (A8-2) R-c is symmetric: ``suppressor_never`` vetoes
+  a ``suppressor`` part at every tier but ``override`` (``twin`` and ``same_pack_fit``, listed and pending, included).
 * A6 (W8n, 13.7 A6-3), magazines only. (i) DRUM BY SHAPE: a magazine whose smaller body side (``min(length_m, width_m)`` of the footprint) is at least
   ``attach_compat.drum_min_m`` (0.11) reads the ``drum`` row of ``attach_affinity`` for its affinity, whatever its name or its classified kind; the
   record's ``kind`` is not touched. (ii) LOWER BOUND: a ``same_pack_fit`` or ``cross_pack_fit`` magazine whose ``foot_length_m / span_m`` is below
@@ -98,6 +102,7 @@ _DEFAULTS = {
     "fit_span_bonus": 0.1, "fit_bore_bonus": 0.1, "fit_bore_penalty": 0.1, "generic_tokens": [],
     "drum_min_m": 0.11, "fit_span_min": 0.75,  # A6 (W8n): a magazine this thick on both sides is a drum; a foot under this share of the well is vetoed
     "cross_pack_size_tol": {},  # A7-2 R-a: slot -> max per-axis deviation from the baked child; empty = no slot is checked
+    "cross_pack_unverified_slots": (),  # A8-1: the slots whose cross_pack_fit pairs are routed to pending_hosts; empty = nothing moves
 }
 
 
@@ -217,7 +222,8 @@ def _params(tables: dict) -> dict:
     out = {k: got.get(k, v) if not isinstance(v, dict) else {**v, **(got.get(k) or {})} for k, v in _DEFAULTS.items()}
     out["family_free_slots"] = frozenset(tables.get("family_free_slots") or ())  # A4: the slots whose same_pack_fit needs no family_overlap
     out["tokenless_family_free_slots"] = frozenset(tables.get("tokenless_family_free_slots") or ())  # A7-4: the slots a name-less part passes the family test on, size-gated
-    out["cross_pack_never"] = {slot: frozenset(archs or ()) for slot, archs in (tables.get("cross_pack_never") or {}).items()}  # A7-2 R-c: slot -> host archetypes
+    out["cross_pack_unverified_slots"] = frozenset(out["cross_pack_unverified_slots"] or ())  # A8-1: a set, whatever the YAML list (or the default) was
+    out["suppressor_never"] = {slot: frozenset(archs or ()) for slot, archs in (tables.get("suppressor_never") or {}).items()}  # A8-2 R-c: slot -> host archetypes
     return out
 
 
@@ -298,6 +304,8 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
         kind = "drum"  # A6 (i): by shape, whatever the name or the classified kind; used for the affinity lookup only
     affine = host["archetype"] in affinity_archetypes(affinity, slot, kind)
     veto = disabled or span == "veto" or ("mech_scale" in host["flags"] and "mech_scale" not in part["flags"])
+    if part["kind"] == "suppressor" and host["archetype"] in params["suppressor_never"].get(slot, ()):
+        veto = True  # A8-2 R-c, symmetric: no suppressor on these hosts at any tier (twin and same_pack_fit, listed and pending, included); only `add` (below) outranks it
 
     if verdict == "add":
         tier = "override"
@@ -319,13 +327,15 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
         if any((t in HANDGUN_CLASSES) != (host["archetype"] in HANDGUN_CLASSES)
                and not (t in HANDGUN_CLASSES and host["archetype"] == "smg") for t in named):
             return None  # R-b: a handgun part on a long gun or the reverse (a pistol part on an smg stays: machine pistols)
-        if part["kind"] == "suppressor" and host["archetype"] in params["cross_pack_never"].get(slot, ()):
-            return None  # R-c: pending too; the kind is fixed to `suppressor` by the spec
         if available and size_tol is not None and deviation is not None and deviation > size_tol:
             return None  # R-a: the wrong size for the baked child it replaces; a pending pair has no seat and is not checked
     if (slot == "magazine" and tier in ("same_pack_fit", "cross_pack_fit") and available and mount.get("span_m")
             and part["foot_length_m"] is not None and part["foot_length_m"] / mount["span_m"] < params["fit_span_min"]):
         return None  # A6 (ii): a foot far smaller than the well; not listed, not pending (a pending candidate has no seat to measure against)
+    if tier == "cross_pack_fit" and slot in params["cross_pack_unverified_slots"]:
+        # A8-1: after R-a, R-b, R-c and the A6 foot test (a pair those drop is dropped, not parked). Routed on purpose, not by faking a missing seat:
+        # the entry is the pending form {host, tier} (no score, signals or replaces) whatever the seat; the part still carries `compat_cross_pack`.
+        return {"host": host["id"], "tier": tier, "listed": False}
 
     signals = {tier} if tier in ("override", "twin") else set()
     for name, holds in (("family_overlap", family), ("affinity", affine), ("mount_available", available),
