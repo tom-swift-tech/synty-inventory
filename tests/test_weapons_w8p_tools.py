@@ -133,8 +133,8 @@ def test_an_add_override_still_lists_the_flare_pistol_as_an_override_pending(bui
     assert [e["host"] for e in built[rid(PA, SAME)]["attachment"]["pending_hosts"] if e["host"] == rid(PA, FLARE)] == []  # the same-pack part had no add
 
 
-def test_without_the_add_neither_suppressor_lists_the_flare_pistol(tmp_path):
+@pytest.mark.parametrize("part", [rid(PA, SAME), rid(PB, CROSS)], ids=["same_pack", "cross_pack"])
+def test_without_the_add_neither_suppressor_lists_the_flare_pistol(tmp_path, part):
     by = W.by_id(W.build(tmp_path, world(), rules=W.sight_rules(SETTING))[0])
-    for part in (rid(PA, SAME), rid(PB, CROSS)):
-        assert listing(by, part, rid(PA, FLARE)) == [], part
-        assert listing(by, part, rid(PA, PLAIN)) != [], part
+    assert listing(by, part, rid(PA, FLARE)) == []
+    assert listing(by, part, rid(PA, PLAIN)) != []  # the control: the same part is a candidate on the plain pistol
