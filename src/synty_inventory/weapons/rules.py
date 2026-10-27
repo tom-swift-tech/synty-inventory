@@ -35,6 +35,7 @@ from . import (
     WEIGHT_CLASSES,
     digest,
 )
+from .fit_types import FIT_SLOTS
 
 # match keys valid in a classification rule / a candidate pattern (spec 3.4.2)
 RULE_MATCH_KEYS = (
@@ -56,7 +57,8 @@ ATTACH_TOP_KEYS = ("never", "rows", "child_tokens", "child_never", "attach_affin
                    "contact",  # A5 (W8m): settle to contact (spec 5.4)
                    "attach_host_class", "attach_class_never", "muzzle_seat",  # A6 (W8n): host classes (13.7 A6-1), the silencer seat (A6-2)
                    "attach_filled_hosts", "attach_filled_open",  # A6 (W8n, Tom 2026-10-24): hosts that refuse each slot a built-in part already fills (presets); the slots that stay open
-                   "suppressor_never", "tokenless_family_free_slots")  # A7 (W8o), A8-2 (W8p, renamed from cross_pack_never): slot -> host archetypes no suppressor takes at any tier but override (R-c); the slots a name-less part passes the family test on (A7-4)
+                   "suppressor_never", "tokenless_family_free_slots",  # A7 (W8o), A8-2 (W8p, renamed from cross_pack_never): slot -> host archetypes no suppressor takes at any tier but override (R-c); the slots a name-less part passes the family test on (A7-4)
+                   "fit_geometry")  # G1 (S2): the geometry fit gate block (docs/weapon_attach_geometry.md 4.1), every key required, no `frame:` key
 BAKED_SIGHT_KEYS = ("tokens", "not_tokens", "rear_tokens")  # attachment_rules.baked_sights (docs/weapon_attachments.md 4.6 item 7): required
 # A3 addendum 3 (W8j, item 8): optional name-token lists (empty allowed, an absent list switches that part of the rule off), the carry-handle
 # height fraction and the fused front post parameters (name -> (type, minimum, maximum); metres unless a count or a fraction)
@@ -478,10 +480,112 @@ def _check_attachment_rules(val) -> list[str]:
         errors.extend(_check_muzzle_seat(val["muzzle_seat"]))
     if val.get("attach_filled_hosts") is not None:
         _check_str_list(val["attach_filled_hosts"], "attachment_rules.attach_filled_hosts", errors, lower=True)
+    if val.get("fit_geometry") is not None:
+        errors.extend(_check_fit_geometry(val["fit_geometry"]))
     if val.get("attach_filled_open") is not None:
         _check_str_list(val["attach_filled_open"], "attachment_rules.attach_filled_open", errors, lower=True)
         errors.extend(f"attachment_rules.attach_filled_open: {s!r} is not an attachment slot" for s in val["attach_filled_open"]
                       if isinstance(s, str) and s not in ATTACH_SLOTS)
+    return errors
+
+
+# G1 (S2) fit_geometry block (docs/weapon_attach_geometry.md 4.1): section -> {key: kind}. Every key is required. Kinds: `len` a length or other
+# number that is not negative, `pos` a number above 0, `unit` a number in (0, 1], `frac` a number in [0, 1], `count` an integer from 1, `deg` an
+# angle from 0 to 90, `signed` any number (the depth interval is signed: the clamp sits below the tooth tops). `zone`, `od_ratio` and `inner_ratio`
+# are intervals [lo, hi] of kind `frac`/`len`; a scalar pair (min, max) must not be inverted either.
+FIT_GEOMETRY_SECTIONS = {
+    "locator": {"grid_m": "pos", "sample_n": "count", "hit_min": "unit", "merge_m": "len"},
+    "rail": {"window_m": "pos", "bin_m": "pos", "tooth_amp_min_m": "len", "tooth_merge_m": "len", "pitch_min_m": "pos", "pitch_max_m": "pos",
+             "pitch_cv_max": "len", "tooth_min_count": "count", "tooth_h_tol_m": "len", "zone": "frac", "default_seat_len_m": "pos",
+             "sight_clear_m": "len"},
+    "flat": {"band_m": "len", "close_m": "len", "min_m": "len"},
+    "clamp": {"overhang_max_m": "len", "ratio_min": "len"},
+    "depth": {"lo_m": "signed", "hi_m": "signed"},
+    "bore": {"end_slab_m": "pos", "round_min": "frac", "barrel_od_max_m": "pos", "od_ratio": "len", "inner_ratio": "len",
+             "axis_offset_max_m": "len", "axis_tilt_max_deg": "deg"},
+    "well": {"entry_depth_m": "len", "tol": "frac"},
+}
+FIT_GEOMETRY_INTERVALS = {"rail": ("zone",), "bore": ("od_ratio", "inner_ratio")}  # keys holding [lo, hi]
+FIT_GEOMETRY_SCALAR_PAIRS = (("rail", "pitch_min_m", "pitch_max_m"), ("depth", "lo_m", "hi_m"))  # (section, min key, max key)
+FIT_GEOMETRY_KEYS = ("slots", "exceptions") + tuple(FIT_GEOMETRY_SECTIONS)
+
+
+def _fit_number_error(v, kind: str) -> str | None:
+    """Why ``v`` is not a number of ``kind`` (see FIT_GEOMETRY_SECTIONS), or None."""
+    if kind == "count":
+        return None if isinstance(v, int) and not isinstance(v, bool) and v >= 1 else "must be an integer from 1"
+    if not _is_num(v) or v != v or v in (float("inf"), float("-inf")):
+        return "must be a finite number"
+    if kind == "signed":
+        return None
+    if v < 0:
+        return "must not be negative"
+    if kind == "pos" and v == 0:
+        return "must be above 0"
+    if kind == "unit" and not 0 < v <= 1:
+        return "must be above 0 and at most 1"
+    if kind == "frac" and v > 1:
+        return "must be from 0 to 1"
+    if kind == "deg" and v > 90:
+        return "must be from 0 to 90"
+    return None
+
+
+def _check_fit_geometry(val) -> list[str]:
+    """``fit_geometry`` (docs/weapon_attach_geometry.md 4.1): the geometry fit gate's detector parameters and pair tolerances.
+
+    Every key is required; an unknown key is rejected (so is a `frame:` key, the frame vote is record geometry, Q-G4). A length must not be
+    negative, and an interval ([lo, hi] or a min/max pair of keys) must not be inverted.
+    """
+    where = "attachment_rules.fit_geometry"
+    if not isinstance(val, dict):
+        return [f"{where}: must be a mapping with {', '.join(FIT_GEOMETRY_KEYS)}"]
+    errors: list[str] = []
+    for key in val:
+        if key not in FIT_GEOMETRY_KEYS:
+            errors.append(f"{where}.{key}: unknown key (allowed: {', '.join(FIT_GEOMETRY_KEYS)})")
+    for key in FIT_GEOMETRY_KEYS:
+        if key not in val:
+            errors.append(f"{where}.{key}: missing (every key is required)")
+    slots = val.get("slots")
+    if "slots" in val and (not isinstance(slots, list) or not slots or not all(isinstance(s, str) and s in FIT_SLOTS for s in slots)):
+        errors.append(f"{where}.slots: must be a non-empty list of slots from {list(FIT_SLOTS)}")
+    elif isinstance(slots, list) and len(set(slots)) != len(slots):
+        errors.append(f"{where}.slots: slots must be distinct")
+    exc = val.get("exceptions")
+    if "exceptions" in val and (not isinstance(exc, list) or not all(isinstance(e, str) and e for e in exc)):
+        errors.append(f"{where}.exceptions: must be a list of class keys (non-empty strings, no asset ids)")
+    for section, keys in FIT_GEOMETRY_SECTIONS.items():
+        if section not in val:
+            continue
+        table = val[section]
+        if not isinstance(table, dict):
+            errors.append(f"{where}.{section}: must be a mapping with {', '.join(keys)}")
+            continue
+        for key in table:
+            if key not in keys:
+                errors.append(f"{where}.{section}.{key}: unknown key (allowed: {', '.join(keys)})")
+        for key, kind in keys.items():
+            if key not in table:
+                errors.append(f"{where}.{section}.{key}: missing (every key is required)")
+            elif key in FIT_GEOMETRY_INTERVALS.get(section, ()):
+                pair = table[key]
+                if not isinstance(pair, list) or len(pair) != 2:
+                    errors.append(f"{where}.{section}.{key}: must be an interval [lo, hi]")
+                    continue
+                bad = [e for e in (_fit_number_error(x, kind) for x in pair) if e]
+                if bad:
+                    errors.append(f"{where}.{section}.{key}: an end of the interval {bad[0]}")
+                elif pair[0] > pair[1]:
+                    errors.append(f"{where}.{section}.{key}: inverted interval (lo above hi)")
+            else:
+                why = _fit_number_error(table[key], kind)
+                if why:
+                    errors.append(f"{where}.{section}.{key}: {why}")
+    for section, lo_key, hi_key in FIT_GEOMETRY_SCALAR_PAIRS:
+        table = val.get(section)
+        if isinstance(table, dict) and _is_num(table.get(lo_key)) and _is_num(table.get(hi_key)) and table[lo_key] > table[hi_key]:
+            errors.append(f"{where}.{section}: inverted interval ({lo_key} above {hi_key})")
     return errors
 
 
