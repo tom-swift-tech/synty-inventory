@@ -457,3 +457,4 @@ The merge commits of the landed slices on `integ/attach`:
 - S2: `aa1fbe2`
 - P1: S3 `51f40a4`, S4 `dc7815b`, S5 `c42aa41`, S6 `097bfcc`
 - `00bd68c` (on integ, before the P1 merges): retired S2's stub-state leg of `test_weapons_g1_verdict.py`. The S2 verification missed that the test asserted `NotImplementedError`, which P1 had to break.
+- Errata E1 (`4dfdfdb`): the E1.1 calibration and the E1.2 counts were measured on live packs in scratch before S10. §0 rule 4 keeps live data to S10 and S12, but the §4.2 calibration rule needs its positives measured. The readings were read-only and uncommitted, and the positives are the preset oracle, not Tom's labels. Not a rule 7 breach.

@@ -6,7 +6,10 @@
 
 ## E1. Round barrel end, one landing test, strip scope
 
-**Status: PROPOSED** (2026-10-27, architect). This goes to Tom. Until he approves it, the build follows the spec as approved.
+**Status: APPROVED** by Tom on 2026-10-27 (drafted by the architect the same day). Tom's words, verbatim: "Approve errata E1 at the defaults: AC131 goes to 163, fused front-sight posts are stripped and S10 reports any optic span over them. Cut the E1 slice off S7's merge, before S8."
+- E1-Q1: AC131 is 163 placements ("other" 117).
+- E1-Q2: the default. Fused front-sight posts are stripped, and S10 reports any optic seat whose span covers a stripped sight placement.
+- E1.3's reading (strip only slot-filling placements) is in force. S7 already runs on it.
 
 **Found by:** the P1 detector slices (S3 locator and strip, S5 bore). Confirmed against the merged code at `097bfcc` (S1 to S6 merged). E1.3 was found while measuring E1.2.
 
@@ -189,7 +192,7 @@ AC131's live count moves from 164 to 163 (other 118 → 117). This is a spec num
   - slot parts stripped: none;
   - slot parts and slot-less devices stripped: a 31 mm face ring.
 - The fourth mover of §1.1 is withdrawn. AC135 is amended:
-  > The 3 expected movers of §1.1 (the two Uzi-type SMG hosts and one nail gun) go from none to an end. E1.1's utility host with a four-sided nozzle goes from an end to none. Together they take the spec definition to about 235 and 22. The brake preset stays without an end (E1.3). Any other mover is listed with its class.
+  > The 3 expected movers of §1.1 (the two Uzi-type SMG hosts and one nail gun) go from none to an end. E1.1's utility host with a four-sided nozzle goes from an end to none. Counted from the merged S5 detector's build-frame census of 234 with an end and 23 without, the result is 234 − 1 + 3 = 236 with an end and 21 without. (The §1.1 survey script read 233 and 24; that baseline gives 235 and 22.) The build reports the merged-detector figure. The brake preset stays without an end (E1.3). Any other mover is listed with its class.
 
   The fixture part of AC135 gains the square end of E1.1.
 
