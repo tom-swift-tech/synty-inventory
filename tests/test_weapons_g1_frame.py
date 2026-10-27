@@ -220,7 +220,7 @@ def test_the_uzi_record_frame_is_the_barrel_axis_toward_the_ring(world, rules):
     assert g["tip"] is None and g["butt"] == [0.0, 0.04, -0.1]
     assert g["muzzle"] == [0.0, 0.04, 0.2] and g["muzzle_source"] == "face"
     assert d["flags"] == [] and "axes_unexpected" not in d["reasons"]  # the voted forward is the pack convention +z
-    assert d["frame"]["changed"] is True and d["frame"]["conflict"] is False
+    assert d["frame_vote"]["changed"] is True and d["frame_vote"]["conflict"] is False
 
 
 def test_the_uzi_muzzle_seat_is_at_the_ring_not_at_the_magazine_bottom(world, rules):
@@ -254,15 +254,16 @@ def test_classification_reads_the_pre_vote_values_so_the_confidence_keeps_the_bo
 
 
 def test_pass2_inputs_are_the_pre_vote_values(world, rules):
+    # S7 fold-in 1: rename detail key frame to frame_vote (the mounts block reads the vote through it)
     d = detail(world, rules, F.UZI)
     assert geometry.pass2_inputs(d) == {"length_m": 0.38, "long_axis": "y", "forward_by_fallback": False, "axes_unexpected": True}
     assert d["geometry"]["length_m"] == 0.3  # the record's own length follows the voted frame
-    assert d["frame"] == {"changed": True, "conflict": False, "length_m": 0.38, "axes_unexpected": True, "forward_by_fallback": False}
+    assert d["frame_vote"] == {"changed": True, "conflict": False, "length_m": 0.38, "axes_unexpected": True, "forward_by_fallback": False}
 
 
 def test_the_vote_runs_whatever_with_mounts_says(world, rules):
     bare = detail(world, rules, F.UZI, with_mounts=False)
-    assert bare["geometry"]["axes"]["forward_source"] == "body" and "mounts" not in bare and "frame" not in bare
+    assert bare["geometry"]["axes"]["forward_source"] == "body" and "mounts" not in bare and "frame_vote" not in bare
 
 
 # --- the record: no change ------------------------------------------------------------------------------------------------------
@@ -271,7 +272,7 @@ def test_the_vote_runs_whatever_with_mounts_says(world, rules):
 def test_the_plain_rifle_is_unchanged(world, rules):
     d = detail(world, rules, F.RIFLE, archetype="rifle", hold="one_hand")  # one_hand: eligible, and no support point to differ by
     assert d["geometry"]["axes"] == {"forward": "+z", "up": "+y", "forward_source": "pivot", "up_source": "fixed"}
-    assert d["frame"] == {"changed": False, "conflict": False, "length_m": 0.85, "axes_unexpected": False, "forward_by_fallback": False}
+    assert d["frame_vote"] == {"changed": False, "conflict": False, "length_m": 0.85, "axes_unexpected": False, "forward_by_fallback": False}
     assert d["geometry"] == v5_geometry(world, rules, F.RIFLE, archetype="rifle")  # every key is the version 5 value
 
 
@@ -296,7 +297,7 @@ def test_no_other_record_of_the_world_has_a_body_frame(world):
 
 def test_the_both_rings_host_keeps_its_build_frame_and_reports_the_conflict(world, rules):
     d = detail(world, rules, F.BOTH, hold="one_hand")
-    assert d["frame"]["conflict"] is True and d["frame"]["changed"] is False
+    assert d["frame_vote"]["conflict"] is True and d["frame_vote"]["changed"] is False
     assert d["geometry"] == v5_geometry(world, rules, F.BOTH)  # the build frame, every key
     g = d["geometry"]
     assert g["axes"] == {"forward": "-y", "up": "+z", "forward_source": "pivot", "up_source": "fixed"}
@@ -305,7 +306,7 @@ def test_the_both_rings_host_keeps_its_build_frame_and_reports_the_conflict(worl
 
 def test_frame_axis_sets_the_axis_and_forward_then_the_sign(world, rules):
     named = detail(world, rules, F.BOTH, frame_axis="z")
-    assert named["frame"]["conflict"] is False and named["frame"]["changed"] is True
+    assert named["frame_vote"]["conflict"] is False and named["frame_vote"]["changed"] is True
     g = named["geometry"]
     assert g["axes"]["forward"] == "+z" and g["axes"]["forward_source"] == "body" and g["axes"]["up"] == "+y"
     assert g["item_basis"] == IDENTITY and g["length_m"] == 0.4
@@ -329,13 +330,13 @@ def test_a_forward_override_on_the_build_axis_does_not_pick_the_axis_the_vote_do
     d = detail(world, rules, F.UZI, forward_override="-y")  # -y is the bounding-box axis; the body says z, and the override only signs an axis
     assert d["geometry"]["axes"]["forward"] == "+z" and d["geometry"]["axes"]["forward_source"] == "body"
     assert d["warning"] is not None and "'-y' ignored" in d["warning"]
-    assert d["geometry"]["length_m"] == 0.3 and d["frame"]["changed"] is True
+    assert d["geometry"]["length_m"] == 0.3 and d["frame_vote"]["changed"] is True
 
 
 def test_frame_axis_on_the_build_axis_keeps_the_build_frame(world, rules):
     d = detail(world, rules, F.UZI, frame_axis="y")
     assert d["geometry"]["axes"]["forward"] == "-y" and d["geometry"]["axes"]["forward_source"] == "pivot"
-    assert d["frame"]["changed"] is False and d["frame"]["conflict"] is False
+    assert d["frame_vote"]["changed"] is False and d["frame_vote"]["conflict"] is False
 
 
 def test_a_forward_override_on_the_voted_axis_sets_the_sign_as_today(world, rules):

@@ -99,8 +99,9 @@ def test_ac108r_a_child_node_optic_mount_is_the_childs_own_point(mounts, name, p
 
 
 def test_ac108r_a_host_without_a_scope_child_has_no_optic_seat(mounts):
+    # S7 (spec 3.4 step 3): no child seat of its own, but a smooth top gives it the estimated flat seat (a probe seat, no child)
     optic = mounts[named("Bare")]["optic"]
-    assert optic["source"] == "none" and optic["point"] is None
+    assert optic["source"] == "probe" and optic["child_node"] is None and optic["point"] is not None
 
 
 def test_ac108r_a_two_scope_mount_and_each_of_its_seats_keep_the_childrens_own_points(mounts):

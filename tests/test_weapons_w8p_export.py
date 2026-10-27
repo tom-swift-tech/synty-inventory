@@ -5,7 +5,7 @@ World: ``w8d_world`` with the same one change as the W8o export test (FAKE_CompB
 * ``FAKE_CompA/SM_Wep_Rifle_Mag_01``: twin on Alpha and on ``FAKE_Mount/..Mount_01``; its cross_pack_fit pair with ``FAKE_Mount/..Double_01`` has a seat, so
   before A8 it was a LISTED cross entry. It is now a pending ``{host, tier: cross_pack_fit}`` entry, with the same-pack pending Beta and Epsilon unchanged.
 * The fixture holds no other listed cross magazine. Its listed cross entries of the other slots (counted from the fixture: laser_light 2, muzzle 6,
-  optic 6) must stay where they are.
+  optic 84 since S7) must stay where they are.
 """
 
 from __future__ import annotations
@@ -101,7 +101,10 @@ def test_ac125_the_other_slots_keep_their_listed_cross_entries(world, capsys):
         for e in (att or {}).get("compatible_hosts", ()):
             if e["tier"] == "cross_pack_fit":
                 cross[att["slot"]] = cross.get(att["slot"], 0) + 1
-    assert cross == {"laser_light": 2, "muzzle": 6, "optic": 6}  # literals counted from the fixture world; magazine: none
+    # literals counted from the fixture world; magazine: none. S7 (spec 3.4 step 3): the optic count was 6 while only hosts with a scope child had
+    # an optic seat; every host with a smooth top has an estimated flat seat now, so the exported optic entries are 84 = FAKE_Attach scope parts on
+    # FAKE_CompA hosts 11 + on FAKE_Mount hosts 43, and FAKE_CompA scope parts on FAKE_Attach hosts 4 + on FAKE_Mount hosts 26
+    assert cross == {"laser_light": 2, "muzzle": 6, "optic": 84}
 
 
 def test_ac125_pending_min_tier_cross_pack_fit_puts_the_parked_hosts_back_in_pending_hosts(world, capsys):

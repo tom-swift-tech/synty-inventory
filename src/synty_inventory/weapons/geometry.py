@@ -28,6 +28,7 @@ from ..sources.glb_geometry import load_triangles, node_world_matrices
 from ..sources.glb_measure import NodeSel, _cache_key, node_cache_tag, node_selected, read_glb_json
 from ..sources.glb_scale import scale_cache_tag
 from . import digest, write_text_lf
+from . import fit_geometry as _fit
 from .attach import measure_anchor, muzzle_silhouette, muzzle_stub, place, settle_pair
 from .mount_probe import end_ring_d, surface_samples
 from .mounts import build_mounts, eligible, matching_slots, mesh_nodes
@@ -690,7 +691,7 @@ def measure_weapon_detail(
     *, hold_class: str | None = None, genre: str | None = None, forward_override: str | None = None,
     head_lead: bool = False, attach_slot: str | None = None, mount_overrides: dict | None = None,
     with_mounts: bool = False, host_id: str | None = None, attach_kind: str | None = None, host_pack: str | None = None,
-    frame_axis: str | None = None,
+    frame_axis: str | None = None, fit_cache: dict | None = None, fit_cache_id: str | None = None, fused_parts: tuple | None = None,
 ) -> dict:
     """``{'geometry': block | None, 'flags': [...], 'reasons': [...], 'warning': str | None}`` (spec 3.5).
 
@@ -725,9 +726,15 @@ def measure_weapon_detail(
     G1 (geometry version 6, spec 3.3): on an eligible host (``mounts.eligible``, whatever ``with_mounts`` says) the forward AXIS is voted by
     ``frame_vote`` (the body axis, confirmed by one bore ring, or the id override ``frame_axis``) before the ``forward_override`` sets the SIGN on
     it. Everything after the axes follows the voted frame, and ``geometry.long_axis`` stays the bounding-box axis. With ``with_mounts`` the key
-    ``frame`` sits beside ``geometry`` (like ``child_extents``, never a record key): the vote's ``changed`` and ``conflict``, and the PRE-vote
+    ``frame_vote`` sits beside ``geometry`` (like ``child_extents``, never a record key; S7 fold-in 1 renamed it from ``frame``, which collides
+    with ``geometry["frame"] == "asset"``): the vote's ``changed`` and ``conflict``, and the PRE-vote
     ``length_m``, ``axes_unexpected`` and ``forward_by_fallback`` that ``pass2_inputs`` hands to classification, so the vote never feeds
-    ``kind``, ``archetype`` or ``hold_class``.
+    ``kind``, ``archetype`` or ``hold_class``. An eligible host that skips the vote (a bow or shield archetype that an id override forced
+    onto a gun hold, S7 fold-in 2) has ``changed`` and ``conflict`` False and no pre-vote keys: ``pass2_inputs`` then reads the measured ones.
+
+    S7: the key ``host_feats`` (``fit_geometry.host_features``: ``s0``, ``slots`` and the ``located`` placements) sits beside the block too. ``fit_cache`` (a
+    dict the caller persists with ``fit_geometry.save_fit_cache``) and ``fit_cache_id`` (the entry id ``measure_cached`` uses) let the features be
+    cached (spec 3.11); ``fused_parts`` is ``(key, load)`` for a preset host (``fit_geometry``, "Host features").
     """
     if hold_class is None:
         hold_class = (rules.get("hold_by_archetype") or {}).get(archetype, "none") if role == "whole" else "none"
@@ -952,10 +959,15 @@ def measure_weapon_detail(
                                        params=attachment_rules(rules).get("anchor"))
     if with_mounts and eligible(role, kind, hold_class):
         built = build_mounts(glb, glb_node, scale, rules, verts=verts, axes={"forward": forward, "up": up},
-                             transformed=transformed, probe=muzzle_probe, overrides=mount_overrides, host_id=host_id, host_pack=host_pack)
+                             transformed=transformed, probe=muzzle_probe, overrides=mount_overrides, host_id=host_id, host_pack=host_pack,
+                             frame_changed=bool(vote and vote.changed), frame_conflict=bool(vote and vote.conflict),
+                             fit_cache=fit_cache, fit_cache_id=fit_cache_id, fused_parts=fused_parts)
         out["mounts"], out["mount_problems"] = built["mounts"], built["problems"]
         out["child_extents"] = built["child_extents"]  # W8c twin evidence: beside the block, never in the record
-        out["frame"] = {"changed": vote.changed, "conflict": vote.conflict, **pre_vote}  # G1: the vote's state and the pre-vote pass 2 inputs, beside the block
+        out["host_feats"] = {k: built["host_feats"][k] for k in ("s0", "slots", "located")}  # S7: the detectors' features, beside the block
+        # G1: the vote's state and the pre-vote pass 2 inputs, beside the block. A bow or shield never votes (vote and pre_vote are None):
+        # unchanged, no conflict, and pass2_inputs falls back to the measured values (S7 fold-ins 1 and 2)
+        out["frame_vote"] = {"changed": vote.changed if vote else False, "conflict": vote.conflict if vote else False, **(pre_vote or {})}
     return out
 
 
@@ -979,10 +991,12 @@ def pass2_inputs(detail: dict) -> dict | None:
         return None
     # G1: the frame vote never feeds classification, so an eligible host hands over what the bounding-box frame measured (``frame``), not the voted
     # length, fallback flag and reason. Otherwise a kind guessed from the long axis could turn ranged, vote, and turn back (spec 3.3)
-    pre = detail.get("frame") or {
+    measured = {
         "length_m": geo["length_m"], "forward_by_fallback": "forward_by_fallback" in detail["flags"],
         "axes_unexpected": "axes_unexpected" in detail["reasons"],
     }
+    vote = detail.get("frame_vote") or {}  # S7 fold-in 1: renamed from "frame"; a host that skipped the vote has no pre-vote keys
+    pre = {k: vote.get(k, measured[k]) for k in measured}
     return {
         "length_m": pre["length_m"],
         "long_axis": geo["long_axis"],  # W7b: the measured fallback for a still-null kind (z -> ranged, else melee); always the bounding-box axis
@@ -1027,7 +1041,7 @@ _PROBE_CODE_DIGEST = code_digest((Path(__file__).parent / "mount_probe.py").read
 def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, forward_override=None,
                         *, head_lead: bool = False, attach_slot: str | None = None,
                         mount_overrides: dict | None = None, host_id: str | None = None, attach_kind: str | None = None,
-                        host_pack: str | None = None, frame_axis: str | None = None) -> str:
+                        host_pack: str | None = None, frame_axis: str | None = None, fused_key: str | None = None) -> str:
     # the measurement depends on the classification context, not only on the file (spec 3.5 says file + versions;
     # deviation reported): a rules or override change that flips archetype/kind/hold must not serve stale geometry
     fp = {
@@ -1076,7 +1090,12 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
             # A4 (W8l): a child's anchor follows the foot ladder (`ap`, the anchor table), and the mirrored pair lives in mounts.py (`md`).
             # A5 (W8m, item 2) retired the optic seat lift and its `os` input: the mounts source changed, so `md` moves the key
             "ap": tables.get("anchor"),
+            # G1 S7 (spec 3.11): rail, flat, muzzle and magazine seats are mounts, so the fit_geometry block (`fg`: every detector literal) and the code
+            # of the fit gate (`fd`: the fit_*.py digests, read at call time) are inputs. Geometry and attach versions are `v` and the cache version
+            "fg": tables.get("fit_geometry"), "fd": _fit.FIT_CODE_DIGESTS,
         }
+        if fused_key is not None:
+            fp["mv"]["pk"] = fused_key  # a preset host: the part set the locator searched for (absent on every other host)
         if mount_overrides:
             fp["mv"]["mo"] = mount_overrides
     return digest(fp)
@@ -1087,7 +1106,7 @@ def measure_cached(
     role: str, rules: dict, cache: dict, *, hold_class: str | None = None, genre: str | None = None,
     forward_override: str | None = None, head_lead: bool = False, attach_slot: str | None = None,
     mount_overrides: dict | None = None, host_id: str | None = None, attach_kind: str | None = None, host_pack: str | None = None,
-    frame_axis: str | None = None,
+    frame_axis: str | None = None, fit_cache: dict | None = None, fused_parts: tuple | None = None,
 ) -> tuple[dict, bool]:
     """``(detail, was_cached)``. Entry id = relative GLB path + node tag + scale tag (as ``glb_measure``); the
     entry is valid while ``mtime:size`` and its version (``WEAPON_GEOMETRY_VERSION`` + the digest of this file) match, and holds one result per
@@ -1105,7 +1124,7 @@ def measure_cached(
     version = f"{_pkg.WEAPON_GEOMETRY_VERSION}+{_CODE_DIGEST}"
     fp = _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules, forward_override, head_lead=head_lead,
                              attach_slot=attach_slot, mount_overrides=mount_overrides, host_id=host_id, attach_kind=attach_kind,
-                             host_pack=host_pack, frame_axis=frame_axis)
+                             host_pack=host_pack, frame_axis=frame_axis, fused_key=fused_parts[0] if fused_parts else None)
     entry = cache.get(cache_id)
     if not entry or entry.get("key") != key or entry.get("version") != version:
         entry = {"key": key, "version": version, "by_inputs": {}}
@@ -1117,6 +1136,7 @@ def measure_cached(
         abs_path, glb_node, scale, archetype, kind, role, rules, hold_class=hold_class, genre=genre,
         forward_override=forward_override, head_lead=head_lead, attach_slot=attach_slot, mount_overrides=mount_overrides,
         with_mounts=True, host_id=host_id, attach_kind=attach_kind, host_pack=host_pack, frame_axis=frame_axis,
+        fit_cache=fit_cache, fit_cache_id=cache_id, fused_parts=fused_parts,
     )
     entry["by_inputs"][fp] = deepcopy(detail)
     return detail, False

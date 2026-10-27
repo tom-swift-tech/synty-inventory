@@ -174,7 +174,8 @@ def test_no_part_lists_a_refused_slot_of_a_class_host(built):
     comp, pend = hosts_of(built, N.C_MAG)  # the one open slot of the nailgun: its id-override magazine seat, a twin of the baked child
     assert comp == {N.NAILGUN: "twin"} and pend == {N.PISTOL: "same_pack_fit", N.RIFLE: "same_pack_fit"}
     comp, pend = hosts_of(built, N.C_SCOPE)
-    assert N.NAILGUN not in comp | pend and pend == {N.RIFLE: "same_pack_fit"}  # the rocket's optic is refused too
+    # the rocket's optic is refused too; S7 (spec 3.4 step 3): the rifle's optic is an estimated flat seat, so it is compatible, not pending
+    assert N.NAILGUN not in comp | pend and comp == {N.RIFLE: "same_pack_fit"} and pend == {}
     comp, pend = hosts_of(built, N.C_FOREGRIP)
     assert N.NAILGUN not in comp | pend and pend == {N.RIFLE: "same_pack_fit", N.ROCKET: "same_pack_fit"}
 
@@ -193,9 +194,10 @@ def built_with(tmp_path, **never) -> dict:
 def test_a_class_row_edited_back_gives_the_launcher_its_optic_again(tmp_path):
     by = built_with(tmp_path, launcher=["muzzle"])
     m = mounts_of(by, N.ROCKET)
-    assert refused(m["muzzle"]) and not refused(m["optic"]) and m["optic"]["reason"] == "no_child_no_probe"
+    # S7 (spec 3.4 step 3): the launcher's optic is its estimated flat seat (a probe seat), no longer a none slot
+    assert refused(m["muzzle"]) and not refused(m["optic"]) and m["optic"]["source"] == "probe" and m["optic"]["reason"] is None
     comp, pend = hosts_of(by, N.C_SCOPE)
-    assert pend == {N.RIFLE: "same_pack_fit", N.ROCKET: "same_pack_fit"} and not comp
+    assert comp == {N.RIFLE: "same_pack_fit", N.ROCKET: "same_pack_fit"} and not pend
 
 
 def test_emptying_the_tool_row_gives_the_stun_gun_its_seats_again(tmp_path):

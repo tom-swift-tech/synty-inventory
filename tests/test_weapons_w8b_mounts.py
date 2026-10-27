@@ -121,7 +121,9 @@ def test_ac66_a_shared_glb_host_sees_only_the_children_below_its_selected_node(w
 
 def test_ac66_a_child_in_a_collision_hull_node_is_dropped(world):
     r = rec(world, HULL)
-    assert r["geometry"]["mounts"]["optic"]["source"] == "none" and r["geometry"]["mounts"]["optic"]["occupied_by"] == []
+    # S7 (spec 3.4 step 3): the hull child is dropped, so the optic is the estimated flat seat on the smooth receiver top, not a child
+    assert r["geometry"]["mounts"]["optic"]["source"] == "probe" and r["geometry"]["mounts"]["optic"]["feature"] == "rail_flat"
+    assert r["geometry"]["mounts"]["optic"]["occupied_by"] == []
     assert r["geometry"]["bounds"]["max"][1] < 0.11  # the hull (scope at y 0.10..0.18) is not part of the measured mesh either
 
 
@@ -140,7 +142,8 @@ def test_ac66_the_body_of_the_gun_is_not_a_child_of_itself(world):
     import tempfile
     d, _, _, _ = A.build_mount_world(Path(tempfile.mkdtemp()), roots={"SM_Wep_Rifle_Plain_01": body})
     m = next(w for w in d["weapons"] if w["id"] == PLAIN)["geometry"]["mounts"]
-    assert m["optic"]["source"] == "none"  # the 'Scope' node is the whole gun: the body, not a baked child
+    # the 'Scope' node is the whole gun: the body, not a baked child (S7, spec 3.4 step 3: the optic is the flat seat, not a child)
+    assert m["optic"]["source"] == "probe" and m["optic"]["occupied_by"] == []
     assert m["muzzle"]["source"] == "probe"
 
 
@@ -169,7 +172,7 @@ def test_ac66_four_fixtures_one_per_rung(world):
     # probe: the muzzle has no child to take and falls to the probe
     assert mounts(world, MOUNT)["muzzle"]["source"] == "probe"
     # none: nothing to take
-    assert mounts(world, PLAIN)["optic"]["source"] == "none"
+    assert mounts(world, PLAIN)["underbarrel"]["source"] == "none"  # S7: PLAIN's optic is a flat seat since spec 3.4 step 3
 
 
 def test_ac66_an_override_can_disable_a_slot_that_has_a_child(world):
@@ -193,7 +196,9 @@ def test_ac66_an_override_can_seat_a_slot_on_a_node_the_tokens_do_not_match(worl
 
 def test_ac66_ignoring_the_child_would_leave_the_optic_without_a_mount(world):
     # the property the mutation 'always probe' breaks: a host with a scope child has an optic mount, one without has none
-    assert mounts(world, MOUNT)["optic"]["point"] is not None and mounts(world, PLAIN)["optic"]["point"] is None
+    # S7 (spec 3.4 step 3): PLAIN's optic is the estimated flat seat now, so the child is told apart by source and by the point
+    assert mounts(world, MOUNT)["optic"]["source"] == "child_node" and mounts(world, PLAIN)["optic"]["source"] == "probe"
+    assert mounts(world, MOUNT)["optic"]["point"] is not None and mounts(world, PLAIN)["underbarrel"]["point"] is None
 
 
 # --- AC68: none behaviour --------------------------------------------------------------------------------------------
@@ -201,7 +206,7 @@ def test_ac66_ignoring_the_child_would_leave_the_optic_without_a_mount(world):
 
 def test_ac68_the_childless_host_has_none_slots_with_null_coordinates_and_the_reason(world):
     m = mounts(world, PLAIN)
-    for slot in ("optic", "underbarrel", "magazine", "laser_light"):
+    for slot in ("underbarrel", "magazine", "laser_light"):  # S7: the optic is a flat seat (spec 3.4 step 3)
         got = m[slot]
         assert got["source"] == "none" and got["reason"] == "no_child_no_probe"
         assert got["point"] is None and got["forward"] is None and got["up"] is None and got["span_m"] is None
@@ -222,7 +227,7 @@ def test_ac68_mount_missing_needs_a_compatible_attachment_for_that_slot(world):
     m = mounts(world, PLAIN)
     est = {"mount_estimated"}  # A2: both sight slots of these hosts are probe seats
     assert M.mount_reasons(m) == est  # compatibility inference is W8c: the build passes nothing
-    assert M.mount_reasons(m, {"optic"}) == est | {"mount_missing"}
+    assert M.mount_reasons(m, {"underbarrel"}) == est | {"mount_missing"}  # S7: the optic has a flat seat (spec 3.4 step 3)
     assert M.mount_reasons(m, {"muzzle"}) == est  # the muzzle slot is a probe, not none
     # A3 addendum 3 (W8j, item 8 A): MOUNT's baked Scope child is a BODY child, so both its sight slots are slot_disabled (no probe seat,
     # so no mount_estimated); the optic still has its child

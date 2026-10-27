@@ -41,7 +41,8 @@ SNIPER_PS, SNIPER_PS_CONTROL = "SM_Wep_Sniper_01", "SM_Wep_Sniper_02"
 SNIPER_SF, PISTOL_SF = "SM_Wep_Sniper_03", "SM_Wep_Pistol_05"
 SIL, BRAKE, CROSS_SIL = "SM_Wep_Silencer_01", "SM_Wep_Silencer_Brake_01", "SM_Wep_Mod_Silencer_01"
 OTHER_SLOTS = ["optic", "underbarrel", "magazine", "laser_light", "sight_front", "sight_rear"]
-OTHER_SLOTS_SEATS = {"optic": ("none", "no_child_no_probe"), "underbarrel": ("none", "no_child_no_probe"), "magazine": ("none", "no_child_no_probe"),
+# S7 (spec 3.4 step 3): the round-barrel hosts have a smooth top, so their optic is an estimated flat seat (a probe seat)
+OTHER_SLOTS_SEATS = {"optic": ("probe", None), "underbarrel": ("none", "no_child_no_probe"), "magazine": ("none", "no_child_no_probe"),
                      "laser_light": ("none", "no_child_no_probe"), "sight_front": ("probe", None), "sight_rear": ("probe", None)}
 
 

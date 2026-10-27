@@ -94,7 +94,8 @@ def test_ac89_an_unsided_sights_child_fills_nothing(built):
     m = mounts(built, "SM_Wep_Rifle_Unsided_01")
     child = "SM_Wep_Rifle_Unsided_01_Sights_01"
     assert all(child not in m[s]["occupied_by"] for s in SLOTS)
-    assert m["optic"]["source"] == "none"
+    # S7 (spec 3.4 step 3): the optic is the estimated flat seat on the smooth top now, still no child
+    assert m["optic"]["source"] == "probe" and m["optic"]["child_node"] is None and m["optic"]["occupied_by"] == []
 
 
 def test_ac89_two_sibling_sight_children_stay_in_optic(built):

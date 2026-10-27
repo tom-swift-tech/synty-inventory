@@ -116,7 +116,8 @@ def test_a_partial_build_of_one_pack_keeps_the_twins_of_the_carried_hosts(tmp_pa
         rules=W.compat_rules(), threejs_v2_dir=root, geometry_cache={})
     alt = W.by_id(part)[W.P[W.ALT_SCOPE]]
     # the hosts of FAKE_CompA are carried over (no child extents in this run): the twin relations come from the stored lists
-    assert W.hosts_of(alt) == [(W.H[W.ALPHA], "twin", 0.95), (W.H[W.EPSILON], "twin", 0.95)]
+    # (S7, spec 3.4 step 3: BETA's flat optic seat makes it a cross_pack_fit entry of the Alt scope, carried over too)
+    assert W.hosts_of(alt) == [(W.H[W.ALPHA], "twin", 0.95), (W.H[W.EPSILON], "twin", 0.95), (W.H[W.BETA], "cross_pack_fit", 0.5)]
     assert "twin_multi" in alt["review"]["reasons"]
     assert to_text(part) == to_text(full)
 
