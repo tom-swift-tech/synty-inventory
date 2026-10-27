@@ -34,6 +34,7 @@ from synty_inventory import weapons as pkg  # noqa: E402
 from synty_inventory.weapons import directory as dirmod  # noqa: E402
 from synty_inventory.weapons import fit_geometry as FG  # noqa: E402
 from synty_inventory.weapons import fit_rails, geometry  # noqa: E402
+from synty_inventory.weapons.mounts import none_mount  # noqa: E402
 from synty_inventory.weapons.overrides import empty_overrides  # noqa: E402
 from synty_inventory.weapons.rules import attachment_rules, load_rules  # noqa: E402
 from synty_inventory.weapons.schema import validate_directory, validate_record  # noqa: E402
@@ -173,14 +174,15 @@ def test_ac148_authored_optic_seats_keep_their_numbers_and_get_seat_ref(built):
 def test_ac148_the_muzzle_seat_stays_the_probes_and_only_gets_its_feature(built, featured):
     expected = {GW.UZI: ("barrel_ring", [0.0, 0.04, 0.2]), GW.RIFLE_PLAIN: ("barrel_ring", [0.0, 0.05, 0.6]),
                 GW.CARBINE: ("barrel_ring", [0.0, 0.05, 0.2]), GW.FLATTOP: ("barrel_ring", [0.0, 0.05, 0.4]),
-                GW.FLAT: ("barrel_round", [0.0, 0.046, 0.65]), GW.SCOPED: ("barrel_round", [0.0, 0.046, 0.65])}
+                GW.FLAT: ("barrel_ring", [0.0, 0.046, 0.65]), GW.SCOPED: ("barrel_ring", [0.0, 0.046, 0.65])}
     for name, (feature, point) in expected.items():
         muz = mounts(built, name)["muzzle"]
         assert (muz["source"], muz["feature"]) == ("probe", feature), name
         close(muz["point"], point)
         assert muz["point"] == built.by_id[GW.pid(name)]["geometry"]["muzzle"]  # AC67 parity: the same point as geometry.muzzle
     assert featured.feats[GW.pid(GW.UZI)]["slots"]["muzzle"]["barrel_end"]["evidence"] == "ring"
-    assert featured.feats[GW.pid(GW.FLAT)]["slots"]["muzzle"]["barrel_end"]["evidence"] == "round_section"
+    # the rod rifle's round 32-gon end reads as a ring to the A0 probe (six points in one radial bin), so the pipeline's evidence is "ring"
+    assert featured.feats[GW.pid(GW.FLAT)]["slots"]["muzzle"]["barrel_end"]["evidence"] == "ring"
 
 
 def test_ac148_the_uzi_in_the_voted_frame_has_its_muzzle_at_the_ring_not_at_the_magazine(built):
@@ -308,7 +310,7 @@ def test_q_g11_the_fused_scope_and_silencer_of_a_preset_refuse_their_slots_and_t
 def test_q_g11_a_preset_with_no_fused_scope_or_silencer_keeps_those_slots_open(built, featured):
     m = mounts(built, GW.PRESET_MAG)
     assert m["optic"]["source"] == "probe" and m["optic"]["feature"] == "rail_flat"
-    assert m["muzzle"]["source"] == "probe" and m["muzzle"]["feature"] == "barrel_round"
+    assert m["muzzle"]["source"] == "probe" and m["muzzle"]["feature"] == "barrel_ring"
     assert [p["part"] for p in featured.feats[GW.pid(GW.PRESET_MAG)]["located"]] == [GW.MAG_RIFLE]
 
 
@@ -332,10 +334,11 @@ def test_fold_in_4_a_fused_magazine_is_a_located_reference_without_a_seat(built,
 
 
 def test_the_number_of_hosts_per_feature_value_on_fake_g1(built):
-    # by hand, host by host (g1_world): barrel_ring Uzi, Plain, Carbine, Lowrail, FlatTop; barrel_round Flat, Scoped, Shotgun, PresetMag;
+    # by hand, host by host (g1_world): barrel_ring Uzi, Plain, Carbine, Lowrail, FlatTop, Flat, Scoped, Shotgun, PresetMag (the rod rifles' round
+    # barrels read as rings to the A0 probe, so barrel_round has no host in the pipeline: it is tested on host_features directly);
     # rail_flat Uzi, Flat, FlatTop, Lowrail, PresetMag, Shotgun; rail_teeth Carbine (optic) and Lowrail (underbarrel); seat_ref Scoped, Stepped;
     # well_ref Uzi, Plain, Carbine, Preset. Both (a frame conflict), Preset's optic and muzzle, and the Rocket, Nailgun and Minigun carry none.
-    want = {"barrel_ring": 5, "barrel_round": 4, "rail_flat": 6, "rail_teeth": 2, "seat_ref": 2, "well_ref": 4}
+    want = {"barrel_ring": 9, "rail_flat": 6, "rail_teeth": 2, "seat_ref": 2, "well_ref": 4}
     assert built.report["feature_counts"] == want
     counted: dict[str, set] = {}
     for w in built.directory["weapons"]:
@@ -555,7 +558,7 @@ def test_fold_in_6_what_host_features_emits_is_what_verdict_reads(featured):
         (GW.CARBINE, "magazine", part(entry_section=None), "unverified", ("drum",)),
         (GW.UZI, "muzzle", part(mate_d_m=0.024, device_inner_d=None), "fit", ("barrel_ring", "frame_body")),
         (GW.UZI, "muzzle", part(mate_d_m=0.012, device_inner_d=None), "no_fit", ("barrel_ring", "frame_body")),
-        (GW.FLAT, "muzzle", part(mate_d_m=0.017), "fit", ("barrel_round",)),
+        (GW.FLAT, "muzzle", part(mate_d_m=0.017), "fit", ("barrel_ring",)),
     ]
     for name, slot, p, value, signals in cases:
         v = FG.verdict(slot, featured.feats[GW.pid(name)]["slots"][slot], p, None, RULES)
@@ -569,3 +572,57 @@ def test_fold_in_6_what_host_features_emits_is_what_verdict_reads(featured):
         assert sorted(hf) == ["located", "s0", "slots"] and sorted(hf["slots"]) == sorted(FOUR), pid
         for slot in FOUR:
             assert FG.verdict(slot, hf["slots"][slot], generic, None, RULES).value in FG.VERDICT_VALUES, (pid, slot)
+
+
+# --- barrel_round, and the strip scope (G1 errata E1.1 and E1.3) ----------------------------------------------------------------------
+
+
+def fit_mounts(muzzle_point, *, bore_source):
+    """The four mounts ``host_features`` reads, for a hand-built host: a probe muzzle and three empty slots."""
+    muz = {**none_mount("x"), "source": "probe", "point": muzzle_point, "reason": None, "bore_source": bore_source}
+    return {"muzzle": muz, **{slot: none_mount("no_child_no_probe") for slot in ("optic", "underbarrel", "magazine")}}
+
+
+AXES = {"forward": "+z", "up": "+y"}
+
+
+def test_a_round_rod_barrel_without_a_ring_bore_is_barrel_round_and_a_square_one_is_not_asserted():
+    # G1 errata E1.1: S7 stands on no square barrel. The rod (32 sides, solid, radius 8.5 mm) with a muzzle mount that found no ring bore
+    # (bore_source face_extent) is a round section: barrel_round, OD 0.017, centre y 0.046, face z 0.65
+    rod = GW.rod_rifle()
+    feats = FG.host_features(RULES, axes=AXES, mounts=fit_mounts([0.0, 0.046, 0.65], bore_source="face_extent"), mesh=lambda drop: rod,
+                             child_mesh=lambda name: None)
+    end = feats["slots"]["muzzle"]["barrel_end"]
+    assert (end["evidence"], feats["seats"]["muzzle"]) == ("round_section", {"feature": "barrel_round"})
+    assert end["od_m"] == pytest.approx(0.017, abs=5e-4) and end["face_f"] == pytest.approx(0.65, abs=1e-4)
+    assert end["centre_su"] == pytest.approx([0.0, 0.046], abs=5e-4)
+    # the same mount with a ring bore is a ring
+    ringed = FG.host_features(RULES, axes=AXES, mounts=fit_mounts([0.0, 0.046, 0.65], bore_source="ring"), mesh=lambda drop: rod,
+                              child_mesh=lambda name: None)
+    assert ringed["seats"]["muzzle"] == {"feature": "barrel_ring"}
+
+
+def test_e1_3_the_strip_removes_only_the_parts_that_fill_a_slot_not_the_bodys_own_parts(monkeypatch):
+    """G1 errata E1.3: "the host minus the located parts" is the host minus the located parts that fill an attachment slot.
+
+    A preset assembled from separate pack parts (receiver, rail, barrel: no slot) plus a fused scope (slot optic): the locator finds all four,
+    but only the scope is stripped. Stripping all four (the S7 first reading) empties the body: the rail and the barrel the detectors measure
+    would be gone. The strip is spied on to read which placements it is given; the detectors' results show what is left."""
+    host, parts = GW.body_preset()
+    given: list[list[str]] = []
+    real = FG.strip
+
+    def spy(verts, tris, placements, part_meshes):
+        given.append(sorted(pl.part for pl in placements))
+        return real(verts, tris, placements, part_meshes)
+
+    monkeypatch.setattr(FG, "strip", spy)
+    feats = FG.host_features(RULES, axes=AXES, mounts=fit_mounts([0.0, 0.05, 0.2], bore_source="ring"), mesh=lambda drop: host,
+                             child_mesh=lambda name: None, fused_parts=("body-preset", lambda: parts))
+    assert sorted(p["part"] for p in feats["located"]) == ["barrel", "rail", "receiver", "scope"]  # all four are located
+    assert given and all(g == ["scope"] for g in given), given  # and only the slot part is stripped
+    run = feats["slots"]["optic"]["toothed_run"]  # the rail is still there: CARBINE's 8-tooth run, 0.188 long and 17 mm wide
+    assert run["length_m"] == pytest.approx(0.188, abs=2e-3) and run["width_m"] == pytest.approx(0.017, abs=1e-3)
+    end = feats["slots"]["muzzle"]["barrel_end"]  # and the barrel: its ring face at z 0.20
+    assert end["face_f"] == pytest.approx(0.20, abs=1e-4) and end["od_m"] == pytest.approx(0.024, abs=5e-4)
+    assert feats["seats"]["optic"]["feature"] == "rail_teeth"

@@ -23,19 +23,20 @@ Hosts of the seat tests (S7)
             a barrel tube z 0.20..0.40 (ring face at 0.40, bore ring 15 mm, axis y 0.05). The optic gets a ``rail_flat`` seat on the whole top
             (the run starts where the detector zone does, 15 % along the 0.60 m host: z -0.11; the seat is centred on its rearmost 0.20 m, at
             z -0.01, and its span, the whole run, ends 10 mm behind the front sight).
-  FLAT      the W8h box rifle (receiver top y 0.10 flat from z -0.2525 to 0.0475, a lower handguard, a thin barrel): no teeth, a flat top far over
-            60 mm, so the optic gets a ``rail_flat`` seat; the underbarrel has no bottom teeth and gets none.
-  SCOPED    the box rifle with a baked scope child (Scope) on its receiver: an authored optic seat, untoothed: ``seat_ref``, the flat run under
+  FLAT      the rod rifle (the W8h box rifle with a round rod barrel, ``rod_rifle``: receiver top y 0.10 flat from z -0.2525 to 0.0475, a lower
+            handguard, a thin round barrel): no teeth, a flat top far over 60 mm, so the optic gets a ``rail_flat`` seat; the underbarrel has no
+            bottom teeth and gets none.
+  SCOPED    the rod rifle with a baked scope child (Scope) on its receiver: an authored optic seat, untoothed: ``seat_ref``, the flat run under
             the contact is the reference.
   STEPPED   a staircase top (tread 40 mm, riser 10 mm, no flat 60 mm run under the contact) with a baked scope child on one tread: ``seat_ref``
             by the child's own foot length (a stepped seat).
-  PRESET    a preset: the box rifle with a scope part and a silencer part FUSED into the mesh (the same vertices as the pack's ``SCOPE`` and
+  PRESET    a preset: the rod rifle with a scope part and a silencer part FUSED into the mesh (the same vertices as the pack's ``SCOPE`` and
             ``SILENCER`` parts, moved by PRESET_SCOPE_AT and PRESET_SILENCER_AT) and a baked magazine (Mag). The locator finds both parts; the optic
             and muzzle slots are filled (Q-G11), the magazine stays open (``attach_filled_open``).
   PRESET_MAG  a preset with a magazine FUSED into the mesh (MAG_RIFLE moved by PRESET_MAG_AT under the receiver, no baked Mag child): the locator
             finds it, the magazine has a located well reference (``source`` "located", S7 fold-in 4) and no seat.
   UZI, BOTH, RIFLE_PLAIN   see ``g1_frame_world``.
-  ROCKET, SHOTGUN, NAILGUN, MINIGUN   a launcher with a baked optic, a shotgun, a tool and a minigun on the box rifle mesh: the host classes
+  ROCKET, SHOTGUN, NAILGUN, MINIGUN   a launcher with a baked optic, a shotgun, a tool and a minigun on the rod rifle mesh: the host classes
             (A6) refuse their slots; S7 only needs them to build, S8 needs them for the veto.
 
 Parts (the pack's separate attachments)
@@ -65,6 +66,7 @@ def _load(name: str):
 
 FW = _load("g1_frame_world")
 RM = _load("g1_rail_meshes")
+BM = _load("g1_bore_meshes")
 W = FW.W
 A, G = W.A, W.G
 
@@ -119,6 +121,16 @@ def carbine_mag():
     return G.box((-0.01, -0.20, -0.06), (0.01, 0.0, -0.03))
 
 
+# -- the rod-rifle family ------------------------------------------------------------------------------------------
+def rod_rifle():
+    """The W8h box rifle (receiver top y 0.10 from z -0.2525 to 0.0475, a lower handguard y 0.075 to z 0.4012) with a ROUND barrel: a 32-sided solid
+    rod, radius 8.5 mm, z 0.4012..0.65, axis y 0.046. The W8h barrel is a 12 x 12 mm box, and a square is not a round section (G1 errata E1.1,
+    pending: such a barrel gets no barrel end), so no S7 test stands on it. The rod ends in a fan to one centre vertex: a round section and no ring
+    bore, so the muzzle is ``barrel_round``."""
+    body = G.merge(G.box((-0.02, 0.0, -0.2525), (0.02, 0.10, 0.0475)), G.box((-0.02, 0.0, 0.0475), (0.02, 0.075, 0.4012)))
+    return G.merge(body, fsu_to_xyz(BM.tube(0.4012, 0.65, 0.0085, None, centre=(0.0, 0.046))))
+
+
 # -- the box-rifle family ------------------------------------------------------------------------------------------
 SCOPE_AT = (0.0, 0.10, -0.10)  # a scope child's origin: its foot (y 0..0.01) sits on the receiver top, 0.10 behind the origin
 
@@ -139,14 +151,38 @@ PRESET_MAG_AT = (0.0, 0.0, -0.10)  # the magazine part (y -0.12..0, z +-0.02) mo
 
 
 def preset_body():
-    base = W.box_rifle()
+    base = rod_rifle()
     scope, silencer = A.optic(), A.suppressor()
     return G.merge(base, (scope[0] + np.array(PRESET_SCOPE_AT), scope[1]), (silencer[0] + np.array(PRESET_SILENCER_AT), silencer[1]))
 
 
 def preset_mag_body():
     mag = A.mag_box(0.01, 0.12, 0.02)
-    return G.merge(W.box_rifle(), (mag[0] + np.array(PRESET_MAG_AT), mag[1]))
+    return G.merge(rod_rifle(), (mag[0] + np.array(PRESET_MAG_AT), mag[1]))
+
+
+# -- a preset built from body parts (G1 errata E1.3, proposed) ---------------------------------------------------
+BODY_PRESET_SCOPE_AT = (0.0, 0.10, -0.05)
+
+
+def body_preset():
+    """``(host mesh, parts)``: a preset whose mesh is assembled from the carbine's own pieces, each a separate pack part, plus a fused scope.
+
+    The parts are ``receiver`` (a box, x +-0.02, y 0..0.10, z -0.12..0.10), ``rail`` (the 8-tooth rail of CARBINE) and ``barrel`` (CARBINE's
+    ring tube, z 0.10..0.20), none with an attachment slot, and ``scope`` (the SCOPE mesh moved by BODY_PRESET_SCOPE_AT) with the slot optic. The
+    locator finds all four. G1 errata E1.3 (proposed): "minus located parts" means the parts that fill a slot, so after the strip the rail and
+    barrel are still on the host and only the scope is gone. Each part is ``{id, slot, verts, tris}`` as ``fit_geometry.host_features`` takes it."""
+    profile = RM.tooth_profile(TOOTH_START, TOOTH_N, TOOTH_PITCH, 0.010, 0.101, 0.004)
+    meshes = {
+        "receiver": (G.box((-0.02, 0.0, -0.12), (0.02, 0.10, 0.10)), None),
+        "rail": (fsu_to_xyz(RM.prism(profile, -0.0085, 0.0085, 0.10)), None),
+        "barrel": (FW.tube(2, 0.10, 0.20, (0.0, 0.05)), None),
+        "scope": (A.optic(), "optic"),
+    }
+    placed = {"scope": np.array(BODY_PRESET_SCOPE_AT)}
+    parts = [{"id": name, "slot": slot, "verts": mesh[0], "tris": mesh[1]} for name, (mesh, slot) in meshes.items()]
+    host = G.merge(*[(mesh[0] + placed.get(name, 0.0), mesh[1]) for name, (mesh, _slot) in meshes.items()])
+    return host, parts
 
 
 def flattop_body():
@@ -170,17 +206,17 @@ def world() -> dict:
         BOTH: FW.host_nodes(BOTH, FW.both_body(), "Mag", FW.mag(-0.45, -0.05, -0.01)),
         RIFLE_PLAIN: FW.host_nodes(RIFLE_PLAIN, FW.rifle_body(), "Mag", FW.mag(-0.10, -0.2, -0.16)),
         CARBINE: W.host_node(CARBINE, carbine_body(), [W.kid(CARBINE, "Mag", carbine_mag(), (0.0, 0.0, 0.0))]),
-        FLAT: W.host_node(FLAT, W.box_rifle()),
+        FLAT: W.host_node(FLAT, rod_rifle()),
         FLATTOP: W.host_node(FLATTOP, flattop_body()),
         LOWRAIL: W.host_node(LOWRAIL, lowrail_body()),
-        SCOPED: W.host_node(SCOPED, W.box_rifle(), [scope_kid(SCOPED)]),
+        SCOPED: W.host_node(SCOPED, rod_rifle(), [scope_kid(SCOPED)]),
         STEPPED: W.host_node(STEPPED, stepped_body(), [scope_kid(STEPPED, (0.0, -0.05, 0.10))]),
         PRESET: W.host_node(PRESET, preset_body(), [W.kid(PRESET, "Mag", A.mag_box(0.01, 0.12, 0.02), (0.0, 0.0, -0.1))]),
         PRESET_MAG: W.host_node(PRESET_MAG, preset_mag_body()),
-        ROCKET: W.host_node(ROCKET, W.box_rifle(), [scope_kid(ROCKET)]),
-        SHOTGUN: W.host_node(SHOTGUN, W.box_rifle()),
-        NAILGUN: W.host_node(NAILGUN, W.box_rifle()),
-        MINIGUN: W.host_node(MINIGUN, W.box_rifle()),
+        ROCKET: W.host_node(ROCKET, rod_rifle(), [scope_kid(ROCKET)]),
+        SHOTGUN: W.host_node(SHOTGUN, rod_rifle()),
+        NAILGUN: W.host_node(NAILGUN, rod_rifle()),
+        MINIGUN: W.host_node(MINIGUN, rod_rifle()),
     }
     parts = {
         SCOPE: A.optic, SILENCER: A.suppressor,

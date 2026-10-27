@@ -337,7 +337,7 @@ def _compute(rules, *, axes, mounts, mesh, child_mesh, fused_parts, frame_change
         for feats in slots.values():
             feats["frame_body"] = True
 
-    # -- presets: locate the fused parts (translation only), then every host mesh below is stripped of them (spec 3.2) -----------------------
+    # -- presets: locate the fused parts (translation only), then every host mesh below is stripped of the slot parts (spec 3.2, E1.3) -----------------------
     placements: list[Placement] = []
     part_meshes: dict[str, np.ndarray] = {}
     part_tris: dict[str, np.ndarray] = {}
@@ -355,18 +355,22 @@ def _compute(rules, *, axes, mounts, mesh, child_mesh, fused_parts, frame_change
                     part_meshes[part["id"]], part_slot[part["id"]] = pv, part.get("slot")
                     part_tris[part["id"]] = np.asarray(part["tris"], dtype=np.int64).reshape(-1, 3)
 
+    # G1 errata E1.3: "minus the located parts" is minus the parts that FILL A SLOT (the scope, the silencer, a magazine). A preset's own body parts
+    # (receiver, rail, barrel, handguard) are located too, but stripping them would empty the host the detectors measure.
+    filling = [pl for pl in placements if part_slot.get(pl.part)]
+
     memo: dict[frozenset, tuple[np.ndarray, np.ndarray] | None] = {}
 
     def reduced(drop: frozenset):
-        """The host minus the nodes in ``drop`` and minus the located parts, in the (f, s, u) frame."""
+        """The host minus the nodes in ``drop`` and minus the located slot parts (errata E1.3), in the (f, s, u) frame."""
         if drop not in memo:
             got = mesh(drop)
             if got is None:
                 memo[drop] = None
             else:
                 v, t = np.asarray(got[0], dtype=np.float64).reshape(-1, 3), np.asarray(got[1], dtype=np.int64).reshape(-1, 3)
-                if placements:
-                    v, t = strip(v, t, placements, part_meshes)
+                if filling:
+                    v, t = strip(v, t, filling, part_meshes)
                 memo[drop] = (to_fsu(basis, v), t)
         return memo[drop]
 
