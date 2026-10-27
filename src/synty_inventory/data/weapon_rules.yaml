@@ -682,6 +682,39 @@ attachment_rules:
     sample_pitch_m: 0.0015
     range_m: 0.30
     radius_cap_m: 0.035
+  # G1 geometry fit gate (docs/weapon_attach_geometry.md 3 and 4.1): the detector parameters and the pair tolerances of the four slots whose fit is a
+  # physical mating (optic: top rail, underbarrel: bottom rail, muzzle: barrel end, magazine: well). EVERY key is required (the validator rejects a
+  # missing one, a negative length and an inverted interval) and there is no `frame:` key: the frame vote is record geometry (geometry.py constants, Q-G4).
+  # Inside attachment_rules: moves attach_rules_digest, never rules_digest. Each tolerance is the max error on its positives plus a stated margin (4.2).
+  fit_geometry:
+    slots: [optic, muzzle, underbarrel, magazine]
+    locator: {grid_m: 0.0005, sample_n: 24, hit_min: 1.0, merge_m: 0.002}
+    rail:
+      window_m: 0.010
+      bin_m: 0.0005
+      tooth_amp_min_m: 0.0008
+      tooth_merge_m: 0.0025
+      pitch_min_m: 0.005
+      pitch_max_m: 0.040
+      pitch_cv_max: 0.25
+      tooth_min_count: 4
+      tooth_h_tol_m: 0.0015
+      zone: [0.15, 0.85]
+      default_seat_len_m: 0.20
+      sight_clear_m: 0.010
+    flat: {band_m: 0.005, close_m: 0.015, min_m: 0.060}
+    clamp: {overhang_max_m: 0.010, ratio_min: 1.0}
+    depth: {lo_m: -0.026, hi_m: 0.003}  # review list only (3.9), a signed interval
+    bore:
+      end_slab_m: 0.010
+      round_min: 0.8
+      barrel_od_max_m: 0.060
+      od_ratio: [0.85, 2.00]
+      inner_ratio: [0.47, 1.21]
+      axis_offset_max_m: 0.005
+      axis_tilt_max_deg: 2
+    well: {entry_depth_m: 0.002, tol: 0.15}
+    exceptions: []  # calibration exceptions by class key (4.2), no asset ids
 
 # archetype -> hold_class (spec 3.4.2). `none` = not hand-held.
 hold_by_archetype:
