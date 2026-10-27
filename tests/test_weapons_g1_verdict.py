@@ -49,7 +49,7 @@ RULES = {
     "clamp": {"overhang_max_m": 0.010, "ratio_min": 1.0},
     "depth": {"lo_m": -0.026, "hi_m": 0.003},
     "bore": {
-        "end_slab_m": 0.010, "round_min": 0.8, "barrel_od_max_m": 0.060, "od_ratio": [0.85, 2.00], "inner_ratio": [0.47, 1.21],
+        "end_slab_m": 0.010, "round_min": 0.8, "circ_min": 0.75, "barrel_od_max_m": 0.060, "od_ratio": [0.85, 2.00], "inner_ratio": [0.47, 1.21],
         "axis_offset_max_m": 0.005, "axis_tilt_max_deg": 2,
     },
     "well": {"entry_depth_m": 0.002, "tol": 0.15},
@@ -112,7 +112,7 @@ def test_the_types_are_the_spec_3_11_dataclasses_and_frame_vote_is_not_among_the
 
 @pytest.mark.parametrize("module, name, params", [
     (fit_locate, "locate_by_translation", ["host_verts", "part_verts", "rules"]),
-    (fit_locate, "strip", ["host_verts", "host_tris", "placements", "part_meshes"]),
+    (fit_locate, "strip", ["host_verts", "host_tris", "placements", "part_meshes", "rules"]),  # E1.2: strip takes the rules
     (fit_rails, "rail_runs", ["verts_fsu", "tris", "side", "s0", "rules"]),
     (fit_rails, "flat_seat", ["verts_fsu", "tris", "s0", "rules"]),
     (fit_bore, "barrel_end", ["verts_fsu", "tris", "mount", "rules"]),

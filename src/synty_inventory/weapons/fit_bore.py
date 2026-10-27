@@ -1,4 +1,4 @@
-"""Bore detector of the geometry fit gate G1 (docs/weapon_attach_geometry.md 3.6; plan slice S5).
+"""Bore detector of the geometry fit gate G1 (docs/weapon_attach_geometry.md 3.6; plan slice S5; errata E1.1).
 
 ``barrel_end`` finds the barrel end of a host (an existing ring bore, a front-face ring, or a round end section) and ``device_inner_d`` reads the
 inner bore ring on a muzzle device's mating face. Both are pure functions over vertex arrays: no I/O, no clock, no global state.
@@ -15,7 +15,9 @@ Judgment calls (reported with the slice):
   mean" rule: vertex density is arbitrary. ``od_m`` is twice the largest distance of any slab vertex from that centre, as 3.6 says.
 * Only vertices that a triangle uses count. A caller that reduced the triangles but left the host's vertex array whole would otherwise leak the
   removed child's vertices into the end slab. With no triangles at all the vertices are used as given.
-* The (iii) roundness test reads the slab's side and up extents (3.6 gives the formula); an equal-sided square end of OD <= 60 mm reads as round.
+* The (iii) roundness test reads the slab's side and up extents (3.6 gives the formula). Extents alone call every square round (ratio 1.0), so E1.1
+  adds ``circ_min``: the convex hull of the slab's (s, u) points must fill that share of the circle of diameter ``od_m`` (a square fills 0.637, any
+  rectangle at most 2/pi, a regular hexagon 0.827, an octagon 0.900). The hull area needs no sampling and does not depend on vertex density.
 """
 
 from __future__ import annotations
@@ -38,6 +40,29 @@ def _sorted(v: np.ndarray) -> np.ndarray:
     return v[np.lexsort((v[:, 2], v[:, 1], v[:, 0]))] if len(v) else v
 
 
+def _hull_area(points: np.ndarray) -> float:
+    """Area of the convex hull of the (N, 2) ``points``: Andrew's monotone chain over the sorted distinct points (collinear points dropped), then
+    the shoelace sum. Fewer than three distinct points, or all on one line, give 0."""
+    pts = np.unique(np.asarray(points, dtype=np.float64).reshape(-1, 2), axis=0)  # sorted lexicographically (s, then u), duplicates gone
+    if len(pts) < 3:
+        return 0.0
+
+    def chain(seq) -> list:
+        out: list = []
+        for p in seq:
+            while len(out) >= 2 and (out[-1][0] - out[-2][0]) * (p[1] - out[-2][1]) - (out[-1][1] - out[-2][1]) * (p[0] - out[-2][0]) <= 0.0:
+                out.pop()
+            out.append(p)
+        return out
+
+    lower, upper = chain(pts), chain(pts[::-1])
+    hull = lower[:-1] + upper[:-1]  # counter-clockwise, each chain's last point is the other's first
+    if len(hull) < 3:
+        return 0.0
+    h = np.array(hull)
+    return 0.5 * abs(float(np.dot(h[:, 0], np.roll(h[:, 1], -1)) - np.dot(h[:, 1], np.roll(h[:, 0], -1))))
+
+
 def _used_vertices(verts, tris) -> np.ndarray:
     v = np.asarray(verts, dtype=np.float64).reshape(-1, 3)
     t = np.asarray(tris if tris is not None else [], dtype=np.int64).reshape(-1, 3)
@@ -51,13 +76,14 @@ def barrel_end(verts_fsu, tris, mount: dict, rules: dict) -> BarrelEnd | None:
 
     ``verts_fsu`` is (N, 3) in the host's (forward, side, up) frame and ``tris`` (M, 3) integer indices; the mesh is the host minus muzzle
     ``occupied_by``, minus located parts, minus collision. ``rules`` is the ``attachment_rules.fit_geometry`` block; this reads ``rules["bore"]``
-    (``end_slab_m``, ``round_min``, ``barrel_od_max_m``). ``mount`` is the host's muzzle mount (``mounts.py``); only ``bore_source`` is read.
+    (``end_slab_m``, ``round_min``, ``circ_min``, ``barrel_od_max_m``). ``mount`` is the host's muzzle mount (``mounts.py``); only ``bore_source`` is read.
 
     The end slab is the vertices within ``end_slab_m`` of the forward extreme. A barrel end exists when, in this order of evidence:
 
     * (i) ``mount["bore_source"] == "ring"``: the A0 probe found a ring bore (evidence ``ring``);
     * (ii) ``mount_probe.end_ring_d`` finds a front-face ring in the slab (evidence ``face_ring``);
-    * (iii) the slab is a round end section: ``min(extent_s, extent_u) / max(...)`` >= ``round_min`` and OD <= ``barrel_od_max_m`` (evidence
+    * (iii) the slab is a round end section: ``min(extent_s, extent_u) / max(...)`` >= ``round_min``, the hull of the slab's (s, u) points fills
+      ``circ_min`` of the circle of diameter ``od_m`` (E1.1: a square or any rectangle never does), and OD <= ``barrel_od_max_m`` (evidence
       ``round_section``).
 
     ``od_m`` is twice the slab's outer radius around the slab centre (for every evidence, so a ring bore still gets its outer diameter from the
@@ -84,6 +110,9 @@ def barrel_end(verts_fsu, tris, mount: dict, rules: dict) -> BarrelEnd | None:
         longest = float(ext.max())
         round_enough = longest > _EPS and float(ext.min()) / longest >= bore["round_min"] - _EPS
         if not (round_enough and od <= bore["barrel_od_max_m"] + _EPS):
+            return None
+        # E1.1: the section fills its circle (A_hull over the disc of diameter od_m); od > 0 here, a round_enough slab has a nonzero extent
+        if _hull_area(lat) / (np.pi * (od / 2.0) ** 2) < bore["circ_min"] - _EPS:
             return None
         evidence = "round_section"
     return BarrelEnd(centre_su=(_r(centre[0]), _r(centre[1])), face_f=_r(face_f), od_m=_r(od), evidence=evidence)

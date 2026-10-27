@@ -708,6 +708,7 @@ attachment_rules:
     bore:
       end_slab_m: 0.010
       round_min: 0.8
+      circ_min: 0.75  # E1: hull area / circle of od_m, section 3.6 (iii)
       barrel_od_max_m: 0.060
       od_ratio: [0.85, 2.00]
       inner_ratio: [0.47, 1.21]
