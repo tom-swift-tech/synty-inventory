@@ -4,7 +4,7 @@
 FAKE_Fantasy,FAKE_Modern,FAKE_Shared`` of the ``review_helpers`` synthetic world, produced by the W7 tree (synty-inventory
 main at e6e82b6, before any W8 code) and committed unedited. This build must reproduce it byte for byte even though the
 directory it exports from now carries ``geometry.mounts`` on every eligible host: the export drops the block, adds no key,
-leaves ``rules_digest`` (7b9829af37328fe7) and ``geometry_version`` (5) alone and does not mention ``attach_version``.
+leaves ``rules_digest`` (7b9829af37328fe7) and ``geometry_version`` (5 then, 6 since G1) alone and does not mention ``attach_version``.
 """
 
 from __future__ import annotations
@@ -26,6 +26,9 @@ _spec2.loader.exec_module(A)
 from synty_inventory.weapons import export as X  # noqa: E402
 
 GOLDEN = _here / "fixtures" / "weapons" / "w7_default_export.json"
+_spec_g1 = importlib.util.spec_from_file_location("g1_refs", _here / "fixtures" / "weapons" / "g1_refs.py")
+g1_refs = importlib.util.module_from_spec(_spec_g1)
+_spec_g1.loader.exec_module(g1_refs)
 PACKS = "FAKE_Fantasy,FAKE_Modern,FAKE_Shared"
 
 
@@ -58,7 +61,7 @@ def golden_text() -> str:
 def test_the_golden_is_the_w7_header(world):
     doc = json.loads(golden_text())
     gf = doc["generated_from"]
-    assert (gf["geometry_version"], gf["rules_digest"], gf["weapon_version"]) == (5, "7b9829af37328fe7", 1)
+    assert (gf["geometry_version"], gf["rules_digest"], gf["weapon_version"]) == (5, "7b9829af37328fe7", 1)  # the file is the real W7 export
     assert "attach_version" not in gf and "attachments" not in gf["filter"]
     assert len(doc["weapons"]) == 89
     assert "mounts" not in golden_text()
@@ -75,14 +78,15 @@ def test_the_default_export_equals_the_w7_golden_byte_for_byte(world, capsys):
     code, _, out = export(world, capsys)
     assert code == 0
     got = out.read_bytes().decode("utf-8").replace("\r\n", "\n")
-    assert got == golden_text()
+    assert got == g1_refs.as_geometry_v6(golden_text())  # G1: the one number that moved
+    assert json.loads(got)["generated_from"]["geometry_version"] == 6
     assert '"mounts"' not in got and "attach_version" not in got and "mount_ambiguous" not in got
 
 
 def test_the_header_keeps_the_w7_rules_digest_and_geometry_version(world, capsys):
     _, _, out = export(world, capsys, name="hdr.json")
     gf = json.loads(out.read_text(encoding="utf-8"))["generated_from"]
-    assert gf["rules_digest"] == "7b9829af37328fe7" and gf["geometry_version"] == 5
+    assert gf["rules_digest"] == "7b9829af37328fe7" and gf["geometry_version"] == 6
     assert sorted(gf) == ["filter", "geometry_version", "overrides_digest", "packs", "rules_digest", "tool", "weapon_version"]
 
 

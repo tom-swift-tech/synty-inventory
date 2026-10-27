@@ -71,8 +71,8 @@ def axes(d):
 # --- AC43 ---------------------------------------------------------------------------------------------------------------
 
 
-def test_ac43_the_geometry_version_is_the_plain_integer_5():
-    assert pkg.WEAPON_GEOMETRY_VERSION == 5 and isinstance(pkg.WEAPON_GEOMETRY_VERSION, int)
+def test_ac43_the_geometry_version_is_the_plain_integer_6():
+    assert pkg.WEAPON_GEOMETRY_VERSION == 6 and isinstance(pkg.WEAPON_GEOMETRY_VERSION, int)
 
 
 # --- AC54: R-H1 ---------------------------------------------------------------------------------------------------------

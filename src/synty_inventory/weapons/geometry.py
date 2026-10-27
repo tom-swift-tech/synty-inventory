@@ -16,6 +16,7 @@ import hashlib
 import json
 import math
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -28,14 +29,18 @@ from ..sources.glb_measure import NodeSel, _cache_key, node_cache_tag, node_sele
 from ..sources.glb_scale import scale_cache_tag
 from . import digest, write_text_lf
 from .attach import measure_anchor, muzzle_silhouette, muzzle_stub, place, settle_pair
-from .mount_probe import surface_samples
-from .mounts import build_mounts, eligible
+from .mount_probe import end_ring_d, surface_samples
+from .mounts import build_mounts, eligible, matching_slots, mesh_nodes
 from .rules import attachment_rules
 
 CACHE_NAME = "_geometry_cache.json"
 
 _AXES = "xyz"
 _TIE = 0.05  # long-axis tie band (spec 3.5.2)
+# G1 frame vote (docs/weapon_attach_geometry.md 3.3 and 3.11). Module constants, versioned by WEAPON_GEOMETRY_VERSION 6, not rules keys, so
+# rules_digest does not move. The survey that fixed them measured every ring end on the end slab of this width.
+_FRAME_END_SLAB_M = 0.010  # end slab of the vote's ring test
+_FRAME_BORE_MAX_M = 0.025  # the largest bore ring that confirms a muzzle end
 _PIVOT_BAND = 0.10  # |origin_frac - 0.5| below this: the origin is "near the middle"
 _END_FRAC = 0.10  # outer share of the length compared by the cross-section fallback
 _TIP_MM = 0.002  # tip / butt: vertices within 2 mm of the extreme forward coordinate
@@ -267,6 +272,79 @@ def _pick_long_axis(size: np.ndarray, default: int) -> int:
     best = float(size.max())
     cands = [i for i in range(3) if size[i] >= (1.0 - _TIE) * best]
     return default if default in cands else int(np.argmax(size))
+
+
+@dataclass(frozen=True)
+class FrameVote:
+    """The record frame an eligible host votes for (``frame_vote``). ``forward`` and ``up`` are ``(axis letter, sign)``.
+
+    ``changed``: the forward axis differs from the build's. ``conflict``: the body axis differs from the build's and the bore ring test could not
+    say which end is the muzzle (no end, or both ends), with no ``frame_axis`` to settle it: the vote keeps the build's frame and the S7 detector
+    seats are withheld. ``sign_by_fallback`` (beside the spec's four fields, default False): a ``frame_axis`` moved the axis but no single ring
+    gave the sign, so ``forward`` carries the default ``+`` and the caller flags it for review.
+    """
+
+    forward: tuple[str, int]
+    up: tuple[str, int]
+    changed: bool
+    conflict: bool
+    sign_by_fallback: bool = False
+
+
+def _ranged_up_axis(forward_axis: int) -> int:
+    """The build's up axis for a ranged host (``axes.up`` logic, unchanged): z when forward is y, else y. Only eligible hosts vote, and those are ranged."""
+    return 2 if forward_axis == 1 else 1
+
+
+def _ring_ends(body: np.ndarray, axis: int) -> tuple[bool, bool]:
+    """``(low end, high end)``: does each end of ``axis`` carry a bore ring of at most ``_FRAME_BORE_MAX_M``? (spec 3.3 step 3)"""
+    ends = []
+    for sign in (-1, 1):
+        d = end_ring_d(body, axis, sign, _FRAME_END_SLAB_M)
+        ends.append(d is not None and d <= _FRAME_BORE_MAX_M + 1e-9)
+    return ends[0], ends[1]
+
+
+def frame_vote(verts, body_verts, build_forward: tuple[int, int], frame_axis: str | None = None) -> FrameVote:
+    """The body-axis frame vote of an eligible host (spec 3.3). ``build_forward`` is the bounding-box frame's ``(axis index, sign)``.
+
+    ``verts`` is the whole host mesh and ``body_verts`` the mesh minus its slot children (the nodes the child vocabulary matches). The body axis is
+    ``_pick_long_axis`` on the body (default z: eligible hosts are ranged). The ring test reads the BODY, because the body axis' ends are the body's
+    ends: a baked magazine or silencer must not hide or fake a ring. With no body left (``body_verts`` empty) the whole mesh stands in.
+
+    ``frame_axis`` (an id override, spec 4.5) decides the axis when present. Otherwise a body axis that differs from the build's is confirmed by
+    exactly one end ring (forward toward it), and is a conflict with none or two (the build's frame is kept). A ``frame_axis`` on a different axis
+    also takes its sign from a single end ring there, else the default ``+`` (``sign_by_fallback``): the id's ``forward`` override then sets it.
+    The up axis is the build's rule for a ranged host applied to the new forward.
+    """
+    b_axis, b_sign = build_forward
+    keep = FrameVote((_AXES[b_axis], b_sign), (_AXES[_ranged_up_axis(b_axis)], 1), False, False)
+    body = np.asarray(body_verts if body_verts is not None and len(body_verts) else verts, dtype=np.float64).reshape(-1, 3)
+    axis = _AXES.index(frame_axis) if frame_axis is not None else _pick_long_axis(np.ptp(body, axis=0), 2)
+    if axis == b_axis:
+        return keep
+    low, high = _ring_ends(body, axis)
+    if low != high:
+        sign, fallback = (1 if high else -1), False
+    elif frame_axis is None:
+        return FrameVote(keep.forward, keep.up, False, True)
+    else:
+        sign, fallback = 1, True
+    return FrameVote((_AXES[axis], sign), (_AXES[_ranged_up_axis(axis)], 1), True, False, fallback)
+
+
+def _body_vertices(glb: Path, glb_node: NodeSel, scale: float, rules: dict, verts: np.ndarray) -> np.ndarray:
+    """The host mesh minus its slot children: the mesh nodes the child vocabulary matches (``attachment_rules.child_tokens`` and ``child_never``,
+    through ``mounts.mesh_nodes`` and ``mounts.matching_slots``), before policy and before mount overrides (spec 3.3 step 1). It does not use
+    ``occupied_by``, which ``build_mounts`` makes from the axes, and it keeps located preset parts. The whole mesh when no child matches or nothing is left."""
+    tables = attachment_rules(rules)
+    drop = frozenset(n for n in mesh_nodes(read_glb_json(glb), glb_node) if matching_slots(n, tables))
+    if not drop:
+        return verts
+    got = load_triangles(glb, glb_node, exclude=lambda n: _collision(n) or n in drop, scale=scale)
+    if got is None or not len(got[0]) or not np.isfinite(got[0]).all():
+        return verts
+    return np.asarray(got[0], dtype=np.float64)
 
 
 def _cross_section(v: np.ndarray, axis: int) -> float:
@@ -612,6 +690,7 @@ def measure_weapon_detail(
     *, hold_class: str | None = None, genre: str | None = None, forward_override: str | None = None,
     head_lead: bool = False, attach_slot: str | None = None, mount_overrides: dict | None = None,
     with_mounts: bool = False, host_id: str | None = None, attach_kind: str | None = None, host_pack: str | None = None,
+    frame_axis: str | None = None,
 ) -> dict:
     """``{'geometry': block | None, 'flags': [...], 'reasons': [...], 'warning': str | None}`` (spec 3.5).
 
@@ -642,6 +721,13 @@ def measure_weapon_detail(
 
     ``head_lead`` (W7 R-H2: the record carries one of ``rules.head_lead_tokens``) lets a melee ``tool`` take the head sign
     over a pivot-decided sign, as the ``_HEAD_PIVOT`` archetypes do.
+
+    G1 (geometry version 6, spec 3.3): on an eligible host (``mounts.eligible``, whatever ``with_mounts`` says) the forward AXIS is voted by
+    ``frame_vote`` (the body axis, confirmed by one bore ring, or the id override ``frame_axis``) before the ``forward_override`` sets the SIGN on
+    it. Everything after the axes follows the voted frame, and ``geometry.long_axis`` stays the bounding-box axis. With ``with_mounts`` the key
+    ``frame`` sits beside ``geometry`` (like ``child_extents``, never a record key): the vote's ``changed`` and ``conflict``, and the PRE-vote
+    ``length_m``, ``axes_unexpected`` and ``forward_by_fallback`` that ``pass2_inputs`` hands to classification, so the vote never feeds
+    ``kind``, ``archetype`` or ``hold_class``.
     """
     if hold_class is None:
         hold_class = (rules.get("hold_by_archetype") or {}).get(archetype, "none") if role == "whole" else "none"
@@ -724,9 +810,28 @@ def measure_weapon_detail(
                 rest = [i for i in range(3) if i != fa]
                 ua = max(rest, key=lambda i: (size[i], -i))  # widest remaining axis; ties go to the earlier axis
                 us, u_src = 1, "width_axis"
+    expected = ((rules.get("axes_expected") or {}).get(genre) or {}).get(kind) if genre and kind else None
+    o_axis, o_sign = _parse_axis(forward_override) if forward_override is not None else (None, 0)
+    # --- the frame vote (G1, 3.3): the forward AXIS of an eligible host, before the override sets the sign on it ---
+    vote = pre_vote = None
+    if eligible(role, kind, hold_class) and not is_bow and not is_shield:
+        overridden = o_axis == fa  # what the bounding-box frame, version 5, makes of the override: classification reads these values
+        pre_vote = {
+            "length_m": _r(size[long_axis]),
+            "axes_unexpected": bool(expected and _sig(fa, o_sign if overridden else fs) != expected),
+            "forward_by_fallback": "forward_by_fallback" in flags and not overridden,
+        }
+        vote = frame_vote(verts, _body_vertices(glb, glb_node, scale, rules, verts), (fa, fs), frame_axis)
+        if vote.changed:
+            fa, fs, f_src = _AXES.index(vote.forward[0]), vote.forward[1], "body"
+            ua, us, u_src = _AXES.index(vote.up[0]), vote.up[1], "fixed"
+            # the sign of a ring-confirmed end is measured, not a guess (as an override's is); a frame_axis with no single ring is a guess
+            flags.discard("forward_by_fallback")
+            if vote.sign_by_fallback:
+                flags.add("forward_by_fallback")
+    len_axis = fa if vote is not None and vote.changed else long_axis  # the length and the pivot fraction follow the voted frame
     warning = None
     if forward_override is not None:
-        o_axis, o_sign = _parse_axis(forward_override)
         if o_axis == fa:
             fs, f_src = o_sign, "override"
             flags.discard("forward_by_fallback")
@@ -737,7 +842,6 @@ def measure_weapon_detail(
     basis = np.cross(_unit(ua, us), _unit(fa, fs))
     item_basis = [[int(round(c)) for c in row] for row in (basis, _unit(ua, us), _unit(fa, fs))]
 
-    expected = ((rules.get("axes_expected") or {}).get(genre) or {}).get(kind) if genre and kind else None
     if expected and not is_bow and forward != expected:
         reasons.add("axes_unexpected")
 
@@ -745,12 +849,12 @@ def measure_weapon_detail(
     fc = fs * verts[:, fa]
     fmin, fmax = float(fc.min()), float(fc.max())
     flen = fmax - fmin
-    length = float(size[long_axis])
+    length = float(size[len_axis])
     tip = None
     if kind != "ranged":
         tip = _vec(verts[fc >= fmax - _TIP_MM - 1e-9].mean(axis=0))
     butt = _vec(verts[fc <= fmin + _TIP_MM + 1e-9].mean(axis=0))
-    pivot_frac = _frac(0.0, mn[long_axis], size[long_axis])
+    pivot_frac = _frac(0.0, mn[len_axis], size[len_axis])
 
     outside = bool(((origin < mn - _OUTSIDE_EPS) | (origin > mx + _OUTSIDE_EPS)).any())
     if outside:
@@ -851,6 +955,7 @@ def measure_weapon_detail(
                              transformed=transformed, probe=muzzle_probe, overrides=mount_overrides, host_id=host_id, host_pack=host_pack)
         out["mounts"], out["mount_problems"] = built["mounts"], built["problems"]
         out["child_extents"] = built["child_extents"]  # W8c twin evidence: beside the block, never in the record
+        out["frame"] = {"changed": vote.changed, "conflict": vote.conflict, **pre_vote}  # G1: the vote's state and the pre-vote pass 2 inputs, beside the block
     return out
 
 
@@ -872,11 +977,17 @@ def pass2_inputs(detail: dict) -> dict | None:
     geo = detail["geometry"]
     if geo is None:
         return None
-    return {
-        "length_m": geo["length_m"],
-        "long_axis": geo["long_axis"],  # W7b: the measured fallback for a still-null kind (z -> ranged, else melee)
-        "forward_by_fallback": "forward_by_fallback" in detail["flags"],
+    # G1: the frame vote never feeds classification, so an eligible host hands over what the bounding-box frame measured (``frame``), not the voted
+    # length, fallback flag and reason. Otherwise a kind guessed from the long axis could turn ranged, vote, and turn back (spec 3.3)
+    pre = detail.get("frame") or {
+        "length_m": geo["length_m"], "forward_by_fallback": "forward_by_fallback" in detail["flags"],
         "axes_unexpected": "axes_unexpected" in detail["reasons"],
+    }
+    return {
+        "length_m": pre["length_m"],
+        "long_axis": geo["long_axis"],  # W7b: the measured fallback for a still-null kind (z -> ranged, else melee); always the bounding-box axis
+        "forward_by_fallback": pre["forward_by_fallback"],
+        "axes_unexpected": pre["axes_unexpected"],
     }
 
 
@@ -916,7 +1027,7 @@ _PROBE_CODE_DIGEST = code_digest((Path(__file__).parent / "mount_probe.py").read
 def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, forward_override=None,
                         *, head_lead: bool = False, attach_slot: str | None = None,
                         mount_overrides: dict | None = None, host_id: str | None = None, attach_kind: str | None = None,
-                        host_pack: str | None = None) -> str:
+                        host_pack: str | None = None, frame_axis: str | None = None) -> str:
     # the measurement depends on the classification context, not only on the file (spec 3.5 says file + versions;
     # deviation reported): a rules or override change that flips archetype/kind/hold must not serve stale geometry
     fp = {
@@ -927,6 +1038,9 @@ def _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules: dict, f
         # the key exists only for an override, so every natural fingerprint (and every cache already on disk) is
         # unchanged, while a natural result is never served for an override or the other way round
         fp["fo"] = forward_override
+    if frame_axis is not None:
+        # G1 (spec 4.5): the same for the id override that names the frame's axis, so a natural result is never served for it
+        fp["fa"] = frame_axis
     if head_lead:
         # same idea for the W7 head-lead tool flag: absent when false, so an unrelated fingerprint is unchanged, and a
         # head-lead result is never served for a record that does not lead with its head (or the other way round)
@@ -973,10 +1087,11 @@ def measure_cached(
     role: str, rules: dict, cache: dict, *, hold_class: str | None = None, genre: str | None = None,
     forward_override: str | None = None, head_lead: bool = False, attach_slot: str | None = None,
     mount_overrides: dict | None = None, host_id: str | None = None, attach_kind: str | None = None, host_pack: str | None = None,
+    frame_axis: str | None = None,
 ) -> tuple[dict, bool]:
     """``(detail, was_cached)``. Entry id = relative GLB path + node tag + scale tag (as ``glb_measure``); the
     entry is valid while ``mtime:size`` and its version (``WEAPON_GEOMETRY_VERSION`` + the digest of this file) match, and holds one result per
-    classification-context fingerprint (which includes ``forward_override``, ``head_lead`` and, for an attachment part, its slot). Failures are cached too (an undecodable mesh stays undecodable); a missing
+    classification-context fingerprint (which includes ``forward_override``, ``frame_axis``, ``head_lead`` and, for an attachment part, its slot). Failures are cached too (an undecodable mesh stays undecodable); a missing
     file is not. The returned dict is a private copy.
     """
     abs_path = threejs_v2_dir / glb_rel
@@ -990,7 +1105,7 @@ def measure_cached(
     version = f"{_pkg.WEAPON_GEOMETRY_VERSION}+{_CODE_DIGEST}"
     fp = _inputs_fingerprint(archetype, kind, role, hold_class, genre, rules, forward_override, head_lead=head_lead,
                              attach_slot=attach_slot, mount_overrides=mount_overrides, host_id=host_id, attach_kind=attach_kind,
-                             host_pack=host_pack)
+                             host_pack=host_pack, frame_axis=frame_axis)
     entry = cache.get(cache_id)
     if not entry or entry.get("key") != key or entry.get("version") != version:
         entry = {"key": key, "version": version, "by_inputs": {}}
@@ -1001,7 +1116,7 @@ def measure_cached(
     detail = measure_weapon_detail(
         abs_path, glb_node, scale, archetype, kind, role, rules, hold_class=hold_class, genre=genre,
         forward_override=forward_override, head_lead=head_lead, attach_slot=attach_slot, mount_overrides=mount_overrides,
-        with_mounts=True, host_id=host_id, attach_kind=attach_kind, host_pack=host_pack,
+        with_mounts=True, host_id=host_id, attach_kind=attach_kind, host_pack=host_pack, frame_axis=frame_axis,
     )
     entry["by_inputs"][fp] = deepcopy(detail)
     return detail, False

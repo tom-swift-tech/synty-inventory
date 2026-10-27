@@ -1,6 +1,6 @@
 """W8m: versions, the contact rules table and the pair cache (docs/weapon_attachments.md 5.4 "Cache", AC78, AC116).
 
-The expected values are LITERALS from the spec (attach version 10, geometry version 5, rules digest 7b9829af37328fe7), never read from the constants
+The expected values are LITERALS from the spec (attach version 10, geometry version 6 since G1, rules digest 7b9829af37328fe7), never read from the constants
 under test. World: ``w8m_world`` (pack FAKE_W8M).
 """
 
@@ -28,7 +28,7 @@ from synty_inventory.weapons.rules import attach_rules_digest, load_rules, valid
 
 
 def test_ac116_the_versions_and_the_digests():
-    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 5
+    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 6
     rules = load_rules()
     assert weapon_rules_digest(rules) == "7b9829af37328fe7"  # `contact` sits inside attachment_rules: rules_digest never moves
     assert len(attach_rules_digest(rules)) == 16
@@ -114,7 +114,7 @@ def test_ac78_a_second_build_reads_every_pair_from_the_cache_and_equals_the_firs
     n = r1["contact_stats"]["computed"]
     assert n >= 14 and r1["contact_stats"] == {"computed": n, "cached": 0, "kept": 0}  # 13 hosts' scope pairs, the tab, the grips: all settled
     assert {k for k, v in cache.items() if k.startswith("pair|")} and all(
-        e["version"].startswith("5+") for k, e in cache.items() if k.startswith("pair|"))
+        e["version"].startswith("6+") for k, e in cache.items() if k.startswith("pair|"))
 
     def refuse(*a, **k):
         raise AssertionError("a mesh was decoded on a build whose inputs did not change")

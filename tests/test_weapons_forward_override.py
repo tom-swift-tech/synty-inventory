@@ -239,7 +239,7 @@ def test_the_override_did_not_bump_the_geometry_version_past_the_w7_bump():
 
     # 2 -> 3 is W2d's melee grip, 3 -> 4 is W2f's butt inset and head-forward sign, 4 -> 5 is W7's head-over-pivot sign; the
     # override added no bump of its own
-    assert pkg.WEAPON_GEOMETRY_VERSION == 5
+    assert pkg.WEAPON_GEOMETRY_VERSION == 6
 
 
 # --- the build ------------------------------------------------------------------------------------------------------
