@@ -120,13 +120,13 @@ def test_the_types_are_the_spec_3_11_dataclasses_and_frame_vote_is_not_among_the
     (fit_well, "well_reference", ["host_verts_fsu", "host_tris", "mag_verts_fsu", "mag_tris", "rules"]),
     (fit_well, "entry_section", ["mag_verts_fsu", "mag_tris", "u_plane"]),
 ])
-def test_each_detector_is_a_stub_with_the_spec_signature_that_the_facade_re_exports(module, name, params):
+def test_each_detector_has_the_spec_signature_that_the_facade_re_exports(module, name, params):
+    # G1 P1 (S3 to S6) replaced the stubs, so the S2 "still raises NotImplementedError" leg is retired; the signature, the spec citation and
+    # the facade re-export stay pinned
     fn = getattr(module, name)
     assert list(inspect.signature(fn).parameters) == params
     assert "Spec 3." in (fn.__doc__ or "")
     assert getattr(fit_geometry, name) is fn
-    with pytest.raises(NotImplementedError):
-        fn(*[None] * len(params))
 
 
 def test_verdict_and_fit_digest_have_the_spec_signatures():
