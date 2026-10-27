@@ -6,6 +6,7 @@
 **Branch:** `spec/attach-geom`, cut from `integ/attach` at `0e2637e` (a8c: `WEAPON_ATTACH_VERSION` 13, `WEAPON_GEOMETRY_VERSION` 5). Approval and plan on `plan/attach-geom`, cut from `integ/attach` at `5f106fa`. G1 builds `WEAPON_ATTACH_VERSION` 14 and `WEAPON_GEOMETRY_VERSION` 6.
 **Parents:** [weapon_attachments.md](weapon_attachments.md) ("the attachment spec"; a bare `A§N` points into it) and [weapon_directory.md](weapon_directory.md) (`DS§N`). A bare `§N` points into this document. Everything in the parents still holds except what §3.8 retires and what §4.6 amends (INV-19 and AC77 for the feature-frame records, AC80(c) for the four slots).
 **Errata:** [weapon_attach_geometry_errata.md](weapon_attach_geometry_errata.md). E1 (round barrel end, one landing test, strip scope) was APPROVED by Tom on 2026-10-27 at the defaults (AC131 163), and is in force.
+**Errata E2:** PROPOSED on 2026-10-27 (located magazine seat; the ring bore rule, open as E2-Q2). It is not in force until Tom approves it.
 **Consumers:** `sit_armory` 0.3.0 and `sit_weapons` 0.4.0 (sit-capabilities). §4.6 shows that neither one needs to change, with Q-G4 included.
 
 > The public-repo rule (INV-1, INV-17) applies in full. This document carries algorithms, literals, classes, counts and ranges only. It has no per-asset measurements and no GLB node names. It names asset ids only where the attachment spec already names them. Every measured file (calibration report, fit cache, captures) lives under the catalogs folder or a scratch folder and is never committed. Fixtures are synthetic.
