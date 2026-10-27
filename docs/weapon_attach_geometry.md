@@ -6,7 +6,7 @@
 **Branch:** `spec/attach-geom`, cut from `integ/attach` at `0e2637e` (a8c: `WEAPON_ATTACH_VERSION` 13, `WEAPON_GEOMETRY_VERSION` 5). Approval and plan on `plan/attach-geom`, cut from `integ/attach` at `5f106fa`. G1 builds `WEAPON_ATTACH_VERSION` 14 and `WEAPON_GEOMETRY_VERSION` 6.
 **Parents:** [weapon_attachments.md](weapon_attachments.md) ("the attachment spec"; a bare `A§N` points into it) and [weapon_directory.md](weapon_directory.md) (`DS§N`). A bare `§N` points into this document. Everything in the parents still holds except what §3.8 retires and what §4.6 amends (INV-19 and AC77 for the feature-frame records, AC80(c) for the four slots).
 **Errata:** [weapon_attach_geometry_errata.md](weapon_attach_geometry_errata.md). E1 (round barrel end, one landing test, strip scope) was APPROVED by Tom on 2026-10-27 at the defaults (AC131 163), and is in force.
-**Errata E2:** PROPOSED on 2026-10-27 (located magazine seat; the ring bore rule, open as E2-Q2). It is not in force until Tom approves it.
+**Errata E2:** APPROVED by Tom on 2026-10-27, and in force. His reply, "Use your default s", is read as the peer's recommendations (the errata's E2 status records the reading): the located-magazine clause of §3.7 step 1 is dropped (E2-Q3), and a ring bore needs two radii (E2-Q2).
 **Consumers:** `sit_armory` 0.3.0 and `sit_weapons` 0.4.0 (sit-capabilities). §4.6 shows that neither one needs to change, with Q-G4 included.
 
 > The public-repo rule (INV-1, INV-17) applies in full. This document carries algorithms, literals, classes, counts and ranges only. It has no per-asset measurements and no GLB node names. It names asset ids only where the attachment spec already names them. Every measured file (calibration report, fit cache, captures) lives under the catalogs folder or a scratch folder and is never committed. Fixtures are synthetic.
@@ -280,7 +280,7 @@ Width is not checked on a `seat_ref` host. No calibration exists for an untoothe
 
 `barrel_end(host_mesh_fsu) -> BarrelEnd | None`. The mesh is the host minus muzzle `occupied_by`, minus located parts, minus collision. The end slab is the vertices within `end_slab_m` (0.010) of the forward extreme. A barrel end exists if any of these holds:
 
-- (i) the mount's existing ring bore (A§4.2: `bore_source == "ring"`);
+- (i) the mount's existing ring bore (A§4.2: `bore_source == "ring"`; a ring needs an inner and an outer radius, errata E2.6);
 - (ii) a front-face ring: the innermost 1 mm radial bin holding ≥ 6 vertices, inside 0.75 of the slab's outer radius (`mount_probe.end_ring_d`, shared with the frame vote of §3.3);
 - (iii) a round end section: `min(extent_s, extent_u) / max(...)` ≥ `round_min` (0.8) and OD ≤ `barrel_od_max_m` (0.060).
 
@@ -303,7 +303,7 @@ The muzzle seat itself still comes from the A0 probe, the same single algorithm 
 The receiver is solid where the magazine enters (§1.1), so the host side is the **authored magazine's entry section**.
 
 1. **Reference.**
-   - The host needs an authored magazine: the `child_node` magazine seat (the larger child when there are several, A§4.2), or a located magazine on a preset. Without one the host has no well reference, and its magazine pairs are `not_judged`, which leaves the slot `none` as today.
+   - The host needs an authored magazine: the `child_node` magazine seat (the larger child when there are several, A§4.2). Without one the host has no well reference, and its magazine pairs are `not_judged`, which leaves the slot `none` as today. A fused magazine on a preset gives no reference (errata E2-Q3 dropped "or a located magazine on a preset").
    - The **receiver-bottom plane** `u_rb` is the lowest host crossing on the vertical line through the reference's top-face centre, using host-minus-magazine triangles and `crossings()`, a line-triangle intersection with a 1e-5 m offset off edges.
    - The **entry section** `(L_ref, W_ref)` is the f and s extent of the reference magazine's triangles cut by the plane `u = u_rb − entry_depth_m` (0.002).
 2. **Candidate.**
@@ -422,7 +422,7 @@ class BarrelEnd:
 @dataclass(frozen=True)
 class WellRef:
     u_rb: float; length_m: float; width_m: float
-    source: Literal["child", "located"]
+    source: Literal["child"]  # "located" retired with its producer, errata E2-Q3
 
 @dataclass(frozen=True)
 class Placement:
