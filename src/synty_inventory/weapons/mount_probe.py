@@ -38,6 +38,9 @@ _MAX_GRID = 400  # a triangle edge longer than 400 x _SAMPLE_M (1 m) is capped; 
 _CHUNK_POINTS = 1_000_000  # samples built per numpy block
 _EPS = 1e-9
 _FUSED_MIN_BINS = 12  # a host with fewer populated bins has no profile to judge a post against (spec 4.6 item 8 D)
+_RING_BIN_M = 0.001  # radial histogram bin of the end ring estimator (G1 spec 3.6 (ii)); the bore estimator of mounts.py bins the same way
+_RING_MIN_POINTS = 6  # vertices an end ring bin must hold
+_RING_INSIDE = 0.75  # the ring must lie inside this share of the end slab's outer radius, else it is the slab's own edge
 
 
 def _r(x) -> float:
@@ -67,6 +70,31 @@ def surface_samples(vertices: np.ndarray, triangles: np.ndarray, pitch: float = 
             sel = ia[lo : lo + step]
             out.append((wa * a[sel][None] + wb * b[sel][None] + wc * c[sel][None]).reshape(-1, 3))
     return np.concatenate(out)
+
+
+def end_ring_d(verts, axis: int, sign: int, slab_m: float) -> float | None:
+    """The diameter of the bore ring on one end of a mesh, or None when the end has none (G1 spec 3.6 (ii) and 3.3 step 3).
+
+    The end slab is the vertices within ``slab_m`` of the extreme along ``sign * axis``. Over the two other axes the slab's centre is the middle
+    of its extent and its outer radius the largest distance from that centre. The ring is the innermost 1 mm radial bin holding at least six
+    vertices, and it counts only when it lies inside 0.75 of the outer radius: a solid end has no inner ring, and the circle of its own edge is
+    not a bore. The diameter is twice the ring's mean radius, rounded to 1e-4. The frame vote (``geometry.frame_vote``) and the bore detector
+    share this one estimator. It lives here, in the numpy-only leaf, so both can import it without a cycle.
+    """
+    v = np.asarray(verts, dtype=np.float64).reshape(-1, 3)
+    if not len(v):
+        return None
+    along = sign * v[:, axis]
+    slab = v[along >= float(along.max()) - slab_m - _EPS]
+    lat = slab[:, [i for i in range(3) if i != axis]]
+    radius = np.linalg.norm(lat - (lat.min(axis=0) + lat.max(axis=0)) / 2.0, axis=1)
+    bins = np.floor(radius / _RING_BIN_M + _EPS).astype(np.int64)
+    for b in np.unique(bins):
+        sel = bins == b
+        if int(sel.sum()) >= _RING_MIN_POINTS:
+            ring = float(radius[sel].mean())
+            return _r(2.0 * ring) if ring <= _RING_INSIDE * float(radius.max()) + _EPS else None
+    return None
 
 
 def _top_up(tri: np.ndarray, f: float, s: float) -> float | None:

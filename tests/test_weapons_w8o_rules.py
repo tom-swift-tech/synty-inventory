@@ -431,7 +431,7 @@ def test_every_new_table_moves_the_attach_digest_and_never_the_rules_digest(edit
 
 
 def test_ac123_the_versions_and_the_digests():
-    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 5  # A8 (W8p): 12 -> 13
+    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 6  # A8 (W8p): 12 -> 13
     rules = load_rules()
     assert weapon_rules_digest(rules) == "7b9829af37328fe7"
     assert len(attach_rules_digest(rules)) == 16 and attach_rules_digest(rules) != BASE_ATTACH_DIGEST

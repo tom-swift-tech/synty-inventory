@@ -1,7 +1,7 @@
 """W8b: determinism and the geometry cache with host mounts (AC78, geometry half; docs/weapon_attachments.md 3.5).
 
 An eligible host's mounts are cached with the rest of its measurement. Its fingerprint carries ``WEAPON_ATTACH_VERSION``
-(read at call time), so an attach bump re-measures the hosts as well as the parts; ``WEAPON_GEOMETRY_VERSION`` stays 5 and
+(read at call time), so an attach bump re-measures the hosts as well as the parts; ``WEAPON_GEOMETRY_VERSION`` is 6 since G1 and
 bumping it re-measures everything. A host that is not eligible has the fingerprint W7 computed, so an attach bump leaves it
 cached.
 """
@@ -46,8 +46,8 @@ def dump(directory) -> str:
     return json.dumps(directory, sort_keys=True)
 
 
-def test_the_geometry_version_is_still_5_and_the_attach_version_is_a_positive_integer():
-    assert pkg.WEAPON_GEOMETRY_VERSION == 5  # W8b does not bump it (brief, AC77)
+def test_the_geometry_version_is_6_and_the_attach_version_is_a_positive_integer():
+    assert pkg.WEAPON_GEOMETRY_VERSION == 6  # W8b did not bump it (AC77); G1 bumped 5 -> 6
     assert isinstance(pkg.WEAPON_ATTACH_VERSION, int) and pkg.WEAPON_ATTACH_VERSION >= 1
 
 

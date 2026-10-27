@@ -17,6 +17,9 @@ from pathlib import Path
 import pytest
 
 FIX = Path(__file__).parent / "fixtures" / "weapons"
+_spec_g1 = importlib.util.spec_from_file_location("g1_refs", FIX / "g1_refs.py")
+g1_refs = importlib.util.module_from_spec(_spec_g1)
+_spec_g1.loader.exec_module(g1_refs)
 _spec = importlib.util.spec_from_file_location("w8d_world", FIX / "w8d_world.py")
 X = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(X)
@@ -127,4 +130,5 @@ def test_ac125_the_header_carries_attach_version_13_and_the_w7_export_is_unchang
     assert gf["attach_version"] == 13 and gf["filter"]["attachments"] is True
     code, _, plain = export(world, capsys, name="plain.json")
     assert code == 0
-    assert plain.read_bytes().decode("utf-8").replace("\r\n", "\n") == (FIX / "w8d_w7_attach_default_export.json").read_bytes().decode("utf-8").replace("\r\n", "\n")
+    assert plain.read_bytes().decode("utf-8").replace("\r\n", "\n") == g1_refs.as_geometry_v6(
+        (FIX / "w8d_w7_attach_default_export.json").read_bytes().decode("utf-8").replace("\r\n", "\n"))  # G1: the one number that moved

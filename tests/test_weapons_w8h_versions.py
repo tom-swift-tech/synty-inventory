@@ -31,12 +31,12 @@ def snapshot(directory, *, attachments):
 
 def test_ac93_the_version_constants():
     assert pkg.WEAPON_ATTACH_VERSION == 13
-    assert pkg.WEAPON_GEOMETRY_VERSION == 5
+    assert pkg.WEAPON_GEOMETRY_VERSION == 6
 
 
 def test_ac93_the_directory_header_and_the_attachments_export_record_attach_version_9(tmp_path):
     directory = W.build(tmp_path, WORLD)[0]
-    assert directory["attach_version"] == 13 and directory["geometry_version"] == 5
+    assert directory["attach_version"] == 13 and directory["geometry_version"] == 6
     assert len(directory["attach_rules_digest"]) == 16
     gf = snapshot(directory, attachments=True)["generated_from"]
     assert gf["attach_version"] == 13 and gf["attach_rules_digest"] == directory["attach_rules_digest"]
@@ -45,7 +45,7 @@ def test_ac93_the_directory_header_and_the_attachments_export_record_attach_vers
 def test_ac93_the_default_export_header_has_neither_attach_key(tmp_path):
     gf = snapshot(W.build(tmp_path, WORLD)[0], attachments=False)["generated_from"]
     assert "attach_version" not in gf and "attach_rules_digest" not in gf
-    assert gf["rules_digest"] == "7b9829af37328fe7" and gf["geometry_version"] == 5
+    assert gf["rules_digest"] == "7b9829af37328fe7" and gf["geometry_version"] == 6
 
 
 def test_ac93_the_rules_digest_is_the_w7_one_and_the_genre_table_is_outside_it():

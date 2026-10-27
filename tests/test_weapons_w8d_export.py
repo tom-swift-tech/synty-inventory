@@ -23,6 +23,9 @@ import numpy as np
 import pytest
 
 FIX = Path(__file__).parent / "fixtures" / "weapons"
+_spec_g1 = importlib.util.spec_from_file_location("g1_refs", FIX / "g1_refs.py")
+g1_refs = importlib.util.module_from_spec(_spec_g1)
+_spec_g1.loader.exec_module(g1_refs)
 _spec = importlib.util.spec_from_file_location("w8d_world", FIX / "w8d_world.py")
 X = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(X)
@@ -92,16 +95,17 @@ def test_the_default_export_equals_the_w7_reference_byte_for_byte(world, capsys)
     code, _, out = export(world, capsys)
     assert code == 0
     got = text_of(out)
-    assert got == reference("w8d_w7_attach_default_export.json")
+    assert got == g1_refs.as_geometry_v6(reference("w8d_w7_attach_default_export.json"))  # G1: the one number that moved
     gf = json.loads(got)["generated_from"]
-    assert (gf["rules_digest"], gf["geometry_version"]) == ("7b9829af37328fe7", 5)  # the W7 digest and geometry version
+    assert (gf["rules_digest"], gf["geometry_version"]) == ("7b9829af37328fe7", 6)  # the W7 digest and geometry version
     assert "attach_version" not in got and "attachments" not in got and '"mounts"' not in got
 
 
 def test_roles_all_without_attachments_differs_from_w7_only_in_confidence_and_reasons_of_attachment_parts(world, capsys):
     code, _, out = export(world, capsys, "--roles", "all")
     assert code == 0
-    got, ref = doc_of(out), json.loads(reference("w8d_w7_attach_roles_all_export.json"))
+    got, ref = doc_of(out), json.loads(g1_refs.as_geometry_v6(reference("w8d_w7_attach_roles_all_export.json")))
+    assert got["generated_from"]["geometry_version"] == 6
     assert got["generated_from"] == ref["generated_from"] and got["schema_version"] == ref["schema_version"]
     assert [w["id"] for w in got["weapons"]] == [w["id"] for w in ref["weapons"]]
     ref_by = by_id(ref)
@@ -159,7 +163,7 @@ def test_with_attachments_the_same_snapshot_differs_only_by_the_added_keys(world
     got = doc_of(att)
     gf = got["generated_from"]
     assert gf["attach_version"] == 13 and len(gf["attach_rules_digest"]) == 16
-    assert gf["attach_rules_digest"] != gf["rules_digest"] == "7b9829af37328fe7" and gf["geometry_version"] == 5
+    assert gf["attach_rules_digest"] != gf["rules_digest"] == "7b9829af37328fe7" and gf["geometry_version"] == 6
     assert gf["filter"]["attachments"] is True
     assert sorted(gf) == ["attach_rules_digest", "attach_version", "filter", "geometry_version", "overrides_digest", "packs",
                           "rules_digest", "tool", "weapon_version"]

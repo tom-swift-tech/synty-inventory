@@ -4,7 +4,7 @@
 review_helpers world plus FAKE_Attach / FAKE_Mount / FAKE_CompA / FAKE_CompB, 238 records), written by the untouched W7 tree
 (``w8d_gen_reference.py``). The W8 build of the same world must differ from it in exactly the ways the spec allows:
 
-* the counts and the digests that W7 knew (``rules_digest`` 7b9829af37328fe7, ``geometry_version`` 5, ``overrides_digest``) are equal;
+* the counts and the digests that W7 knew (``rules_digest`` 7b9829af37328fe7, ``geometry_version`` 5 (6 since G1), ``overrides_digest``) are equal;
 * the only new header fields are ``attach_version`` and ``attach_rules_digest``;
 * every pre-existing field of every record is equal, except ``review.confidence`` and ``review.reasons``;
 * those two move only by the spec 8 attachment reasons plus the ``low_confidence`` / cap / scale they cause: reasons are only
@@ -27,6 +27,9 @@ from pathlib import Path
 import pytest
 
 FIX = Path(__file__).parent / "fixtures" / "weapons"
+_spec_g1 = importlib.util.spec_from_file_location("g1_refs", FIX / "g1_refs.py")
+g1_refs = importlib.util.module_from_spec(_spec_g1)
+_spec_g1.loader.exec_module(g1_refs)
 _spec = importlib.util.spec_from_file_location("w8d_world", FIX / "w8d_world.py")
 X = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(X)
@@ -51,7 +54,7 @@ def built(tmp_path_factory):
 @pytest.fixture(scope="module")
 def reference():
     with gzip.open(FIX / "w8d_w7_directory.json.gz", "rt", encoding="utf-8") as fh:
-        return json.load(fh)
+        return json.loads(g1_refs.as_geometry_v6(fh.read()))  # G1: the header's one number that moved, 5 -> 6
 
 
 def canon(value) -> str:
@@ -119,7 +122,7 @@ def test_counts_and_digests_equal_the_w7_report(built, reference):
     assert built["counts"]["by_role"] == {"ammo": 7, "carrier": 4, "emplaced": 10, "part": 56, "whole": 161}  # literals
     assert sum(built["counts"]["by_kind"].values()) == 171 and built["counts"]["by_status"] == {"auto": 238}
     assert built["counts"]["by_archetype"]["unknown"] == 74 and built["counts"]["by_archetype"]["rifle"] == 21
-    assert (built["rules_digest"], built["geometry_version"]) == ("7b9829af37328fe7", 5)
+    assert (built["rules_digest"], built["geometry_version"]) == ("7b9829af37328fe7", 6)
     assert built["overrides_digest"] == reference["overrides_digest"]
     assert set(built) - set(reference) == NEW_HEADER and not set(reference) - set(built)
     assert built["attach_version"] == 13 and len(built["attach_rules_digest"]) == 16

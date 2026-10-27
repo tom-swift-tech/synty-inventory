@@ -40,12 +40,14 @@ SET_KEYS = ("role", "kind", "archetype", "hold_class", "genre", "component", "ca
 # review, which a pattern must never do to a whole family
 # `mounts` is id-only for the same reason (a host's seat is one gun's); `compatible` is also allowed on a glob (the family case)
 # `pair` (A2) is id-only as well: it pairs ONE sight part with its partner, categorical (an id or null)
-ID_ENTRY_KEYS = ("set", "confirm", "exclude", "renamed_from", "forward", "confidence_cap", "note", "compatible", "mounts", "pair")
+# `frame_axis` (G1, spec 4.5) is id-only too: it names ONE gun's forward axis, "x", "y" or "z" (categorical, no number: INV-17)
+ID_ENTRY_KEYS = ("set", "confirm", "exclude", "renamed_from", "forward", "confidence_cap", "note", "compatible", "mounts", "pair", "frame_axis")
 GLOB_ENTRY_KEYS = ("set", "confirm", "exclude", "note", "compatible")
 COMPATIBLE_KEYS = ("add", "remove")
 MOUNT_OVERRIDE_KEYS = ("source", "child")  # nothing else: a coordinate here would be pack-derived data (INV-17)
 MOUNT_OVERRIDE_SOURCES = ("child_node", "none")
 FORWARD_VALUES = ("+x", "-x", "+y", "-y", "+z", "-z")
+FRAME_AXIS_VALUES = ("x", "y", "z")
 CONFIDENCE_CAP_RANGE = (0.05, 0.59)  # inclusive: below 0.6 so the record lands in Low confidence, the classifier's floor
 
 
@@ -182,7 +184,7 @@ def validate_overrides(doc) -> list[str]:
             for k in entry:
                 if k not in allowed:
                     hint = (f" ({k} is for exact ids only)"
-                            if k in ("renamed_from", "forward", "confidence_cap", "mounts", "pair") else "")
+                            if k in ("renamed_from", "forward", "confidence_cap", "mounts", "pair", "frame_axis") else "")
                     errors.append(f"{where}.{k}: unknown key{hint}")
             if "set" in entry:
                 _validate_set(entry["set"], f"{where}.set", errors)
@@ -212,6 +214,8 @@ def validate_overrides(doc) -> list[str]:
                         errors.append(f"{where}.pair: {partner!r} is in another pack (a pair is one pack's set, INV-20)")
             if "forward" in entry and section == "ids" and entry["forward"] not in FORWARD_VALUES:
                 errors.append(f"{where}.forward: {entry['forward']!r} not in {list(FORWARD_VALUES)}")
+            if "frame_axis" in entry and section == "ids" and entry["frame_axis"] not in FRAME_AXIS_VALUES:
+                errors.append(f"{where}.frame_axis: {entry['frame_axis']!r} not in {list(FRAME_AXIS_VALUES)}")
             if "confidence_cap" in entry and section == "ids":
                 cap = entry["confidence_cap"]
                 lo, hi = CONFIDENCE_CAP_RANGE
@@ -295,6 +299,7 @@ def effective_override(full_id: str, doc: dict | None) -> dict | None:
         # id-only (a glob entry cannot carry them, see validate_overrides)
         "forward": (id_entry or {}).get("forward"),
         "confidence_cap": (id_entry or {}).get("confidence_cap"),
+        "frame_axis": (id_entry or {}).get("frame_axis"),
         # W8c: categorical attachment keys. `compat_sources` keeps every entry that carries a `compatible` block in
         # precedence order (the exact id first, then globs by descending length) for `compatible_verdict`; `mounts` is id-only
         "compat_sources": compat_sources,

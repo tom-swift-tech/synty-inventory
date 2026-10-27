@@ -1,6 +1,6 @@
 """W8l: versions, the cache keys, the three new rule tables and the order of twin and free end (docs/weapon_attachments.md A4; AC105 (vi), AC110).
 
-The expected values are LITERALS from the spec (attach version 9 since A5, geometry version 5, rules digest 7b9829af37328fe7), never read from the
+The expected values are LITERALS from the spec (attach version 9 since A5, geometry version 6 since G1, rules digest 7b9829af37328fe7), never read from the
 constants under test.
 """
 
@@ -30,7 +30,7 @@ HOST = "SM_Wep_Rifle_Alpha_01"
 
 
 def test_ac110_the_versions_and_the_rules_digest():
-    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 5
+    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 6
     assert weapon_rules_digest(load_rules()) == "7b9829af37328fe7"  # the three new tables sit inside attachment_rules: rules_digest never moves
     assert len(attach_rules_digest(load_rules())) == 16
 
@@ -46,7 +46,7 @@ def test_ac110_the_new_tables_move_the_attach_digest_and_never_the_rules_digest(
 
 def test_ac110_the_directory_header_records_attach_version_9(tmp_path):
     directory = W.build(tmp_path, {PACK: {"hosts": {HOST: W.host_node(HOST, W.box_rifle())}}})[0]
-    assert directory["attach_version"] == 13 and directory["geometry_version"] == 5
+    assert directory["attach_version"] == 13 and directory["geometry_version"] == 6
 
 
 # --- AC110: the geometry cache keys follow the new inputs and the new code --------------------------------------------------

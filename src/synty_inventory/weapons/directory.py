@@ -211,7 +211,7 @@ def _context(cls: dict) -> tuple:
 
 
 def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, threejs_v2_dir, cache, stats,
-                    forward_override=None, mount_overrides=None):
+                    forward_override=None, mount_overrides=None, frame_axis=None):
     """Measure one record's GLB, then re-classify with the measured length (pass 2).
 
     Pass 2 can change archetype/hold (a length rule filling an unknown archetype, the long-blade exception); the
@@ -219,7 +219,8 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
     costs no second read). ``forward_override`` is the id override's ``forward`` (spec 4.5), passed to every
     measurement, and so is ``head_lead`` (W7 R-H2: one of the id's tokens is in ``rules.head_lead_tokens``; the id decides
     it, so it does not change between the pass-1 and pass-2 classifications). ``mount_overrides`` (W8c) is the id override's
-    categorical ``mounts`` mapping; it joins the geometry cache fingerprint of an eligible host. Returns ``(final classification, last measurement detail)``.
+    categorical ``mounts`` mapping; it joins the geometry cache fingerprint of an eligible host. ``frame_axis`` (G1) is the id override's forward
+    axis (spec 4.5), passed to every measurement like ``forward_override``. Returns ``(final classification, last measurement detail)``.
 
     W7b: a whole/emplaced record whose rules leave ``kind`` null starts as ``melee`` (``kind_guessed``, unmeasured
     fallback), is measured as such, and pass 2 then takes ``ranged`` when the measured long axis is ``z``. ``kind`` is part
@@ -241,7 +242,7 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
             threejs_v2_dir, files["glb"], node, scale, cls["archetype"], cls["kind"], cls["role"], rules, cache,
             hold_class=cls["hold_class"], genre=cls["genre"], forward_override=forward_override,
             head_lead=head_lead, attach_slot=attach["slot"] if attach else None, mount_overrides=mount_overrides,
-            host_id=asset["id"], attach_kind=attach["kind"] if attach else None, host_pack=pack_id,
+            host_id=asset["id"], attach_kind=attach["kind"] if attach else None, host_pack=pack_id, frame_axis=frame_axis,
         )
         stats["cached" if cached else "decoded"] += 1
         measured = pass2_inputs(detail)
@@ -278,7 +279,7 @@ def _carried_child_extents(docs, selected, records, rules, overrides, settings, 
             _, detail = _measure_record(
                 asset, pack_id, cls, source, rules, overrides, settings.get(pack_id), threejs_v2_dir, cache,
                 {"cached": 0, "decoded": 0}, forward_override=(eff or {}).get("forward"),
-                mount_overrides=(eff or {}).get("mounts"))
+                mount_overrides=(eff or {}).get("mounts"), frame_axis=(eff or {}).get("frame_axis"))
             if detail is not None and "child_extents" in detail:
                 out[full_id] = detail["child_extents"]
     return out
@@ -602,6 +603,7 @@ def build_directory_report(
                 cls, detail = _measure_record(
                     asset, pack_id, cls, source, rules, overrides, settings.get(pack_id), threejs_v2_dir, cache,
                     geo_stats, forward_override=(eff or {}).get("forward"), mount_overrides=(eff or {}).get("mounts"),
+                    frame_axis=(eff or {}).get("frame_axis"),
                 )
             elif measure and (asset.get("files") or {}).get("glb"):
                 skipped_for_root = True

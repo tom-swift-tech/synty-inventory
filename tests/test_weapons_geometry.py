@@ -777,25 +777,25 @@ def test_cache_entry_is_keyed_on_file_version_and_classification_context(glbs, r
     assert was is False and again["geometry"]["length_m"] == 0.29
 
 
-def test_a_version_4_cache_entry_is_not_served_under_geometry_version_5(glbs, rules, monkeypatch):
-    """The v5 algorithm (W7: the head sign decides over a differing pivot sign) changes stored geometry, so an entry written
-    by v4 (W2f) must be re-measured. The v4 entry is poisoned: serving it would be visible in the length. (Since
+def test_a_version_5_cache_entry_is_not_served_under_geometry_version_6(glbs, rules, monkeypatch):
+    """The v6 algorithm (G1: the body-axis frame vote on eligible hosts) changes stored geometry, so an entry written
+    by v5 (W7) must be re-measured. The v5 entry is poisoned: serving it would be visible in the length. (Since
     W2f an entry's version is "<int>+<code digest>", see tests/test_weapons_w2f_cache.py.)"""
     import synty_inventory.weapons as pkg
 
-    assert pkg.WEAPON_GEOMETRY_VERSION == 5  # a literal: the bump itself is under test
+    assert pkg.WEAPON_GEOMETRY_VERSION == 6  # a literal: the bump itself is under test
     root = glbs["sword"].parent
     args = (root, "sword.glb", None, 1.0, "sword", "melee", "whole", rules)
     cache: dict = {}
-    monkeypatch.setattr(pkg, "WEAPON_GEOMETRY_VERSION", 4)
+    monkeypatch.setattr(pkg, "WEAPON_GEOMETRY_VERSION", 5)
     old, was = measure_cached(*args, cache, genre="fantasy")
-    assert was is False and cache["sword.glb"]["version"].startswith("4+")
+    assert was is False and cache["sword.glb"]["version"].startswith("5+")
     cache["sword.glb"]["by_inputs"][next(iter(cache["sword.glb"]["by_inputs"]))]["geometry"]["length_m"] = 999.0
-    assert measure_cached(*args, cache, genre="fantasy")[1] is True  # still served under v4 ...
-    monkeypatch.undo()  # ... and the real constant (5) must not take it
+    assert measure_cached(*args, cache, genre="fantasy")[1] is True  # still served under v5 ...
+    monkeypatch.undo()  # ... and the real constant (6) must not take it
     fresh, was = measure_cached(*args, cache, genre="fantasy")
     assert was is False and fresh["geometry"]["length_m"] == 1.0
-    assert cache["sword.glb"]["version"].startswith("5+")
+    assert cache["sword.glb"]["version"].startswith("6+")
 
 
 def test_a_missing_file_is_not_cached_and_a_failure_is(glbs, rules, tmp_path):
