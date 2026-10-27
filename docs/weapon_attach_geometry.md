@@ -5,6 +5,7 @@
 **Tom's approval (2026-10-27, verbatim):** "Approve the geometry spec. Take Q-G4: adopt the feature frame for the record too, geometry_version 5 to 6. Other open questions at their defaults. Start the build plan." The decisions are recorded in §8. Q-G4 is folded through this document: §1.1 (frame), §3.3, §3.6, §3.9, §3.11, §4.1, §4.2, §4.4, §4.5, §4.6, §4.7, §5 (INV-19 amended, INV-24, INV-28), §6 (AC145, AC146, AC147), §8 and §9.
 **Branch:** `spec/attach-geom`, cut from `integ/attach` at `0e2637e` (a8c: `WEAPON_ATTACH_VERSION` 13, `WEAPON_GEOMETRY_VERSION` 5). Approval and plan on `plan/attach-geom`, cut from `integ/attach` at `5f106fa`. G1 builds `WEAPON_ATTACH_VERSION` 14 and `WEAPON_GEOMETRY_VERSION` 6.
 **Parents:** [weapon_attachments.md](weapon_attachments.md) ("the attachment spec"; a bare `A§N` points into it) and [weapon_directory.md](weapon_directory.md) (`DS§N`). A bare `§N` points into this document. Everything in the parents still holds except what §3.8 retires and what §4.6 amends (INV-19 and AC77 for the feature-frame records, AC80(c) for the four slots).
+**Errata:** [weapon_attach_geometry_errata.md](weapon_attach_geometry_errata.md). E1 (round barrel end, one landing test, strip scope) was APPROVED by Tom on 2026-10-27 at the defaults (AC131 163), and is in force.
 **Consumers:** `sit_armory` 0.3.0 and `sit_weapons` 0.4.0 (sit-capabilities). §4.6 shows that neither one needs to change, with Q-G4 included.
 
 > The public-repo rule (INV-1, INV-17) applies in full. This document carries algorithms, literals, classes, counts and ranges only. It has no per-asset measurements and no GLB node names. It names asset ids only where the attachment spec already names them. Every measured file (calibration report, fit cache, captures) lives under the catalogs folder or a scratch folder and is never committed. Fixtures are synthetic.
@@ -212,6 +213,10 @@ Should detectors derive forward and up from the gun's own features? **Yes, for t
 
    This fires on 0 hosts today.
 5. **Order of authority.** `frame_axis` (when present) or a confirmed body axis decides the forward *axis*. Then `forward_override` applies to the *sign* on that axis, exactly as today against the measured axis. An override whose axis differs is ignored with the existing warning. None of the 3 hosts carries a `forward` override today.
+   - **A `frame_axis` with no single end ring** (none, or both) has no measured sign. The vote takes `+` and sets `FrameVote.sign_by_fallback` (§3.11). The record then carries the flag `forward_by_fallback` (DS§3.4.5), so the guessed sign shows on the review page. The id's `forward` override sets the sign on that axis and clears the flag, as it does today.
+   - A sign confirmed by one end ring is measured, so on a changed host the vote clears a pre-vote `forward_by_fallback`.
+   - Classification reads neither. Pass 2 keeps the pre-vote flag ("Classification does not read the vote", below), so the vote moves no confidence.
+   - `sign_by_fallback` is an additive S1 deviation, accepted by the peer on 2026-10-27.
 
 The vote runs only on eligible hosts (`mounts.eligible`), whatever `with_mounts` says, so the default export and the `--attachments` export carry the same record frame. Every other record is measured exactly as in geometry version 5.
 
@@ -388,6 +393,8 @@ class FrameVote:
     up: tuple[str, int]
     changed: bool                     # forward axis differs from the build's
     conflict: bool                    # differs and the bore-ring test failed (section 3.3 step 4)
+    sign_by_fallback: bool = False    # a frame_axis moved the axis and no single end ring gave the sign: forward carries "+"
+                                      # and the record is flagged forward_by_fallback (section 3.3 step 5; additive S1 deviation)
 
 def frame_vote(verts, body_verts, build_forward: tuple[int, int], frame_axis: str | None = None) -> FrameVote: ...
     # verts: the whole host mesh (the build's up rule reads it, unchanged); body_verts: minus the slot children (step 1)

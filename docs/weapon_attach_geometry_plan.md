@@ -448,3 +448,13 @@ All four have base S2 merged, and each runs in its own worktree. Each owns exact
 | The well pair pass is slow on the live packs (magazines × hosts with a reference) | S10 build time | measure and report; per-pair cache as `settle_cached`; no shortcut that changes a verdict |
 | Fit cache and geometry cache disagree after a version or rules edit | S7, S8 | both keys carry `WEAPON_GEOMETRY_VERSION`, the attach version and the fit digests (§3.11); AC78-style miss tests in S7 |
 | A count differs from §1.1 at S10 | S10 | a finding to the lead, never tuned (§0 rule 7) |
+
+## 8. Build log
+
+The merge commits of the landed slices on `integ/attach`:
+
+- S1: `3a9a064`
+- S2: `aa1fbe2`
+- P1: S3 `51f40a4`, S4 `dc7815b`, S5 `c42aa41`, S6 `097bfcc`
+- `00bd68c` (on integ, before the P1 merges): retired S2's stub-state leg of `test_weapons_g1_verdict.py`. The S2 verification missed that the test asserted `NotImplementedError`, which P1 had to break.
+- Errata E1 (`4dfdfdb`): the E1.1 calibration and the E1.2 counts were measured on live packs in scratch before S10. §0 rule 4 keeps live data to S10 and S12, but the §4.2 calibration rule needs its positives measured. The readings were read-only and uncommitted, and the positives are the preset oracle, not Tom's labels. Not a rule 7 breach.
