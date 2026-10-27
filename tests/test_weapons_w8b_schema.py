@@ -79,12 +79,12 @@ def test_a_w7_record_without_the_mounts_key_is_still_valid(built):
 # --- hand-broken variants, each exit 6 ------------------------------------------------------------------------------
 
 
-def none_with_a_point(d):  # INV-15
-    slot_of(d, PLAIN, "optic")["point"] = [0.0, 0.1, 0.0]
+def none_with_a_point(d):  # INV-15; underbarrel: PLAIN's optic slot has a flat seat since S7 (spec 3.4 step 3)
+    slot_of(d, PLAIN, "underbarrel")["point"] = [0.0, 0.1, 0.0]
 
 
-def none_without_a_reason(d):  # INV-15
-    slot_of(d, PLAIN, "optic")["reason"] = None
+def none_without_a_reason(d):  # INV-15; underbarrel, as above
+    slot_of(d, PLAIN, "underbarrel")["reason"] = None
 
 
 def seated_with_a_null_point(d):  # INV-15, the other way round

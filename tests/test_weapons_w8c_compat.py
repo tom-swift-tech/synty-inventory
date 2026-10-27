@@ -37,11 +37,14 @@ def rec(directory, part):
 
 
 # part -> (compatible_hosts as (host, tier, score) in stored order, pending_hosts as (host, tier) in stored order)
+# S7 re-pin (spec 3.4 step 3): BETA and DELTA have a smooth top and no claimed optic child, so their optic slot is a flat seat (a probe
+# seat, span 0.181 m on BETA and 0.447 m on DELTA) and neither is pending for an optic any more. BETA is a same-pack fit: 0.7 base + 0.1
+# for the foot fitting that span (the Wide and Giant feet, 0.072 and 0.108 m, are inside 1.5 x of 0.181 too); DELTA a cross-pack fit, 0.4 + 0.1.
 EXPECTED = {
-    W.SCOPE: ([(A_, TWIN, 0.95), (E_, TWIN, 0.95)], [(B_, SAME), (D_, CROSS)]),
-    W.SCOPE_TIGHT: ([(A_, SAME, 0.8), (E_, SAME, 0.8)], [(B_, SAME), (D_, CROSS)]),
-    W.SCOPE_WIDE: ([(A_, SAME, 0.7), (E_, SAME, 0.7)], [(B_, SAME), (D_, CROSS)]),
-    W.SCOPE_GIANT: ([(A_, SAME, 0.7), (E_, SAME, 0.7)], [(B_, SAME), (D_, CROSS)]),
+    W.SCOPE: ([(A_, TWIN, 0.95), (E_, TWIN, 0.95), (B_, SAME, 0.8), (D_, CROSS, 0.5)], []),
+    W.SCOPE_TIGHT: ([(A_, SAME, 0.8), (B_, SAME, 0.8), (E_, SAME, 0.8), (D_, CROSS, 0.5)], []),
+    W.SCOPE_WIDE: ([(B_, SAME, 0.8), (A_, SAME, 0.7), (E_, SAME, 0.7), (D_, CROSS, 0.5)], []),
+    W.SCOPE_GIANT: ([(B_, SAME, 0.8), (A_, SAME, 0.7), (E_, SAME, 0.7), (D_, CROSS, 0.5)], []),
     # W8l (A4, spec 5.1 family_free_slots): a muzzle part needs no name overlap, so the pistol GAMMA (no "rifle" token) joins every silencer's list
     # at the same-pack base 0.7 (a square body: no ring, no bore signal) and sorts by host id beside BETA (0.7)
     W.SIL: ([(G_, SAME, 0.7), (B_, SAME, 0.7), (A_, SAME, 0.6), (E_, SAME, 0.6)], []),
@@ -51,7 +54,7 @@ EXPECTED = {
     # W8l: an underbarrel part needs no name overlap either; the three rifles have no foregrip child and no probe for the slot, so they are pending
     W.GRIP: ([(G_, TWIN, 0.95)], [(A_, SAME), (B_, SAME), (E_, SAME), (D_, CROSS)]),
     W.LASER: ([(G_, TWIN, 0.95)], [(D_, CROSS)]),
-    W.ALT_SCOPE: ([(A_, TWIN, 0.95), (E_, TWIN, 0.95)], [(B_, CROSS)]),
+    W.ALT_SCOPE: ([(A_, TWIN, 0.95), (E_, TWIN, 0.95), (B_, CROSS, 0.5)], []),  # S7: BETA's flat optic seat
 }
 
 
@@ -91,7 +94,7 @@ def test_ac71_one_part_that_twins_several_hosts_gets_twin_multi_and_a_part_with_
 def test_ac71_a_twin_in_another_pack_is_still_a_twin(built):
     # judgment call (compat.py docstring): twin evidence is geometric, so the pack does not matter
     got = W.hosts_of(rec(built, W.ALT_SCOPE))
-    assert got == [(A_, TWIN, 0.95), (E_, TWIN, 0.95)]
+    assert got == [(A_, TWIN, 0.95), (E_, TWIN, 0.95), (B_, CROSS, 0.5)]  # S7: BETA's flat optic seat (spec 3.4 step 3) is the third entry
 
 
 # --- AC72: tiers, scores and ordering ----------------------------------------------------------------------------------
@@ -215,8 +218,9 @@ def test_ac73_a_foot_1_2x_a_child_foot_span_still_fits_and_1_8x_a_probe_span_is_
 
 def test_ac73_a_foot_1_8x_a_child_foot_span_is_not_vetoed_in_the_built_directory(built):
     # Giant_01: foot 0.108 against the 0.06 child_foot span of the Scope child of ALPHA and EPSILON
-    assert W.hosts_of(rec(built, W.SCOPE_GIANT)) == [(A_, SAME, 0.7), (E_, SAME, 0.7)]
-    assert W.hosts_of(rec(built, W.SCOPE_WIDE)) == [(A_, SAME, 0.7), (E_, SAME, 0.7)]
+    # (S7, spec 3.4 step 3: BETA's flat seat is longer than the foot, so it keeps the span bonus; DELTA is cross-pack)
+    assert W.hosts_of(rec(built, W.SCOPE_GIANT)) == [(B_, SAME, 0.8), (A_, SAME, 0.7), (E_, SAME, 0.7), (D_, CROSS, 0.5)]
+    assert W.hosts_of(rec(built, W.SCOPE_WIDE)) == [(B_, SAME, 0.8), (A_, SAME, 0.7), (E_, SAME, 0.7), (D_, CROSS, 0.5)]
 
 
 def test_ac73_a_cross_pack_part_needs_a_foot_that_fits_a_measured_seat():
@@ -256,10 +260,12 @@ def test_ac73_a_bad_ring_bore_blocks_a_cross_pack_candidate_and_a_good_one_admit
 
 
 def test_ac75_a_host_without_a_seat_is_pending_and_not_compatible(built):
-    att = rec(built, W.SCOPE)["attachment"]
+    # S7 (spec 3.4 step 3): BETA's optic is a flat seat now, so the pending case is its magazine slot (no child, no probe)
+    att = rec(built, W.MAG)["attachment"]
     assert B_ in {e["host"] for e in att["pending_hosts"]} and B_ not in {e["host"] for e in att["compatible_hosts"]}
-    beta_optic = W.by_id(built)[B_]["geometry"]["mounts"]["optic"]
-    assert beta_optic["source"] == "none"  # the reason it is pending
+    beta_mag = W.by_id(built)[B_]["geometry"]["mounts"]["magazine"]
+    assert beta_mag["source"] == "none"  # the reason it is pending
+    assert W.by_id(built)[B_]["geometry"]["mounts"]["optic"]["source"] == "probe"
 
 
 def test_ac75_no_host_is_in_both_lists_and_an_empty_compatible_list_is_allowed(built):
@@ -292,7 +298,7 @@ def test_ac75_the_export_view_of_compatible_hosts_filters_by_tier_too():
 
 def test_ac75_pending_of_the_built_directory_through_the_export_filter(built):
     assert compat.export_pending(rec(built, W.MAG)["attachment"]["pending_hosts"], SAME) == [B_, E_]
-    assert compat.export_pending(rec(built, W.SCOPE)["attachment"]["pending_hosts"], SAME) == [B_]
+    assert compat.export_pending(rec(built, W.SCOPE)["attachment"]["pending_hosts"], SAME) == []  # S7: BETA has a flat optic seat
     assert compat.export_pending(rec(built, W.ALT_SCOPE)["attachment"]["pending_hosts"], SAME) == []  # only a cross-pack candidate
 
 

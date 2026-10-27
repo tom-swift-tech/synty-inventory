@@ -146,7 +146,8 @@ def test_ac99_a_glass_only_host_whose_sight_slots_the_probe_refused_has_them_dis
 
 def test_ac99_a_host_with_no_optic_child_is_not_touched(optics):
     m = mounts(optics, BARE)
-    assert m["optic"]["source"] == "none" and m["optic"]["reason"] == "no_child_no_probe"
+    # S7 (spec 3.4 step 3): the bare host's optic is the estimated flat seat on its smooth top, not a none slot
+    assert seated(m["optic"]) and m["optic"]["child_node"] is None and m["optic"]["occupied_by"] == []
     assert seated(m["sight_front"]) and seated(m["sight_rear"])
 
 
@@ -355,7 +356,7 @@ def test_ac101_no_optic_or_sight_candidate_exists_on_the_toy_and_water_hosts(nam
 def test_ac101_a_word_that_only_starts_with_water_and_a_plain_host_are_not_excluded(names):
     for name in (WATERFALL, PLAIN):
         m = mounts(names, name)
-        assert m["optic"]["source"] == "none" and m["optic"]["reason"] == "no_child_no_probe", name  # nothing disabled it
+        assert seated(m["optic"]) and m["optic"]["reason"] is None, name  # nothing disabled it (S7, spec 3.4 step 3: a flat optic seat)
         assert seated(m["sight_front"]) and seated(m["sight_rear"]), name
 
 

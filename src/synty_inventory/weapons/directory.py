@@ -10,14 +10,21 @@ this module stays free of file writes outside ``write_directory``.
 
 from __future__ import annotations
 
+import hashlib
 import json
+from collections.abc import Callable
 from copy import deepcopy
 from fnmatch import fnmatchcase
 from pathlib import Path
 
+import numpy as np
+
 from .. import weapons as _pkg  # read versions at call time (a test may bump WEAPON_VERSION)
+from ..naming import SKIP_STEM_RE
 from ..paths import is_pack_catalog_file
 from ..schema import migrate_catalog
+from ..sources.glb_geometry import load_triangles
+from ..sources.glb_measure import node_cache_tag
 from . import ATTACH_KINDS, InputError, SchemaError, digest, to_text, write_text_lf
 from .candidates import evaluate_candidate
 from .classify import attachment_reason, classify, classify_attachment, tokenize_id
@@ -25,7 +32,7 @@ from .attach import hidden_nodes, setback_applies, setback_of, settle_applies
 from .compat import apply_compat
 from .geometry import measure_cached, muzzle_stub_cached, pass2_inputs, settle_cached
 from .hints import build_group_stats, derive_hints
-from .mounts import mount_reasons
+from .mounts import eligible, is_filled_host, mount_reasons
 from .overrides import effective_override, load_overrides
 from .pairs import apply_pairs
 from .rules import attach_rules_digest, attachment_rules, head_lead_tokens, load_rules, weapon_rules_digest
@@ -210,8 +217,60 @@ def _context(cls: dict) -> tuple:
     return cls["archetype"], cls["kind"], cls["role"], cls["hold_class"]
 
 
+def _fused_parts_factory(docs, rules, overrides, settings, threejs_v2_dir) -> Callable[[str, str], tuple | None]:
+    """``fused_for(pack_id, host asset id)`` -> ``(key, load)`` or None: the parts a preset host may carry fused into its mesh (spec 3.2, Q-G11).
+
+    None for a host that is not an ``attach_filled_hosts`` host (only a preset is searched). Otherwise every attachment part of the host's PACK: an
+    accepted candidate whose pass-1 classification is role ``part`` and which has an attachment slot (``_attach_class``, id overrides included) and a
+    GLB. Pass 1 is enough: it does not read the mesh, and a part's role never depends on a measurement. ``key`` hashes the set (id, slot, GLB sha256,
+    node, scale), so it joins the geometry and fit cache fingerprints of the host; ``load()`` decodes the parts (``{id, slot, verts, tris}``, collision
+    hulls dropped). Both are memoised per pack, so a pack with many presets reads its parts once.
+    """
+    tables = attachment_rules(rules)
+    packs: dict[str, tuple[str, Callable] | None] = {}
+
+    def for_pack(pack_id: str):
+        if pack_id in packs:
+            return packs[pack_id]
+        rows = []
+        for asset in docs[pack_id]["assets"]:
+            files = asset.get("files") or {}
+            if not isinstance(asset.get("id"), str) or not files.get("glb"):
+                continue
+            full_id = f"{pack_id}/{asset['id']}"
+            ev = evaluate_candidate(asset, pack_id, rules)
+            if not (ev["candidate"] and ev["accepted"]) or (effective_override(full_id, overrides) or {}).get("exclude"):
+                continue
+            cls = classify(asset, pack_id, rules, overrides, settings.get(pack_id), candidate_source=ev["source"])
+            attach = _attach_class(asset, pack_id, cls, rules, overrides) if cls["role"] == "part" else None
+            path = threejs_v2_dir / files["glb"]
+            if attach is None or not path.is_file():
+                continue
+            rows.append({"id": asset["id"], "slot": attach["slot"], "path": path, "node": files.get("glb_node") or None,
+                         "scale": float(files.get("glb_scale") or 1.0), "sha": hashlib.sha256(path.read_bytes()).hexdigest()})
+        rows.sort(key=lambda r: r["id"])
+        loaded: list[dict] = []
+
+        def load() -> list[dict]:
+            if not loaded:
+                for r in rows:
+                    got = load_triangles(r["path"], r["node"], exclude=lambda n: bool(SKIP_STEM_RE.search(n or "")), scale=r["scale"])
+                    if got is not None and len(got[0]) and len(got[1]):
+                        loaded.append({"id": r["id"], "slot": r["slot"], "verts": np.asarray(got[0], dtype=np.float64), "tris": np.asarray(got[1])})
+            return loaded
+
+        key = digest([[r["id"], r["slot"], r["sha"], node_cache_tag(r["node"]), r["scale"]] for r in rows])
+        packs[pack_id] = (key, load) if rows else None
+        return packs[pack_id]
+
+    def fused_for(pack_id: str, asset_id: str):
+        return for_pack(pack_id) if threejs_v2_dir is not None and is_filled_host(asset_id, tables) else None
+
+    return fused_for
+
+
 def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, threejs_v2_dir, cache, stats,
-                    forward_override=None, mount_overrides=None, frame_axis=None):
+                    forward_override=None, mount_overrides=None, frame_axis=None, fit_cache=None, fused_for=None):
     """Measure one record's GLB, then re-classify with the measured length (pass 2).
 
     Pass 2 can change archetype/hold (a length rule filling an unknown archetype, the long-blade exception); the
@@ -220,7 +279,8 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
     measurement, and so is ``head_lead`` (W7 R-H2: one of the id's tokens is in ``rules.head_lead_tokens``; the id decides
     it, so it does not change between the pass-1 and pass-2 classifications). ``mount_overrides`` (W8c) is the id override's
     categorical ``mounts`` mapping; it joins the geometry cache fingerprint of an eligible host. ``frame_axis`` (G1) is the id override's forward
-    axis (spec 4.5), passed to every measurement like ``forward_override``. Returns ``(final classification, last measurement detail)``.
+    axis (spec 4.5), passed to every measurement like ``forward_override``. G1 (S7): ``fit_cache`` is the dict of ``_fit_cache.json`` and ``fused_for`` the
+    ``_fused_parts_factory`` closure (a preset host is searched for its fused parts). Returns ``(final classification, last measurement detail)``.
 
     W7b: a whole/emplaced record whose rules leave ``kind`` null starts as ``melee`` (``kind_guessed``, unmeasured
     fallback), is measured as such, and pass 2 then takes ``ranged`` when the measured long axis is ``z``. ``kind`` is part
@@ -238,11 +298,13 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
     head_lead = bool(head_lead_tokens(rules) & set(tokenize_id(asset["id"], rules)))
     for _ in range(3):
         attach = _attach_class(asset, pack_id, cls, rules, overrides)
+        fused = fused_for(pack_id, asset["id"]) if fused_for is not None and eligible(cls["role"], cls["kind"], cls["hold_class"]) else None
         detail, cached = measure_cached(
             threejs_v2_dir, files["glb"], node, scale, cls["archetype"], cls["kind"], cls["role"], rules, cache,
             hold_class=cls["hold_class"], genre=cls["genre"], forward_override=forward_override,
             head_lead=head_lead, attach_slot=attach["slot"] if attach else None, mount_overrides=mount_overrides,
             host_id=asset["id"], attach_kind=attach["kind"] if attach else None, host_pack=pack_id, frame_axis=frame_axis,
+            fit_cache=fit_cache, fused_parts=fused,
         )
         stats["cached" if cached else "decoded"] += 1
         measured = pass2_inputs(detail)
@@ -256,13 +318,14 @@ def _measure_record(asset, pack_id, cls, source, rules, overrides, setting, thre
     return cls, detail
 
 
-def _carried_child_extents(docs, selected, records, rules, overrides, settings, threejs_v2_dir, cache) -> dict[str, dict]:
+def _carried_child_extents(docs, selected, records, rules, overrides, settings, threejs_v2_dir, cache, fit_cache=None, fused_for=None,
+                           host_feats: dict | None = None) -> dict[str, dict]:
     """``child_extents`` (the twin evidence) of the eligible hosts a partial build carries over from its base.
 
     The carried records hold no measurement, but a part rebuilt in this run must meet the same hosts it would meet in a
     full build, so the host GLBs are read again through the geometry cache (a hit when the cache is warm). The build's own
     decode / hit counters are not touched. A host that cannot be measured now keeps the relation its stored lists carry
-    (``compat.apply_compat`` falls back to them).
+    (``compat.apply_compat`` falls back to them). G1 (S7): the host's detector features are carried the same way, into ``host_feats`` when given.
     """
     wanted = {r["id"] for r in records if r["pack"] not in selected and (r.get("geometry") or {}).get("mounts")}
     out: dict[str, dict] = {}
@@ -279,9 +342,11 @@ def _carried_child_extents(docs, selected, records, rules, overrides, settings, 
             _, detail = _measure_record(
                 asset, pack_id, cls, source, rules, overrides, settings.get(pack_id), threejs_v2_dir, cache,
                 {"cached": 0, "decoded": 0}, forward_override=(eff or {}).get("forward"),
-                mount_overrides=(eff or {}).get("mounts"), frame_axis=(eff or {}).get("frame_axis"))
+                mount_overrides=(eff or {}).get("mounts"), frame_axis=(eff or {}).get("frame_axis"), fit_cache=fit_cache, fused_for=fused_for)
             if detail is not None and "child_extents" in detail:
                 out[full_id] = detail["child_extents"]
+            if detail is not None and host_feats is not None and "host_feats" in detail:
+                host_feats[full_id] = detail["host_feats"]
     return out
 
 
@@ -497,6 +562,8 @@ def build_directory_report(
     base: tuple[dict, dict] | None = None,
     geometry_cache: dict | None = None,
     extracted_root: Path | None = None,
+    fit_cache: dict | None = None,
+    host_feats: dict | None = None,
 ) -> tuple[dict, dict, dict]:
     """``(directory doc, excluded doc, report)``.
 
@@ -507,6 +574,12 @@ def build_directory_report(
     variant discovery list the colourways on disk (spec 3.7); when None the catalogs' ``source.extracted`` is used,
     and without any tree no variants are listed. The report carries stale overrides, warnings and live-run statistics;
     it is never part of the directory.
+
+    G1 (S7): ``fit_cache`` (default: none, nothing cached) is the dict of ``<catalogs>/weapons/_fit_cache.json``, read and filled in place like
+    ``geometry_cache``; the caller persists it with ``fit_geometry.load_fit_cache`` / ``save_fit_cache`` (this module writes nothing but
+    ``write_directory``). ``host_feats`` (default: none) is filled in place with ``{host id: {s0, slots, located}}`` for every eligible host,
+    carried hosts of a partial build included, the way ``child_extents`` is carried: the detectors' features for the later verdict pass (S8). The
+    report counts the hosts per mount ``feature`` value (``feature_counts``).
     """
     rules = rules if rules is not None else load_rules()
     overrides = overrides if overrides is not None else load_overrides()
@@ -540,6 +613,8 @@ def build_directory_report(
     listing_cache: dict = {}  # Alts directory listings, shared by every record of the build (fast over ~2,700)
     trees_missing = 0
     child_extents: dict[str, dict] = {}  # host id -> {slot: {child node: sorted AABB extents}} of the hosts measured now
+    feats_by_host: dict[str, dict] = host_feats if host_feats is not None else {}  # host id -> detector features (S7)
+    fused_for = _fused_parts_factory(docs, rules, overrides, settings, threejs_v2_dir) if measure and threejs_v2_dir is not None else None
 
     if partial:
         if base is None:
@@ -603,7 +678,7 @@ def build_directory_report(
                 cls, detail = _measure_record(
                     asset, pack_id, cls, source, rules, overrides, settings.get(pack_id), threejs_v2_dir, cache,
                     geo_stats, forward_override=(eff or {}).get("forward"), mount_overrides=(eff or {}).get("mounts"),
-                    frame_axis=(eff or {}).get("frame_axis"),
+                    frame_axis=(eff or {}).get("frame_axis"), fit_cache=fit_cache, fused_for=fused_for,
                 )
             elif measure and (asset.get("files") or {}).get("glb"):
                 skipped_for_root = True
@@ -620,6 +695,8 @@ def build_directory_report(
             if detail is not None:
                 if "child_extents" in detail:  # an eligible host: its baked children are the twin evidence (W8c)
                     child_extents[full_id] = detail["child_extents"]
+                if "host_feats" in detail:
+                    feats_by_host[full_id] = detail["host_feats"]
                 _apply_measurement(rec, detail)
                 if detail.get("warning"):
                     warnings.append(f"{full_id}: {detail['warning']}")
@@ -643,7 +720,8 @@ def build_directory_report(
     _check_renames(records)
     records.sort(key=lambda r: r["id"])
     if partial and can_measure:  # a rebuilt part is judged against carried hosts exactly as in a full build
-        child_extents.update(_carried_child_extents(docs, set(selected), records, rules, overrides, settings, threejs_v2_dir, cache))
+        child_extents.update(_carried_child_extents(docs, set(selected), records, rules, overrides, settings, threejs_v2_dir, cache,
+                                                    fit_cache, fused_for, feats_by_host))
     # W8c: compatibility needs every host's mounts, so it is a post-pass over ALL records (carried-over ones included)
     stored_shifts = _stored_shifts(records)  # compat rebuilds every entry; a pair that cannot be settled now keeps its carried value
     stored_setbacks = _stored_setbacks(records)
@@ -697,10 +775,21 @@ def build_directory_report(
         "contact_stats": dict(contact_stats),
         "contact_capped": contact_capped,  # A6: the entries the contact cap removed
         "setback_stats": dict(setback_stats),
+        "feature_counts": _feature_counts(mine),  # G1 (S7): hosts per mount feature value
         "stale_overrides": _stale_overrides(overrides, all_ids, set(selected), partial=partial),
         "warnings": sorted(warnings),
     }
     return directory, excluded_doc, report
+
+
+def _feature_counts(records: list[dict]) -> dict[str, int]:
+    """``{feature: number of hosts with at least one mount of that feature}``, sorted by feature (G1, AC148)."""
+    hosts: dict[str, set[str]] = {}
+    for rec in records:
+        for _, m in sorted(((rec.get("geometry") or {}).get("mounts") or {}).items()):
+            if m.get("feature"):
+                hosts.setdefault(m["feature"], set()).add(rec["id"])
+    return {feature: len(ids) for feature, ids in sorted(hosts.items())}
 
 
 def build_directory(catalogs_dir: Path, **kwargs) -> tuple[dict, dict]:

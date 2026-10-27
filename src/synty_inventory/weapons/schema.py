@@ -129,6 +129,14 @@ _SEAT = {
     "required": ["point", "forward", "up", "span_m"],
     "properties": {"point": _VEC3, "forward": _VEC3, "up": _VEC3, "span_m": {"anyOf": [_METRES, {"type": "null"}]}},
 }
+# G1 (docs/weapon_attach_geometry.md 3.4 to 3.7, INV-27): the geometry feature behind a mount; absent on a mount no detector confirmed
+MOUNT_FEATURES = ("rail_teeth", "rail_flat", "seat_ref", "well_ref", "barrel_ring", "barrel_round")
+# feature -> (slots it may sit on, sources it may have)
+_FEATURE_HOMES = {
+    "rail_teeth": (("optic", "underbarrel"), ("probe",)), "rail_flat": (("optic",), ("probe",)),
+    "seat_ref": (("optic", "underbarrel"), ("child_node", "override")), "well_ref": (("magazine",), ("child_node", "override")),
+    "barrel_ring": (("muzzle",), ("probe",)), "barrel_round": (("muzzle",), ("probe",)),
+}
 _MOUNT = {
     # one slot of geometry.mounts (docs/weapon_attachments.md 4.1); the cross-field rules (INV-15 to INV-18) are in _check_mounts
     "type": "object",
@@ -148,6 +156,8 @@ _MOUNT = {
         "reason": _enum(MOUNT_NONE_REASONS, nullable=True),
         # A1: optional, present only when occupied_by lists more than one measurable child; one frame per listed child
         "seats": {"type": "object", "additionalProperties": _SEAT},
+        # G1: optional; the cross-field rule (which slot and source) is in _check_mount
+        "feature": _enum(MOUNT_FEATURES),
     },
 }
 MOUNTS_SCHEMA = {
@@ -475,6 +485,11 @@ def _check_mount(slot: str, m: dict, geom: dict, where: str) -> list[str]:
         errs.append(f"{here}.span_source: null exactly when span_m is")
     if src != "none" and not any(coords[:3]):
         errs += _frame_errors(m, here)
+    feature = m.get("feature")
+    if feature is not None:
+        slots_ok, sources_ok = _FEATURE_HOMES[feature]
+        if slot not in slots_ok or src not in sources_ok:
+            errs.append(f"{here}.feature: {feature!r} belongs on a {'/'.join(slots_ok)} mount with source {'/'.join(sources_ok)} (INV-27)")
     seats = m.get("seats")
     if seats is not None:
         if src not in ("child_node", "override"):

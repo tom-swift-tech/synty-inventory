@@ -111,9 +111,12 @@ def test_the_plan_covers_every_twin_pair_and_all_five_slots_with_a_non_twin_samp
     # third cross_pack_fit pair (the second magazine) falls past the 12 cap.
     # A8-1 (W8p): a cross-pack magazine is pending (no seat, so nothing to preview); the 12 are the same 10 same_pack_fit pairs and the two
     # cross_pack_fit laser_light parts (the flashlight and the laser mod), the magazine place going to the second laser_light.
-    assert [p["slot"] for p in others] == ["optic", "muzzle", "sight_rear", "optic", "muzzle", "optic", "muzzle", "muzzle", "muzzle",
-                                           "muzzle", "laser_light", "laser_light"]
-    assert [p["tier"] for p in others] == ["same_pack_fit"] * 10 + ["cross_pack_fit"] * 2
+    # S7 (spec 3.4 step 3): BETA's optic is an estimated flat seat now, so each of the four scope parts of its pack gets a same_pack_fit pair
+    # with it (3 optic pairs became 6). The sample is the 12 same_pack_fit pairs (6 optic, 5 muzzle, 1 sight_rear, round-robin over the
+    # slots) and every cross_pack_fit pair falls past the 12 cap.
+    assert [p["slot"] for p in others] == ["optic", "muzzle", "sight_rear", "optic", "muzzle", "optic", "muzzle", "optic", "muzzle",
+                                           "optic", "muzzle", "optic"]
+    assert [p["tier"] for p in others] == ["same_pack_fit"] * 12
     assert len({p["part"] for p in others}) == 12
     assert preview.plan_pairs(world.directory)[0] == pairs  # deterministic
 
@@ -126,7 +129,7 @@ def test_the_plan_narrows_by_ids_packs_and_limit_and_names_unusable_pairs(world)
     assert len(preview.plan_pairs(world.directory, limit=5)[0]) == 5
     assert all(p["twin"] for p in preview.plan_pairs(world.directory, limit=5)[0])
     only_a, _ = preview.plan_pairs(world.directory, packs={"FAKE_CompA"})
-    assert len(only_a) == 18 and all(p["part"].startswith("FAKE_CompA/") for p in only_a)
+    assert len(only_a) == 19 and all(p["part"].startswith("FAKE_CompA/") for p in only_a)  # S7 (spec 3.4 step 3): was 18, the Beta scope pairs
     broken = json.loads(json.dumps(world.directory))
     recs = {w["id"]: w for w in broken["weapons"]}
     recs["FAKE_CompA/SM_Wep_Rifle_Alpha_01"]["geometry"]["mounts"]["magazine"].update(source="none", point=None, forward=None, up=None)

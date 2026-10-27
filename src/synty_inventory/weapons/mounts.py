@@ -63,23 +63,35 @@ Judgment calls, stated once (the spec fixes only the 0.5 / 0.4 muzzle values):
   must be placed on that child's frame; the larger one stays ``child_node`` and the mount's own seat. A slot with one listed
   child, a ``none`` slot and the muzzle slot have no ``seats`` key. ``child_extents`` (the twin evidence beside the record)
   gives each listed child ``{extents, axes, seat}``.
+* G1 (slice S7, docs/weapon_attach_geometry.md 3.4 to 3.7, 3.11): the geometry detectors run once per eligible host (``fit_geometry.host_features``,
+  cached in ``_fit_cache.json``) after the ladder and ``refuse_baked``, and before ``refuse_filled``. They write the optional mount key ``feature``:
+  a rail seat on a slot with no child and no override (``source`` ``probe``, ``feature`` ``rail_teeth`` / ``rail_flat`` (optic only), confidence
+  0.5, ``span_m`` the run length after the sight clip, ``span_source`` ``probe``); ``barrel_ring`` / ``barrel_round`` on the muzzle seat (the seat
+  stays the A0 probe's); ``seat_ref`` on an authored optic or underbarrel seat the detectors confirm; ``well_ref`` on an authored magazine seat with a
+  well reference. A frame-conflict host (3.3 step 4, INV-27) keeps no detector seat: its probe muzzle and its empty rail and magazine slots are
+  ``none`` / ``probe_unavailable``; an authored (child or override) seat is not a detector seat and stays. On a preset host (``attach_filled_hosts``)
+  the fused parts the locator finds count as filled for ``refuse_filled`` (Q-G11).
 """
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
 
+from .. import weapons as _pkg  # versions are read at call time (a test may bump them)
 from ..naming import SKIP_STEM_RE
 from ..sources.glb_geometry import load_triangles, node_world_matrices
-from ..sources.glb_measure import NodeSel, node_selected, read_glb_json
+from ..sources.glb_measure import NodeSel, node_cache_tag, node_selected, read_glb_json
+from ..sources.glb_scale import scale_cache_tag
 from . import ATTACH_SLOTS, SIGHT_SLOTS, TWIN_ABS_TOL_M, TWIN_REL_TOL
+from . import fit_geometry as _fit
 from .attach import measure_anchor
 from .classify import raw_tokens
 from .mount_probe import fused_front_posts, sight_profile, sight_seats
-from .rules import attachment_rules
+from .rules import attach_rules_digest, attachment_rules
 
 # the slots whose baked children are not part of the surface the sight probe reads (spec 4.6 item 1; A3 added the last three)
 PROBE_DROP_SLOTS = ("optic", "sight_front", "sight_rear", "muzzle", "underbarrel", "laser_light")
@@ -95,6 +107,7 @@ CONF_FACE_EXTENT = 0.5  # spec 4.2
 CONF_SIGHT_PROBE = 0.5  # spec 4.6
 CONF_FALLBACK = 0.4  # spec 4.2 (bounds_fallback)
 CONF_TRANSFORMED = 0.4  # spec 9 (a node with rotation or scale)
+CONF_RAIL = 0.5  # spec 3.4 step 4: a rail or flat seat
 CONF_NONE = 0.0
 
 _BODY_FRAC = 0.9  # a node this large against the whole host is the body, not a baked child
@@ -316,7 +329,13 @@ def refuse_baked(mounts: dict, found: dict[str, list[str]], fused_post: bool) ->
             refuse(slot)
 
 
-def refuse_filled(mounts: dict, found: dict[str, list[str]], host_id: str, tables: dict) -> None:
+def is_filled_host(host_id: str, tables: dict) -> bool:
+    """True when the host's name tokens hit ``attach_filled_hosts`` (a preset: a gun with its parts already on it)."""
+    hosts = set(tables.get("attach_filled_hosts") or ())
+    return bool(hosts) and bool(raw_tokens(host_id) & hosts)
+
+
+def refuse_filled(mounts: dict, found: dict[str, list[str]], host_id: str, tables: dict, located: list[dict] | None = None) -> None:
     """A6 (W8n, Tom 2026-10-24: "presets only refuse the slots their built-in parts already fill; other slots stay open"), in place.
 
     A host whose name tokens hit ``attachment_rules.attach_filled_hosts`` (the ``preset`` token: a Preset_* prefab is a gun with its parts
@@ -331,16 +350,21 @@ def refuse_filled(mounts: dict, found: dict[str, list[str]], host_id: str, table
     take other magazines (size rule still applies)": ``magazine``). The baked child stays in ``occupied_by``, so the existing hide (W8g) removes it
     where a replacement part seats, and the foot-length rule decides the fit; the authored twin of the baked
     magazine is a candidate again too (it seats where the baked one stood; a pair a human refuses is an id override).
+
+    G1 (Q-G11, docs/weapon_attach_geometry.md 3.8): ``located`` is the list of fused parts the locator found on the host
+    (``fit_geometry.host_features``, each ``{part, slot, t, hit}``). A slot of such a part is filled like a slot of a baked child: a located fused
+    scope or silencer refuses ``optic`` or ``muzzle``, and a located magazine leaves ``magazine`` open (``attach_filled_open``). It can only add
+    refusals. A located part with no attachment slot fills nothing.
     """
-    hosts = set(tables.get("attach_filled_hosts") or ())
-    if not hosts or not raw_tokens(host_id) & hosts:
+    if not is_filled_host(host_id, tables):
         return
     keep = set(tables.get("attach_filled_open") or ())
+    filled = {p["slot"] for p in located or () if p.get("slot")}
     for slot in ATTACH_SLOTS:
         m = mounts[slot]
         if slot in keep or m["source"] == "override" or m["source"] == "none":
             continue
-        if m["occupied_by"] or (slot == "optic" and (found["glass"] or found["body"])):
+        if m["occupied_by"] or slot in filled or (slot == "optic" and (found["glass"] or found["body"])):
             mounts[slot] = none_mount("slot_disabled")
 
 
@@ -559,14 +583,50 @@ def _probe_sights(mounts: dict, path, glb_node, scale, axes: dict, tables: dict,
     return bool(fused_front_posts(profile, fused, (float(host_f.min()), float(host_f.max()))))
 
 
+# -- the G1 detector seats --------------------------------------------------------------------------------
+
+
+def _rail_mount(slot: str, seat: dict, axes: dict, cap: float | None) -> dict:
+    """The mount a rail or flat seat gives (spec 3.4 step 4): ``probe``, host forward, +u (optic) or -u (underbarrel), span = the run length."""
+    point = _fit.from_fsu(_fit.frame_basis(axes), seat["f"], seat["s"], seat["u"])
+    return {
+        **_frame(point, _axis_vec(axes["forward"]), _axis_vec(axes["up"]) * _UP_SIGN[slot]), "source": "probe", "span_m": seat["span_m"],
+        "span_source": "probe", "occupied_by": [], "child_node": None, "bore_d_m": None, "bore_source": None,
+        "confidence": CONF_RAIL if cap is None else min(CONF_RAIL, cap), "reason": None, "feature": seat["feature"],
+    }
+
+
+def _empty_features() -> dict:
+    return {"s0": None, "slots": {slot: {} for slot in _fit.FIT_SLOTS}, "seats": {}, "located": []}
+
+
+def _apply_features(mounts: dict, feats: dict, axes: dict, cap: float | None, frame_conflict: bool) -> None:
+    """Write the detector seats and ``feature`` keys into ``mounts``, in place (spec 3.4 step 4, 3.6, 3.7; INV-27 on a frame conflict)."""
+    if frame_conflict:
+        # 3.3 step 4: every detector seat is withheld, the slot is none / probe_unavailable. A child or override seat is authored, not a detector's
+        if mounts["muzzle"]["source"] == "probe":
+            mounts["muzzle"] = none_mount("probe_unavailable")
+        for slot in ("optic", "underbarrel", "magazine"):
+            if mounts[slot]["source"] == "none" and mounts[slot]["reason"] == "no_child_no_probe":
+                mounts[slot] = none_mount("probe_unavailable")
+        return
+    for slot, seat in sorted(feats["seats"].items()):
+        if "f" in seat:
+            mounts[slot] = _rail_mount(slot, seat, axes, cap)
+        else:
+            mounts[slot]["feature"] = seat["feature"]
+
+
 # -- the block --------------------------------------------------------------------------------------------
 
 
 def build_mounts(
     path, glb_node: NodeSel, scale: float, rules: dict, *, verts: np.ndarray, axes: dict, transformed: bool = False,
     probe: Callable, overrides: dict | None = None, host_id: str | None = None, host_pack: str | None = None,
+    frame_changed: bool = False, frame_conflict: bool = False, fit_cache: dict | None = None, fit_cache_id: str | None = None,
+    fused_parts: tuple | None = None,
 ) -> dict:
-    """``{"mounts": block, "problems": [str], "child_extents": {...}}`` for one eligible host (spec 4).
+    """``{"mounts": block, "problems": [str], "child_extents": {...}, "host_feats": {...}}`` for one eligible host (spec 4).
 
     ``verts`` are the host's own decoded vertices (what ``geometry`` measured), ``axes`` its ``{forward, up}`` signed
     axes, ``transformed`` the NB-15 flag of the selected node, ``probe`` the A0 muzzle probe
@@ -575,6 +635,11 @@ def build_mounts(
     override). ``host_id`` is the host's asset id (A3: ``attach_host_never`` and the baked-child classes read its name tokens;
     the GLB file stem when None). ``host_pack`` (A6) is the host's pack id, so the sight probe finds the host's ``"<pack>/<host id>"`` key in
     ``receiver_tol_by_host``; without it no per-host tolerance applies. ``problems`` lists what could not be honoured (``child_not_found: <slot>: <name>``), never silently dropped.
+
+    G1 (S7): ``frame_changed`` / ``frame_conflict`` are the frame vote's state (``geometry.frame_vote``); ``fit_cache`` / ``fit_cache_id`` cache the
+    host's detector features (``fit_geometry.host_features``, ``_fit_cache.json``); ``fused_parts`` is the preset's part set, ``(key, load)`` (dropped
+    when the host is not an ``attach_filled_hosts`` host: only a preset is searched for fused parts, spec 3.2). ``host_feats`` in the result is that
+    function's result (the empty shape when the rules carry no ``fit_geometry`` block).
     """
     tables = attachment_rules(rules)
     overrides = overrides or {}
@@ -639,8 +704,33 @@ def build_mounts(
     fused_post = _probe_sights(mounts, path, glb_node, scale, axes, tables, cap, verts, f"{host_pack}/{host_id}" if host_pack else None)
     found = baked_children(candidates, host_id, tables, vertices, verts, axes, host_volume)
     refuse_baked(mounts, found, fused_post)
-    refuse_filled(mounts, found, host_id, tables)
-    return {"mounts": mounts, "problems": problems,
+    feats = _empty_features()
+    if tables.get("fit_geometry"):
+        mesh_memo: dict[frozenset, tuple | None] = {}
+
+        def mesh(drop: frozenset):
+            if drop not in mesh_memo:
+                mesh_memo[drop] = _load_mesh(path, glb_node, scale, drop)
+            return mesh_memo[drop]
+
+        def child_mesh(name: str):
+            got = load_triangles(path, name, exclude=_collision, scale=scale)
+            if got is None or not len(got[0]) or not len(got[1]):
+                return None
+            return np.asarray(got[0], dtype=np.float64), np.asarray(got[1])
+
+        cache_key = None
+        if fit_cache is not None and fit_cache_id is not None:  # spec 3.11: the cache key (the code digests join it inside host_features)
+            cache_key = {"sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(), "glb_node": node_cache_tag(glb_node),
+                         "glb_scale": scale_cache_tag(scale), "geometry_version": _pkg.WEAPON_GEOMETRY_VERSION,
+                         "attach_version": _pkg.WEAPON_ATTACH_VERSION, "attach_rules_digest": attach_rules_digest(rules)}
+        feats = _fit.host_features(
+            tables["fit_geometry"], axes=axes, mounts=mounts, mesh=mesh, child_mesh=child_mesh,
+            fused_parts=fused_parts if is_filled_host(host_id, tables) else None, frame_changed=frame_changed, frame_conflict=frame_conflict,
+            cache=fit_cache, cache_id=fit_cache_id, cache_key=cache_key)
+    _apply_features(mounts, feats, axes, cap, frame_conflict)
+    refuse_filled(mounts, found, host_id, tables, feats["located"])
+    return {"mounts": mounts, "problems": problems, "host_feats": feats,
             "child_extents": _child_extents(mounts, vertices, measured_by_slot, axes)}
 
 
@@ -683,7 +773,7 @@ def mount_reasons(mounts: dict | None, compatible_slots=frozenset()) -> set[str]
     """The review reasons a mounts block implies (spec 4.2).
 
     ``mount_ambiguous``: a ``child_node`` slot (not the muzzle, whose children only fill ``occupied_by``) with several
-    matching children. ``mount_estimated`` (A2): a sight slot seated by the probe (the muzzle probe is a measurement, not an estimate). ``mount_missing``: a ``none`` slot that is in ``compatible_slots``, the slots with at least one
+    matching children. ``mount_estimated`` (A2): a sight slot seated by the probe, and (G1) a rail or flat seat (the muzzle probe is a measurement, not an estimate). ``mount_missing``: a ``none`` slot that is in ``compatible_slots``, the slots with at least one
     inferred-compatible attachment. Compatibility inference is W8c, so the directory passes the empty default until
     then and the reason cannot fire from a build yet.
     """
@@ -691,7 +781,7 @@ def mount_reasons(mounts: dict | None, compatible_slots=frozenset()) -> set[str]
     for slot, m in (mounts or {}).items():
         if slot != "muzzle" and m["source"] == "child_node" and len(m["occupied_by"]) > 1:
             reasons.add("mount_ambiguous")
-        if slot in SIGHT_SLOTS and m["source"] == "probe":
+        if m["source"] == "probe" and (slot in SIGHT_SLOTS or m.get("feature") in ("rail_teeth", "rail_flat")):
             reasons.add("mount_estimated")
         if m["source"] == "none" and slot in compatible_slots:
             reasons.add("mount_missing")

@@ -127,7 +127,9 @@ def test_ac98_iii_a_carry_handle_child_refuses_both_slots_wherever_it_stands(bui
 
 
 def test_ac98_iii_the_carry_handle_does_not_become_an_optic_child(built):
-    assert mounts(built, "SM_Wep_Rifle_Carry_01")["optic"]["source"] == "none"  # `handle` is in child_never: the optic mount is as before
+    # `handle` is in child_never: the optic has no child (S7, spec 3.4 step 3: its seat is the estimated flat one, not none)
+    optic = mounts(built, "SM_Wep_Rifle_Carry_01")["optic"]
+    assert optic["source"] == "probe" and optic["child_node"] is None and optic["occupied_by"] == []
 
 
 # -- (iv) -------------------------------------------------------------------------------------------------------

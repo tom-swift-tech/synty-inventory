@@ -67,7 +67,9 @@ def test_the_shipped_cap_is_30_mm_and_the_clamp_stays_60():
 def test_a_gap_up_to_30_mm_keeps_its_entry_and_one_over_it_is_removed(tree):
     d, _, report = run(tree)
     by = W.by_id(d)
-    assert shifts(by, M.SCOPE_PART) == {"Gap25": -0.025, "Gap30": -0.03, "Sunk25": 0.025}
+    # S7 (spec 3.4 step 3): the three Ub hosts have no scope child but a smooth top, so the scope part lists them on a flat optic seat; a probe
+    # seat has no contact key, so no seat_shift_m (None) and nothing for the cap to remove
+    assert shifts(by, M.SCOPE_PART) == {"Gap25": -0.025, "Gap30": -0.03, "Sunk25": 0.025, "UbGap25": None, "UbGap40": None, "UbSunk40": None}
     assert shifts(by, M.GRIP_PART) == {"UbGap25": -0.025}
     for case in ("Gap31", "Gap40", "Sunk40", "TwinGap40"):  # 31 mm, 40 mm, sunk 40 mm: not compatible, and not pending either
         assert not named_anywhere(by, M.SCOPE_PART, case), case
@@ -82,16 +84,19 @@ def test_the_cap_off_keeps_every_pair_with_its_shift(tree):
     d, _, report = run(tree, rules)
     by = W.by_id(d)
     assert shifts(by, M.SCOPE_PART) == {"Gap25": -0.025, "Gap30": -0.03, "Gap31": -0.031, "Gap40": -0.04, "Sunk25": 0.025, "Sunk40": 0.04,
-                                        "TwinGap40": -0.04}
+                                        "TwinGap40": -0.04, "UbGap25": None, "UbGap40": None, "UbSunk40": None}  # S7: the flat optic seats
     assert shifts(by, M.GRIP_PART) == {"UbGap25": -0.025, "UbGap40": -0.04, "UbSunk40": 0.04}
     assert report["contact_capped"] == 0
 
 
 def test_a_twin_on_a_40_mm_gap_host_is_never_removed(tree):
     d, _, _ = run(tree)
-    twins = entries(W.by_id(d), M.TWIN_PART)
+    entered = entries(W.by_id(d), M.TWIN_PART)
+    # S7 (spec 3.4 step 3): the Ub hosts are same_pack_fit entries on their flat optic seats; the twins are the seven hosts with a child
+    twins = {case: e for case, e in entered.items() if e["tier"] == "twin"}
     assert sorted(twins) == ["Gap25", "Gap30", "Gap31", "Gap40", "Sunk25", "Sunk40", "TwinGap40"]
-    assert all(e["tier"] == "twin" and "seat_shift_m" not in e for e in twins.values())
+    assert all("seat_shift_m" not in e for e in twins.values())
+    assert sorted(set(entered) - set(twins)) == ["UbGap25", "UbGap40", "UbSunk40"]
 
 
 def test_an_override_on_a_40_mm_gap_host_is_never_removed(tmp_path):
@@ -131,7 +136,7 @@ def test_a_stored_shift_over_the_cap_is_removed_when_the_meshes_cannot_be_read(t
     capped = dirmod._apply_contact(records, W.sight_rules(), None, {}, stats, stored)  # no threejs root: every value is the carried one
     assert stats["computed"] == 0 and stats["cached"] == 0 and capped == 6
     by = {r["id"]: r for r in records}
-    assert shifts(by, M.SCOPE_PART) == {"Gap25": -0.025, "Gap30": -0.03, "Sunk25": 0.025}
+    assert shifts(by, M.SCOPE_PART) == {"Gap25": -0.025, "Gap30": -0.03, "Sunk25": 0.025, "UbGap25": None, "UbGap40": None, "UbSunk40": None}  # S7
 
 
 def alt_world():
