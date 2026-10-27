@@ -1,10 +1,11 @@
 # Spec: geometry fit gate for weapon attachments (amendment G1 to weapon_attachments.md)
 
-**Written:** 2026-10-27, by the architect. **Status:** DRAFT for Tom. Nothing here is built, and no rule, tolerance, code or directory changes until Tom approves it.
+**Written:** 2026-10-27, by the architect. **Status:** **APPROVED** (Tom, 2026-10-27), with Q-G4 adopted and every other open question at its default. The build follows [weapon_attach_geometry_plan.md](weapon_attach_geometry_plan.md).
 **Tom's decision (2026-10-27, verbatim):** "Yes. Replace the label gate: positives come from pack presets and Synty's assembled references, fit is decided by rail, bore and magazine-well geometry, and my labels are a one-off spot check only. Spec it first."
-**Branch:** `spec/attach-geom`, cut from `integ/attach` at `0e2637e` (a8c: `WEAPON_ATTACH_VERSION` 13, `WEAPON_GEOMETRY_VERSION` 5).
-**Parents:** [weapon_attachments.md](weapon_attachments.md) ("the attachment spec"; a bare `A§N` points into it) and [weapon_directory.md](weapon_directory.md) (`DS§N`). A bare `§N` points into this document. Everything in the parents still holds except what §3.8 retires.
-**Consumers:** `sit_armory` 0.3.0 and `sit_weapons` 0.4.0 (sit-capabilities). §4.6 shows that neither one needs to change.
+**Tom's approval (2026-10-27, verbatim):** "Approve the geometry spec. Take Q-G4: adopt the feature frame for the record too, geometry_version 5 to 6. Other open questions at their defaults. Start the build plan." The decisions are recorded in §8. Q-G4 is folded through this document: §1.1 (frame), §3.3, §3.6, §3.9, §3.11, §4.1, §4.2, §4.4, §4.5, §4.6, §4.7, §5 (INV-19 amended, INV-24, INV-28), §6 (AC145, AC146, AC147), §8 and §9.
+**Branch:** `spec/attach-geom`, cut from `integ/attach` at `0e2637e` (a8c: `WEAPON_ATTACH_VERSION` 13, `WEAPON_GEOMETRY_VERSION` 5). Approval and plan on `plan/attach-geom`, cut from `integ/attach` at `5f106fa`. G1 builds `WEAPON_ATTACH_VERSION` 14 and `WEAPON_GEOMETRY_VERSION` 6.
+**Parents:** [weapon_attachments.md](weapon_attachments.md) ("the attachment spec"; a bare `A§N` points into it) and [weapon_directory.md](weapon_directory.md) (`DS§N`). A bare `§N` points into this document. Everything in the parents still holds except what §3.8 retires and what §4.6 amends (INV-19 and AC77 for the feature-frame records, AC80(c) for the four slots).
+**Consumers:** `sit_armory` 0.3.0 and `sit_weapons` 0.4.0 (sit-capabilities). §4.6 shows that neither one needs to change, with Q-G4 included.
 
 > The public-repo rule (INV-1, INV-17) applies in full. This document carries algorithms, literals, classes, counts and ranges only. It has no per-asset measurements and no GLB node names. It names asset ids only where the attachment spec already names them. Every measured file (calibration report, fit cache, captures) lives under the catalogs folder or a scratch folder and is never committed. Fixtures are synthetic.
 
@@ -102,7 +103,7 @@ The setting gate, Tom's standing refusals and every other policy rule stay as th
 **Frame.**
 - 13 hosts carry `axes_unexpected`.
 - The body axis changes the forward axis on 3 of them: the two Uzi-type SMG hosts and one nail gun (a tool, refused by policy). The magazine is longer than the barrel, so the bounding box picks the magazine as forward.
-  - The body axis is the long axis of the host minus its named slot children.
+  - The body axis is the long axis of the host minus its named slot children (the survey dropped the children the a8c directory names; the build drops the children the child vocabulary matches, §3.3 step 1, and re-measures the count).
   - On each of the 3, a 15–18 mm bore ring sits at exactly one end of the body axis, and the other end has no ring of 25 mm or less.
   - The other 254 hosts are unchanged.
 - *Rejected votes.*
@@ -147,7 +148,7 @@ The setting gate, Tom's standing refusals and every other policy rule stay as th
 
 ## 3. Interfaces and algorithms
 
-All lengths are in metres, in the host's scaled GLB space, in the feature frame of §3.3. Coordinates are written `(f, s, u)` = (forward, side, up). Every literal below is a key of `attachment_rules.fit_geometry` (§4.1).
+All lengths are in metres, in the host's scaled GLB space, in the feature frame of §3.3, which is the record's frame (Q-G4). Coordinates are written `(f, s, u)` = (forward, side, up). Every literal below is a key of `attachment_rules.fit_geometry` (§4.1), except the two frame-vote constants of §3.3, which are `geometry.py` code (Q-G4).
 
 ### 3.1 Pipeline (per part P of slot X, per eligible host H)
 
@@ -187,29 +188,40 @@ The oracle is the set of authored assemblies. It calibrates every literal (§4.2
 
 ### 3.3 Feature frame (answers the coordinator's frame question)
 
-Should detectors derive forward and up from the gun's own features? **Yes, for the axis.** The bounding box is the wrong authority when a child is longer than the barrel. On the two Uzi-type SMG hosts the magazine is, so the muzzle seat lands at the magazine bottom. **No, for the sign.** No feature votes the sign reliably (§1.1). The sign stays the build's, including `forward_override`.
+Should detectors derive forward and up from the gun's own features? **Yes, for the axis.** The bounding box is the wrong authority when a child is longer than the barrel. On the two Uzi-type SMG hosts the magazine is, so the muzzle seat lands at the magazine bottom. **No, for the sign.** No feature votes the sign reliably (§1.1). Where the axis agrees, the sign stays the build's, including `forward_override`. Where the axis changes (step 3), the single end ring that confirms the change also gives the sign, and `forward_override` still wins (step 5).
 
-`frame_vote(rec, host_mesh, slot_children) -> FrameVote`:
+`geometry.frame_vote(...) -> FrameVote` (record geometry, `geometry.py`, §3.11):
 
-1. **Body axis.** Run `_pick_long_axis` (unchanged, `_TIE` 0.05) on the host mesh minus every child named in any slot's `occupied_by`, and minus located parts on a preset.
+1. **Body axis.** Run `_pick_long_axis` (unchanged, `_TIE` 0.05) on the host mesh minus its slot children. The slot children are the mesh nodes the child vocabulary matches (`attachment_rules.child_tokens` and `child_never`, through `mounts.mesh_nodes` and `mounts.matching_slots`), before policy and before mount overrides.
+   - It cannot use `occupied_by`, because `build_mounts` makes `occupied_by` *from* the axes. The vocabulary match is axis-free.
+   - It does not drop located preset parts. The locator is attachment geometry (§3.2) and the record frame does not depend on it.
+   - **Non-obvious dependency.** The record frame now reads two `attachment_rules` tables. `rules_digest` excludes `attachment_rules`, so an edit to `child_tokens` or `child_never` can move a record's frame without moving `rules_digest`. Three things catch it: the tables are already inputs of the eligible-host cache fingerprint (`ct`, `cn`), `attach_rules_digest` moves, and the build reports every record whose frame changed (§4.7).
 2. **Agree.** If the body axis equals the build's forward axis, the frame is the build's frame. That holds for 254 of the 257 hosts.
-3. **Differ, confirmed.** The body axis may differ from the build's forward axis. If exactly one end of the body axis carries a bore ring of diameter ≤ `frame_bore_max_m` (0.025, §3.6 ring estimator on the 10 mm end slab), the feature frame is set as follows:
+3. **Differ, confirmed.** The body axis may differ from the build's forward axis. The confirmation tests each end of the body axis for a bore ring of diameter ≤ `_FRAME_BORE_MAX_M` (0.025). The ring estimator is §3.6 (ii) on the `_FRAME_END_SLAB_M` (0.010) end slab, the one the survey measured. It lives in `mount_probe.py` (`end_ring_d`), and the bore detector reuses it. `mount_probe.py` imports only `numpy`, so `geometry.py`, `mounts.py` and the detectors can all import it without an import cycle. It is already a cache input of every eligible host (`pd`). If exactly one end carries such a ring, the feature frame is set as follows:
    - forward is the body axis, signed toward that end;
    - up is the build's up rule (`axes.up` logic, unchanged) applied to the new forward;
-   - signal `frame_body` is added.
+   - `axes.forward_source` is `"body"` (a free string, §4.4), and every pair judged on the host carries signal `frame_body` (§3.1 step 5).
 
    This holds for 3 hosts today.
 4. **Differ, unconfirmed.** If the body axis differs and the ring test fails (no end, or both ends), the host has a **frame conflict**:
+   - the record keeps the build's frame;
    - every *detector* seat on it (rail, flat, barrel end, and a well reference outside the child frame) is withheld, making the slot `none` / `probe_unavailable`;
    - its pairs are `not_judged` and therefore pending;
    - the calibration report lists the host;
-   - an id override (A§6.1, existing `forward_override` plus a new `frame_axis`, §4.5) resolves it.
+   - an id override resolves it (A§6.1: the new `frame_axis`, §4.5, names the axis).
 
    This fires on 0 hosts today.
+5. **Order of authority.** `frame_axis` (when present) or a confirmed body axis decides the forward *axis*. Then `forward_override` applies to the *sign* on that axis, exactly as today against the measured axis. An override whose axis differs is ignored with the existing warning. None of the 3 hosts carries a `forward` override today.
 
-**Scope of the feature frame.** By default it is used by the attachment detectors and the mounts they write. Mounts carry explicit `forward` and `up` vectors in the asset frame (C-20), so a mount can be right while the record's own `geometry.axes` stays as built. Correcting the record's own axes for the 3 hosts is a separate decision (§8 Q-G4), because it moves the default export. Until Tom answers, `geometry.axes`, `item_basis` and `geometry.muzzle` stay as built, and INV-19 holds.
+The vote runs only on eligible hosts (`mounts.eligible`), whatever `with_mounts` says, so the default export and the `--attachments` export carry the same record frame. Every other record is measured exactly as in geometry version 5.
 
-The cost of that default is one edited AC bound in the attachment spec. On these 3 hosts the muzzle mount (A0 probe in the feature frame) no longer equals the record's `geometry.muzzle`, so AC67's parity clause gains a "feature-frame hosts excepted" clause. With Q-G4 adopted, AC67 holds unchanged.
+**Classification does not read the vote.** The build's pass 2 (`directory._measure_record`, `geometry.pass2_inputs`) keeps reading the pre-vote values: `long_axis`, `length_m` and `axes_unexpected` as the bounding-box frame gives them. `geometry.long_axis` on the record stays the bounding-box axis, because it is a measurement of the mesh, not of the frame. Otherwise a record whose kind is guessed from its long axis could alternate: it turns ranged, becomes eligible, the vote moves its axis, and it turns back. So the vote never feeds `kind`, `archetype` or `hold_class`, and the loop's convergence argument stands.
+
+**Scope of the feature frame (Q-G4 adopted).** The feature frame is the record's frame. On the 3 hosts, `geometry.axes`, `item_basis` and every value derived from the frame follow it:
+- `length_m`, tip, butt, grip and pivot points, and `geometry.muzzle`;
+- the review reasons judged from them (`axes_unexpected` may drop).
+
+The mounts are then built in that frame as before, so the muzzle seat (A0 probe) equals `geometry.muzzle` and **AC67 holds unchanged**. `WEAPON_GEOMETRY_VERSION` goes 5 → 6, and INV-19 is amended for these records (§4.6). The build reports every changed field of every record. A changed `archetype`, `genre` or `hold_class` is a finding, because it raises ARM_W06 in locked games (§4.6).
 
 ### 3.4 Rail detector (optic: top; underbarrel: bottom)
 
@@ -263,7 +275,7 @@ Width is not checked on a `seat_ref` host. No calibration exists for an untoothe
 `barrel_end(host_mesh_fsu) -> BarrelEnd | None`. The mesh is the host minus muzzle `occupied_by`, minus located parts, minus collision. The end slab is the vertices within `end_slab_m` (0.010) of the forward extreme. A barrel end exists if any of these holds:
 
 - (i) the mount's existing ring bore (A§4.2: `bore_source == "ring"`);
-- (ii) a front-face ring: the innermost 1 mm radial bin holding ≥ 6 vertices, inside 0.75 of the slab's outer radius;
+- (ii) a front-face ring: the innermost 1 mm radial bin holding ≥ 6 vertices, inside 0.75 of the slab's outer radius (`mount_probe.end_ring_d`, shared with the frame vote of §3.3);
 - (iii) a round end section: `min(extent_s, extent_u) / max(...)` ≥ `round_min` (0.8) and OD ≤ `barrel_od_max_m` (0.060).
 
 `od_m` is twice the slab's outer radius around the slab's centre. `centre_su` is that centre. The **bore axis** is host forward through `centre_su`.
@@ -278,7 +290,7 @@ Part side: `footprint.mate_d_m` (existing; the mating ring's outer diameter, A§
 
 Axis offset and tilt are not per-pair tests. A candidate is placed on the detected axis by construction. They are **detector calibration** checks on the 11 positives: the authored device axis lies within `axis_offset_max_m` (0.005) of `centre_su` and within `axis_tilt_max_deg` (2) of host forward (AC135).
 
-The muzzle seat itself still comes from the A0 probe, the same single algorithm as before (AC67, AC84). `barrel_end` gates the slot and supplies `od_m`; it never moves the seat. On the feature-frame hosts of §3.3 step 3, the A0 probe runs in the feature frame. Feature `barrel_ring` / `barrel_round`.
+The muzzle seat itself still comes from the A0 probe, the same single algorithm as before (AC67, AC84). `barrel_end` gates the slot and supplies `od_m`; it never moves the seat. On the feature-frame hosts of §3.3 step 3, the A0 probe runs in the feature frame, which is the record's frame (Q-G4), so the seat still equals `geometry.muzzle`. Feature `barrel_ring` / `barrel_round`.
 
 ### 3.7 Well reference and magazine verdict
 
@@ -344,7 +356,7 @@ fit-v1 separates *fits* from *placed wrong*. This gate decides only the first. W
    - The build reports seat depth against the tooth tops for every `rail_teeth` pair. Pairs outside [`depth_lo_m`, `depth_hi_m`] = [−0.026, +0.003] are listed in the calibration report. This is a review list, not a gate.
 3. **Muzzle.** The part sits on the detected axis. Setback (A6-2) is unchanged. Barrels enter authored devices by 0 to 90 mm.
 4. **Magazine.** This is a mesh swap at the reference child's seat (W8g). The entry plane is a check, not a placement.
-5. **Frame faults.** Without Q-G4, the 3 feature-frame hosts get correct mounts while their hold frame stays as built.
+5. **Frame faults.** With Q-G4 adopted, the 3 feature-frame hosts get correct mounts and a corrected record frame (hold frame, `item_basis`, muzzle), so the gun is held barrel-forward in the game too (the k15 finding, A§13.10).
 6. **Stepped seats.** The 3 untoothed twin hosts with stepped seats remain the A§5.4 known defects.
 
 A spot-check answer "Fits, but placed wrong" counts as a fit, and its count is reported beside the fit number (§3.10).
@@ -361,10 +373,15 @@ A spot-check answer "Fits, but placed wrong" counts as a fit, and its count is r
 - **Status.** The spot check is **never a gate** and **never re-drawn**. No rule, tolerance or test reads it.
 - **Labels.** `weapons attach-eval` keeps working against `weapon_attach_labels.json`, the 449 labels. It prints an agreement table of geometry verdict against label per slot. That table is a descriptive comparison only: no exit code, AC or literal depends on it. AC80(c) is retired for the four slots; it no longer gates the build.
 
-### 3.11 Python interface (new module `src/synty_inventory/weapons/fit_geometry.py`)
+### 3.11 Python interface (new module `src/synty_inventory/weapons/fit_geometry.py`; frame vote in `geometry.py`)
+
+The frame vote is record geometry (Q-G4), so it lives in `geometry.py`, beside `_pick_long_axis` and `_TIE`. Its two literals are module constants versioned by `WEAPON_GEOMETRY_VERSION` 6, not rules keys, so `rules_digest` does not move (§4.6).
 
 ```python
-# Pure functions over plain sequences; vertices are (N, 3) arrays in the host's scaled GLB space.
+# geometry.py (record geometry, WEAPON_GEOMETRY_VERSION 6)
+_FRAME_END_SLAB_M = 0.010             # end slab of the frame vote's ring test (section 3.3 step 3)
+_FRAME_BORE_MAX_M = 0.025             # largest bore ring that confirms a muzzle end
+
 @dataclass(frozen=True)
 class FrameVote:
     forward: tuple[str, int]          # ("x"|"y"|"z", +1|-1)
@@ -372,6 +389,17 @@ class FrameVote:
     changed: bool                     # forward axis differs from the build's
     conflict: bool                    # differs and the bore-ring test failed (section 3.3 step 4)
 
+def frame_vote(verts, body_verts, build_forward: tuple[int, int], frame_axis: str | None = None) -> FrameVote: ...
+    # verts: the whole host mesh (the build's up rule reads it, unchanged); body_verts: minus the slot children (step 1)
+
+# mount_probe.py (a numpy-only leaf: no import cycle with geometry.py, mounts.py or the detectors)
+def end_ring_d(verts, axis: int, sign: int, slab_m: float) -> float | None: ...   # section 3.6 (ii); frame vote and barrel_end
+```
+
+`fit_geometry.py` is the interface below. The build may put each detector in a sibling module (`fit_locate.py`, `fit_rails.py`, `fit_bore.py`, `fit_well.py`) and the dataclasses in `fit_types.py`, all re-exported by `fit_geometry`, so the detectors build in parallel (plan §2). Callers import from `fit_geometry` only. AC144 applies to every one of these files.
+
+```python
+# Pure functions over plain sequences; vertices are (N, 3) arrays in the host's scaled GLB space.
 @dataclass(frozen=True)
 class RailRun:
     f0: float; f1: float; top_u: float
@@ -397,7 +425,6 @@ class Verdict:
     value: Literal["fit", "unverified", "no_fit", "not_judged"]
     signals: tuple[str, ...]          # section 3.1 step 5 vocabulary
 
-def frame_vote(rec: dict, verts, tris, drop_nodes: frozenset[str], rules: dict) -> FrameVote: ...
 def locate_by_translation(host_verts, part_verts, rules: dict) -> list[Placement]: ...
 def strip(host_verts, host_tris, placements: list[Placement], part_meshes: dict) -> tuple: ...
 def rail_runs(verts_fsu, tris, side: Literal["top", "bottom"], s0: float, rules: dict) -> list[RailRun]: ...
@@ -410,7 +437,7 @@ def verdict(slot: str, host_feats: dict, part: dict, pair_seat: dict | None, rul
 def fit_digest(measure_records: list[dict]) -> str: ...   # section 4.3
 ```
 
-Host features are computed once per host and cached in `<catalogs>/weapons/_fit_cache.json`. The cache key is (GLB sha256, `glb_node`, `glb_scale`, `WEAPON_ATTACH_VERSION`, `attach_rules_digest`). The cache is pack-derived and never committed.
+Host features are computed once per host and cached in `<catalogs>/weapons/_fit_cache.json`. The cache key is (GLB sha256, `glb_node`, `glb_scale`, `WEAPON_GEOMETRY_VERSION`, `WEAPON_ATTACH_VERSION`, `attach_rules_digest`, the code digests of `fit_geometry` and its detector modules). The detectors measure in the record frame, which `WEAPON_GEOMETRY_VERSION` versions (Q-G4), so a geometry bump must miss this cache too. The eligible-host fingerprint of the geometry cache (`mv`) gains the `fit_geometry` block and the same code digests, because rail seats are mounts. The cache is pack-derived and never committed.
 
 **CLI** (subcommands of `synty-inventory weapons`):
 
@@ -421,6 +448,9 @@ attach-calibrate [--directory PATH] [--json OUT]
     exceptions; exit 6 (as `validate`) otherwise. --json writes the full report to OUT (must be outside the repo).
 attach-spotcheck (--draw | --score) [--directory PATH]
     Section 3.10. --draw exits 6 if weapon_attach_spotcheck.json exists.
+attach-preview ... [--pairs FILE] [--icons ROOT ...]
+    Existing verb, two additive flags: render the listed pairs (a spotcheck file or a pair list, such as the
+    toothed-host and frame sheets that attach-calibrate --json writes), with HUD icons beside each pair by path.
 ```
 
 ## 4. Data shapes, versions and migration
@@ -431,7 +461,7 @@ attach-spotcheck (--draw | --score) [--directory PATH]
 fit_geometry:
   slots: [optic, muzzle, underbarrel, magazine]
   locator: {grid_m: 0.0005, sample_n: 24, hit_min: 1.0, merge_m: 0.002}
-  frame: {end_slab_m: 0.010, frame_bore_max_m: 0.025}
+  # no frame: key. The frame vote is record geometry (Q-G4): geometry.py constants, section 3.11
   rail:
     window_m: 0.010
     bin_m: 0.0005
@@ -475,7 +505,7 @@ Every key is required. The validator rejects a missing key, a negative length, a
 | `bore.axis_offset_max_m` | bore positives (11) | 3.9 mm | 1.1 mm | 5 mm | none |
 | `bore.axis_tilt_max_deg` | bore positives (11) | 0° | 2° | 2° | none |
 | `well.tol` | judged twin magazines (15 of 16) | 0.105 | 0.045 | 0.15 | E-G2. Alternative 0.095 in Q-G2. |
-| `frame.frame_bore_max_m` | frame-changed hosts (3) | 18 mm | 7 mm | 25 mm | none |
+| `geometry._FRAME_BORE_MAX_M` (a `geometry.py` constant, Q-G4; not in `fit_geometry`) | frame-changed hosts (3) | 18 mm | 7 mm | 25 mm | none |
 
 The detector parameters (locator grid, tooth amplitude, pitch window, CV, count, merge, band, closing, minimum run, round section, OD cap, entry depth) are not tolerances on a pair. They cover the measured distributions in §1.1: pitch p5 to p95 is 17 to 32 mm inside a 5 to 40 mm window, and tooth amplitude p5 is 2.9 mm against a 0.8 mm floor. `attach-calibrate` prints them with those distributions.
 
@@ -503,6 +533,7 @@ The detector parameters (locator grid, tooth amplitude, pitch window, CV, count,
 - **Compat entry `signals`.** The vocabulary of §3.1 step 5 replaces the label-era signals on the four slots.
 - **Directory-form pending entry**, optional `signals`. The export form stays ids only.
 - **Directory top level and `generated_from`** (with `--attachments` only): `fit_digest`.
+- **Record `geometry.axes.forward_source`, new value `"body"`** (Q-G4), on the feature-frame records only. The schema keeps `forward_source` a free string, so this needs no schema change. `item_basis` stays a signed permutation (a proper rotation built from the two axis units, as today).
 - **`weapons/schema.py`.** Its schemas are strict (`additionalProperties: false`). They gain exactly these optional keys and the new enum values (`feature`; `signals` on pending entries; `fit_digest`), and stay strict.
 - **`weapon_attach_spotcheck.json`** (committed; ids, booleans and fixed strings only, like the labels file):
 
@@ -514,15 +545,16 @@ The detector parameters (locator grid, tooth amplitude, pitch window, CV, count,
 
 ### 4.5 Overrides
 
-`weapon_overrides.json` gains one categorical host key: `frame_axis`, which is `"x"`, `"y"` or `"z"`. It names the forward axis of a frame-conflict host (§3.3 step 4). It is categorical like `forward_override`, carries no number, so INV-17 holds, and is hashed into `overrides_digest`. No entry is needed today, so `overrides_digest` is unchanged until one is written.
+`weapon_overrides.json` gains one categorical host key: `frame_axis`, which is `"x"`, `"y"` or `"z"`. It names the forward axis of a frame-conflict host (§3.3 step 4). With Q-G4 it sets the **record's** forward axis too, and `forward` then sets the sign on it (§3.3 step 5). It is categorical like `forward_override`, carries no number, so INV-17 holds, and is hashed into `overrides_digest`. It is an input of the geometry cache fingerprint, present only when set, as `fo` is. No entry is needed today, so `overrides_digest` is unchanged until one is written.
 
 ### 4.6 Versions, digests and consumer impact (tools/vendor/spec.md §3.8)
 
 - **Directory.**
   - `WEAPON_ATTACH_VERSION` goes 13 → **14**, which invalidates the attachment cache.
-  - `WEAPON_GEOMETRY_VERSION` stays 5. It goes to 6 only if Tom takes Q-G4.
-  - `rules_digest` is unchanged, because the new tables live in `attachment_rules`. `attach_rules_digest` changes. `overrides_digest` is unchanged.
-  - The **default export is byte-identical** (INV-19, AC77).
+  - `WEAPON_GEOMETRY_VERSION` goes 5 → **6** (Q-G4, Tom 2026-10-27), which invalidates the geometry cache. Its comment in `weapons/__init__.py` records "6: the body-axis frame vote on eligible hosts (G1, §3.3)".
+  - `rules_digest` is unchanged, because the new tables live in `attachment_rules` and the frame constants are code. `attach_rules_digest` changes. `overrides_digest` is unchanged.
+  - The **default export is identical to a8c's except** the feature-frame records (3 today) and `generated_from.geometry_version` (5 → 6). INV-19 and AC77 are amended to say so. On a record, only the frame-derived fields of §3.3 may change; any other changed field is a finding.
+  - **The W7 reference files stay untouched.** `w7_default_export.json` and the `w8d_w7_*` files are outputs of the W7 tree and cannot be regenerated. The byte-identity tests compare after replacing `geometry_version` 5 with 6 in the reference, and assert `geometry_version == 6` on their own. The synthetic worlds hold no feature-frame host, so nothing else differs there. The 3-record difference shows only on the live a8c → a14 comparison (AC146).
 - **`--attachments` export.** Data changes:
   - more `probe` optic and underbarrel mounts (rail seats on up to 29 + 12 hosts);
   - muzzle seats on the 3 frame hosts move to the barrel end;
@@ -533,23 +565,31 @@ The detector parameters (locator grid, tooth amplitude, pitch window, CV, count,
   - The loader requires `[source, point, forward, up, span_m, occupied_by, child_node]` and ignores extra mount keys.
   - `source` stays inside `MOUNT_SOURCES = [override, child_node, probe, none]`, so no ARM_E70.
   - Tiers are unchanged, so no ARM_E71.
+  - **Q-G4 (`geometry_version` 6, a changed frame on 3 records), checked against the 0.3.0 sources:**
+    - `geometry_version` is metadata: `sit_armory_listing.gd` (around line 306) and `sit_armory_refresh.gd` (`_WHOLE_META_KEYS`) only check that it is a whole number, and `sit_armory_result.gd` passes it through. There is no minimum geometry version; the only floor is `MIN_ATTACH_VERSION := 1` (`sit_armory.gd`).
+    - The new `item_basis` is still a signed permutation, which is what `sit_directory_snapshot.gd` (`_is_signed_permutation`, around line 406) requires. `sit_armory_geometry.gd` and the resolver copy `item_basis` and `length_m` through as data. Neither addon reads `geometry.long_axis`.
+    - A game with a lock sees ARM_E04 (snapshot hash differs) on its next re-export, the normal re-export flow. ARM_W06 fires only if `archetype`, `genre` or `hold_class` changes. The build's pass 2 can move archetype or hold class by the measured length (`directory._measure_record`). On the 3 hosts, a8c took all three from name rules (provenance `rules`), so no change is expected. The build reports any change as a finding.
   - **No change, no bump.**
-- **sit_weapons 0.4.0.** `SitMountSpec.slot_faults` checks only that `source` is a String, and the frame, `occupied_by`, `span_m` and `child_node` keys. Unknown keys pass. **No change, no bump.**
+- **sit_weapons 0.4.0.** `SitMountSpec.slot_faults` checks only that `source` is a String, and the frame, `occupied_by`, `span_m` and `child_node` keys. Unknown keys pass. It does not read `geometry_version`, `axes` or `item_basis`. **No change, no bump.**
 - **If a consumer later reads `feature`,** that addon bumps MINOR (a new optional key in its contract).
 - **If Tom picks a new `source` value instead (Q-G5),** sit_armory must ship MINOR 0.4.0 first, adding the value to `MOUNT_SOURCES` with AT6 and AC43 edits. An unpatched 0.3.0 would reject every such host record with ARM_E70. sit_weapons would need nothing. This is one addon, so the "spanning two addons" rule does not apply.
 - **The attachment spec's contract table** (A§10) gains a PATCH note: C-18 lists `feature`, and C-23 lists the signal vocabulary. The lead applies it on adoption.
-- **Existing ACs of the attachment spec that this edits:**
+- **Existing ACs and invariants of the attachment spec that this edits:**
   - AC80(c) is retired for the four slots (§3.10).
-  - AC67 gains the feature-frame clause of §3.3 under the default answer to Q-G4.
+  - AC67 holds unchanged (Q-G4 adopted: the record frame is the feature frame, so muzzle parity needs no exception).
+  - INV-19 and AC77: "byte-identical to W7" becomes "identical to W7 except `generated_from.geometry_version` (6) and the feature-frame records". AC77's break "bump `WEAPON_GEOMETRY_VERSION`" now reads "bump it to 7".
+  - AC78 holds; its bump test now runs from 6.
+  - The "`WEAPON_GEOMETRY_VERSION` stays 5" clauses of AC93, AC96, AC103, AC110, AC116, AC123 and AC129 are history, true at their builds. Their tests follow the new value, 6.
   - Gates scored on the label-era rules (AC117 to AC130, where they test a retired rule) are re-pointed to AC131 to AC149 for the four slots.
 
-  These are edits to the directory's own spec, recorded with `WEAPON_ATTACH_VERSION` 14. They are not consumer contract changes.
+  These are edits to the directory's own spec, recorded with `WEAPON_ATTACH_VERSION` 14 and `WEAPON_GEOMETRY_VERSION` 6. They are not consumer contract changes.
 
 ### 4.7 Migration from a8c
 
 1. Build a14 on `integ/attach` with the gate behind no flag. The retired rules are inert for the four slots from that version on.
 2. Make the impact record with `attach-calibrate`, plus a before/after table of **raw listed and pending counts per slot × tier** (a8c against a14) and the count of pairs moving each way. It also lists:
-   - the hosts that lose a listed muzzle entry because they have no barrel end (3 today);
+   - every record whose default-export bytes changed, with each changed field (expected: the 3 feature-frame records, frame-derived fields only);
+   - the hosts that lose a listed muzzle entry because they have no barrel end (3 on a8c's seats; under §3.6 about 1 is expected, the sniper, because the Uzi-type host finds its end in the feature frame and the brake preset is refused by the fill rule instead);
    - the new rail seats;
    - the preset fill additions;
    - the cross-pack magazine count judged `fit`.
@@ -563,11 +603,12 @@ The detector parameters (locator grid, tooth amplitude, pitch window, CV, count,
 
 - **INV-22.** Every `compatible_hosts` entry of an `optic`, `muzzle`, `underbarrel` or `magazine` part whose tier is `same_pack_fit` or `cross_pack_fit` has verdict `fit`, and at least one geometry signal from §3.1 step 5. No such entry exists with `rail_flat` alone.
 - **INV-23.** For the four slots, a verdict depends only on geometry, the part's anchor and footprint, and the policy rules of §3.8. Renaming a part or host (tokens) changes no verdict unless a policy rule reads the name.
-- **INV-24.** Every literal in `fit_geometry` is ≥ the max error of its positives (or ≤ the min, for lower bounds) except the listed exceptions. `attach-calibrate` enforces this.
+- **INV-24.** Every literal in `fit_geometry`, and the frame constant `geometry._FRAME_BORE_MAX_M`, is ≥ the max error of its positives (or ≤ the min, for lower bounds) except the listed exceptions. `attach-calibrate` enforces this.
 - **INV-25.** `fit_digest` and the directory bytes are identical across two builds and across `PYTHONHASHSEED` values.
 - **INV-26.** `weapon_attach_spotcheck.json` is write-once. Only its `fits` and `placed_wrong` fields change after the draw, and only from null.
 - **INV-27.** A frame-conflict host has no detector seat (`feature` absent and `source` not `probe` on the four slots).
-- INV-14 to INV-21 still hold, INV-19 included.
+- **INV-28 (Q-G4).** A record's frame differs from the bounding-box frame only on an eligible host whose body axis is confirmed by exactly one end ring (§3.3 step 3) or named by `frame_axis`. Such a record has `axes.forward_source` `"body"` (or `"override"` when `forward` sets the sign), and its `geometry.muzzle` equals its muzzle mount's point when `occupied_by` is empty (AC67).
+- INV-14 to INV-21 still hold. **INV-19 is amended** (Q-G4): the default export is identical to the W7 export except `generated_from.geometry_version` (6) and the records of INV-28, whose frame-derived fields (§3.3) may differ; no other byte differs.
 
 ## 6. Acceptance criteria
 
@@ -583,20 +624,15 @@ Each criterion is paired with the deliberate break that must fail it. Counts are
 | AC136 | **Well on positives.** 14 twin magazines read 0.000. The Military matrix gives same-family ≤ 0.09, and the SMG and heavy magazines ≥ 0.38 off every rifle well, so they are `no_fit` there at 0.15. | section taken at the magazine's own top instead of `u_rb − 0.002` |
 | AC137 | **Tolerance rule.** `attach-calibrate` exits 0 on a14 and prints every row of §4.2. With `clamp.overhang_max_m` set to 0.007, it exits 6 and names the literal. The test's expected maxima are literals in the test, not values read from the rules file. | the check skipped; or the test's bound read from the rules file (which would loosen with the rule) |
 | AC138 | **(b) Negative controls.** Zero listed entries of each kind: optic on a `launcher`, `tool` or `fixed_heavy` host; any slot on a melee record (no mounts); muzzle on a host with no barrel end; magazine on a host with no well reference. On a8c the barrel-end control has 8 entries, on 3 hosts. | the barrel-end requirement removed: the count is 8 or more |
-| AC139 | **(c) Policy unchanged.** For every rule of §3.8, a14's refused (slot, host) set ⊇ a8c's. The only additions are the preset fill list (Q-G11, reported). One fixture test per standing refusal, as shipped (§3.8):
-- on a preset host, a baked child or a located fused optic or silencer refuses its slot, and the magazine stays open;
-- a baked iron sight refuses both sight slots on any host;
-- a glass-only host refuses `optic`;
-- on a non-preset host, a baked optic body or muzzle device stays replaceable (`occupied_by`), **not** refused;
-- no silencer on a launcher or any shotgun; no optic on a launcher; a tool and a minigun take nothing; `Sniper_Heavy_01` refuses muzzle (as recorded); a preset refuses only filled slots and keeps the magazine open; a cross-setting pair is never a candidate. | any policy rule moved after the geometry step, or skipped for `fit` pairs |
+| AC139 | **(c) Policy unchanged.** For every rule of §3.8, a14's refused (slot, host) set ⊇ a8c's. The only additions are the preset fill list (Q-G11, reported). One fixture test per standing refusal, as shipped (§3.8): (1) on a preset host, a baked child or a located fused optic or silencer refuses its slot, and the magazine stays open; (2) a baked iron sight refuses both sight slots on any host; (3) a glass-only host refuses `optic`; (4) on a non-preset host, a baked optic body or muzzle device stays replaceable (`occupied_by`), **not** refused; (5) no silencer on a launcher or any shotgun, no optic on a launcher, a tool and a minigun take nothing, `Sniper_Heavy_01` refuses muzzle (as recorded), a preset refuses only filled slots and keeps the magazine open, and a cross-setting pair is never a candidate. | any policy rule moved after the geometry step, or skipped for `fit` pairs |
 | AC140 | **(c) Cross-pack magazines.** Zero `cross_pack_fit` magazine entries in `compatible_hosts`. The count of cross-pack magazine pairs judged `fit` is printed for Q-G1. | A8-1 routing dropped |
 | AC141 | **(d) Spot check.** `--draw` writes 32 pairs (8 per slot), none of them twin, override or among the 449 labels, in hash order. A second `--draw` exits 6. `--score` prints `fits k of 32 (placed wrong m)`. No test, AC or rule reads the answers. | a draw that overwrites; any AC reading the file |
 | AC142 | **(d) Labels descriptive.** `attach-eval` prints the agreement table per slot and exits 0 whatever the agreement. AC80(c) is marked retired for the four slots. | an exit code tied to agreement |
 | AC143 | **(e) Determinism.** Two clean builds with `PYTHONHASHSEED` 0 and 1 give an identical `directory.json` (bytes) and identical `fit_digest`. A synthetic fixture's digest is a literal in the test. | set iteration or an unsorted dict reaching the measures |
 | AC144 | **(f) Dependencies.** `pyproject.toml` `dependencies` and `optional-dependencies` are unchanged. `fit_geometry.py` imports only the standard library, `numpy` (already declared and used by every geometry module) and `synty_inventory` (Q-G7). | a new import (scipy, trimesh) |
-| AC145 | **(g) Consumer schema.** Every mount `source` in an a14 `--attachments` export is in {override, child_node, probe, none}. `feature` and `fit_digest` are optional, and the export validates against the shipped JSON schema with only those keys added. On the sit-capabilities side, the lead loads a synthetic export with the new keys through sit_armory 0.3.0's loader and sit_weapons 0.4.0's `SitMountSpec.from_dicts`, unchanged: no ARM_E70 or E71, no slot fault. | a rail seat written as `source: "rail"` (ARM_E70) |
-| AC146 | **Migration.** `WEAPON_ATTACH_VERSION` == 14. `rules_digest` and `overrides_digest` are unchanged from a8c, and `attach_rules_digest` is changed. The default export is byte-identical to a8c's (INV-19, AC77). The impact record holds the raw before/after table of §4.7 step 2. | geometry keys placed outside `attachment_rules` (`rules_digest` moves, default export changes) |
-| AC147 | **Frame.** `frame_vote` changes the forward axis on exactly the hosts whose body axis differs and whose bore-ring test holds at exactly one end: 3 today, one of them a tool. The frame-conflict count is reported (0 today). An Uzi-shaped synthetic fixture (magazine longer than barrel, 15 mm ring at the muzzle) gets its muzzle seat at the ring, not at the magazine bottom. A fixture with rings at both ends is a conflict with no detector seat. `geometry.axes` is unchanged on all 257 hosts (until Q-G4). | the bounding-box frame used for detectors (the fixture's seat lands at the magazine) |
+| AC145 | **(g) Consumer schema.** Every mount `source` in an a14 `--attachments` export is in {override, child_node, probe, none}. `feature` and `fit_digest` are optional, and the export validates against the shipped JSON schema with only those keys added. On the sit-capabilities side, the lead loads a synthetic export with the new keys, `geometry_version` 6 and one host whose `item_basis` is a rotated signed permutation (the feature-frame case) through sit_armory 0.3.0's loader and sit_weapons 0.4.0's `SitMountSpec.from_dicts`, unchanged: no ARM_E70 or E71, no snapshot error, no slot fault. This is a read-only run from a scratch script; no sit-capabilities file changes. | a rail seat written as `source: "rail"` (ARM_E70) |
+| AC146 | **Migration.** `WEAPON_ATTACH_VERSION` == 14 and `WEAPON_GEOMETRY_VERSION` == 6 (Q-G4). `rules_digest` and `overrides_digest` are unchanged from a8c, and `attach_rules_digest` is changed. The default export is identical to a8c's **except** the feature-frame records (3 today) and `generated_from.geometry_version` (amended INV-19, AC77). On those records only frame-derived fields (§3.3) differ, and each is listed. On the synthetic worlds the default export equals the untouched W7 references once `geometry_version` 5 is read as 6. The impact record holds the raw before/after table of §4.7 step 2. | geometry keys placed outside `attachment_rules` (`rules_digest` moves); the vote run on a non-eligible record, or a non-frame field changed on a feature-frame record (the default export differs on more than those records and that field) |
+| AC147 | **Frame.** `frame_vote` changes the forward axis on exactly the hosts whose body axis differs and whose bore-ring test holds at exactly one end: 3 today, one of them a tool. The frame-conflict count is reported (0 today). An Uzi-shaped synthetic fixture (magazine longer than barrel, 15 mm ring at the muzzle) gets its muzzle seat at the ring, not at the magazine bottom. A fixture with rings at both ends is a conflict with no detector seat, and keeps its build frame. **`geometry.axes` changes on exactly those 3 hosts** (Q-G4), with `forward_source` `"body"`, and on no other record. On the Uzi-shaped fixture, `geometry.axes`, `item_basis`, `length_m` and `geometry.muzzle` follow the body axis. Its muzzle mount equals `geometry.muzzle` (AC67, unchanged), and `item_basis` is a signed permutation. A `frame_axis` override on the both-rings fixture sets the record's axis, and `forward` then sets its sign. | the bounding-box frame used for detectors (the fixture's seat lands at the magazine); the vote applied to mounts only (record axes unchanged, AC67 parity fails on the fixture); a `forward` override applied before the axis is chosen |
 | AC148 | **Low poly and sight seats.** No optic or underbarrel pair is listed through `rail_flat` alone. On untoothed hosts with an authored optic child, pairs list through `seat_ref`. The number of hosts carrying each `feature` value is reported. A§4.6 gate 6(c) passes on every host with a rail seat. | flat seats treated as toothed (listed optic pairs appear on untoothed hosts with no authored seat); the sight clip removed (6(c) fails on a railed host with a front sight seat) |
 | AC149 | **Retired rules inert.** In the four slots, permuting part-name tokens (fixture) and blanking `attach_affinity` change no entry. In `laser_light`, `sight_front` and `sight_rear`, every entry is identical to a8c's. | a retired rule still consulted for a geometry slot; or a geometry rule leaking into a sight slot |
 
@@ -616,9 +652,26 @@ Each criterion is paired with the deliberate break that must fail it. Counts are
 - **A frame conflict.** No detector seat. The host is listed in the report and resolved by `frame_axis`.
 - **The locator on a non-Military pack.** It runs only on `attach_filled_hosts` hosts, against same-pack parts. A preset whose parts were re-modelled (hit < 1.0) has no placements, and its slots fall back to children.
 
-## 8. Open questions
+## 8. Decisions (were open questions)
 
-All are **NON-BLOCKING**. Each has a default that the build takes if Tom does not answer.
+**Decided by Tom, 2026-10-27:** "Take Q-G4: adopt the feature frame for the record too, geometry_version 5 to 6. Other open questions at their defaults." The build takes these decisions:
+
+| Q | decision | what the build does |
+|---|---|---|
+| Q-G1 | default: cross-pack magazines stay pending | A8-1 unchanged; AC140 prints the count judged `fit` for a later decision |
+| Q-G2 | default: `well.tol` 0.15 | the A and B Military families interchange; the cross-family twin is inside the tolerance (E-G2) |
+| Q-G3 | default: a flat seat lists nothing. Tom saw the per-pack rail table and kept this. | flat-seat pairs are `unverified` (pending); INV-22, AC148 |
+| Q-G4 | **adopted**: the feature frame is the record's frame | `WEAPON_GEOMETRY_VERSION` 5 → 6; the frame vote moves to `geometry.py` (§3.3, §3.11); INV-19 and AC77 amended, INV-28 added, AC67 unchanged (§4.6) |
+| Q-G5 | default: the optional mount key `feature`, `source` unchanged | no consumer bump (§4.6) |
+| Q-G6 | default: the recorded ruling (A6-6 iii), muzzle only | no policy change for `Sniper_Heavy_01` |
+| Q-G7 | default: no new dependency | standard library, `numpy` and `synty_inventory` only (AC144) |
+| Q-G8 | default: the HUD icons are the human-readable references | no store renders; icons by path only |
+| Q-G9 | default: unclassified parts stay unclassified | the impact record lists them |
+| Q-G10 | default: canted adapters not modelled | E-G5 stays an exception |
+| Q-G11 | default, **adopted**: the preset fill list | located fused parts fill their slots on presets (2 slots today) |
+| Q-G12 | default: the other three slots wait for a later amendment | `laser_light` and the sights keep the label-era rules (AC149) |
+
+The questions as they were put to Tom, kept for the record:
 
 - **Q-G1 Cross-pack magazines.** They stay pending (A8-1) unless Tom lifts that. The well detector can judge them, and Synty itself bakes a Military magazine into a city-pack rifle (entry section 0.000). Default: pending. The build reports the count judged `fit` (AC140), so Tom decides on a number.
 - **Q-G2 Well tolerance.**
@@ -627,9 +680,9 @@ All are **NON-BLOCKING**. Each has a default that the build takes if Tom does no
 - **Q-G3 Untoothed seats.**
   - Default: a flat seat lists nothing (pending).
   - Alternative: list same-pack pairs on a flat seat. That would put optics back on most barrels and top straps (§1.1), so it is not recommended.
-- **Q-G4 Record frame fix.**
-  - Default: the feature frame is used by the attachment detectors only. The 3 hosts keep their built `geometry.axes`, so 2 SMGs are still held with the magazine forward.
-  - Recommended, as a separate directory change: adopt the feature frame for the record too. `WEAPON_GEOMETRY_VERSION` goes 5 → 6, and INV-19 is amended for 3 records, `geometry_version` included. Consumers treat `geometry_version` as metadata.
+- **Q-G4 Record frame fix.** (Adopted.)
+  - Default (not taken): the feature frame is used by the attachment detectors only. The 3 hosts keep their built `geometry.axes`, so 2 SMGs are still held with the magazine forward.
+  - Recommended, and taken: adopt the feature frame for the record too. `WEAPON_GEOMETRY_VERSION` goes 5 → 6, and INV-19 is amended for 3 records, `geometry_version` included. Consumers treat `geometry_version` as metadata.
 - **Q-G5 Mount schema.**
   - Default: the optional `feature` key, with `source` unchanged. No consumer bump.
   - Alternative: new `source` values. sit_armory MINOR 0.4.0 must ship first (§4.6).
@@ -648,6 +701,6 @@ All are **NON-BLOCKING**. Each has a default that the build takes if Tom does no
 - The interfaces carry concrete signatures, a rules block and CLI verbs.
 - Every literal is stated with its positives, max error and margin, and the exceptions are reasoned.
 - AC131 to AC149 are testable and each names a break that fails it.
-- The open questions are all NON-BLOCKING with defaults.
-- Under the defaults, sit_armory 0.3.0 and sit_weapons 0.4.0 need no change and the default export stays byte-identical.
-- The build waits for Tom's approval of this document (hard rule: spec before build).
+- The open questions were all NON-BLOCKING with defaults, and are now decided (§8).
+- With Q-G4 adopted, sit_armory 0.3.0 and sit_weapons 0.4.0 need no change (checked against their sources, §4.6). The default export differs from a8c only in the feature-frame records and `geometry_version` (amended INV-19).
+- **Approved by Tom, 2026-10-27.** The build follows [weapon_attach_geometry_plan.md](weapon_attach_geometry_plan.md).
