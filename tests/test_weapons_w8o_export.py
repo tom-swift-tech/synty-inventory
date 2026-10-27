@@ -122,6 +122,7 @@ def test_ac117_the_two_cuts_are_independent(world, capsys):
 def test_ac117_without_attachments_the_export_is_the_w7_one_and_the_pending_flag_is_refused(world, capsys):
     code, _, out = export(world, capsys, name="plain.json")
     assert code == 0
+    assert json.loads(out.read_bytes().decode("utf-8"))["generated_from"]["geometry_version"] == 6  # G1, on its own
     assert out.read_bytes().decode("utf-8").replace("\r\n", "\n") == g1_refs.as_geometry_v6(
         (FIX / "w8d_w7_attach_default_export.json").read_bytes().decode("utf-8").replace("\r\n", "\n"))  # G1: the one number that moved
     for flags in (("--pending-min-tier", "cross_pack_fit"), ("--pending-min-tier", "same_pack_fit")):

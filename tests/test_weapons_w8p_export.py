@@ -130,5 +130,6 @@ def test_ac125_the_header_carries_attach_version_13_and_the_w7_export_is_unchang
     assert gf["attach_version"] == 13 and gf["filter"]["attachments"] is True
     code, _, plain = export(world, capsys, name="plain.json")
     assert code == 0
+    assert json.loads(plain.read_bytes().decode("utf-8"))["generated_from"]["geometry_version"] == 6  # G1, on its own
     assert plain.read_bytes().decode("utf-8").replace("\r\n", "\n") == g1_refs.as_geometry_v6(
         (FIX / "w8d_w7_attach_default_export.json").read_bytes().decode("utf-8").replace("\r\n", "\n"))  # G1: the one number that moved
