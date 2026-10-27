@@ -65,21 +65,21 @@ The setting gate, Tom's standing refusals and every other policy rule stay as th
   - The optic contact centre lies at 0.22 to 0.80 of the butt-to-muzzle length.
 - *Twin optic hosts (17).* 4 are toothed and 13 untoothed.
   - On 10 of the 13 untoothed hosts, a flat run covers the twin's contact.
-  - The other 3 are stepped seats (11 to 13 mm steps). All 3 are on the A§5.4 known-defect list (`Scope_04` on `SniperRifle_01`, the `Heavy_01` and `Sniper_02` twins).
-- *Underbarrel positives.* 3 of the 4 preset placements sit on bottom teeth. The underbarrel twin (a foregrip on `Launcher_01`) is off the centreline. 5 of the 7 baked underbarrel children are splayed bipod legs.
+  - The other 3 are stepped seats (11 to 13 mm steps). All 3 are on the A§5.4 known-defect list of authored twin defects.
+- *Underbarrel positives.* 3 of the 4 preset placements sit on bottom teeth. The underbarrel twin (a foregrip on a launcher) is off the centreline. 5 of the 7 baked underbarrel children are splayed bipod legs.
 
 **Bore (muzzle).**
 - *Positives.* 11: 5 preset placements (one is the brake) and 6 baked devices (3 of them twins).
   - The device axis lies 0 to 3.9 mm off the barrel-end centre, with 0° tilt to host forward.
   - Device mating OD / barrel-end OD is 0.93 to 1.92 on 10 of 11.
-  - The exception is the `Pistol_01` silencer twin, which sits on a slide face with no modelled barrel.
+  - The exception is a pistol's silencer twin, which sits on a slide face with no modelled barrel.
   - 4 devices carry an inner bore ring (6 placements), giving inner bore / barrel OD of 0.55 to 1.13.
   - The barrel enters the device by 0 to 90 mm.
 - *Barrel-end census.* This was measured in the **build frame**, on host minus children, **before strip**. 233 of 257 hosts have a barrel end, by any of: the existing ring bore, a front-face ring, or a round end section (roundness ≥ 0.8, OD ≤ 60 mm).
   - 24 have none: launcher 8, rifle 6, flamethrower 3, utility 2, pistol 2, sniper 1, smg 1, shotgun 1.
-  - 10 of a8c's 200 probe muzzle seats have no barrel end. They carry 8 listed muzzle entries on 3 hosts: a preset whose fused brake is the end, a sniper with neither ring nor round end, and an `SMG_01` whose seat sits at the magazine bottom (the frame fault below).
+  - 10 of a8c's 200 probe muzzle seats have no barrel end. They carry 8 listed muzzle entries on 3 hosts: a preset whose fused brake is the end, a sniper with neither ring nor round end, and one of the two Uzi-type SMG hosts, whose seat sits at the magazine bottom (the frame fault below).
   - Under §3.6's definition (feature frame, after strip), about 4 hosts are expected to move from "none" to "has end", giving about 237 and 20:
-    - the 2 `SMG_01` hosts and the nail gun, which have a 15 to 18 mm ring at their feature-frame forward end;
+    - the two Uzi-type SMG hosts and one nail gun, each with a bore ring at its feature-frame forward end (15–18 mm across the three);
     - the brake preset, whose stripped brake exposes the barrel. That preset's muzzle is then refused by the fill rule (Q-G11), not by geometry.
 
     A higher count at build is confirmation, not a failure.
@@ -101,9 +101,9 @@ The setting gate, Tom's standing refusals and every other policy rule stay as th
 
 **Frame.**
 - 13 hosts carry `axes_unexpected`.
-- The body axis changes the forward axis on 3 of them: the two Uzi-type `SMG_01` hosts and a nail gun (a tool, refused by policy). The magazine is longer than the barrel, so the bounding box picks the magazine as forward.
+- The body axis changes the forward axis on 3 of them: the two Uzi-type SMG hosts and one nail gun (a tool, refused by policy). The magazine is longer than the barrel, so the bounding box picks the magazine as forward.
   - The body axis is the long axis of the host minus its named slot children.
-  - On each of the 3, a bore ring of 15 to 18 mm sits at exactly one end of the body axis, and the other end has no ring of 25 mm or less.
+  - On each of the 3, a 15–18 mm bore ring sits at exactly one end of the body axis, and the other end has no ring of 25 mm or less.
   - The other 254 hosts are unchanged.
 - *Rejected votes.*
   - "Magazine below the bore": 9 of 103 baked magazines sit at or above the bore line (top or side feeds).
@@ -187,7 +187,7 @@ The oracle is the set of authored assemblies. It calibrates every literal (§4.2
 
 ### 3.3 Feature frame (answers the coordinator's frame question)
 
-Should detectors derive forward and up from the gun's own features? **Yes, for the axis.** The bounding box is the wrong authority when a child is longer than the barrel. The magazine of the Uzi-type `SMG_01` is, so the muzzle seat lands at the magazine bottom. **No, for the sign.** No feature votes the sign reliably (§1.1). The sign stays the build's, including `forward_override`.
+Should detectors derive forward and up from the gun's own features? **Yes, for the axis.** The bounding box is the wrong authority when a child is longer than the barrel. On the two Uzi-type SMG hosts the magazine is, so the muzzle seat lands at the magazine bottom. **No, for the sign.** No feature votes the sign reliably (§1.1). The sign stays the build's, including `forward_override`.
 
 `frame_vote(rec, host_mesh, slot_children) -> FrameVote`:
 
@@ -482,8 +482,8 @@ The detector parameters (locator grid, tooth amplitude, pitch window, CV, count,
 **Calibration exceptions (AC133 to AC136; reasons, not ids, are recorded in `fit_geometry.exceptions`):**
 - **E-G1. Stepped optic seats.** 3 untoothed twin hosts whose twin sits on a stepped seat (the A§5.4 known defects). They pass only through `seat_ref` with the child's own foot length. No flat run covers them.
 - **E-G2. Cross-family twin magazine.** It reads 0.105 in width. It passes at `well.tol` 0.15 and would be an exception at 0.095 (Q-G2). The drum twin has no section, so it is `unverified` (the twin listing is unaffected).
-- **E-G3. Slide-face silencer twin** (`Pistol_01`). The device mates on a slide face with no modelled barrel, so its OD ratio is below the band. It stays listed as `twin`. Other suppressors on that host are judged by the band.
-- **E-G4. Off-centreline underbarrel twin** (the `Launcher_01` foregrip) and the splayed bipod children. These are not on the centreline, so the rail check is skipped (`seat_ref` decides). They are not calibration data for `rail_runs(bottom)`.
+- **E-G3. Slide-face silencer twin** (a pistol). The device mates on a slide face with no modelled barrel, so its OD ratio is below the band. It stays listed as `twin`. Other suppressors on that host are judged by the band.
+- **E-G4. Off-centreline underbarrel twin** (a launcher's foregrip) and the splayed bipod children. These are not on the centreline, so the rail check is skipped (`seat_ref` decides). They are not calibration data for `rail_runs(bottom)`.
 - **E-G5. The canted-adapter optic** on a non-host preset. The rail is an adapter part, not host geometry (Q-G10).
 - **E-G6. Policy-refused positives.** These are the launcher optics and every positive on a slot that policy refuses. They calibrate detectors and are never listed.
 
@@ -579,7 +579,7 @@ Each criterion is paired with the deliberate break that must fail it. Counts are
 | AC132 | **Strip.** On the synthetic fixture, the host mesh after `strip` equals the base mesh, triangle for triangle. On every preset, no remaining host triangle has all three vertices on a located part. | strip skipped: a fused scope's top reads as the rail |
 | AC133 | **(a) Twins.** The geometry verdict is `fit` on 36 of the 38 twin pairs. The cross-family twin magazine (E-G2) is among the 36, at `well.tol` 0.15. The stepped optic seats (E-G1) are too, through `seat_ref`. The 2 others are the drum twin (`unverified`, E-G2) and the slide-face silencer (`no_fit`, E-G3). Each is printed with its reason. Twin listing is unchanged on all 38. | `seat_ref` disabled (the 13 untoothed optic twins fail); `well.tol` set to 0.09 (the cross-family twin fails, not reported as an exception) |
 | AC134 | **Rails on positives.** 13 of the 14 preset optic placements and all 16 toothed optic positives lie on a detected run of 4 or more teeth, with overhang ≤ 10 mm and clamp ratio ≥ 1.0. The odd one is E-G5. 3 of the 4 preset underbarrel placements lie on bottom teeth. The detected counts are 45 hosts on top and 14 on the bottom at 4 teeth, reported by class. | `tooth_min_count` 6, or `pitch_max_m` 0.016, drops positives |
-| AC135 | **Bore on positives.** On all 11 bore positives, the axis offset is ≤ 5 mm and the tilt ≤ 2°. The OD ratio lies in the band on 10 of 11, the exception being E-G3. The inner ratio lies in the band on all 6 ring placements. The has-end and no-end host counts are reported by class. The survey's 233 and 24 were measured in the build frame before strip. The 4 expected movers of §1.1 (2 `SMG_01`, the nail gun, the brake preset) take the spec definition to about 237 and 20. Any other mover is listed with its class. | barrel end measured on the unreduced mesh (a baked device's face read as the barrel) |
+| AC135 | **Bore on positives.** On all 11 bore positives, the axis offset is ≤ 5 mm and the tilt ≤ 2°. The OD ratio lies in the band on 10 of 11, the exception being E-G3. The inner ratio lies in the band on all 6 ring placements. The has-end and no-end host counts are reported by class. The survey's 233 and 24 were measured in the build frame before strip. The 4 expected movers of §1.1 (the two Uzi-type SMG hosts, one nail gun, the brake preset) take the spec definition to about 237 and 20. Any other mover is listed with its class. | barrel end measured on the unreduced mesh (a baked device's face read as the barrel) |
 | AC136 | **Well on positives.** 14 twin magazines read 0.000. The Military matrix gives same-family ≤ 0.09, and the SMG and heavy magazines ≥ 0.38 off every rifle well, so they are `no_fit` there at 0.15. | section taken at the magazine's own top instead of `u_rb − 0.002` |
 | AC137 | **Tolerance rule.** `attach-calibrate` exits 0 on a14 and prints every row of §4.2. With `clamp.overhang_max_m` set to 0.007, it exits 6 and names the literal. The test's expected maxima are literals in the test, not values read from the rules file. | the check skipped; or the test's bound read from the rules file (which would loosen with the rule) |
 | AC138 | **(b) Negative controls.** Zero listed entries of each kind: optic on a `launcher`, `tool` or `fixed_heavy` host; any slot on a melee record (no mounts); muzzle on a host with no barrel end; magazine on a host with no well reference. On a8c the barrel-end control has 8 entries, on 3 hosts. | the barrel-end requirement removed: the count is 8 or more |
@@ -633,7 +633,7 @@ All are **NON-BLOCKING**. Each has a default that the build takes if Tom does no
 - **Q-G5 Mount schema.**
   - Default: the optional `feature` key, with `source` unchanged. No consumer bump.
   - Alternative: new `source` values. sit_armory MINOR 0.4.0 must ship first (§4.6).
-- **Q-G6 `Sniper_Heavy_01`.** The brief's list says it "takes nothing". Tom's recorded ruling (A6-6 iii, in the override note) is "takes no barrel attachments", read as muzzle only, with underbarrel and laser left for Tom. a8c lists 7 optics on it, 2 of them Synty's own twins. Default: the recorded ruling, with no policy change. If "nothing" is meant, it is a one-line override, outside this spec.
+- **Q-G6 `Sniper_Heavy_01`.** The brief's list says it "takes nothing". Tom's recorded ruling (A6-6 iii, in the override note) is "takes no barrel attachments", read as muzzle only, with underbarrel and laser left for Tom. a8c lists optics on it, Synty's own twin scopes among them. Default: the recorded ruling, with no policy change. If "nothing" is meant, it is a one-line override, outside this spec.
 - **Q-G7 "Stdlib only".** Default: no new dependency. The module uses the standard library plus `numpy`, which the package already declares and every geometry module imports. A strict "no numpy" reading would mean re-implementing the GLB loaders, and is not recommended.
 - **Q-G8 Store renders.** None exist locally. The HUD icons (§1.1) are the human-readable references. If Tom wants store pages, they are referenced by URL in the spot-check sheet and never stored.
 - **Q-G9 Unclassified parts.** A Military muzzle brake and an underbarrel grenade launcher are located on presets but have no attachment block (`part_misc`). Classification is out of scope here. Default: leave them, and list them in the impact record.
