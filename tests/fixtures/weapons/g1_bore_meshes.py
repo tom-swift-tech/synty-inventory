@@ -5,7 +5,7 @@ up; barrel along +f). A device is in its own asset axes (bore direction along +y
 
 Every tube puts vertices at the four axis angles, so the AABB of a ring (and with it the detector's slab centre and OD) is exact to float
 precision. A ring is built at two stations (the end face and 5 mm behind it) so an end ring holds well over the six vertices that
-``mount_probe.end_ring_d`` needs inside the 10 mm end slab.
+``mount_probe.end_ring_d`` needs inside the 10 mm end slab. ``tube(..., n=6)`` and ``n=8`` are the polygonal tubes of E1.1.
 """
 
 from __future__ import annotations
@@ -31,24 +31,26 @@ def _band(lo: int, hi: int, n: int = N_RING) -> list[list[int]]:
 
 
 def tube(f0: float, f1: float, outer_r: float | tuple[float, float], inner_r: float | None = None,
-         centre: tuple[float, float] = (0.0, 0.0)) -> tuple[np.ndarray, np.ndarray]:
+         centre: tuple[float, float] = (0.0, 0.0), n: int = N_RING) -> tuple[np.ndarray, np.ndarray]:
     """A tube along +f from ``f0`` to the end face at ``f1``. ``outer_r`` is a radius, or ``(r_side, r_up)`` for an elliptical section.
+
+    ``n`` is the vertex count of every ring (E1.1): 6 gives a hexagonal tube and 8 an octagonal one (outer vertices on ``outer_r``, one on +s).
 
     ``inner_r`` None gives a solid end (a fan to a centre vertex on the end face, which is one vertex at radius 0); a number gives a bore of that
     radius, open at the end face (the inner ring stands at the same two stations as the outer one: the "front-face ring").
     """
     rs, ru = (outer_r, outer_r) if np.isscalar(outer_r) else outer_r
     stations = [f1 - STATION_BACK_M, f1]
-    verts = [_ring(f, centre, rs, ru) for f in (f0, *stations)]
-    tris = _band(0, N_RING) + _band(N_RING, 2 * N_RING)
+    verts = [_ring(f, centre, rs, ru, n) for f in (f0, *stations)]
+    tris = _band(0, n, n) + _band(n, 2 * n, n)
     if inner_r is None:
         verts.append(np.array([[f1, centre[0], centre[1]]]))
-        tris += [[2 * N_RING + k, 2 * N_RING + (k + 1) % N_RING, 3 * N_RING] for k in range(N_RING)]
+        tris += [[2 * n + k, 2 * n + (k + 1) % n, 3 * n] for k in range(n)]
     else:
-        base = 3 * N_RING
-        verts += [_ring(f, centre, inner_r, inner_r) for f in stations]
-        tris += _band(base, base + N_RING)  # the bore wall
-        tris += _band(2 * N_RING, base + N_RING)  # the annular end face
+        base = 3 * n
+        verts += [_ring(f, centre, inner_r, inner_r, n) for f in stations]
+        tris += _band(base, base + n, n)  # the bore wall
+        tris += _band(2 * n, base + n, n)  # the annular end face
     return np.concatenate(verts), np.array(tris, dtype=np.int64)
 
 

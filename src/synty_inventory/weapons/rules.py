@@ -501,7 +501,7 @@ FIT_GEOMETRY_SECTIONS = {
     "flat": {"band_m": "len", "close_m": "len", "min_m": "len"},
     "clamp": {"overhang_max_m": "len", "ratio_min": "len"},
     "depth": {"lo_m": "signed", "hi_m": "signed"},
-    "bore": {"end_slab_m": "pos", "round_min": "frac", "barrel_od_max_m": "pos", "od_ratio": "len", "inner_ratio": "len",
+    "bore": {"end_slab_m": "pos", "round_min": "frac", "circ_min": "frac", "barrel_od_max_m": "pos", "od_ratio": "len", "inner_ratio": "len",
              "axis_offset_max_m": "len", "axis_tilt_max_deg": "deg"},
     "well": {"entry_depth_m": "len", "tol": "frac"},
 }

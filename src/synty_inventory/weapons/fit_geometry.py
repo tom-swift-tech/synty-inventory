@@ -370,7 +370,7 @@ def _compute(rules, *, axes, mounts, mesh, child_mesh, fused_parts, frame_change
             else:
                 v, t = np.asarray(got[0], dtype=np.float64).reshape(-1, 3), np.asarray(got[1], dtype=np.int64).reshape(-1, 3)
                 if filling:
-                    v, t = strip(v, t, filling, part_meshes)
+                    v, t = strip(v, t, filling, part_meshes, rules)
                 memo[drop] = (to_fsu(basis, v), t)
         return memo[drop]
 

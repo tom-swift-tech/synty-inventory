@@ -8,6 +8,10 @@ the locator takes its candidate translations from) is vertex 0, whose three frac
 tolerance finds. Vertices are at least about 3 mm apart, and the mesh has no translation symmetry, so a located copy has no aliases.
 
 ``host_from`` builds a host as the base mesh followed by translated copies of the part (vertex indices of the copies are offset).
+
+G1 errata E1.2 adds two fixtures: ``jittered`` (the 12-vertex part with every vertex 0.1 mm off, the smallest one the other way) and
+``offgrid_part`` (a 4-vertex tetrahedron whose smallest vertex sits 0.05 of a cell above a cell edge and whose translation is not a whole
+number of cells, see ``OFFGRID_T``).
 """
 
 from __future__ import annotations
@@ -42,6 +46,35 @@ def asymmetric_part() -> tuple[np.ndarray, np.ndarray]:
     t = np.array(_PART_TABLE, dtype=np.float64)
     verts = (t[:, :3] + t[:, 3:]) * _G
     return verts, np.array(_PART_TRIS, dtype=np.int64)
+
+
+# A tetrahedron for the off-grid case, vertices written as (x, y, z) in cells of 0.5 mm. The smallest vertex (row 0) has x at 0.05 of a cell,
+# so a translation of 0.88 of a cell keeps it in its cell; row 1 sits at 0.15 of a cell, which that translation carries to 0.03 of the cell
+# two above its own. The locator's old whole-cell shift (taken from row 0: 0 cells on x) is then two cells short for row 1 once row 1 is passed
+# 0.1 mm lower (``OFFGRID_MOVE``), the case only a test on the stored translation itself finds.
+_TETRA_TABLE = [
+    (10.05, 4.25, 6.25),
+    (15.15, 12.75, 2.25),
+    (20.25, 3.75, 11.75),
+    (24.75, 9.25, 7.25),
+]
+_TETRA_TRIS = [(0, 1, 2), (0, 3, 1), (0, 2, 3), (1, 3, 2)]
+OFFGRID_T = (0.10044, 0.0600, 0.0200)  # 0.88 of a cell past a whole number of cells on x; y and z are whole cells (no wrap on them)
+OFFGRID_MOVE = (-0.0001, 0.0, 0.0)  # the passed part has row 1 0.1 mm lower on x than the fused copy
+
+
+def offgrid_part() -> tuple[np.ndarray, np.ndarray]:
+    """``(verts (4, 3) float64, tris (4, 3) int64)`` of the tetrahedron, in metres."""
+    return np.array(_TETRA_TABLE, dtype=np.float64) * _G, np.array(_TETRA_TRIS, dtype=np.int64)
+
+
+def jittered(verts, amount: float = 0.0001) -> np.ndarray:
+    """A copy of ``verts`` (lexicographically smallest vertex first) with the first vertex moved +``amount`` on each axis and every other one
+    -``amount`` on each axis: the fused copy of a part that the exporter wrote 0.1 mm off."""
+    out = np.array(verts, dtype=np.float64)
+    out[1:] -= amount
+    out[0] += amount
+    return out
 
 
 def moved(verts, index: int, delta) -> np.ndarray:

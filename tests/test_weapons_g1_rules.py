@@ -29,7 +29,7 @@ BLOCK = {
     "clamp": {"overhang_max_m": 0.010, "ratio_min": 1.0},
     "depth": {"lo_m": -0.026, "hi_m": 0.003},
     "bore": {
-        "end_slab_m": 0.010, "round_min": 0.8, "barrel_od_max_m": 0.060, "od_ratio": [0.85, 2.00], "inner_ratio": [0.47, 1.21],
+        "end_slab_m": 0.010, "round_min": 0.8, "circ_min": 0.75, "barrel_od_max_m": 0.060, "od_ratio": [0.85, 2.00], "inner_ratio": [0.47, 1.21],
         "axis_offset_max_m": 0.005, "axis_tilt_max_deg": 2,
     },
     "well": {"entry_depth_m": 0.002, "tol": 0.15},

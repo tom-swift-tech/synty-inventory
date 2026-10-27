@@ -499,7 +499,7 @@ def test_the_versions_and_digests_are_those_of_the_base():
     assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 6  # S7 bumps neither (the lead decides the bump)
     from synty_inventory.weapons.rules import attach_rules_digest, weapon_rules_digest
     rules = load_rules()
-    assert weapon_rules_digest(rules) == "7b9829af37328fe7" and attach_rules_digest(rules) == "59268363ae44fd9e"
+    assert weapon_rules_digest(rules) == "7b9829af37328fe7" and attach_rules_digest(rules) == "1dacc105674aff85"  # E1.4: the new bore.circ_min key moves it (was 59268363ae44fd9e)
 
 
 # --- fold-ins -------------------------------------------------------------------------------------------------------------------
@@ -612,9 +612,9 @@ def test_e1_3_the_strip_removes_only_the_parts_that_fill_a_slot_not_the_bodys_ow
     given: list[list[str]] = []
     real = FG.strip
 
-    def spy(verts, tris, placements, part_meshes):
+    def spy(verts, tris, placements, part_meshes, rules):  # E1.2: strip takes the rules
         given.append(sorted(pl.part for pl in placements))
-        return real(verts, tris, placements, part_meshes)
+        return real(verts, tris, placements, part_meshes, rules)
 
     monkeypatch.setattr(FG, "strip", spy)
     feats = FG.host_features(RULES, axes=AXES, mounts=fit_mounts([0.0, 0.05, 0.2], bore_source="ring"), mesh=lambda drop: host,

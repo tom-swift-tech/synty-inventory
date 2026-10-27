@@ -1,4 +1,4 @@
-"""G1 S5: the bore detector (docs/weapon_attach_geometry.md 3.6, AC135 fixture part, AC138 barrel-end part).
+"""G1 S5 and errata E1.1: the bore detector (docs/weapon_attach_geometry.md 3.6, AC135 fixture part, AC138 barrel-end part).
 
 ``fit_bore.barrel_end`` finds the barrel end of a host mesh, ``fit_bore.device_inner_d`` the inner ring of a muzzle device's mating face. The
 band tests go through ``fit_geometry.verdict`` fed the detector's own output, so the bands are exercised on measured values.
@@ -12,7 +12,10 @@ Deliberate breaks, in a scratch copy of the branch (reported with the slice):
 * ``od_ratio`` lo 0.85 -> 0.80 or hi 2.00 -> 2.10 in ``RULES``: ``test_the_od_ratio_band`` goes red;
 * ``inner_ratio`` lo 0.47 -> 0.40 or hi 1.21 -> 1.30: ``test_the_inner_ratio_band`` goes red;
 * ``round_min`` 0.8 -> 0.5: ``test_a_rectangular_end_gives_none`` and ``test_the_roundness_edge`` go red;
-* ``barrel_od_max_m`` 0.060 -> 0.080: ``test_the_od_cap`` goes red.
+* ``barrel_od_max_m`` 0.060 -> 0.080: ``test_the_od_cap`` goes red;
+* E1.1, ``circ_min`` 0.75 -> 0.60 in ``RULES`` (or the hull test dropped from (iii)): ``test_a_square_end_gives_none`` goes red (the square, hull
+  ratio 0.637, reads as a round section);
+* E1.1, ``circ_min`` 0.75 -> 0.85: ``test_a_hexagonal_and_an_octagonal_end_are_round_sections`` goes red (the hexagon, 0.827, is lost).
 """
 
 from __future__ import annotations
@@ -42,7 +45,7 @@ RULES = {
     "clamp": {"overhang_max_m": 0.010, "ratio_min": 1.0},
     "depth": {"lo_m": -0.026, "hi_m": 0.003},
     "bore": {
-        "end_slab_m": 0.010, "round_min": 0.8, "barrel_od_max_m": 0.060, "od_ratio": [0.85, 2.00], "inner_ratio": [0.47, 1.21],
+        "end_slab_m": 0.010, "round_min": 0.8, "circ_min": 0.75, "barrel_od_max_m": 0.060, "od_ratio": [0.85, 2.00], "inner_ratio": [0.47, 1.21],
         "axis_offset_max_m": 0.005, "axis_tilt_max_deg": 2,
     },
     "well": {"entry_depth_m": 0.002, "tol": 0.15},
@@ -100,8 +103,41 @@ def test_a_mount_without_a_ring_bore_does_not_claim_one(mount):
 
 
 def test_a_rectangular_end_gives_none():
-    # 0.050 x 0.030: roundness 0.6. (A box with equal sides reads as round under the spec rule, see the report; this is the flat-cut end.)
+    # 0.050 x 0.030: roundness 0.6, the flat-cut end the extent ratio alone rejects
     assert find(M.box(0.0, 0.50, 0.025, 0.015)) is None
+
+
+def test_a_square_end_gives_none():
+    # E1.1: 0.040 x 0.040 has extent ratio 1.0 and OD 0.0566 (its diagonal), so the extent ratio and the OD cap both pass it; the hull fills
+    # 0.637 of its circle, under 0.75. Today it reads `round_section`. (A mount with a ring bore still proves its own end, see below.)
+    assert find(M.box(0.0, 0.50, 0.020, 0.020)) is None
+    assert find(M.box(0.0, 0.50, 0.010, 0.010)) is None  # the size does not matter, the ratio is scale free
+    assert find(M.box(0.0, 0.50, 0.020, 0.020), {"bore_source": None}) is None
+
+
+def test_a_square_end_on_a_mount_with_a_ring_bore_is_still_the_mounts_ring():
+    # evidence (i) is checked first and never reads the hull: the mount's A0 probe found a ring, the slab still gives the OD (the diagonal)
+    end = find(M.box(0.0, 0.50, 0.020, 0.020), RING)
+    assert end is not None and end.evidence == "ring"
+    assert end.od_m == pytest.approx(0.0566, abs=0.0005)
+
+
+@pytest.mark.parametrize("n", [6, 8])
+def test_a_hexagonal_and_an_octagonal_end_are_round_sections(n):
+    # E1.1 guard against an over-tight circ_min: hull ratios 0.827 (hexagon) and 0.900 (octagon), radius 15 mm
+    end = find(M.tube(0.0, 0.50, 0.015, n=n))
+    assert end is not None and end.evidence == "round_section"
+    assert end.od_m == pytest.approx(0.030, abs=0.0005)
+    assert end.centre_su == pytest.approx((0.0, 0.0), abs=1e-4)
+    assert end.face_f == pytest.approx(0.50, abs=1e-4)
+
+
+def test_a_hexagonal_end_is_found_whatever_the_vertex_order():
+    mesh = M.tube(0.0, 0.50, 0.015, n=6)
+    first = find(mesh)
+    assert first is not None
+    for seed in (1, 2, 3):
+        assert find(M.shuffled(mesh, seed)) == first
 
 
 def test_a_70_mm_round_end_gives_none():
