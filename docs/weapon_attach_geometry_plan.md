@@ -394,7 +394,8 @@ All four have base S2 merged, and each runs in its own worktree. Each owns exact
    - the new rail seats by class;
    - the preset fill additions;
    - the cross-pack magazine count judged `fit`;
-   - the Q-G9 parts.
+   - the Q-G9 parts;
+   - the untoothed hosts whose flat seat is not on their highest qualifying run, by class (errata E2-Q1, data for Tom).
 
    The classes and counts go into the spec as a new §10, committed by the lead on `integ/attach`. Per-asset lists stay in scratch.
 5. **Captures** (look-first; the lead views every one):
@@ -458,3 +459,5 @@ The merge commits of the landed slices on `integ/attach`:
 - P1: S3 `51f40a4`, S4 `dc7815b`, S5 `c42aa41`, S6 `097bfcc`
 - `00bd68c` (on integ, before the P1 merges): retired S2's stub-state leg of `test_weapons_g1_verdict.py`. The S2 verification missed that the test asserted `NotImplementedError`, which P1 had to break.
 - Errata E1 (`4dfdfdb`): the E1.1 calibration and the E1.2 counts were measured on live packs in scratch before S10. §0 rule 4 keeps live data to S10 and S12, but the §4.2 calibration rule needs its positives measured. The readings were read-only and uncommitted, and the positives are the preset oracle, not Tom's labels. Not a rule 7 breach.
+- 937ea4d lists 288 unverified optic pairs (w8d world) through the label-era compat path; interim on integ/attach only, closed by S8 under AC148.
+- Errata E2 (proposed, `docs/g1-errata2`): two more live readings were taken in scratch before S10, read-only against a8c and uncommitted, as for E1. E2.3: 0 of the 10 eligible preset hosts has a located magazine and no authored seat. E2-Q2: 19 of the 158 ring ends have one radius (16 would go to (ii), 3 to (iii), none to no end; 27 under the rejected two-bins-of-six reading), 0 of the 67 face rings do, and all 11 bore positives keep their proof. Counts and classes only. Not a rule 7 breach.
