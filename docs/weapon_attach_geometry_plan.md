@@ -371,10 +371,10 @@ All four have base S2 merged, and each runs in its own worktree. Each owns exact
 
    | AC | what is checked |
    |---|---|
-   | AC131, AC132 | 164 placements, by slot; on every preset, no remaining host triangle has all three vertices on a located part |
+   | AC131, AC132 | 163 placements, by slot ("other" 117; errata E1-Q1); on every preset, no remaining host triangle has all three vertices on a located part |
    | AC133 | 36 of 38 twins `fit`, and the 2 others by reason |
    | AC134 | 45 top and 14 bottom toothed hosts by class; 13 of 14 preset optics and all 16 toothed positives on runs; 3 of 4 preset underbarrels on bottom teeth |
-   | AC135 | the 11 bore positives; has-end about 237, none about 20; movers listed by class |
+   | AC135 | the 11 bore positives; has-end 236, none 21 (errata E1.3, merged-detector census); movers listed by class |
    | AC136 | 14 twin magazines at 0.000, and the Military matrix |
    | AC138 | zero entries in every negative control |
    | AC139 | a14's refused (slot, host) set is a superset of a8c's, and the only additions are the preset fill list |
