@@ -440,8 +440,9 @@ def test_the_fit_cache_hits_when_nothing_changed_even_with_a_different_geometry_
 
 
 def test_the_fit_code_digests_are_the_fit_modules_and_the_ring_estimator():
-    # G1 S9 re-pin (AC144): `_fit_code_digests` globs fit_*.py, so fit_calibrate.py (the maths of attach-calibrate) is hashed too
-    assert sorted(FG.FIT_CODE_DIGESTS) == ["fit_bore", "fit_calibrate", "fit_geometry", "fit_locate", "fit_rails", "fit_types", "fit_well", "mount_probe"]
+    # The deliberate pin (G1 S9b): `_fit_code_digests` globs fit_*.py, so a seventh fit_*.py (or a rename into the glob) invalidates every fit cache and the
+    # geometry cache fingerprint. Adding one must be a conscious re-pin of this literal; a tool that is not a detector lives outside the glob (calibrate.py).
+    assert sorted(FG.FIT_CODE_DIGESTS) == ["fit_bore", "fit_geometry", "fit_locate", "fit_rails", "fit_types", "fit_well", "mount_probe"]
     assert all(len(v) == 12 and set(v) <= set("0123456789abcdef") for v in FG.FIT_CODE_DIGESTS.values())
 
 

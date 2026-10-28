@@ -274,11 +274,11 @@ def cmd_validate(args, cfg) -> int:
 
 # -- attach-calibrate: the oracle (docs/weapon_attach_geometry.md 3.2, 3.11; plan S9) -------------------------------------------------------
 #
-# ``fit_calibrate`` is pure (AC144), so this is where files are read. A built directory has lost part of the authored assemblies (a preset's
+# ``calibrate`` is pure (AC144), so this is where files are read. A built directory has lost part of the authored assemblies (a preset's
 # ``refuse_filled`` empties the ``occupied_by`` of its filled slots, a policy refusal turns a slot ``none``), so the oracle is re-derived from the
 # directory records and the GLBs by the SAME steps ``mounts.build_mounts`` and ``fit_geometry._compute`` take: the child vocabulary and the body
 # filter give the baked children, ``locate_by_translation`` the fused parts of a preset, the A1 twin entries the twins. Every positive is handed to
-# ``fit_calibrate.observe_positive`` as the plain dict that module documents. A positive's ``tags`` are its class key, ``<slot>:<class>``, which is
+# ``calibrate.observe_positive`` as the plain dict that module documents. A positive's ``tags`` are its class key, ``<slot>:<class>``, which is
 # what ``fit_geometry.exceptions`` lists (4.2: reasons by class, never asset ids).
 
 
@@ -294,7 +294,7 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
     from ..naming import SKIP_STEM_RE
     from ..sources.glb_geometry import load_triangles
     from ..sources.glb_measure import read_glb_json
-    from . import fit_calibrate as fc
+    from . import calibrate as fc
     from . import fit_geometry as fit
     from . import geometry, mounts
     from .attach import measure_anchor, place
@@ -526,14 +526,14 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
 def cmd_calibrate(args, cfg) -> int:
     """``attach-calibrate [--directory PATH] [--json OUT] [--pack A,B]``: does each literal of the fit gate cover its oracle positives?
 
-    Prints, per literal of spec 4.2, the positives by class, the extreme observed value, the margin and the literal (``fit_calibrate.calibrate``).
+    Prints, per literal of spec 4.2, the positives by class, the extreme observed value, the margin and the literal (``calibrate.calibrate``).
     Exit 0 when every literal covers its positives, 6 (as ``validate``) when one has no positives or a positive lies beyond it; the JSON names the
     literals in ``failed``. ``--json`` writes the full report, with the pair lists of ``attach-preview --pairs`` (``sheets``), to OUT, which must be
     outside this repository (the report is pack-derived)."""
     from .. import weapons as _pkg
     from ..cli import _threejs_v2
     from . import export as _export
-    from . import fit_calibrate
+    from . import calibrate
     from .directory import DIRECTORY_NAME, read_json, weapons_dir
     from .geometry import _FRAME_BORE_MAX_M
     from .guards import refuse_export_target
@@ -554,14 +554,14 @@ def cmd_calibrate(args, cfg) -> int:
     fit_rules = attachment_rules(rules).get("fit_geometry")
     packs = set(_csv(args.pack) or [])
     oracle = _gather_oracle(directory, threejs, rules, packs or None)
-    result = fit_calibrate.calibrate(oracle["observations"], fit_rules, frame_bore_max_m=_FRAME_BORE_MAX_M)
+    result = calibrate.calibrate(oracle["observations"], fit_rules, frame_bore_max_m=_FRAME_BORE_MAX_M)
     report = {
         "ok": result["ok"], "hosts": oracle["hosts"], "skipped": oracle["skipped"], "positives": oracle["positives"],
         "rows": result["rows"], "failed": result["failed"], "unmeasured": result["unmeasured"],
-        "parameters": fit_calibrate.parameters(fit_rules),
+        "parameters": calibrate.parameters(fit_rules),
     }
     if out_path is not None:
-        sheets = fit_calibrate.sheet_pairs(directory, oracle["toothed"], oracle["frame"], tuple(COMPAT_TIERS))
+        sheets = calibrate.sheet_pairs(directory, oracle["toothed"], oracle["frame"], tuple(COMPAT_TIERS))
         full = {**report, "sheets": sheets, "attach_rules_digest": directory.get("attach_rules_digest"),
                 "weapon_attach_version": _pkg.WEAPON_ATTACH_VERSION}
         out_path.parent.mkdir(parents=True, exist_ok=True)
