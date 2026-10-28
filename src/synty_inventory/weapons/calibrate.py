@@ -38,16 +38,17 @@ Readings of the spec (each is a choice where 4.2 is silent; the slice report lis
   the barrel end's centre in (s, u). Both are zero on an authored, axis-aligned assembly, which is what the spec's table records.
 * **circ_min** is enforced on the positives whose host barrel end is proved by a face ring (evidence (ii), errata E1.1): the hull share of the end slab.
 * **well.tol** is the larger of the length and width deviations of the candidate's entry section from the reference.
-* **Populations (S10a).** Each row carries ``spec_n``, the count its 4.2 line states (``SPEC_N``), beside ``n``, the tool's own. ``n`` counts
-  observations: a twin seated on the child it twins is a second observation of that seat. A difference of count is read from the classes and reported,
-  never tuned away.
+* **Populations (S10a).** Each row carries ``spec_n``, the count its 4.2 line states (``SPEC_N``), in seats (errata E3.17), beside ``seats`` and ``n``,
+  the tool's own. ``n`` counts observations: a twin seated on the child it twins is a second observation of that seat. A difference of count is read
+  from the classes and reported, never tuned away.
 * **depth** is a review list (spec 3.9): it never fails the check, and its pairs outside ``depth.lo_m`` .. ``depth.hi_m`` are listed.
-* **Seats (C1).** Each row carries ``seats``, the count of distinct seats among the observations it uses, beside ``n`` (spec 4.2 states ``n`` as
-  seats). A seat is the distinct (host, slot, seat node), plan 9.6 ruling 5: ``cli`` names the node as ``seat_node`` on a positive, which ``_obs`` copies
-  to its observations. A baked child is its own node; a twin carries the node of the baked child it is seated on, so it shares that seat; a preset's
-  seat is its placed seat point clustered at 1 mm per (host, slot) (``cli._fused_node``): two preset points within 1 mm on one host and slot are one
-  seat, and a preset never merges with a baked child or with another host's (C1). An observation with no node (a hand-built one, or a frame
-  observation) stands in with its part, so ``seats`` never exceeds ``n`` and a missing node never merges two parts into one seat.
+* **Seats (C1).** Each row carries ``seats``, the count of distinct seats among the observations it uses, beside ``n``; spec 4.2 states its counts
+  in seats, so ``spec_n`` is read against ``seats`` (errata E3.17). A seat is the distinct (host, slot, seat node), plan 9.6 ruling 5:
+  ``cli`` names the node as ``seat_node`` on a positive, which ``_obs`` copies to its observations. A baked child is its own node; a twin carries the node
+  of the baked child it is seated on, so it shares that seat; a preset's seat is its placed seat point clustered at 1 mm per (host, slot)
+  (``cli._fused_node``): two preset points within 1 mm on one host and slot are one seat, and a preset never merges with a baked child or with another host's (C1).
+  An observation with no node (a hand-built one, or a frame observation) stands in with its part, so ``seats`` never exceeds ``n`` and a missing node
+  never merges two parts into one seat.
 * ``rules['exceptions']`` lists class keys (strings ``<slot>:<class>``, e.g. ``optic:preset``, no asset ids); an observation whose tags (its own ``<slot>:<class>``) hit one is counted apart and bounds nothing.
 """
 
