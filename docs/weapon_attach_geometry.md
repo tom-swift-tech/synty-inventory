@@ -530,7 +530,7 @@ Every key is required. The validator rejects a missing key, a negative length, a
 | `bore.axis_offset_max_m` | bore positives (11) | 1.2 mm | 3.8 mm | 5 mm | none |
 | `bore.axis_tilt_max_deg` | bore positives (11) | 0° | 2° | 2° | none |
 | `bore.circ_min` (lower bound, errata E1.1) | barrel-section positives proved by a face ring, evidence (ii): 2 (the non-host presets; 3 before errata E3.2 moved a fused-device preset to evidence (i)); all 7 barrel-section positives agree | min 0.8236 (hull ratio) | 0.0736 | 0.75 | none |
-| `well.tol` | judged twin magazines (16 of 16 once errata E3.6 and E3.12 are in; 15 of 16 before) | 0.1044 | 0.0456 | 0.15 | E-G2. Alternative 0.095 in Q-G2. |
+| `well.tol` | judged twin magazines: 15 seats, 16 observations (errata E3.17; every one judged once errata E3.6 and E3.12 are in, one fewer before) | 0.1044 | 0.0456 | 0.15 | E-G2. Alternative 0.095 in Q-G2. |
 | `geometry._FRAME_BORE_MAX_M` (a `geometry.py` constant, Q-G4; not in `fit_geometry`) | frame-changed hosts (3) | 18 mm | 7 mm | 25 mm | none |
 
 The detector parameters (locator grid, tooth amplitude, pitch window, CV, count, merge, band, closing, minimum run, round section, OD cap, entry depth) are not tolerances on a pair. They cover the measured distributions in §1.1: pitch p5 to p95 is 17 to 32 mm inside a 5 to 40 mm window, and tooth amplitude p5 is 2.9 mm against a 0.8 mm floor. `attach-calibrate` prints them with those distributions.

@@ -1000,3 +1000,16 @@ Every change is to an observed column (max observed, margin, positives count). N
 - **Red first:** a test that the calibrate rows report `spec_n` 2 for `bore.circ_min` and 7 for `bore.inner_ratio`. It is red on the E3.15 merge and green after. The one existing pin, `test_weapons_g1_calibrate.py::test_every_row_prints_the_spec_count_beside_its_own`, holds 4 and 6 and is updated in the slice.
 - **Slice:** base is the E3.15 merge tip, in one worktree. The write-once manifest is `src/synty_inventory/weapons/calibrate.py` and `tests/test_weapons_g1_calibrate.py`.
 - **Gate:** plan §0 rule 2; `fit_digest`, `attach_rules_digest` and the w8d-world digest do not move and are stated; a full suite run; and a calibrate read-back on the tip with a named copy-catalog config and its rc, whose row values equal S10b's except `spec_n` on the two rows.
+
+### E3.17 `well.tol` positives stated in seats (docs, docstrings)
+
+**Status: APPROVED by Tom, 2026-10-28 (decision 4 (a)), verbatim: "Approve the S11 decision set at the defaults: 1 ratified, 2 (i), 4 (a), 5 (a), 6 (b), 3 at its four defaults."**
+It changes no literal, band, verdict, stored record, `SPEC_N` entry or test pin.
+- **Cause (S11 finding 10, trace T-well).**
+  - The §4.2 row said 16, an observation count; `SPEC_N` said 15, the pre-E3.6 numerator copied at S10a (`91e818f`).
+  - Live, `n` is 16 and `seats` is 15. Both numbers are right in their own unit.
+  - No code compares `spec_n` with `n` or `seats`: `calibrate.py:263` prints the three side by side.
+  - Two docstrings in `calibrate.py` disagreed on the unit: the Populations paragraph read `spec_n` against `n`, and the Seats paragraph said §4.2 states seats.
+- **The §4.2 row.** The positives cell states 15 seats and 16 observations.
+- **`SPEC_N`.** `well.tol` stays 15, now read as seats. The pins that hold it are unchanged.
+- **The docstrings.** The Populations paragraph says §4.2 states its counts as seats, `spec_n` sits beside `seats`, and `n` counts observations. The Seats paragraph keeps "spec 4.2 states `n` as seats" reworded to the same reading. Both cite E3.17.

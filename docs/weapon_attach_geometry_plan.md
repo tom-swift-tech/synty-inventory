@@ -561,6 +561,36 @@ The merge commits of the landed slices on `integ/attach`:
 - Slice D, the attempts before D3: slice D `05a2d84` reported 11, a proxy (a located part on a refused slot). The 27 located entries on 10 presets include 9 pairs refused earlier by another rule, plus the 2 where `refuse_filled`'s located disjunct holds. It is superseded and unmerged. D2 stopped under its scope rule with no edit: its manifest lacked `geometry.py`, whose three-key copy of `host_feats` is the only path from `refuse_filled` to the report.
 - S11 trace T-fill (read-only, cold copy-catalog builds, rc 0): at all seven built commits from `4c9d9e7` to `bc3657f` the refused (host, slot) set is 534 pairs with the locator on and 533 with it off. On minus off is exactly the rifle preset's muzzle, where the located disjunct is the sole cause. The sniper preset's optic is refused by the baked-glass disjunct with the locator off, and by both disjuncts with it on. a8c (`5633ded`) refuses 528; the +6 is the rifle muzzle, the sniper optic and the two frame-changed SMGs' `sight_front` and `sight_rear`, which reproduces errata E3.5's six additions and its two fill-list additions. No turning commit: the sniper optic is an addition only against a8c, where its source is `none` (which `refuse_filled` skips); from `4c9d9e7` a detector seat makes it `probe` and glass refuses it. Open: the span `5633ded` to `4c9d9e7` is not bisected. The sole-cause count is 1, recorded as data; the live guard pins 2 as its own literal. E3.5a's "0 live" counts a different quantity, the frame-changed hosts that gain a sight seat; no report key carries it, and its guard pins it at 0.
 - D3 builder finding (data only): the locator finds a baked scope child's own mesh as a fused part, so a preset with a scope child is refused by glass and by the located part together, which is the live sniper preset's shape. A glass-only test host therefore needs a glass-named child whose mesh matches no pack part.
+- Tom's word on the S11 decision set (sent 2026-10-28 as one file, 0 ids), verbatim, 2026-10-28: "Approve the S11 decision set at the defaults: 1 ratified, 2 (i), 4 (a), 5 (a), 6 (b), 3 at its four defaults." Taken as follows:
+  - **Decision 1, ratified.** These are the plan §0 rule 7 items that had no line from Tom: (a) the corrections of false merged claims, and (b) the preset-seat clustering literals (`_FUSED_SEAT_M` 0.001, nearest-then-first-index) and the (host, slot, place) seat identity of C1 (plan §9.6 ruling 5). Both define counting, not fit, and no verdict moved.
+  - **Decision 2 (i).** Slice B: a per-host override, "no optic mount on this run" or "no underbarrel mount on this run", for two hosts in the existing id-keyed overrides file. Its gate: exactly the 23 pairs (the 22 shroud optics and cell 06) move to `no_fit`, every other verdict is unchanged, and every digest except the overrides digest is unchanged. Option (ii) was withdrawn on trace T-B2. Correction to the decision file: it said the overrides file carries "13 such entries", which is a counting error. At `69d54a6` the file holds 36 `ids` entries and 0 globs.
+  - **Decision 3, its four defaults.** The 449 labels go to the deduplicated count: identical duplicates collapse, and the 5 conflicting records are excluded and listed back by index. A two-part record is one pair, `fit` only if both parts fit. Unknown keys are dropped, and `fits` goes from string to bool. The bare-draw hazard is closed red-first. S12 runs once, last, as a spot check after the peer's word, and nothing is tuned to the labels.
+  - **Decision 4 (a).** Errata E3.17 (this commit): the `well.tol` row states 15 seats and notes 16 observations, the tool's `SPEC_N` 15 stands, and the two `calibrate.py` docstrings agree. Every other row's spec count at head equals its seat count.
+  - **Decision 5 (a).** Slice B2, after B: in the same file, a per-host override pins cell 20's underbarrel seat to the handguard run. No rule changes, and no owner or height test is built.
+  - **Decision 6 (b).** Cell 11's clash (trace T-11) is a known data item. The clash gate is raised as a separate spec question after the geometry gate closes. Nothing is built.
+- Slice E+F, S11 findings 7, 12 and 13 (test-only; `3ef8cc4` on `69d54a6`, merged `fe0bce1`):
+  - The new `tests/test_weapons_e3_coverage.py` holds 24 tests:
+    - gate 6(c) on a 0.329 m toothed run, held only through the sight clip, with the test's own twin of the check;
+    - the covered branch of `fit_geometry._ref`;
+    - `clamp.ratio_min` under the shipped rules: 0.50 and 0.68 fail and 0.70 fits, at the verdict and at the calibrate row.
+  - Four comment-only E3.8 citations at finding 12's re-pins.
+  - G-1 is 3749 / 8, rc 0 (base 3725 / 8). The new tests are green on the base by design.
+  - Red-first comes from named breaks on full-suite scratch copies:
+    - A, the sight clip removed: 11 failed;
+    - B, `covered` forced False in `_ref`: 54 failed;
+    - C, `ratio_min` 0.30: 10 failed. `test_weapons_e3_clamp.py` stays green under C.
+- E+F findings (data, no action):
+  1. **S11 finding 13, as the review reported it ("only the BLOCK and digest pins do"), is incomplete.** Under break C, `test_weapons_g1_seats.py::test_fold_in_6_what_host_features_emits_is_what_verdict_reads` (its 0.59 ratio case) also goes red.
+  2. **The long-run seat contract (E+F builder).**
+     - On a run longer than `default_seat_len_m` (0.20 m), the seat point is the centre of the rearmost 0.20 m, while `span_m` is the whole run.
+     - So the point ± span/2 window of gate 6(c)'s check form misses a front sight between f 0.3845 and the run's end at 0.449 on the test host. That form is `test_weapons_w8h_probe.gate_violations`, and `test_weapons_g1_seats.py:89`'s twin of it.
+     - The new cases sit inside the window, and a separate assertion covers the whole run.
+     - Whether the gap is in the gate's wording or in the seat and span contract is a spec question for Tom. No fix in any slice until he answers.
+  3. **The D3 directory guard goes red under breaks A, B and C**, as designed: it pins the directory sha.
+- E+F, harness versus game.
+  - The builder's own break C run read 13 failed / 12 skipped.
+  - The 3 extra failures are `test_weapons_w6_guards`' git-work-tree tests, which fail in an archive copy with no `.git`. The 4 extra skips come from that environment too.
+  - That is a harness difference, not the break. DM-A's runs in git worktrees are the ones of record.
 
 ## 9. Errata E3: the build ladder (E3.0 to S10b)
 
