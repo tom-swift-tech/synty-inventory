@@ -288,3 +288,95 @@ def test_the_json_report_is_refused_inside_the_repository_with_exit_3(world, cap
     code, out = calibrate_cli(world, capsys, "--json", str(target))
     assert code == 3 and out["ok"] is False and not target.exists()
 
+
+
+# -- the populations (slice S10a: the live tool measured the wrong positive sets) ----------------------------------------------------------------
+#
+# ``g1_population_world`` is the S9 world plus a glass-sheet host, a preset with a fused muzzle brake that has NO attachment block, and a preset that is
+# no host (hold class ``none``, like the real Heavy and Complex presets) with a fused scope and silencer. Every count below is a LITERAL worked out from
+# those meshes (module docstring of the fixture), not read from the rules or from the code under test.
+
+P = _load("g1_population_world")
+
+
+@pytest.fixture(scope="module")
+def pop(tmp_path_factory):
+    tmp = tmp_path_factory.mktemp("g1_population")
+    cat, root, directory, _excluded = P.build(tmp)
+    return {"tmp": tmp, "root": root, "directory": directory, "cfg": H.write_config(tmp, cat, extra=[f'threejs_v2: "{root.as_posix()}"'])}
+
+
+def oracle(pop):
+    """The observations and counts of ``attach-calibrate``'s oracle over the population world, with this test's literal ``fit_geometry`` block."""
+    from synty_inventory.weapons import cli as wcli
+
+    shipped = rules_mod.load_rules()
+    shipped["attachment_rules"]["fit_geometry"] = block()
+    return wcli._gather_oracle(pop["directory"], pop["root"], shipped, None)
+
+
+def of(observations, host, part, key):
+    return [o for o in observations if o["host"] == T.pid(host) and o["part"] == T.pid(part) and o["key"] == key]
+
+
+def test_a_glass_sheet_is_no_optic_positive_and_no_clamp(pop, capsys, monkeypatch):
+    # GLASS_HOST bakes a scope body AND a 4 mm wide Sight_Glass sheet on its toothed rail. The sheet is not an optic: five baked optic positives (the four
+    # of the S9 world and this scope body), and the two toothed ones (the S9 carbine scope and this one) are the clamp rows' only baked positives. A sheet
+    # counted as a clamp reads 0.004 / 0.017 = 0.2353 against ratio_min 1.0
+    with_rules(monkeypatch)
+    code, out = calibrate_cli(pop, capsys)
+    assert out["positives"]["optic:baked"] == 5
+    ratio, over = row(out, "clamp.ratio_min"), row(out, "clamp.overhang_max_m")
+    assert ratio["positives"]["baked"] == {"n": 2, "min": 1.1765, "max": 1.1765} and ratio["ok"] is True
+    assert over["positives"]["baked"] == {"n": 2, "min": 0.008, "max": 0.008}
+    assert row(out, "depth")["positives"]["baked"]["n"] == 2 and row(out, "depth")["outside_n"] == 0
+    assert code == 0 and out["failed"] == []
+
+
+def test_a_located_fused_part_without_an_attachment_block_is_a_positive_of_the_slot_its_name_reads(pop):
+    # BRAKE_PRESET fuses the pack's MuzzleBrake part, a ``role == part`` record with no attachment block. The locator must search it (AC131 searches every part of
+    # the pack), and the child vocabulary reads ``brake`` as a muzzle device, so it is the preset's muzzle positive: one OD ratio, one offset, one tilt
+    got = oracle(pop)["observations"]
+    assert [o["cls"] for o in of(got, P.BRAKE_PRESET, P.BRAKE, "od_ratio")] == ["preset"]
+    assert len(of(got, P.BRAKE_PRESET, P.BRAKE, "axis_offset")) == 1 and len(of(got, P.BRAKE_PRESET, P.BRAKE, "axis_tilt")) == 1
+
+
+def test_a_preset_that_is_no_host_still_feeds_the_rows_with_its_located_parts(pop):
+    # HEAVY_PRESET has hold class none (no mounts, as the real Heavy and Complex presets): not a host, so it counts in no host total, but it is an authored
+    # assembly and AC131 locates on it. Its fused scope is an optic positive (a zone reading: the rod rifle has no teeth) and its silencer a muzzle positive
+    result = oracle(pop)
+    assert [o["cls"] for o in of(result["observations"], P.HEAVY_PRESET, T.GW.SCOPE, "zone")] == ["preset"]
+    assert [o["cls"] for o in of(result["observations"], P.HEAVY_PRESET, T.GW.SILENCER, "od_ratio")] == ["preset"]
+    assert result["hosts"] == 19 and result["preset_only_hosts"] == 1
+
+
+def test_the_locator_placements_are_counted_by_slot_the_way_ac131_counts_them(pop):
+    # Located on the four presets with fused parts (every part of the pack is searched, block or not): Rifle_01 the fused scope and silencer and its baked
+    # Mag child (the mesh holds the children), Carbine_01 its fused magazine, Carbine_02 the plain device, Carbine_03 the brake (no block: "other"),
+    # Heavy_01 the scope and the silencer. By the part's block slot: optic 2, muzzle 3, magazine 2, other 1
+    assert oracle(pop).get("placements") == {"total": 8, "by_slot": {"magazine": 2, "muzzle": 3, "optic": 2, "other": 1}}
+
+
+def test_the_population_world_calibrates_on_the_spec_populations(pop, capsys, monkeypatch):
+    with_rules(monkeypatch)
+    code, out = calibrate_cli(pop, capsys)
+    assert code == 0
+    # the baked magazines read their own well (the reference is the child): the well row's positives are the judged twin magazines only (spec 4.2)
+    assert out["positives"] == {"magazine:twin": 2, "muzzle:baked": 1, "muzzle:preset": 4, "muzzle:twin": 2, "optic:baked": 5, "optic:preset": 2, "optic:twin": 4}
+    assert row(out, "well.tol")["positives"] == {"twin": {"n": 2, "min": 0.0, "max": 0.0}}
+    # what was seen and left out is counted, not dropped: the six baked magazines (Carbine, Scoped_Rail, Sheeted, Preset_Rifle, Uzi, Plain: the Both host is
+    # a frame conflict) and the one glass sheet
+    assert out["not_positives"] == {"magazine:baked": 6, "optic:glass": 1}
+    assert (out.get("placements") or {}).get("measured") == {"total": 8, "by_slot": {"magazine": 2, "muzzle": 3, "optic": 2, "other": 1}}
+
+
+def test_every_row_prints_the_spec_count_beside_its_own(pop, capsys, monkeypatch):
+    # spec 4.2, column "positives (n)": a LITERAL table. rail.zone is "all optic positives" (no number: null); bore.circ_min is errata E1.1's 4
+    spec = {"clamp.overhang_max_m": 16, "clamp.ratio_min": 16, "rail.zone": None, "depth": 16, "bore.od_ratio": 11, "bore.inner_ratio": 6,
+            "bore.axis_offset_max_m": 11, "bore.axis_tilt_max_deg": 11, "bore.circ_min": 4, "well.tol": 15, "geometry._FRAME_BORE_MAX_M": 3}
+    assert {r["literal"]: r.get("spec_n", "absent") for r in calibrate(ALL)["rows"]} == spec  # the pure layer carries it
+    with_rules(monkeypatch)
+    _code, out = calibrate_cli(pop, capsys)
+    assert {r["literal"]: r.get("spec_n", "absent") for r in out["rows"]} == spec
+    assert (out.get("placements") or {}).get("spec") == {"total": 163, "by_slot": {"optic": 14, "magazine": 15, "muzzle": 4, "underbarrel": 4,
+                                                                                   "laser_light": 3, "sight_front": 6, "other": 117}}
