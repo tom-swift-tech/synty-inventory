@@ -280,13 +280,20 @@ def cmd_validate(args, cfg) -> int:
 # filter give the baked children, ``locate_by_translation`` the fused parts of a preset, the A1 twin entries the twins. Every positive is handed to
 # ``calibrate.observe_positive`` as the plain dict that module documents. A positive's ``tags`` are its class key, ``<slot>:<class>``, which is
 # what ``fit_geometry.exceptions`` lists (4.2: reasons by class, never asset ids).
+#
+# Populations (S10a). The positives are the spec's, and each row prints the spec's count beside its own: the locator searches every part of the pack, an
+# attachment block or not (AC131: 163 placements), and runs on every preset, a host or not (the Heavy and Complex presets are authored assemblies too); a
+# baked glass sheet is no optic (the rules' ``baked_sights.glass_tokens``); a baked magazine against its own well is no judgment, so the well row holds the
+# twin magazines (4.2). What is left out is counted under ``not_positives``, never dropped silently.
 
 
 def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] | None) -> dict:
     """``{observations, toothed, frame, positives, hosts, skipped}``: the observations of every positive of the directory's eligible hosts.
 
     ``toothed`` / ``frame`` are the host ids whose reduced mesh carries a toothed run, and the hosts whose forward axis the frame vote moved
-    (the two sheets of ``attach-preview``). ``positives`` counts the positives per ``<slot>:<class>``, ``skipped`` the hosts left out by reason."""
+    (the two sheets of ``attach-preview``). ``positives`` counts the positives per ``<slot>:<class>``, ``skipped`` the hosts left out by reason.
+    ``placements`` counts the locator's placements as AC131 does (by the part's block slot, ``other`` without one), ``preset_only_hosts`` the presets that
+    are no host (only their located parts are positives) and ``not_positives`` what was seen and left out (glass sheets, baked magazines)."""
     import dataclasses
 
     import numpy as np
@@ -305,9 +312,23 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
     fit_rules = tables.get("fit_geometry")
     if not fit_rules:
         raise WeaponsError("the rules carry no attachment_rules.fit_geometry block: there is nothing to calibrate", EXIT_SCHEMA)
-    parts = [w for w in directory["weapons"] if w.get("attachment") and (w.get("files") or {}).get("glb")]
+    # the locator searches every part of the host's pack that has a GLB (AC131), an attachment block or not: a body part has none, and so does the Military
+    # muzzle brake (spec Q-G9). The twins are the parts whose block lists a twin entry.
+    parts = [w for w in directory["weapons"] if w.get("role") == "part" and (w.get("files") or {}).get("glb")]
+
+    def fit_slot(rec: dict) -> str | None:
+        """The slot a located part fills: its attachment block's, else the geometry slot the child vocabulary (``mounts.matching_slots``) reads from its
+        name (``brake`` is a muzzle device), else None (a body part: it fills nothing)."""
+        if rec.get("attachment"):
+            return rec["attachment"]["slot"]
+        named = [s for s in mounts.matching_slots(rec["asset_id"], tables) if s in fit.FIT_SLOTS]
+        return named[0] if named else None
+
+    slot_of = {rec["id"]: fit_slot(rec) for rec in parts}
     twins: dict[tuple[str, str], list[tuple[dict, dict]]] = {}  # (host, slot) -> [(part record, its twin entry)]
     for part in parts:
+        if not part.get("attachment"):
+            continue
         for e in part["attachment"]["compatible_hosts"]:
             if e["tier"] == "twin":
                 twins.setdefault((e["host"], part["attachment"]["slot"]), []).append((part, e))
@@ -323,9 +344,25 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
             mesh_memo[rec["id"]] = (np.asarray(got[0], dtype=np.float64), np.asarray(got[1], dtype=np.int64)) if ok else None
         return mesh_memo[rec["id"]]
 
+    anchor_memo: dict[str, tuple] = {}
+
+    def part_anchor(rec: dict) -> tuple:
+        """``(anchor, footprint)`` of a located part: its block's, else measured from its mesh for the slot its name reads (as a baked child is), else
+        ``(None, None)``."""
+        if rec.get("attachment"):
+            return rec["attachment"]["anchor"], rec["attachment"]["footprint"]
+        if rec["id"] not in anchor_memo:
+            got = part_mesh(rec) if slot_of[rec["id"]] else None
+            m = measure_anchor(got[0], slot_of[rec["id"]]) if got is not None else None
+            anchor_memo[rec["id"]] = (m["anchor"], m["footprint"]) if m and m["anchor"] is not None else (None, None)
+        return anchor_memo[rec["id"]]
+
     observations: list[dict] = []
     positives: dict[str, int] = {}
     skipped: dict[str, int] = {}
+    placed: dict[str, int] = {}
+    not_positives: dict[str, int] = {}
+    preset_only_hosts = 0
     toothed_hosts: set[str] = set()
     frame_hosts: set[str] = set()
     used = 0
@@ -333,8 +370,12 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
 
     for host in sorted((w for w in directory["weapons"] if not packs or w["pack"] in packs), key=lambda w: w["id"]):
         geo, files = host.get("geometry"), host.get("files") or {}
-        if not geo or not geo.get("mounts") or not geo.get("axes") or not files.get("glb") \
-                or not mounts.eligible(host["role"], host["kind"], host["hold_class"]):
+        if not geo or not geo.get("axes") or not files.get("glb"):
+            continue
+        is_host = bool(geo.get("mounts")) and mounts.eligible(host["role"], host["kind"], host["hold_class"])
+        # a preset that is no host (Military's Heavy and Complex presets: hold class none, no mounts) is still an authored assembly, and AC131 locates on all
+        # 14 presets. Only its located parts are positives: it has no mounts, no baked children, no twins and no frame vote of its own (spec 3.2)
+        if not is_host and not (host["role"] == "whole" and mounts.is_filled_host(host["asset_id"], tables)):
             continue
         path = threejs / files["glb"]
         glb_node, scale = files.get("glb_node") or None, float(files.get("glb_scale") or 1.0)
@@ -350,17 +391,20 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
 
         # -- the frame (spec 3.3). The vote is not stored in a record, so it is read back: the voted axis differs from the bounding-box axis
         # (``geometry.long_axis``), or, when it does not, a body axis that differs from the record's is the conflict the vote kept the build's frame on
-        body = geometry._body_vertices(path, glb_node, scale, rules, verts_all)
-        changed = axes["forward"][1] != geo["long_axis"]
-        if not changed and geometry._pick_long_axis(np.ptp(body, axis=0), 2) != f_idx:
-            skipped["frame_conflict"] = skipped.get("frame_conflict", 0) + 1  # INV-27: no detector runs on it, so it is no positive
-            continue
-        if changed:
-            frame_hosts.add(host["id"])
-            ring = end_ring_d(body, f_idx, f_sign, geometry._FRAME_END_SLAB_M)
-            if ring is not None:
-                observations.append(fc.frame_observation(host["id"], ring))
-        used += 1
+        if is_host:
+            body = geometry._body_vertices(path, glb_node, scale, rules, verts_all)
+            changed = axes["forward"][1] != geo["long_axis"]
+            if not changed and geometry._pick_long_axis(np.ptp(body, axis=0), 2) != f_idx:
+                skipped["frame_conflict"] = skipped.get("frame_conflict", 0) + 1  # INV-27: no detector runs on it, so it is no positive
+                continue
+            if changed:
+                frame_hosts.add(host["id"])
+                ring = end_ring_d(body, f_idx, f_sign, geometry._FRAME_END_SLAB_M)
+                if ring is not None:
+                    observations.append(fc.frame_observation(host["id"], ring))
+            used += 1
+        else:
+            preset_only_hosts += 1
 
         # -- the baked children of the four slots, as build_mounts finds them (the body filter included, the policy refusals not) --------------
         candidates = mounts.mesh_nodes(read_glb_json(path), glb_node)
@@ -373,7 +417,7 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
 
         volume = mounts._volume(verts_all)
         by_slot: dict[str, list[str]] = {slot: [] for slot in fit.FIT_SLOTS}
-        for name in sorted(candidates):
+        for name in sorted(candidates) if is_host else ():
             slots = mounts.matching_slots(name, tables)
             if not slots:
                 continue
@@ -383,6 +427,9 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
             for slot in slots:
                 if slot in by_slot:
                     by_slot[slot].append(name)
+        # a glass sheet (a ``baked_sights.glass_tokens`` word in the child's name) is dropped from the host mesh like any child, but it is no optic: a 3 mm
+        # foot that is no clamp. The rules' own classification, as ``build_mounts`` reads it
+        glass = set(mounts.baked_children(candidates, host["asset_id"], tables, vertices, verts_all, axes, volume)["glass"]) if is_host else set()
         measured = {slot: mounts._measure_children(vertices, slot, by_slot[slot], tables.get("anchor"))
                     for slot in ("optic", "underbarrel", "magazine")}
         listed = {slot: sorted(n for n in by_slot[slot] if n in measured[slot]) for slot in measured}
@@ -400,7 +447,10 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
                 placements += [dataclasses.replace(pl, part=rec["id"]) for pl in found]
                 if found:
                     located_mesh[rec["id"]], located_rec[rec["id"]] = got[0], rec
-        filling = [pl for pl in placements if located_rec[pl.part]["attachment"]["slot"]]
+        for pl in placements:  # AC131 counts a placement by its part's block slot, "other" for a part without one
+            key = (located_rec[pl.part].get("attachment") or {}).get("slot") or "other"
+            placed[key] = placed.get(key, 0) + 1
+        filling = [pl for pl in placements if slot_of[pl.part]]
         reduced_memo: dict[frozenset, tuple | None] = {}
 
         def reduced(drop: frozenset, path=path, glb_node=glb_node, scale=scale, basis=basis, filling=filling,
@@ -424,13 +474,14 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
         muzzle_children = frozenset(by_slot["muzzle"])
         muzzle_v = verts_all if not muzzle_children else mounts._load(path, None, glb_node, scale, muzzle_children)
         point_s = bore_source = None
-        if muzzle_v is not None:
+        # a preset that is no host has no muzzle mount, so spec 3.4 step 1 takes its second branch: the middle of the side extent, and no mount bore source
+        if muzzle_v is not None and is_host:
             point, _src, face = geometry.muzzle_probe(muzzle_v, axes["forward"], axes["up"])
             point_s = float(np.dot([round(float(c), 4) for c in point], basis[1]))
             bore_source = mounts.bore_diameter(face, f_idx)[1]
         muzzle_mesh = reduced(muzzle_children)
         s0 = fc.centreline(muzzle_mesh, reduced(frozenset()), point_s, bore_source, fit_rules)
-        sight = geo["mounts"].get("sight_front")
+        sight = (geo.get("mounts") or {}).get("sight_front")
         sight_f = float(np.dot(sight["point"], basis[0])) if sight and sight.get("source") == "probe" and sight.get("point") else None
 
         def add(pos: dict, host=host) -> None:
@@ -442,7 +493,7 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
         for slot, side in (("optic", "top"), ("underbarrel", "bottom")):
             names = listed[slot]
             mesh = reduced(frozenset(names)) or empty
-            if fc.toothed(mesh, side, s0, fit_rules):
+            if is_host and fc.toothed(mesh, side, s0, fit_rules):
                 toothed_hosts.add(host["id"])
 
             def rail(cls, label, point, footprint, slot=slot, mesh=mesh, s0=s0, sight_f=sight_f):
@@ -451,6 +502,9 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
                      "sight_f": sight_f if slot == "optic" else None})
 
             for name in names:
+                if slot == "optic" and name in glass:
+                    not_positives["optic:glass"] = not_positives.get("optic:glass", 0) + 1
+                    continue
                 anchor, footprint, _vol = measured[slot][name]
                 rail("baked", name, anchor["point"], footprint)
             for rec, entry in twins.get((host["id"], slot), ()):
@@ -460,8 +514,9 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
                     rail("twin", rec["id"], measured[slot][child][0]["point"], rec["attachment"]["footprint"])
             for pl in placements:
                 rec = located_rec[pl.part]
-                if rec["attachment"]["slot"] == slot and rec["attachment"]["anchor"] is not None:
-                    rail("preset", rec["id"], np.asarray(rec["attachment"]["anchor"]["point"]) + np.asarray(pl.t), rec["attachment"]["footprint"])
+                anchor, footprint = part_anchor(rec)
+                if slot_of[rec["id"]] == slot and anchor is not None:
+                    rail("preset", rec["id"], np.asarray(anchor["point"]) + np.asarray(pl.t), footprint)
 
         # -- muzzle: the barrel end of the host minus its muzzle devices, against each device's mating face -----------------------------------
         def device(cls, label, verts, anchor, footprint, point, axis, muzzle_mesh=muzzle_mesh, bore_source=bore_source, basis=basis):
@@ -485,10 +540,9 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
                 device("twin", rec["id"], got[0], rec["attachment"]["anchor"], rec["attachment"]["footprint"], seat["point"], seat["up"])
         for pl in placements:
             rec = located_rec[pl.part]
-            if rec["attachment"]["slot"] == "muzzle" and rec["attachment"]["anchor"] is not None:
-                anchor = rec["attachment"]["anchor"]
-                device("preset", rec["id"], located_mesh[rec["id"]], anchor, rec["attachment"]["footprint"],
-                       np.asarray(anchor["point"]) + np.asarray(pl.t), anchor["up"])
+            anchor, footprint = part_anchor(rec)
+            if slot_of[rec["id"]] == "muzzle" and anchor is not None:
+                device("preset", rec["id"], located_mesh[rec["id"]], anchor, footprint, np.asarray(anchor["point"]) + np.asarray(pl.t), anchor["up"])
 
         # -- magazine: the well of a baked magazine against the entry section of the magazine on its seat ----------------------------------
         def well_pos(cls, label, child, part_verts, part_tris, path=path, scale=scale, basis=basis):
@@ -500,10 +554,9 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
                  "ref_mag": (fit.to_fsu(basis, np.asarray(child_got[0], dtype=np.float64)), np.asarray(child_got[1], dtype=np.int64)),
                  "part_mesh": (fit.to_fsu(basis, part_verts), part_tris)})
 
-        for name in listed["magazine"]:
-            got = load_triangles(path, name, exclude=mounts._collision, scale=scale)
-            if got is not None and len(got[0]) and len(got[1]):
-                well_pos("baked", name, name, np.asarray(got[0], dtype=np.float64), np.asarray(got[1], dtype=np.int64))
+        # a baked magazine against its own well reads 0 by construction (the reference is the child itself): no judgment, so no positive. Spec 4.2 names
+        # the judged twin magazines for ``well.tol``
+        not_positives["magazine:baked"] = not_positives.get("magazine:baked", 0) + len(listed["magazine"])
         for rec, entry in twins.get((host["id"], "magazine"), ()):
             child = (entry.get("replaces") or [None])[0]
             child = child if child in measured["magazine"] else (mounts._seat(measured["magazine"]) if measured["magazine"] else None)
@@ -515,11 +568,12 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
             well_pos("twin", rec["id"], child, got[0] @ m[:3, :3].T + m[:3, 3], got[1])
         # a magazine fused into a preset with no baked magazine has no well reference to compare with (errata E2-Q3): it is no positive
         for pl in placements:
-            if located_rec[pl.part]["attachment"]["slot"] == "magazine" and not listed["magazine"]:
+            if slot_of[pl.part] == "magazine" and not listed["magazine"]:
                 skipped["located_magazine_without_reference"] = skipped.get("located_magazine_without_reference", 0) + 1
 
     return {"observations": observations, "toothed": toothed_hosts, "frame": frame_hosts, "positives": dict(sorted(positives.items())),
-            "hosts": used, "skipped": dict(sorted(skipped.items()))}
+            "hosts": used, "preset_only_hosts": preset_only_hosts, "skipped": dict(sorted(skipped.items())),
+            "placements": {"total": sum(placed.values()), "by_slot": dict(sorted(placed.items()))}, "not_positives": dict(sorted(not_positives.items()))}
 
 
 @_guarded
@@ -556,7 +610,9 @@ def cmd_calibrate(args, cfg) -> int:
     oracle = _gather_oracle(directory, threejs, rules, packs or None)
     result = calibrate.calibrate(oracle["observations"], fit_rules, frame_bore_max_m=_FRAME_BORE_MAX_M)
     report = {
-        "ok": result["ok"], "hosts": oracle["hosts"], "skipped": oracle["skipped"], "positives": oracle["positives"],
+        "ok": result["ok"], "hosts": oracle["hosts"], "preset_only_hosts": oracle["preset_only_hosts"], "skipped": oracle["skipped"],
+        "positives": oracle["positives"], "not_positives": oracle["not_positives"],
+        "placements": {"measured": oracle["placements"], "spec": calibrate.PLACEMENTS_SPEC},
         "rows": result["rows"], "failed": result["failed"], "unmeasured": result["unmeasured"],
         "parameters": calibrate.parameters(fit_rules),
     }
