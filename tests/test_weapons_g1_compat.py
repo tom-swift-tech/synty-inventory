@@ -564,6 +564,46 @@ def test_ac139_5_the_sniper_heavy_muzzle_ruling_and_the_preset_a_fill_list_come_
     assert mounts["magazine"]["source"] == "none" and mounts["magazine"]["reason"] != "slot_disabled"  # the magazine slot is left open (no seat to place at, not refused)
 
 
+def test_decision_2i_the_shipped_overrides_disable_one_more_optic_and_one_more_underbarrel_and_an_id_only_none_closes_the_slot(tmp_path):
+    # (a) the committed file by path. Base (41f1d26) had 36 ids and 38 source-none mount entries; decision 2(i) (E3.18) adds 2 ids, one `optic` none and one `underbarrel` none
+    shipped = Path(overrides_mod.__file__).resolve().parent.parent / "data" / "weapon_overrides.json"
+    ids = load_overrides(shipped)["ids"]
+    assert len(ids) == 38
+    nones: dict[str, int] = {}
+    for entry in ids.values():
+        for slot, m in (entry.get("mounts") or {}).items():
+            if m["source"] == "none":
+                nones[slot] = nones.get(slot, 0) + 1
+    assert nones == {"optic": 9, "sight_front": 10, "sight_rear": 10, "muzzle": 5, "laser_light": 2, "underbarrel": 3, "magazine": 1}  # 40 entries; base 38 (optic 8, underbarrel 2)
+    # (b) the same id-only override, through the real loader, on the synthetic world: the toothed carbine takes the scope in both packs until its optic slot is closed
+    host = GW.pid(GW.CARBINE)
+
+    def run(name, mounts):
+        doc = {"schema": empty_overrides()["schema"], "ids": {host: {"mounts": {s: {"source": "none"} for s in mounts}}} if mounts else {}, "globs": {}}
+        path = tmp_path / f"{name}.json"
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        d, _ex, _rep = build(tmp_path / name, GW.cross_world(), overrides=load_overrides(path))
+        return W.by_id(d)
+
+    def hosts_of(by, part, pack):
+        a = by[GW.pid(part, pack)]["attachment"]
+        return {e["host"] for e in a["compatible_hosts"] + a["pending_hosts"]}
+
+    base = run("base", ())
+    assert host in hosts_of(base, GW.SCOPE, GW.PACK) and host in hosts_of(base, GW.TWIN_SCOPE, GW.OTHER)  # not vacuous: the pair exists without the override
+    assert "mount_estimated" in base[host]["review"]["reasons"] and base[host]["geometry"]["mounts"]["optic"]["source"] == "probe"
+    off = run("optic_off", ("optic",))
+    assert host not in hosts_of(off, GW.SCOPE, GW.PACK) and host not in hosts_of(off, GW.TWIN_SCOPE, GW.OTHER)
+    closed = off[host]["geometry"]["mounts"]["optic"]
+    assert closed["source"] == "none" and closed["reason"] == "slot_disabled"
+    assert "mount_missing" not in off[host]["review"]["reasons"]
+    # the optic alone does not clear `mount_estimated`: the two sight slots are probe seats too, and they keep it
+    assert "mount_estimated" in off[host]["review"]["reasons"]
+    sights_off = run("optic_and_sights_off", ("optic", "sight_front", "sight_rear"))
+    assert "mount_estimated" not in sights_off[host]["review"]["reasons"] and "mount_missing" not in sights_off[host]["review"]["reasons"]
+    assert host not in hosts_of(sights_off, GW.SCOPE, GW.PACK)
+
+
 def test_ac139_5_a_cross_setting_pair_is_never_a_candidate(tmp_path):
     d, _ex, _rep = build(tmp_path, GW.cross_world(), rules=W.sight_rules())  # no shared setting: each pack is a setting of its own
     by = W.by_id(d)
