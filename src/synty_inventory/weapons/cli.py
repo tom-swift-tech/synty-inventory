@@ -478,9 +478,12 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
         if muzzle_v is not None and is_host:
             point, _src, face = geometry.muzzle_probe(muzzle_v, axes["forward"], axes["up"])
             point_s = float(np.dot([round(float(c), 4) for c in point], basis[1]))
-            bore_source = mounts.bore_diameter(face, f_idx)[1]
+            bore_source = mounts.bore_diameter(face, f_idx)[1]  # the mount's: it only says that the muzzle mount found a face (E3.2); it is not evidence (i)
         muzzle_mesh = reduced(muzzle_children)
-        s0 = fc.centreline(muzzle_mesh, reduced(frozenset()), point_s, bore_source, fit_rules)
+        # E3.1 / E3.2: evidence (i) and the barrel face's OD are read on the stripped mesh by the helper the build uses, so the two cannot drift. Not for a
+        # preset that is no host (no mount, bore_source None): it has no evidence (i)
+        stripped_face = mounts.stripped_muzzle_face(muzzle_mesh[0], muzzle_mesh[1]) if muzzle_mesh is not None and bore_source is not None else None
+        s0 = fc.centreline(muzzle_mesh, reduced(frozenset()), point_s, bore_source, fit_rules, stripped_face=stripped_face)
         sight = (geo.get("mounts") or {}).get("sight_front")
         sight_f = float(np.dot(sight["point"], basis[0])) if sight and sight.get("source") == "probe" and sight.get("point") else None
 
@@ -519,8 +522,10 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
                     rail("preset", rec["id"], np.asarray(anchor["point"]) + np.asarray(pl.t), footprint)
 
         # -- muzzle: the barrel end of the host minus its muzzle devices, against each device's mating face -----------------------------------
-        def device(cls, label, verts, anchor, footprint, point, axis, muzzle_mesh=muzzle_mesh, bore_source=bore_source, basis=basis):
-            add({"cls": cls, "slot": "muzzle", "part": label, "mesh": muzzle_mesh or empty, "bore_source": bore_source, "seat": fsu(point),
+        def device(cls, label, verts, anchor, footprint, point, axis, muzzle_mesh=muzzle_mesh, bore_source=bore_source, stripped_face=stripped_face,
+                   basis=basis):
+            add({"cls": cls, "slot": "muzzle", "part": label, "mesh": muzzle_mesh or empty, "bore_source": bore_source, "stripped_face": stripped_face,
+                 "seat": fsu(point),
                  "axis_fsu": tuple(float(c) for c in fit.to_fsu(basis, [axis])[0]), "mate_d_m": (footprint or {}).get("mate_d_m"),
                  "device": {"verts": verts, "anchor": anchor}})
 

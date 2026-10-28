@@ -12,7 +12,14 @@ device left in the mesh would put its own face at the forward extreme and be rea
 Judgment calls (reported with the slice):
 
 * The slab centre is the middle of the slab's lateral extent (min + max over 2), the convention of ``end_ring_d`` and of ``attach``'s "not the vertex
-  mean" rule: vertex density is arbitrary. ``od_m`` is twice the largest distance of any slab vertex from that centre, as 3.6 says.
+  mean" rule: vertex density is arbitrary. ``od_m`` is twice the largest distance of any slab vertex from that centre, as 3.6 says. That is the
+  reading for evidence (ii) and (iii). For evidence (i) E3.1 (B) reads the barrel FACE instead (below): on a slide or receiver face the whole face
+  sits in the slab and its far corners are not the barrel.
+* Evidence (i) is read on the stripped mesh (E3.2, W1). This module cannot probe (it may not import ``geometry`` or ``mounts``), so the caller probes
+  the stripped host and hands the answer in as data inside ``mount["stripped_face"]`` = ``{"ring": bool, "centre_su": [s, u] | None, "od_m": float |
+  None}`` (``mounts.stripped_muzzle_face``). The record's centre is the mean of the face points (s, u) and ``od_m`` twice their largest distance from
+  it: a face is a ring of points, so the vertex-density argument above does not apply to it. A mount with no ``stripped_face`` key is read as it was
+  before E3: the mount's own ``bore_source`` decides (i) and the slab gives the values (a hand-built mount, the unit tests).
 * Only vertices that a triangle uses count. A caller that reduced the triangles but left the host's vertex array whole would otherwise leak the
   removed child's vertices into the end slab. With no triangles at all the vertices are used as given.
 * The (iii) roundness test reads the slab's side and up extents (3.6 gives the formula). Extents alone call every square round (ratio 1.0), so E1.1
@@ -76,19 +83,23 @@ def barrel_end(verts_fsu, tris, mount: dict, rules: dict) -> BarrelEnd | None:
 
     ``verts_fsu`` is (N, 3) in the host's (forward, side, up) frame and ``tris`` (M, 3) integer indices; the mesh is the host minus muzzle
     ``occupied_by``, minus located parts, minus collision. ``rules`` is the ``attachment_rules.fit_geometry`` block; this reads ``rules["bore"]``
-    (``end_slab_m``, ``round_min``, ``circ_min``, ``barrel_od_max_m``). ``mount`` is the host's muzzle mount (``mounts.py``); only ``bore_source`` is read.
+    (``end_slab_m``, ``round_min``, ``circ_min``, ``barrel_od_max_m``). ``mount`` is the host's muzzle mount (``mounts.py``); only ``bore_source`` and
+    the optional ``stripped_face`` are read.
 
     The end slab is the vertices within ``end_slab_m`` of the forward extreme. A barrel end exists when, in this order of evidence:
 
-    * (i) ``mount["bore_source"] == "ring"``: the A0 probe found a ring bore (evidence ``ring``);
+    * (i) the A0 probe found a ring bore (evidence ``ring``). Without ``mount["stripped_face"]`` that is ``mount["bore_source"] == "ring"``. With it,
+      the ring must be on the stripped host's muzzle face (``stripped_face["ring"]``) AND the host must have a muzzle mount that found a face
+      (``bore_source`` not None): a preset that is no host has no mount and so no (i), and a mount whose own face is a ring but whose stripped face
+      has none (the ring was a fused device's) falls through to (ii);
     * (ii) ``mount_probe.end_ring_d`` finds a front-face ring in the slab (evidence ``face_ring``);
     * (iii) the slab is a round end section: ``min(extent_s, extent_u) / max(...)`` >= ``round_min``, the hull of the slab's (s, u) points fills
       ``circ_min`` of the circle of diameter ``od_m`` (E1.1: a square or any rectangle never does), and OD <= ``barrel_od_max_m`` (evidence
       ``round_section``).
 
-    ``od_m`` is twice the slab's outer radius around the slab centre (for every evidence, so a ring bore still gets its outer diameter from the
-    mesh), ``centre_su`` that centre and ``face_f`` the forward extreme. The bore axis is host forward through ``centre_su``. Measures are rounded
-    to 1e-4. An empty mesh has no end, whatever the mount says.
+    ``od_m`` is twice the slab's outer radius around the slab centre and ``centre_su`` that centre, for (ii) and (iii); for (i) read through a
+    ``stripped_face`` they are the barrel face's (E3.1: the face's mean position and twice its largest distance from it). ``face_f`` is the forward
+    extreme. The bore axis is host forward through ``centre_su``. Measures are rounded to 1e-4. An empty mesh has no end, whatever the mount says.
     """
     v = _used_vertices(verts_fsu, tris)
     if not len(v):
@@ -101,8 +112,16 @@ def barrel_end(verts_fsu, tris, mount: dict, rules: dict) -> BarrelEnd | None:
     lo, hi = lat.min(axis=0), lat.max(axis=0)
     centre = (lo + hi) / 2.0
     od = 2.0 * float(np.linalg.norm(lat - centre, axis=1).max())
-    if (mount or {}).get("bore_source") == "ring":
+    mount = mount or {}
+    face = mount.get("stripped_face")
+    if face is None:
+        ring = mount.get("bore_source") == "ring"
+    else:  # E3.2 (W1): the stripped host decides, and only a host with a muzzle mount that found a face can have (i)
+        ring = mount.get("bore_source") is not None and bool(face.get("ring"))
+    if ring:
         evidence = "ring"
+        if face is not None and face.get("centre_su") is not None and face.get("od_m") is not None:  # E3.1 (B): the barrel face, not the slab
+            centre, od = np.asarray(face["centre_su"], dtype=np.float64), float(face["od_m"])
     elif end_ring_d(v, 0, 1, slab_m) is not None:
         evidence = "face_ring"
     else:

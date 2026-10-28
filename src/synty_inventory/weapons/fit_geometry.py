@@ -208,6 +208,9 @@ def fit_digest(measure_records: list[dict]) -> str:
 #   fused_parts    None, or ``(key, load)``: the host is a preset, ``key`` names the part set (it is an input of the cache), and ``load()`` lists
 #                  ``{"id", "slot", "verts", "tris"}`` for every part of the host's pack (spec 3.2: the locator runs on presets only).
 #   frame_changed  the record frame is the voted body frame (``frame_body`` goes on every slot); ``frame_conflict`` the vote failed (3.3 step 4).
+#   stripped_probe None, or ``f(verts_fsu, tris) -> {"ring", "centre_su", "od_m"} | None`` (``mounts.stripped_muzzle_face``): the A0 probe on the STRIPPED
+#                  host (E3.2). It is injected because the detectors may not import ``geometry``; its answer goes to ``barrel_end`` inside the muzzle
+#                  mount as ``stripped_face``, and decides evidence (i) and the barrel face's OD (E3.1). None keeps the mount's own ``bore_source``.
 #
 # Result::
 #
@@ -319,7 +322,7 @@ def _well_dict(ref: WellRef) -> dict:
     return {"length_m": ref.length_m, "width_m": ref.width_m, "u_rb": ref.u_rb, "source": ref.source}
 
 
-def _compute(rules, *, axes, mounts, mesh, child_mesh, fused_parts, frame_changed, frame_conflict) -> dict:
+def _compute(rules, *, axes, mounts, mesh, child_mesh, fused_parts, frame_changed, frame_conflict, stripped_probe=None) -> dict:
     out = {"s0": None, "slots": {slot: {} for slot in FIT_SLOTS}, "seats": {}, "located": []}
     if frame_conflict:
         # spec 3.3 step 4 and INV-27: no detector runs on a host whose frame could not be decided, and every pair on it is not_judged
@@ -372,7 +375,10 @@ def _compute(rules, *, axes, mounts, mesh, child_mesh, fused_parts, frame_change
     if not _disabled(m_muz):
         got = reduced(frozenset(m_muz["occupied_by"]))
         if got is not None:
-            end = barrel_end(got[0], got[1], m_muz, rules)
+            mount = m_muz
+            if stripped_probe is not None and m_muz.get("bore_source") is not None:  # a host with no muzzle mount (no face) has no evidence (i)
+                mount = {**m_muz, "stripped_face": stripped_probe(got[0], got[1])}  # a copy: the mounts block is written out and fingerprinted as it is
+            end = barrel_end(got[0], got[1], mount, rules)
     if end is not None:
         slots["muzzle"]["barrel_end"] = {"od_m": end.od_m, "evidence": end.evidence, "centre_su": [end.centre_su[0], end.centre_su[1]],
                                          "face_f": end.face_f}
@@ -471,7 +477,7 @@ def _compute(rules, *, axes, mounts, mesh, child_mesh, fused_parts, frame_change
 def host_features(
     rules: dict, *, axes: dict, mounts: dict, mesh: Callable, child_mesh: Callable, fused_parts: tuple | None = None,
     frame_changed: bool = False, frame_conflict: bool = False, cache: dict | None = None, cache_id: str | None = None,
-    cache_key: dict | None = None,
+    cache_key: dict | None = None, stripped_probe: Callable | None = None,
 ) -> dict:
     """The features of one eligible host, computed once and cached (spec 3.11). See the section header for the arguments and the result.
 
@@ -481,9 +487,12 @@ def host_features(
     is valid while its key matches the ``cache_key`` plus ``FIT_CODE_DIGESTS`` read now; inside it one result is kept per fingerprint of the other
     inputs (axes, the frame flags, the mounts the detectors read, the preset part set), because the record frame, a mount override or the part
     set change the features of the same file. A hit equals a recompute. Without a cache nothing is stored.
+
+    ``stripped_probe`` (E3.2) is the injected probe of the stripped muzzle face (see the section header); whether one is given is part of the inputs,
+    and its code is the caller's to key (``mounts`` adds its code digest to ``cache_key``).
     """
     kwargs = dict(axes=axes, mounts=mounts, mesh=mesh, child_mesh=child_mesh, fused_parts=fused_parts, frame_changed=frame_changed,
-                  frame_conflict=frame_conflict)
+                  frame_conflict=frame_conflict, stripped_probe=stripped_probe)
     if cache is None or cache_id is None or cache_key is None:
         return _compute(rules, **kwargs)
     key = _fp({**cache_key, "code": FIT_CODE_DIGESTS})
@@ -494,7 +503,7 @@ def host_features(
     view = {slot: {k: mounts[slot].get(k) for k in _MOUNT_KEYS} for slot in FIT_SLOTS}
     view["sight_front"] = {k: (mounts.get("sight_front") or {}).get(k) for k in ("source", "point")}
     fp = _fp({"axes": axes, "mounts": view, "changed": bool(frame_changed), "conflict": bool(frame_conflict),
-              "parts": fused_parts[0] if fused_parts is not None else None})
+              "parts": fused_parts[0] if fused_parts is not None else None, "probe": stripped_probe is not None})
     hit = entry["by_inputs"].get(fp)
     if hit is not None:
         return copy.deepcopy(hit)

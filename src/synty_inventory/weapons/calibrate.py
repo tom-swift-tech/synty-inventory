@@ -21,8 +21,10 @@ A positive (``pos``): ``cls`` (``preset`` | ``twin`` | ``baked``), ``slot``, ``h
 * optic, underbarrel: ``mesh`` = ``(verts, tris)`` of the host minus the slot's children and the located slot parts, in the host's (f, s, u) frame;
   ``s0`` the centreline side coordinate; ``seat`` = the part's contact point ``(f, s, u)``; ``foot_length_m`` / ``foot_width_m``; ``sight_f`` (or None)
   the probe front sight's f, which clips the run as the seat does (spec 3.4 step 4);
-* muzzle: ``mesh`` as above (minus the muzzle devices), ``bore_source`` the host muzzle mount's, ``seat`` the device's mating-face centre in (f, s, u),
-  ``axis_fsu`` its bore direction in the same frame, ``mate_d_m``, and ``device`` = ``{"verts", "anchor"}`` for the inner ring (``device_inner_d``);
+* muzzle: ``mesh`` as above (minus the muzzle devices), ``bore_source`` the host muzzle mount's (None for a preset that is no host), ``stripped_face`` the
+  muzzle face of that mesh (``mounts.stripped_muzzle_face``, E3.1 / E3.2: evidence (i) and the barrel face's centre and OD; absent or None reads the
+  mount's own ring and the slab, as before E3), ``seat`` the device's mating-face centre in (f, s, u), ``axis_fsu`` its bore direction in the same
+  frame, ``mate_d_m``, and ``device`` = ``{"verts", "anchor"}`` for the inner ring (``device_inner_d``);
 * magazine: ``ref_host`` = ``(verts, tris)`` of the host minus the reference magazine, ``ref_mag`` = the reference magazine's ``(verts, tris)``, and
   ``part_mesh`` = the candidate magazine placed on that seat, all in (f, s, u).
 
@@ -119,16 +121,23 @@ def slab_fill(verts_fsu, tris, rules: dict) -> float | None:
     return _hull_area(lat) / (math.pi * (od / 2.0) ** 2)
 
 
-def centreline(muzzle_mesh, whole_mesh, muzzle_point_s, bore_source, rules: dict) -> float | None:
+def centreline(muzzle_mesh, whole_mesh, muzzle_point_s, bore_source, rules: dict, stripped_face: dict | None = None) -> float | None:
     """The centreline side coordinate the rail detectors use (spec 3.4 step 1): the muzzle seat's, when the muzzle has a barrel end, else the middle of
-    the host's side extent. ``muzzle_mesh`` / ``whole_mesh`` are ``(verts, tris)`` in (f, s, u) or None."""
+    the host's side extent. ``muzzle_mesh`` / ``whole_mesh`` are ``(verts, tris)`` in (f, s, u) or None. ``stripped_face`` is the pos key of the same name
+    (the face data ``barrel_end`` reads evidence (i) from; None is the mount's own ``bore_source``)."""
     if muzzle_mesh is not None and muzzle_point_s is not None:
-        if barrel_end(muzzle_mesh[0], muzzle_mesh[1], {"bore_source": bore_source}, rules) is not None:
+        if barrel_end(muzzle_mesh[0], muzzle_mesh[1], _mount(bore_source, stripped_face), rules) is not None:
             return float(muzzle_point_s)
     if whole_mesh is not None and len(whole_mesh[0]):
         v = np.asarray(whole_mesh[0], dtype=np.float64).reshape(-1, 3)
         return float(v[:, 1].min() + v[:, 1].max()) / 2.0
     return None
+
+
+def _mount(bore_source, stripped_face) -> dict:
+    """The mount ``barrel_end`` reads: the host muzzle mount's ``bore_source`` and, when the oracle probed the stripped host, its face record. The key is
+    left out when there is none, so a hand-built pos reads as it did before E3."""
+    return {"bore_source": bore_source} if stripped_face is None else {"bore_source": bore_source, "stripped_face": stripped_face}
 
 
 def toothed(mesh, side: str, s0: float | None, rules: dict) -> bool:
@@ -172,7 +181,7 @@ def _observe_rail(pos: dict, rules: dict) -> list[dict]:
 
 def _observe_muzzle(pos: dict, rules: dict) -> list[dict]:
     v, t = pos["mesh"]
-    end = barrel_end(v, t, {"bore_source": pos.get("bore_source")}, rules)
+    end = barrel_end(v, t, _mount(pos.get("bore_source"), pos.get("stripped_face")), rules)
     if end is None:
         return [_unmeasured(pos, "no_barrel_end")]
     out: list[dict] = []
