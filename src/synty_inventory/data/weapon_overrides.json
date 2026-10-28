@@ -47,6 +47,14 @@
       "confidence_cap": 0.55,
       "note": "direction ambiguous (pivot says -z, convention says +z); for Tom to confirm in review"
     },
+    "POLYGON_Apocalypse/SM_Wep_SniperRifle_Pneumatic_01": {
+      "mounts": {
+        "underbarrel": {
+          "source": "none"
+        }
+      },
+      "note": "S11 probe dry run: underbarrel refused (seat on the stock tube)"
+    },
     "POLYGON_Apocalypse/SM_Wep_Veh_Rocket_Launcher_01": {
       "confidence_cap": 0.55,
       "note": "direction ambiguous (pivot says -z, convention says +z); for Tom to confirm in review"
@@ -114,6 +122,14 @@
     "POLYGON_Fantasy_Kingdom/SM_Wep_Ballista_Mounted_01": {
       "forward": "+z",
       "note": "forward: bolt head end is +z (winch at the rear); visual check 2026-10-16"
+    },
+    "POLYGON_Gang_Warfare/SM_Wep_SubMachineGun_01": {
+      "mounts": {
+        "optic": {
+          "source": "none"
+        }
+      },
+      "note": "S11 probe dry run: optic refused (ribbed shroud, no rail)"
     },
     "POLYGON_Goblin_War_Camp/SM_Veh_Ballista_01": {
       "confidence_cap": 0.55,
