@@ -591,6 +591,36 @@ The merge commits of the landed slices on `integ/attach`:
   - The builder's own break C run read 13 failed / 12 skipped.
   - The 3 extra failures are `test_weapons_w6_guards`' git-work-tree tests, which fail in an archive copy with no `.git`. The 4 extra skips come from that environment too.
   - That is a harness difference, not the break. DM-A's runs in git worktrees are the ones of record.
+- Tom's word on the slice B questions (the peer's file, 0 ids, Q1 to Q5), verbatim, 2026-10-28: "Defaults". Taken as follows:
+  - **Q1.** 26 pairs are accepted, not the 23 of decision 2 (i)'s gate. The 23 were S's 22 shroud optics plus cell 06, a foregrip. The 3 extra are T's other two foregrips and its bipod, all on the one stock-tube rib run.
+  - **Q2.** The live `fit_digest` moves with the overrides digest. Decision 2 (i)'s gate is restated to match, and every other digest stays unchanged.
+  - **Q3.** Errata E3.18 (this commit) amends AC146's "`overrides_digest` is unchanged". The slice re-pins `tests/test_weapons_g1_frame.py`, and the docs that state the old literal as current are updated.
+  - **Q4 (c).** B2 stays as data until G1 closes, and is raised with the clash gate later. This supersedes decision 5 (a) as recorded above.
+    - Cell 20's host has no handguard child, and its launcher tube is fused into the body, so an id override cannot name the strip.
+    - B2 needs code: a named selector, or an owner and height test.
+  - **Q5 (a).** The long-run seat contract (E+F finding 2) is settled in the test helpers: the gate 6(c) check form and its test twin are fixed there, with an errata line. The shipped seat and span contract is unchanged.
+- Slice B, decision 2 (i) (`47cba81` on `41f1d26`, merged `6da060b`):
+  - `weapon_overrides.json` gains two id entries: S `mounts.optic.source` `none`, and T `mounts.underbarrel.source` `none`. This is the mechanism of A6-6 (iii), with no code change.
+  - AC146 is re-pinned at `tests/test_weapons_g1_frame.py:427`, from `0a2948d6cab4c77e` to `17d4e771a785a4b2`.
+  - `tests/test_weapons_g1_compat.py` gains one test, with its own literals.
+    - It pins the shipped file at 38 ids and 40 `source` `none` entries: optic 9, underbarrel 3, and the other slots unchanged.
+    - On the synthetic g1 world, an id-only disable closes the slot.
+  - G-1 is 3750 / 8, rc 0, on the slice and on the merge (base 3749 / 8). Red-first on detached `41f1d26` fails `len(ids) == 38` (36) and the AC146 literal.
+  - Live, from cold copy-catalog builds, rc 0 / 0:
+    - 25 `compatible_hosts` entries leave: S 21, T 4. 0 are added and 0 modified. Pending is unchanged, and the counts block is identical.
+    - 27 of 2655 records change: the 2 hosts and 25 parts.
+    - `pair_verdict` goes from 6722 to 6685: 26 fit verdicts and 11 `no_fit` verdicts are no longer computed.
+    - In the report, `contact_capped` goes from 28 to 27, `feature_counts.rail_teeth` from 38 to 36, and `contact_stats.computed` from 816 to 790.
+    - The overrides digest goes from `0a2948d6cab4c77e` to `17d4e771a785a4b2`, and the fit digest from `9eed3cc0bf14e986` to `2d94c7151cce583b`. Rules, attach_rules, and versions 14 / 6 are unchanged.
+- Slice B findings (data, no action):
+  1. **Premise correction.** At base, the shipped overrides file already held 38 `source` `none` mount entries across its 36 ids. The brief's "exactly 2" was wrong, so the test pins the full literal.
+  2. **One of S's 22 fit pairs was unlisted at base.** It was absent from `compatible_hosts` and `pending_hosts`, so B removes its verdict but no listing: 25 entries for 26 verdicts.
+     - The inferred cause is the A6-4 contact cap (`contact.cap_m`), which dropped the pair after its settled seat shift.
+     - `contact_capped` going from 28 to 27 is consistent with that. The pair's shift was not replayed.
+  3. **`mount_estimated`.** The flag needs a `probe` seat on a sight slot or a rail feature (`mounts.py:840-841`).
+     - Live, on both hosts the disabled `rail_teeth` probe was the only such seat, because their sight slots were already `none` / `slot_disabled`.
+     - What remains does not set it: the muzzle `barrel_ring` probe, T's `child_node` optic, and `none` slots.
+     - On the synthetic carbine, an optic-only disable keeps the flag, because its sight slots stay probe seats.
 
 ## 9. Errata E3: the build ladder (E3.0 to S10b)
 
@@ -817,6 +847,8 @@ An operator run on the merged result (G-7), with the final rows of §9.5, plus t
 | `WEAPON_ATTACH_VERSION` / `GEOMETRY` | 14 / 6 | same | same | same | same |
 | `FIT_CODE_DIGESTS` keys moved | - | `fit_bore`, `fit_geometry` | `fit_geometry`, `fit_well` | none | none |
 | other code digests moved | - | mounts | none | attach (two copies) | none |
+
+After the ladder, errata E3.18 (slice B, merged `6da060b`) moves the shipped `overrides_digest` from `0a2948d6cab4c77e` to `17d4e771a785a4b2`, and the live `fit_digest` from `9eed3cc0bf14e986` to `2d94c7151cce583b`. Every other row is unchanged.
 
 AC143 is the directory `fit_digest` of the FAKE_G1 `world()` alone (`tests/test_weapons_g1_compat.py:653`; a subprocess probe under `PYTHONHASHSEED` 0 and 1). AC145 is the `fit_digest` of `cross_world()` (`tests/test_weapons_g1_export.py:101`). `fit_digest` hashes values, not code: a code edit moves it only if a measure changes, and a rules edit only if a rule changes a measure. Measured on the four stacked variants, both pins and both directory sha256 values are identical to base. The one way to move them is a new stored key or a new host in a world (E3.1's design constraint), or E3.12.
 
