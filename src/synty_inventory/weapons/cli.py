@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import math
 from pathlib import Path
 
 from . import (
@@ -287,10 +288,23 @@ def cmd_validate(args, cfg) -> int:
 # twin magazines (4.2). What is left out is counted under ``not_positives``, never dropped silently.
 
 
-def _fused_node(point_fsu) -> str:
-    """The seat node of a preset's fused part: WHERE it stands (its seat point in the host's (f, s, u) frame, to the millimetre), not which part it is.
-    The locator finds the variants of one fitting (two scope models cut from the same mesh) at the same spot, and one spot is one seat (C1)."""
-    return "fused@" + ",".join(f"{c:.3f}" for c in point_fsu)
+_FUSED_SEAT_M = 0.001  # two fused parts of one host and slot this close (or closer) stand at one place: one seat (C1)
+
+
+def _fused_node(point_fsu, seen: list) -> str:
+    """The seat node of a preset's fused part: WHERE it stands, not which part it is. ``point_fsu`` is its seat point in the host's (f, s, u) frame; ``seen``
+    is the registry of ONE host and slot, a list of ``(point, node)`` that this call extends. A point within ``_FUSED_SEAT_M`` of a registered one takes its
+    node (the nearest, the first on a tie), else it opens a new node. The locator finds the variants of one fitting (two scope models cut from the same mesh)
+    at the same spot, and a distance rule, unlike rounding to a grid, cannot split two points that straddle a grid line. The registry is per host and
+    slot, so a preset never shares a node with another host's, and the node name (``fused#k``) is never a baked child's."""
+    point = tuple(float(c) for c in point_fsu)
+    near = [(math.dist(point, p), i) for i, (p, _node) in enumerate(seen)]
+    near = [d_i for d_i in near if d_i[0] <= _FUSED_SEAT_M + 1e-12]
+    if near:
+        return seen[min(near)[1]][1]
+    node = f"fused#{len(seen)}"
+    seen.append((point, node))
+    return node
 
 
 def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] | None) -> dict:
@@ -494,8 +508,10 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
         sight_f = float(np.dot(sight["point"], basis[0])) if sight and sight.get("source") == "probe" and sight.get("point") else None
 
         # C1: every positive names its ``seat_node`` (plan 9.6 ruling 5; a seat is (host, slot, node)): a baked child is its own node, a twin takes the node of
-        # the baked child it is seated on (so it shares that child's seat), a preset's fused part takes the node of the spot it stands at (``_fused_node``).
+        # the baked child it is seated on (so it shares that child's seat), a preset's fused part takes the node of the place it stands at (``_fused_node``).
         # ``calibrate`` only counts them
+        fused_seen: dict[str, list] = {}  # slot -> the registry ``_fused_node`` keeps for this host
+
         def add(pos: dict, host=host) -> None:
             pos.update(host=host["id"], tags=[f"{pos['slot']}:{pos['cls']}"])
             positives[pos["tags"][0]] = positives.get(pos["tags"][0], 0) + 1
@@ -529,7 +545,7 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
                 anchor, footprint = part_anchor(rec)
                 if slot_of[rec["id"]] == slot and anchor is not None:
                     at = np.asarray(anchor["point"]) + np.asarray(pl.t)
-                    rail("preset", rec["id"], _fused_node(fsu(at)), at, footprint)
+                    rail("preset", rec["id"], _fused_node(fsu(at), fused_seen.setdefault(slot, [])), at, footprint)
 
         # -- muzzle: the barrel end of the host minus its muzzle devices, against each device's mating face -----------------------------------
         def device(cls, label, node, verts, anchor, footprint, point, axis, muzzle_mesh=muzzle_mesh, bore_source=bore_source, stripped_face=stripped_face,
@@ -558,7 +574,8 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
             anchor, footprint = part_anchor(rec)
             if slot_of[rec["id"]] == "muzzle" and anchor is not None:
                 at = np.asarray(anchor["point"]) + np.asarray(pl.t)
-                device("preset", rec["id"], _fused_node(fsu(at)), located_mesh[rec["id"]], anchor, footprint, at, anchor["up"])
+                node = _fused_node(fsu(at), fused_seen.setdefault("muzzle", []))
+                device("preset", rec["id"], node, located_mesh[rec["id"]], anchor, footprint, at, anchor["up"])
 
         # -- magazine: the well of a baked magazine against the entry section of the magazine on its seat ----------------------------------
         def well_pos(cls, label, child, part_verts, part_tris, path=path, scale=scale, basis=basis):

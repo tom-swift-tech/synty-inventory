@@ -1,8 +1,8 @@
 """C1: the calibrate rows count seats beside observations (errata E3.10 item 1, plan 9.4 C1 and ruling 5; spec 4.2 states ``n`` as seats).
 
 A seat is the distinct (host, slot, seat node). A baked child is its own seat node; a twin sits on the baked child it twins, so it SHARES that child's
-seat; a preset's fused part stands at its own spot, which is its seat (a fused part has no baked sibling; two variants of one fitting located at the
-same spot are one seat). ``cli`` supplies the node (``seat_node`` on a positive and on its
+seat; a preset's fused part stands at its own spot, which is its seat (a fused part has no baked sibling; two variants of one fitting located within
+1 mm of each other on one host and slot are one seat). ``cli`` supplies the node (``seat_node`` on a positive and on its
 observations); ``calibrate`` stays pure and only counts. ``seats`` is additive: every other field of a row is untouched (``test_weapons_g1_calibrate``).
 
 Two layers. The pure ``calibrate.calibrate`` is driven with hand-written observations and a LITERAL ``fit_geometry`` block (this test's own copy of the
@@ -146,11 +146,34 @@ def test_calibrate_stays_free_of_cli():
     assert names and not [n for n in names if n.rsplit(".", 1)[-1] == "cli"], names
 
 
-def test_fused_parts_at_one_spot_share_a_node_and_parts_a_few_millimetres_apart_do_not():
-    # the live Military presets locate two scope variants at the very same place: one seat. Points are literal (f, s, u) triples in metres
-    assert wcli._fused_node((0.1000, 0.0, 0.0500)) == wcli._fused_node((0.10004, 0.0, 0.05004))
-    assert wcli._fused_node((0.1000, 0.0, 0.0500)) != wcli._fused_node((0.1050, 0.0, 0.0500))
-    assert wcli._fused_node((0.1000, 0.0, 0.0500)) != wcli._fused_node((0.1000, 0.0, -0.0500))
+def nodes_of(points):
+    """The nodes ``cli`` gives preset points of ONE host and slot, in order (a fresh registry per call)."""
+    seen: list = []
+    return [wcli._fused_node(p, seen) for p in points]
+
+
+def test_two_preset_points_0_2_mm_apart_are_one_seat_even_across_a_millimetre_grid_line():
+    # the live Military presets locate two scope variants at the very same place: one seat. 0.10049 and 0.10069 m (f) are 0.2 mm apart but round to
+    # different millimetres (0.100 and 0.101), so a rounding key splits them; a distance rule does not. Points are literal (f, s, u) triples in metres
+    near = nodes_of([(0.10049, 0.0, 0.0500), (0.10069, 0.0, 0.0500)])
+    assert near[0] == near[1]
+    # and the rule is distance, not a grid: 0.5 mm apart across the other axes too
+    assert len(set(nodes_of([(0.1000, 0.0000, 0.0500), (0.1003, 0.0004, 0.0496)]))) == 1
+
+
+def test_two_preset_points_clearly_more_than_1_mm_apart_stay_two_seats():
+    assert len(set(nodes_of([(0.1000, 0.0, 0.0500), (0.1015, 0.0, 0.0500)]))) == 2  # 1.5 mm
+    assert len(set(nodes_of([(0.1000, 0.0, 0.0500), (0.1000, 0.0, -0.0500)]))) == 2  # 100 mm
+    assert len(set(nodes_of([(0.1000, 0.0, 0.0500), (0.1050, 0.0, 0.0500), (0.1000, 0.0, 0.0500)]))) == 2  # a revisited spot is its first seat
+
+
+def test_a_fused_node_is_never_a_baked_node_and_each_registry_is_its_own_host_and_slot():
+    seen_a: list = []
+    seen_b: list = []
+    a = wcli._fused_node((0.1, 0.0, 0.05), seen_a)
+    b = wcli._fused_node((0.1, 0.0, 0.05), seen_b)
+    assert a == b  # same spot on another host or slot is the same node name, kept apart by the (host, slot) of the seat
+    assert a.startswith("fused")
 
 
 # -- the oracle over the population world -------------------------------------------------------------------------
