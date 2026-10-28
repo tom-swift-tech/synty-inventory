@@ -552,7 +552,9 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
         # -- magazine: the well of a baked magazine against the entry section of the magazine on its seat ----------------------------------
         def well_pos(cls, label, child, part_verts, part_tris, path=path, scale=scale, basis=basis):
             child_got = load_triangles(path, child, exclude=mounts._collision, scale=scale)
-            ref_host = reduced(frozenset({child}))
+            # E3.6 (F1): the reference host drops every magazine node of the mount, as ``fit_geometry.host_features`` does, so that the oracle and the
+            # directory read the same plane on a host with several magazine seats
+            ref_host = reduced(frozenset({child, *by_slot["magazine"]}))
             if child_got is None or ref_host is None or not len(child_got[0]) or not len(child_got[1]):
                 return
             add({"cls": cls, "slot": "magazine", "part": label, "ref_host": ref_host,

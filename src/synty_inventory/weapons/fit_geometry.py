@@ -454,7 +454,11 @@ def _compute(rules, *, axes, mounts, mesh, child_mesh, fused_parts, frame_change
     m_mag = mounts["magazine"]
 
     def well(node: str) -> WellRef | None:
-        host, mag = reduced(frozenset({node})), child_mesh(node)
+        # E3.6 (F1, spec 3.7 step 1): the plane is taken on the host with EVERY magazine node of the mount removed (the node judged, the mount's own seat
+        # and every other seat), not the node alone. A second magazine left in the host puts its own surface on the reference's top-face line (its bottom
+        # can lie under the whole reference), and the plane then misses the reference or sits at the wrong height.
+        drop = frozenset({node, m_mag["child_node"], *(m_mag.get("seats") or ())})
+        host, mag = reduced(drop), child_mesh(node)
         if host is None or mag is None:
             return None
         return well_reference(host[0], host[1], to_fsu(basis, mag[0]), mag[1], rules)
