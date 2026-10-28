@@ -504,3 +504,285 @@ The merge commits of the landed slices on `integ/attach`:
 - E3.1 run 2, the live effect of the same definition on the stripped mesh (real fit path, only `od_m` and the centre substituted for ring evidence; baseline byte-identical to the S10 build). The peer's 103 lost muzzle pairs on 61 hosts reconcile exactly. Of those, 15 become fit (pistol 6, revolver 4, SMG 4, rifle 1), 88 stay no_fit (69 device narrower than 0.85, 8 wider than 2.00, 11 inner ratio above 1.21), and none goes to not_judged. Across all 537 muzzle verdicts, 68 go to fit and 17 leave fit (14 cross-pack), net +49 listed, and 51 of the entries are cross-pack pairs no earlier build listed. Every changed pair is on a host whose slab OD is at least 1.2 times its barrel-face OD. 15 pairs on 8 front-face-ring hosts (slab 1.57 to 3.21 times the face extent) are outside any ring-based definition. No wide-face criterion met the pre-written gap rule; the slab-fill distribution has an empty bin at [0.75, 0.80).
 - E3.8 traces g_ (rail side) and h_ (part side), read-only, definitions written before measuring. On the two narrow-foot seats (0.9267 and 0.7692) the rails are square-cornered blocks, and the code's run width matches the section to 0.03 mm, so the rail is not over-read. Neither part has jaws at any height: the stored foot is the bottom face of solid pads, seated on the slot floors on one seat and 14 to 18 mm inside the rail block on the other. The jaw census was not triggered. Clarification of the S10a rulings line, which stands: the two assemblies remain real positives, and "narrow-foot" there means narrow pads, not narrow clamps.
 - E3 drafted (decisions Q1 to Q6, each with a default) and delivered to Tom by the peer. No building until Tom rules.
+- E3 APPROVED by Tom on 2026-10-28 (the ruling reached the architect through the peer): "Approve E3 at the defaults: Q1 B, Q2 M3 (withdrawn under B plus Option 2), Q3 F1, Q4 (ii) with the population-diff gate, Q5 Option 2 at 0.69, Q6 no floor now, Q7 rail slots only. E3.12 accepted as a correction." E3.3 is **withdrawn**: no exception mechanism is built, `fit_geometry.exceptions` stays empty, E-G3 is retired, and E-G7, E-G8 and E-G9 are not entered. E3.0 writes the approved text on `docs/g1-e3` (base `4c9d9e7`), in the spec, the errata, `weapon_attachments.md` and this plan. The slices of §9 start after its merge.
+- E3.0 text departs from the E3 draft where later measurements disagree, and the measurement is used: the twin ladder is 31, 33, 34, 34, 37, 38 (the last INFERRED), replacing the spec's 36 of 38; the E3.7 mid-line proxy moves 5 parts on every slot and 2 on rail slots (Q7), not "up to 4"; 4 bore positives, not 3, sit outside the band under the slab (6 of 14 observations); the drum twin reads `no_fit` under F1 alone and `fit` only with E3.12; the positives' rail top widths are 10.7 to 30.0 mm; the 24 `fit` pairs on the three sub-5 mm runs (with 8 `no_fit`) go to the S11 capture list.
+- The E3 build ladder is §9. Its rulings (no version bump, the `barrel_end` signature, the host-features cache key, one worktree per slice, the C1 seat rule, the E3.12 ownership, the B capture checkpoint) are in §9.6.
+
+## 9. Errata E3: the build ladder (E3.0 to S10b)
+
+**Source:** the errata's E3 section ([weapon_attach_geometry_errata.md](weapon_attach_geometry_errata.md)), APPROVED by Tom on 2026-10-28, with E3.3 withdrawn. This section places its slices. It adds to §0 to §8 and changes none of them: where §0 says "S10" or "the next slice that owns `calibrate.py`", read it with this section.
+
+**Counts and digests below were measured on read-only scratch copies of the source (integ `4c9d9e7`, source-identical to `e8495a1`), cumulative in the order E3.1, E3.6, E3.7, E3.8.** They are emulations, not the slices. The E3.1 emulation ran the stripped probe inside `barrel_end`, which the real slice must not (AC144). The E3.7 emulation used the mid-line proxy on every slot. Every live digest is therefore a prediction that holds if a slice stores no new key in its feature records. A mismatch means: diff the host records before assuming a bug. The four slices act on disjoint pair sets (muzzle; magazine; optic and underbarrel; optic and underbarrel above 0.69), so the order of landing should not change a slice's delta. That is an inference from the disjoint sets, not a measurement of other orders.
+
+### 9.1 Rules for every E3 slice
+
+1. **Protocol as §0.** Branch `build/g1-<slice>` and worktree `D:/game_assets_library/tools/inventoryagent-wt-g1-<slice>`, created by the lead from a lead-resolved base SHA, never the literal `main`. One worktree per slice. The lead writes `.agent-scope.json` (`owned` = the list in §9.4, `new_under` = `[]`). Manifests are write-once; blocked means stop and report; the builder never rebases, pulls or merges. Slice names: `e3-1`, `e3-4`, `e3-5`, `e3-6`, `e3-7`, `e3-8`, `e3-12`, `c1-seats`, `c3-preview`.
+2. **Explicit file lists, no `tests/test_weapons_*.py` glob.** An unexpected red outside the list means STOP and report; the lead extends the list. Measured: across all 106 weapons test files the E3.6 and E3.7 variants add 0 reds and E3.8 adds exactly 5 (§9.5).
+3. **New behaviour tests go in new files** (`tests/test_weapons_e3_<x>.py`, fixtures in `tests/fixtures/weapons/e3_<x>_*.py`). Edits to existing test files are limited to pins that must move. That keeps every slice's file set disjoint, so slices run in parallel.
+4. **Gate (every slice), from the slice's worktree.**
+   - G-1 the whole suite, `python -m pytest`, exit 0. Baseline at S10a: 3593 passed, 5 skipped. Report the new-test count.
+   - G-2 scope gate: `git diff --name-only <base>` and `git status --porcelain` show only owned paths.
+   - G-3 line endings: the worktree files are CRLF and the index is LF (`core.autocrlf=true`). Write in binary mode, new files CRLF, and read `git diff --stat` for whole-file churn before commit.
+   - G-4 pins: the lines named in the slice's row, and no others, change. The AC143 and AC145 literals are never edited, except by E3.12 when they move (§9.4).
+   - G-5 red-first: the RESULT carries the failing output of each "red" fixture on the base, and names each "guard" as green on the base.
+   - G-6 test bounds are the test's own literals, never read from the rules (the shipped-block pin test excepted).
+   - G-7 live check (operator): rebuild on a COPY of the catalogs with empty caches, then `python -m synty_inventory --config <cfg> weapons attach-calibrate --directory <dir> --json <out outside the repo>`. Compare with the slice's live row in §9.5. Never build in the shared catalogs. This extends §0 rule 4 (live data only at S10 and S12) to the E3 slices, on the same terms (scratch copy, GLBs read-only, nothing committed); S10b is the same kind of run.
+   - G-8 findings, not tuning (§0 rule 7): a deviation from the ledger is reported, never tuned away.
+5. **Environment:** `PYTHONDONTWRITEBYTECODE=1`; `pythonpath = ["src"]` in `pyproject.toml` makes pytest use the worktree's own `src`.
+
+### 9.2 Order of work
+
+- **Wave 0:** E3.0, this docs branch.
+- **Wave A, parallel, pairwise file-disjoint:** E3.1, E3.7, E3.4, E3.5, C3.
+- **Then E3.6** on E3.1's merge (shared: `fit_geometry.py`, `cli.py`), **then E3.12** on E3.6's merge.
+- **E3.8** on E3.7's merge. It does not wait for E3.1 or E3.6.
+- **C1** on the merges of E3.1 and E3.6 (shared: `calibrate.py`, `cli.py`).
+- **Then S10b.** Longest chain: E3.1 (with the lead's capture review), E3.6, E3.12, S10b; C1 beside E3.12.
+
+| slice | title | base | owned | `fit_digest` | attach version |
+|---|---|---|---|---|---|
+| E3.0 | spec, errata and plan text (docs branch, not a build slice) | Tom's ruling | 4 docs | n | n |
+| E3.1 | barrel-face OD (B) and stripped-mesh ring evidence (W1, E3.2) | E3.0 | 7 (5 existing, 2 new) | y (live only) | n |
+| E3.7 | foot rung holds the part's mid-line, rail slots (A4) | E3.0 | 3 (1 existing, 2 new) | n | n |
+| E3.4 | guard tests for the amended §3.3 field list | E3.0 | 2 (new) | n | n |
+| E3.5 | guard tests for the frame-changed sight clause | E3.0 | 2 (new) | n | n |
+| C3 | `preview.py` sheet-cell map (carried) | E3.0 | 2 (1 existing, 1 new) | n | n |
+| E3.6 | well plane with every magazine node removed (F1), docstring (carried) | E3.1 merged | 5 (3 existing, 2 new) | y (live only) | n |
+| E3.12 | well section cut after `twin_forward` | E3.6 merged | `directory.py` and its test file | y (stored drum sections) | n |
+| E3.8 | `clamp.ratio_min` 1.0 to 0.69 and the re-pins | E3.7 merged | 6 (5 existing, 1 new) | n | n |
+| C1 | calibrate `seats` field (carried) | E3.1 and E3.6 merged | 3 (2 existing, 1 new) | n | n |
+| S10b | live re-read after the last merge (operator run, no owned files) | all above | 0 | - | - |
+
+E3.3 is not on the ladder: it is withdrawn.
+
+### 9.3 Shared files
+
+| file | slices that edit it | rule |
+|---|---|---|
+| `src/.../weapons/fit_geometry.py` | E3.1, E3.6 | sequential: E3.1 then E3.6 |
+| `src/.../weapons/cli.py` | E3.1, E3.6, C1 | sequential: E3.1, E3.6, C1 |
+| `src/.../weapons/calibrate.py` | E3.1, C1 | sequential: E3.1, C1 |
+| `src/.../weapons/fit_bore.py`, `mounts.py` | E3.1 only | - |
+| `src/.../weapons/fit_well.py` | E3.6 only | the docstring rides it |
+| `src/.../weapons/attach.py` | E3.7 only | - |
+| `src/.../weapons/directory.py` | E3.12 only | - |
+| `src/.../data/weapon_rules.yaml` | E3.8 only | - |
+| `tests/test_weapons_g1_export.py` | E3.8 (and E3.12 if AC145 moves) | E3.8 first |
+| `tests/test_weapons_g1_seats.py`, `g1_rules.py`, `w8p_rules.py` | E3.8 only | - |
+
+All other owned files are new. No `src/` file is edited by two slices that run in parallel.
+
+### 9.4 Slices
+
+#### E3.0 Spec, errata and plan text (docs branch)
+
+Branch `docs/g1-e3`, worktree `D:/game_assets_library/tools/inventoryagent-wt-g1-e3doc`, base `4c9d9e7`. Owned (4): `docs/weapon_attach_geometry.md`, `docs/weapon_attach_geometry_errata.md` (the E3 section), `docs/weapon_attachments.md` (the A4 foot clause and the AC107 wording), `docs/weapon_attach_geometry_plan.md` (this section and the §8 lines). The plan is append-only. Gate: a docs-only diff, pure CRLF, no asset or pack ids, and every number traceable to the errata. Digest effect: none.
+
+#### E3.1 Barrel-face OD (B) and stripped-mesh ring evidence (W1)
+
+**Owned (7).**
+- `src/synty_inventory/weapons/fit_bore.py` (`barrel_end` reads face data from `mount`)
+- `src/synty_inventory/weapons/fit_geometry.py` (`host_features` takes the injected probe)
+- `src/synty_inventory/weapons/mounts.py` (one shared helper; the injection; the host-features cache key)
+- `src/synty_inventory/weapons/cli.py` (`_gather_oracle` stops probing the unstripped muzzle)
+- `src/synty_inventory/weapons/calibrate.py` (`centreline` and `_observe_muzzle` pass the face data into `barrel_end`'s `mount`)
+- new `tests/test_weapons_e3_bore.py` and `tests/fixtures/weapons/e3_bore_meshes.py`
+
+**Not owned and stay green unmodified:** the 7 existing tests that hand-set a `bore_source` (`test_weapons_g1_bore.py`: `test_a_ringed_end_is_found_with_its_od`, `test_the_mounts_ring_bore_is_the_first_evidence`, `test_a_square_end_on_a_mount_with_a_ring_bore_is_still_the_mounts_ring`, `test_the_roundness_edge`, `test_the_unreduced_mesh_reads_the_device_face_as_the_barrel`, `test_the_verdict_signals_follow_the_evidence`; `test_weapons_g1_seats.py`: `test_a_round_rod_barrel_without_a_ring_bore_is_barrel_round_and_a_square_one_is_not_asserted`). The scratch emulation turned all 7 red because it ignored a hand-set source; the real design must not (face data absent from `mount` means today's behaviour).
+
+**Design constraints the brief states** (they keep the pins and AC144 true):
+- `fit_bore` stays pure. The stripped probe is an injected callable on `host_features` (a new keyword, default None = today). Probing inside `barrel_end` fails the AC144 import test for `fit_bore`.
+- One helper in `mounts.py` serves the build injection and `cli._gather_oracle`, so the two cannot drift. Its input is the stripped (f, s, u) mesh; it runs `geometry.muzzle_probe` and `mounts.bore_diameter` and returns the ring flag, the face centre (s, u) and the face OD.
+- The face data is carried **inside the existing `mount` dict**; the `barrel_end` signature (pinned in `test_weapons_g1_verdict.py`) and spec §3.11 are untouched.
+- The stored `barrel_end` record keeps its four keys (`od_m`, `evidence`, `centre_su`, `face_f`). A new stored key would move AC143, AC145 and the w8d-world digest.
+- No (i) evidence for a host or preset with no muzzle mount (`bore_source` None).
+- Cache: `_MOUNT_KEYS` already carries `bore_source`, but the helper's code is in neither `FIT_CODE_DIGESTS` nor the host-features cache key. A mounts code digest joins that key (§9.6 ruling 3).
+
+**Fixtures:** errata E3.1 and E3.2 (red: slide face, fused device over a rod, block behind the barrel, missing ring on the stripped face, oracle and build sharing the probe, host-features cache key covering the probe code; guards: round barrel with its own ring, evidence-(ii) end, rod without device, ringed barrel plus device, non-host preset has no ring evidence).
+
+**Capture checkpoint (the lead views both sheets before the merge).**
+- Tool: `weapons attach-preview --pairs`. Software rasteriser (no `--gpu`). Once per file: `python -m synty_inventory --config <cfg> weapons attach-preview --pairs <file> --directory <E3.1 directory.json> --out <dir outside the repo and the catalogs> --sheet --size 384`. A pair the new directory no longer lists is drawn as tier `unlisted`.
+- Sample: all of them, no sampling. Leaving = listed in the base directory and absent from the E3.1 directory (expected 17: 3 same-pack, 14 cross-pack). Returning = `same_pack_fit` entries in the E3.1 directory absent from base (expected 15). Sheets are 5 x 4 cells (17) and 4 x 4 (15).
+- The builder regenerates the two pair files from the real E3.1 directory and reports any count other than 17 and 15. Until C3 lands read cells in `--pairs` file order, not index order.
+- Render time and the visual verdict are not measured.
+
+**Digests and versions.**
+- `fit_digest` moves on the live library (26920f0cbd5d880e predicted to 87c7c8dd6acad060; 71 hosts' muzzle slot records change). It does **not** move on the synthetic worlds (measured: per world 11 `barrel_end` calls, 5 ring-evidence, face OD equal to slab OD on all 5, none with a mount ring different from the stripped ring, no host with two magazine seats). Do not add a host to `world()`: it breaks the per-feature host count (`N_HOSTS = 15`) and the AC139 refused-set test.
+- `FIT_CODE_DIGESTS` (the seven names `fit_bore`, `fit_geometry`, `fit_locate`, `fit_rails`, `fit_types`, `fit_well`, `mount_probe`; `calibrate.py` is not one): `fit_bore` and `fit_geometry` change, so the host-features cache key, the geometry cache fingerprint and the `directory._fit_cached` keys move. No pin moves. The mounts code digest moves (cache only).
+- `attach_rules_digest`, `rules_digest`, `overrides_digest`, AC143, AC145, the w8d-world digest, `WEAPON_ATTACH_VERSION` 14 and `WEAPON_GEOMETRY_VERSION` 6: unchanged.
+
+**Gate.** G-1 to G-8, plus G-4: AC143, AC145 and the w8d-world literals not edited; the 7 hand-set tests not edited. Live row: §9.5.
+
+#### E3.7 Foot rung holds the part's mid-line (A4), rail slots
+
+**Owned (3).** `src/synty_inventory/weapons/attach.py` (`_foot_slab`; the ladder [0.004, 0.008, 0.016] and the lip rule otherwise unchanged), new `tests/test_weapons_e3_foot.py`, new `tests/fixtures/weapons/e3_foot_meshes.py`. Not owned, stay green unmodified: `test_weapons_w8l_anchor.py` (AC107 lip ladder, `foot_of`), `test_weapons_w8a_anchor.py`, `fixtures/weapons/w8l_meshes.py`.
+
+**Rule under test.** On `optic` and `underbarrel` parts a rung counts only if its slab holds the part's mid-line along `right`; when no rung holds it, the A4 ladder applies unchanged. Other slots keep their footprint. The proxy stands in for "intersects the run", which is not known when the footprint is stored.
+
+**Fixtures:** errata E3.7 (red: the side-hook part; guards: the 4 mm rung under the run, a true narrow lip on the mid-line, no rung holding the mid-line, and red against an unscoped build: a non-rail-slot part keeps its footprint).
+
+**Population-diff gate (required).** An operator script outside the repo (a committed tool would hold pack-derived output) lists every library part whose stored `foot_width_m`, `foot_length_m` or anchor point changes against the base: slot, old and new foot width and length, anchor shift in mm, and the part's pair-verdict flips. Acceptance: the changed set equals the set the lead ruled on, **2 parts**:
+
+| slot | foot width | foot length | anchor shift | pair verdicts that flip |
+|---|---|---|---|---|
+| optic (the side-hook part) | 6.2 to 33.3 mm | unchanged | 13.5 mm | 7 `no_fit` to `fit` |
+| underbarrel | 0.0 to 48.4 mm | unchanged | 0 | 2 `no_fit` to `fit` |
+
+Anything else: STOP. The proxy applied to every slot also moves 2 `laser_light` parts (anchor shift 5.5 to 20.7 mm, no verdict flips) and 1 `magazine` part (10.9 mm, none); under Q7 these are **not** moved, and a change on any of them is a finding. The 9.5 mm optic and the bottle-shaped optic do not change. The A4 function also measures a host's baked children; the diff is on library parts, and any host child whose foot or `point` moves is a finding (not measured). If the proxy misses a part, the fallback is (iii), a per-pair re-measure at verdict time, by a separate amendment.
+
+**Digests and versions.**
+- `fit_digest` unchanged (live and synthetic): it hashes the feature records, not stored footprints.
+- The attach code digests (`geometry.py` and `directory._ATTACH_CODE`) move: the geometry cache and the well-section cache recompute. No pin.
+- Stored footprints and anchors change on the 2 parts at the same attach version (§9.6 ruling 1). `attach_rules_digest`, `rules_digest`, `overrides_digest`, AC143, AC145: unchanged. No yaml or rules change.
+
+**Dependencies.** E3.0. File-disjoint from E3.1, E3.6, E3.4, E3.5, C3: runs in parallel with them. **E3.8 bases on its merge.**
+
+**Gate.** G-1 to G-8, plus the population diff, plus the live row of §9.5.
+
+#### E3.4 Guard tests for the §3.3 field list
+
+**Owned (2, both new).** `tests/test_weapons_e3_frame_fields.py`, `tests/fixtures/weapons/e3_frame_fields_world.py`. It imports `tests/fixtures/weapons/g1_frame_world.py` read-only. No `src/`.
+
+Test-only: the code needs no change. The red is the same assertion with the old §3.3 list as its literal: the frame-changed fixture's default-export diff lists `bounds`, `support`, `support_r_m`, `size_class` and `flags` outside the old list. Guards: a pre-vote `forward_by_fallback` clears when a ring confirms the sign; a host without a frame change differs in no field; `inventory_cells` and `weight_class` do not move. Unknown: how the fixture builds the "old frame" side. The likeliest is the `frame_axis` override that forces the build axis (`test_weapons_g1_frame.py`, helper `overrides()` in `g1_frame_world.py`); unverified. **If no mechanism reproduces it, STOP and report.** Digests: none move. Dependencies: E3.0; parallel with everything. Gate: G-1 to G-3, G-5, G-6. No live check.
+
+#### E3.5 Guard tests for the frame-changed sight clause
+
+**Owned (2, both new).** `tests/test_weapons_e3_sight_clause.py`, `tests/fixtures/weapons/e3_sight_world.py`. Reads `g1_frame_world.py`; no `src/`.
+
+Red: the fused post is found only in the voted frame (build frame `probe_unavailable`, feature frame both sight slots `slot_disabled`), and the AC139 additions test against the AC139 text as it stood. Guards: `laser_light` identical everywhere; a muzzle or optic refusal on a frame-changed host is not permitted by the clause. The draft did not confirm that the synthetic geometry reproduces the old-frame miss: **STOP and report if it does not.** Digests: none move. Dependencies: E3.0; parallel with everything. Gate: G-1 to G-3, G-5, G-6. No live check.
+
+#### C3 `preview.py` sheet-cell map (carried)
+
+**Owned (2).** `src/synty_inventory/weapons/preview.py` (`render_pairs`), new `tests/test_weapons_e3_preview_cells.py`.
+
+Cause (verified on 4 S10 sheets): `index.json` is sorted by (part, host) and merged with earlier runs, while `sheet.png` holds this run's images in job order minus failed renders. Recommended fix: an additive per-entry `cell` index. A sheet-writing run sets `cell` on its own entries and clears it on kept entries; a run without `--sheet` leaves existing `cell` keys. Sorting the sheet into index order cannot place a pair when older entries are in the index and breaks the `--pairs` file-order reading, so it is not recommended. Red: three jobs in non-sorted order, one render failing, a stub renderer returning a per-pair colour; each entry's `cell` equals the sheet position of its picture. Guards: a run without `--sheet` keeps older `cell` keys; kept entries lose `cell` when a new sheet is written. Pins expected to hold (not run): `test_weapons_w8d_preview.py`, `test_weapons_g1_tools.py`; a red there means STOP. Digests: none. Dependencies: none; needed before S11 cites a sheet cell. Gate: G-1 to G-3, G-5, G-6.
+
+#### E3.6 Well plane with every magazine node removed (F1), and the docstring
+
+**Owned (5).** `src/synty_inventory/weapons/fit_geometry.py` (`well(node)`: drop the node, every `m_mag["seats"]` node and `child_node`), `src/synty_inventory/weapons/cli.py` (`well_pos`: `ref_host` drops every `by_slot["magazine"]` node), `src/synty_inventory/weapons/fit_well.py` (the docstring, line 6: "above" to "on"; carried), new `tests/test_weapons_e3_well.py`, new `tests/fixtures/weapons/e3_well_meshes.py`. `test_weapons_g1_well.py` and `g1_well_meshes.py` stay green unmodified.
+
+**Fixtures:** errata E3.6 (red: a two-seat host gets a reference where the plane would miss the drum; the oracle's reference host drops all magazine nodes; directory and calibrate agree on the standard twin; guards: a one-seat host, a two-seat host without overlap). `test_drum_twin_is_judged` asserts only that the drum twin is no longer `not_judged`. It does **not** assert `fit`: with F1 alone the drum twin reads `no_fit` through the transposed section (E3.12).
+
+**Digests and versions.** `fit_digest` live 87c7c8dd6acad060 to 4b1d244491948493 (one host's magazine slot record); synthetic worlds unchanged (no two-seat host). AC143, AC145, w8d-world: unchanged. `FIT_CODE_DIGESTS`: `fit_geometry` and `fit_well` change (the docstring included: any byte edit moves the key), cache keys only. All other digests and versions unchanged.
+
+**Dependencies.** E3.0 and **E3.1 merged first**.
+
+**Gate.** G-1 to G-8, plus the live row of §9.5.
+
+#### E3.12 Well section cut after `twin_forward`
+
+**Owned.** `src/synty_inventory/weapons/directory.py` and its test file only (a new `tests/test_weapons_e3_well_order.py`, fixture inline). `compat.py` is owned only if the lead says so in the manifest before the base is cut. **AC143 and AC145:** if either moves, the pin lines (`tests/test_weapons_g1_compat.py`, `tests/test_weapons_g1_export.py`) are re-pinned in this slice. The manifest is write-once, so the lead decides at cut time whether those two files are listed as owned; if they are not, a move stops the slice and is reported.
+
+**The defect and the fix:** errata E3.12. The section is cut in `_apply_fit_parts` (`directory.py:873`) before `apply_compat` (`directory.py:874`) runs `twin_forward` (`compat.py:623`), which rewrites the anchor forward (`compat.py:604-607`) after the prior at `attach.py:179` chose the longer horizontal extent. Fix site: the order at `directory.py:873-874`, or the anchor read at `directory.py:527`. The `well|` cache key carries the pre-correction anchor (`directory.py:554`), so the fix changes cache keys too.
+
+**Gate.** G-1 to G-8, plus:
+- the 87 stored drum rows reproduce except the drum twin, which reads 0.0000;
+- the 6 other x-forward magazine parts are listed before and after (counts and deviations only);
+- a cache-hit run on a partial build reproduces the full build;
+- AC143 and AC145 are measured, and re-pinned in the slice if they move.
+
+**After E3.12 the numbers change as follows.** The drum twin is judged and `fit`, so the twin count is **38 (INFERRED** from the 0.0000 re-cut; confirmed at S10b). `fit_digest` moves again on the live library (the stored drum sections are part records), by a value not measured. AC143 and AC145 are measured and re-pinned in the slice if they move.
+
+#### E3.8 `clamp.ratio_min` 0.69 and the re-pins
+
+**Owned (6).** `src/synty_inventory/data/weapon_rules.yaml` (`clamp: {overhang_max_m: 0.010, ratio_min: 1.0}` to 0.69; `rules.py` needs no edit), `tests/test_weapons_g1_rules.py` (`BLOCK` and its shipped-block equality test), `tests/test_weapons_g1_export.py`, `tests/test_weapons_g1_seats.py`, `tests/test_weapons_w8p_rules.py`, new `tests/test_weapons_e3_clamp.py` (the AC137 case). Measured: exactly these 5 existing tests go red, and no other.
+
+| test | pin | old | new |
+|---|---|---|---|
+| `g1_export::test_ac146_the_versions_and_the_digests` | `attach_rules_digest` (shipped table) | a981c4c7c27972e8 | **2fa41961e3c387b0** |
+| `g1_export::test_ac146_the_directory_header_of_the_w8d_world` | w8d-world `attach_rules_digest` (the world carries its own `attach_genre_by_pack`) | d53ba2ef587b5ee9 | **6f49a2ac6efa8120** |
+| `g1_seats::test_the_versions_and_digests_are_those_of_the_base` | `attach_rules_digest` | a981c4c7c27972e8 | 2fa41961e3c387b0 |
+| `w8p_rules::test_ac129_the_versions_and_the_digests` | `attach_rules_digest` | a981c4c7c27972e8 | 2fa41961e3c387b0 |
+| `g1_rules::test_the_shipped_block_is_spec_4_1_with_no_frame_key_and_validates` | `BLOCK["clamp"]["ratio_min"]` | 1.0 | 0.69 |
+
+The new digests are the scratch values for a yaml edit of exactly that one number (the digest hashes parsed rules, so comments do not matter). A different value means the builder changed something else. The re-pin edits are red-first by construction: run the five pin tests on the new yaml before editing them and record the five failures.
+
+**Fixtures:** errata E3.8 (red: the shipped rules clear a 0.80 positive, reading the row, not the exit code; guards: rules overridden to 0.85 exit 6 and name the literal; no positives exit 6).
+
+**Digests and versions.** `attach_rules_digest` moves (above). `fit_digest` unchanged. `rules_digest` 7b9829af37328fe7 never moves for attachment_rules edits. `overrides_digest` unchanged. AC143, AC145 unchanged. Versions unchanged.
+
+**Dependencies.** E3.0 and **E3.7 merged** (logical: without it the minimum is the 0.378 artefact and the rule would give 0.30, so the live gate fails). File-disjoint from E3.1, E3.6 and C1 under the new-file policy.
+
+**Gate.** G-1 to G-8, plus the live row of §9.5 (`attach-calibrate` exit 0).
+
+#### C1 Calibrate `seats` field (carried)
+
+**Owned (3).** `src/synty_inventory/weapons/calibrate.py` (`_row`: add `seats`; observations gain a seat id), `src/synty_inventory/weapons/cli.py` (`add()`, `rail()` and `device()` supply it), new `tests/test_weapons_e3_seats.py`. `test_weapons_g1_calibrate.py` (the `spec_n` checks) stays green; `seats` is additive. **A seat is the distinct (host, slot, seat node)** (§9.6 ruling 5).
+
+Red: a row's `seats` counts distinct seats, not observations (synthetic: a twin shares its baked sibling's seat, n 3, seats 2). Guards: a preset keeps its own seat; the pure `calibrate()` layer stays free of `cli`. Live (S10b): `clamp.ratio_min` n 26 to seats 19 (16 optic, 3 underbarrel) and the bore rows n 14 to seats 11. A different count is a finding. Digests: none move (neither file is one of the seven). Dependencies: **after E3.1 and E3.6** (shared `calibrate.py` and `cli.py`). Gate: G-1 to G-8; live: the rows are otherwise identical to the preceding state.
+
+#### S10b Live re-read (operator run, not a slice)
+
+An operator run on the merged result (G-7), with the final rows of §9.5, plus the §4.2 observed-column check (the rewrite is already in the spec). No owned files. It confirms the inferred twin count (38) and the E3.12 numbers, and it says which population `bore.circ_min` enforces (n 2). A value off its expected one is reported, not tuned.
+
+### 9.5 Ledgers
+
+**Digests, versions and pins** (the live `fit_digest` values are predictions; E3.12 moves the live value again, not measured).
+
+| item | base | E3.1 | E3.6 | E3.7 | E3.8 |
+|---|---|---|---|---|---|
+| live `fit_digest` | 26920f0cbd5d880e | 87c7c8dd6acad060 | 4b1d244491948493 | same | same |
+| AC143 `world()` `fit_digest` | 9e88713e0a47d5d0 | same | same | same | same |
+| AC145 `cross_world()` | e4245a0e01a13252 | same | same | same | same |
+| w8d-world `fit_digest` | d8a5f85413f90698 | same | same | same | same |
+| shipped `attach_rules_digest` | a981c4c7c27972e8 | same | same | same | **2fa41961e3c387b0** |
+| w8d-world `attach_rules_digest` | d53ba2ef587b5ee9 | same | same | same | **6f49a2ac6efa8120** |
+| `rules_digest` | 7b9829af37328fe7 | same | same | same | same |
+| `overrides_digest` (shipped) | 0a2948d6cab4c77e | same | same | same | same |
+| `WEAPON_ATTACH_VERSION` / `GEOMETRY` | 14 / 6 | same | same | same | same |
+| `FIT_CODE_DIGESTS` keys moved | - | `fit_bore`, `fit_geometry` | `fit_geometry`, `fit_well` | none | none |
+| other code digests moved | - | mounts | none | attach (two copies) | none |
+
+AC143 is the directory `fit_digest` of the FAKE_G1 `world()` alone (`tests/test_weapons_g1_compat.py:653`; a subprocess probe under `PYTHONHASHSEED` 0 and 1). AC145 is the `fit_digest` of `cross_world()` (`tests/test_weapons_g1_export.py:101`). `fit_digest` hashes values, not code: a code edit moves it only if a measure changes, and a rules edit only if a rule changes a measure. Measured on the four stacked variants, both pins and both directory sha256 values are identical to base. The one way to move them is a new stored key or a new host in a world (E3.1's design constraint), or E3.12.
+
+**Live-check ledger** (`attach-calibrate` on the copy catalogs; counts). Each row is the state after that slice, stacked in the measured order.
+
+| state | exit | failed literals | `od_ratio` viol | `inner` viol | `axis_offset` viol | `circ_min` n | `ratio_min` viol (min) | `well.tol` n | pair verdicts changed (vs previous) | twins `fit` of 38 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| base | 6 | `clamp.ratio_min`, `bore.od_ratio`, `bore.inner_ratio`, `bore.axis_offset_max_m` | 6 | 1 | 5 | 3 | 5 (0.378) | 15 | - | 31 |
+| E3.1 | 6 | `clamp.ratio_min` | 0 | 0 | 0 | 2 | 5 (0.378) | 15 | 85 (68 up, 17 down), listed +66 / -17 | 33 |
+| E3.6 | 6 | `clamp.ratio_min` | 0 | 0 | 0 | 2 | 5 (0.378) | 16 | 8 on 1 host, listed 0 | 34 |
+| E3.7 | 6 | `clamp.ratio_min` | 0 | 0 | 0 | 2 | 4 (0.7692) | 16 | 9, listed +9 | 34 |
+| E3.8 | **0** | none | 0 | 0 | 0 | 2 | 0 (0.7692) | 16 | 79, listed +75 | 37 |
+| E3.12 | 0 | none | 0 | 0 | 0 | 2 | 0 (0.7692) | 16 | drum twin `no_fit` to `fit`; stored drum sections; not measured | **38 (INFERRED)** |
+
+Constant across all states: `unmeasured` underbarrel `no_toothed_run` 5 baked, 1 preset, 1 twin; `skipped` `located_magazine_without_reference` 5; placements 163 (spec 163); hosts 257. `unmeasured` `magazine:twin:no_well_reference` is 1 until E3.6, then absent. Details per slice:
+- **E3.1** (live): `attach-calibrate` exit 6, `failed` = `clamp.ratio_min` only. Flipped from base: `bore.od_ratio` (6 violations to 0; observed [0.3503, 1.6526] to [0.9097, 1.6526]), `bore.inner_ratio` (1 to 0; [0.2699, 1.1315] to [0.5581, 1.1315]), `bore.axis_offset_max_m` (5 to 0; max 0.0136 to 0.0012). `bore.circ_min` n 3 to 2, observed 0.8236, margin 0.0736, still `ok`. Pairs: 85 muzzle verdicts change, no other slot moves; listed 66 enter (15 same-pack, 51 cross-pack) and 17 leave (3 same-pack, 14 cross-pack); pending unchanged (4704). Report both lists' counts; a different count is a finding.
+- **E3.6** (live, against E3.1): `well.tol` n 15 to 16, observed max 0.1044, margin 0.0456; `unmeasured` `magazine:twin:no_well_reference` 1 to 0. One host's feature record changes; 8 magazine pair verdicts change on it: 7 `not_judged` to `no_fit` (6 non-twin parts and the drum twin) and 1 `unverified` to `fit` (the standard twin). Listed pairs change by 0; the pending list shrinks 4704 to 4698. Twins: `fit` 33 to 34, `no_fit` 3 to 4, `not_judged` and `unverified` 1 and 1 to 0.
+- **E3.7** (live, against E3.6): exit 6; `failed` = `clamp.ratio_min`, violations 5 to 4, observed min 0.378 to 0.7692, margin -0.2308. 9 `no_fit` to `fit` (7 optic, 2 underbarrel), 2 parts, 9 hosts, all cross-pack; 9 listed pairs enter, none leave. No twin moves. `fit_digest` identical to the E3.6 state. These were measured with the proxy on every slot; the 3 non-rail parts flip no verdict and store nothing in `fit_digest`, so rail slots only is expected to give the same row. The slice confirms.
+- **E3.8** (live, against E3.7): `attach-calibrate` exit 0, `failed` empty. `clamp.ratio_min` n 26 (spec_n 16), violations 4 to 0, observed 0.7692, margin 0.0792, literal 0.69. 79 `no_fit` to `fit` (63 optic, 16 underbarrel; 38 hosts, 20 parts; 31 same-pack and 48 cross-pack); 75 listed enter (30 same-pack, 45 cross-pack), 4 flip without being listed; none leave. Twins `fit` 34 to 37. `fit_digest` unchanged.
+
+**S10b expectation (final rows):** `clamp.overhang_max_m` n 26 / spec 16 obs -0.0212 margin 0.0312; `clamp.ratio_min` n 26 / 16 obs 0.7692 margin 0.0792 literal 0.69; `rail.zone` n 67 obs [0.1992, 0.7823]; `depth` n 23 / 16 review row; `bore.od_ratio` n 14 / 11 obs [0.9097, 1.6526] margins [0.0597, 0.3474]; `bore.inner_ratio` n 7 / 6 obs [0.5581, 1.1315] margins [0.0881, 0.0785]; `bore.axis_offset_max_m` n 14 / 11 obs 0.0012 margin 0.0038; `bore.axis_tilt_max_deg` n 14 / 11 obs 0.0; `bore.circ_min` n 2 / 4 obs 0.8236 margin 0.0736; `well.tol` n 16 / 15 obs 0.1044 margin 0.0456; frame constant n 3 obs 0.0178 margin 0.0072.
+
+**Reds the variants produced in existing weapons tests:** E3.1: 7 hand-set-source tests plus the AC144 import test in the emulation (artefacts of probing inside `barrel_end`; the real slice keeps all 8 green). E3.6: 0. E3.7: 0. E3.8: 5 (the pin edits above).
+
+### 9.6 Rulings on the E3 ladder
+
+1. **No version bump.** `WEAPON_ATTACH_VERSION` 14 and `WEAPON_GEOMETRY_VERSION` 6 stay: a14 is local-only until S11 and S12, and E3.7 stores new footprints and anchors on 2 parts at the same version. If a bump to 15 is ordered, 19 test files pin 14 plus the package constant: its own sweep slice, after the last functional merge.
+2. **`barrel_end` keeps its signature.** Face data is carried inside the mount dict. The alternative (new arguments) would re-pin `test_weapons_g1_verdict.py` and amend §3.11.
+3. **The `mounts.py` host-features cache key gets a pinned code digest.** The helper's code is in neither `FIT_CODE_DIGESTS` nor the host-features key today. A mounts code digest joins the key, and a test pins that it does (mirror of the key test in `test_weapons_g1_seats.py`).
+4. **One worktree per slice.**
+5. **C1 seats = distinct (host, slot, seat node).** A twin shares its baked sibling's seat.
+6. **E3.12 owns `directory.py` and its test file only.** Its gate items: the 87 stored drum rows reproduce except the drum twin at 0.0000; the 6 x-forward magazine parts listed before and after; a partial-build cache hit equals the full build; AC143 and AC145 measured and re-pinned in-slice if they move.
+7. **The B capture checkpoint.** All 17 leaving and 15 returning pairs are viewed by the lead before the E3.1 merge.
+8. **E3.7 scope (Tom, Q7).** Rail slots only. The population diff must equal the 2 parts of E3.7.
+
+Conventions the ladder assumed, **not rulings** (the architect's recommendations; the lead may overrule): explicit file lists with no test glob (§9.1 rule 2); new behaviour tests in new files (rule 3); S10b is an operator run and not a slice; the population-diff script stays outside the repo; E3.4 and E3.5 stop if the old-frame fixture cannot be reproduced.
+
+### 9.7 Carried items and what is not determined
+
+Carried, so nothing is lost:
+- **The labels wiring** stays before S12 (§4 and §5). The labels source is wired into `eval.py`, `spotcheck.py` and `cli.py`, and the labels store's count is reconciled against the 449 the spec cites, before any `--draw`. It is not an E3 slice.
+- **The `preview.py` cell map** is slice C3.
+- **The `fit_well.py:6` docstring** rides E3.6.
+- **The calibrate `seats` field** is slice C1.
+- **The 24 `fit` pairs on the three sub-5 mm toothed runs** go on the S11 capture list (errata E3.9 (d), Q6: no floor now). A floor becomes a later erratum only if the captures show them wrong.
+
+Not determined from the tree:
+- the real E3.1 output (the live digests are emulation predictions; the keys the slice stores decide whether AC143 and AC145 move);
+- the directory effect of E3.12 on AC143 and AC145, and the partial-build and cache-hit behaviour;
+- whether the mid-line proxy is complete for host children (the A4 function measures them too);
+- renders of the 17 leaving and 15 returning pairs (the E3.1 capture checkpoint), and render time;
+- the old-frame mechanism for the E3.4 and E3.5 fixtures;
+- non-weapons tests under each variant (only the 106 weapons files were run; the full suite is each slice's gate);
+- whether the preview tests survive an additive `cell` key (expected, not run).

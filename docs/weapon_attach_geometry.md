@@ -7,6 +7,7 @@
 **Parents:** [weapon_attachments.md](weapon_attachments.md) ("the attachment spec"; a bare `A§N` points into it) and [weapon_directory.md](weapon_directory.md) (`DS§N`). A bare `§N` points into this document. Everything in the parents still holds except what §3.8 retires and what §4.6 amends (INV-19 and AC77 for the feature-frame records, AC80(c) for the four slots).
 **Errata:** [weapon_attach_geometry_errata.md](weapon_attach_geometry_errata.md). E1 (round barrel end, one landing test, strip scope) was APPROVED by Tom on 2026-10-27 at the defaults (AC131 163), and is in force.
 **Errata E2:** APPROVED by Tom on 2026-10-27, and in force. His reply, "Use your default s", is read as the peer's recommendations (the errata's E2 status records the reading): the located-magazine clause of §3.7 step 1 is dropped (E2-Q3), and a ring bore needs two radii (E2-Q2).
+**Errata E3:** APPROVED by Tom on 2026-10-28, and in force. His reply is quoted in the errata's E3 status; the peer relayed it. The barrel-face outer diameter for ring evidence and the stripped-mesh bore probe (§3.6), the frame-derived fields (§3.3), the frame-changed sight clause (§3.8), the two-seat well plane and the well section order (§3.7), the foot rung (§3.5) and `clamp.ratio_min` 0.69 (§3.5, §4.1, §4.2) are amended in the sections named, and AC133 to AC137, AC139 and AC149 are re-pinned. E3.3 (one-pair calibration exceptions) is **withdrawn** and E-G3 is retired. The build follows [weapon_attach_geometry_plan.md](weapon_attach_geometry_plan.md) §9.
 **Consumers:** `sit_armory` 0.3.0 and `sit_weapons` 0.4.0 (sit-capabilities). §4.6 shows that neither one needs to change, with Q-G4 included.
 
 > The public-repo rule (INV-1, INV-17) applies in full. This document carries algorithms, literals, classes, counts and ranges only. It has no per-asset measurements and no GLB node names. It names asset ids only where the attachment spec already names them. Every measured file (calibration report, fit cache, captures) lives under the catalogs folder or a scratch folder and is never committed. Fixtures are synthetic.
@@ -138,6 +139,14 @@ The setting gate, Tom's standing refusals and every other policy rule stay as th
   - one fused scope, on an optic slot that is `none` today.
 - a8c's filled-slot rule reads baked children only, so it cannot see fused parts (§3.8, Q-G11).
 
+**Where the a14 build differs from this survey (errata E3.9).** The survey counts above are the starting measurements. Where the build measured something else, the build's figure is used and the section that depends on it says so:
+- Twins: the a14 build reads 31 of 38 twin pairs `fit` before errata E3 and 38 of 38 once the E3 slices have merged (the last step INFERRED, confirmed at S10b; AC133). The survey's 36 of 38 is not reproduced.
+- Bore positives, read against the barrel face (E3.1): OD ratio 0.91 to 1.65 on 11 of 11, axis offset at most 1.2 mm. The survey's 0.93 to 1.92 on 10 of 11 and its 3.9 mm are not reproduced. Inner rings: 7 placements on 5 devices, not 6 on 4.
+- Toothed runs: the positives' rail top widths are 10.7 to 30.0 mm, and their lowest clamp-to-rail ratio is 0.7692, not 1.63 (E3.8). The overhang quantity reads at most −21.2 mm, not 8 mm; the survey's was a positional offset (E3.9 (f)).
+- Toothed hosts: the build's recount is 52 on top and 16 on the bottom with the strip, 47 and 16 without it. Neither gives the survey's 45 and 14 (E3.9 (e)).
+- Narrow and decorative toothed runs (a 3.7 mm ribbed shroud, 4.4 mm underbarrel runs, a 46.2 mm jacket): no minimum run width is set (E3.9 (d), §4.2).
+- Flat seats: on 77 of the 124 hosts that take a flat seat, the seat is not on the highest qualifying run. Reported, no change (E2-Q1, E3.9 (b)).
+
 ## 2. Non-goals
 
 - `laser_light`, `sight_front` and `sight_rear` keep their current rules, including family and affinity. A later amendment may give them detectors.
@@ -225,7 +234,11 @@ The vote runs only on eligible hosts (`mounts.eligible`), whatever `with_mounts`
 
 **Scope of the feature frame (Q-G4 adopted).** The feature frame is the record's frame. On the 3 hosts, `geometry.axes`, `item_basis` and every value derived from the frame follow it:
 - `length_m`, tip, butt, grip and pivot points, and `geometry.muzzle`;
-- the review reasons judged from them (`axes_unexpected` may drop).
+- the review reasons judged from them (`axes_unexpected` may drop);
+- `geometry.bounds` (its per-axis size, min and max follow the frame's axes);
+- `geometry.support` and `geometry.support_r_m`;
+- `hints.size_class`, which is derived from `length_m` (`inventory_cells` and `weight_class` do not move);
+- `flags`, only the `forward_by_fallback` flag of step 5 (errata E3.4).
 
 The mounts are then built in that frame as before, so the muzzle seat (A0 probe) equals `geometry.muzzle` and **AC67 holds unchanged**. `WEAPON_GEOMETRY_VERSION` goes 5 → 6, and INV-19 is amended for these records (§4.6). The build reports every changed field of every record. A changed `archetype`, `genre` or `hold_class` is a finding, because it raises ARM_W06 in locked games (§4.6).
 
@@ -269,10 +282,12 @@ Part side: `footprint.foot_length_m` (`Lp`) and `footprint.foot_width_m` (`Wp`),
 | host feature in slot X | V |
 |---|---|
 | policy refused | (step 1, not reached) |
-| toothed run R (and no frame conflict) | `fit` iff `Lp ≤ len(R) + overhang_max_m` (0.010) **and** `Wp ≥ clamp_ratio_min × R.width_m` (1.0). Otherwise `no_fit`. Signal `rail_teeth`. |
+| toothed run R (and no frame conflict) | `fit` iff `Lp ≤ len(R) + overhang_max_m` (0.010) **and** `Wp ≥ clamp_ratio_min × R.width_m` (0.69, errata E3.8). Otherwise `no_fit`. Signal `rail_teeth`. |
 | authored reference seat (`child_node`/`override`) and no toothed run | `fit` iff `Lp ≤ ref_len + overhang_max_m`, where `ref_len` is the flat run containing the reference contact (§3.4 step 3 parameters), or the reference child's own `foot_length_m` when no flat run covers it (stepped seat). Otherwise `no_fit`. Signal `seat_ref`. |
 | flat seat only | `unverified`, signal `rail_flat` |
 | no seat, no feature | `not_judged` |
+
+**Foot used (errata E3.7).** `Lp` and `Wp` are the part's stored A4 footprint. On `optic` and `underbarrel` parts the foot is the first rung of the A4 ladder whose slab holds the part's mid-line along `right` (the line through the centre of the part's whole extent along `right`); a rung that lies off the mid-line is a side feature and is skipped. When no rung holds the mid-line, the A4 ladder applies unchanged, and every other slot keeps today's footprint. The lip rule (A§3.4 step 1a) is unchanged. The mid-line stands in for "the slab intersects the run", because the run is not known when the footprint is stored. A population diff over the library gates the build (plan §9.4).
 
 Width is not checked on a `seat_ref` host. No calibration exists for an untoothed clamp, and an uncalibrated literal is not added. When the slot's mount has more than one seat (`seats`, A1), the check runs against the seat the pair uses.
 
@@ -280,11 +295,11 @@ Width is not checked on a `seat_ref` host. No calibration exists for an untoothe
 
 `barrel_end(host_mesh_fsu) -> BarrelEnd | None`. The mesh is the host minus muzzle `occupied_by`, minus located parts, minus collision. The end slab is the vertices within `end_slab_m` (0.010) of the forward extreme. A barrel end exists if any of these holds:
 
-- (i) the mount's existing ring bore (A§4.2: `bore_source == "ring"`; a ring needs an inner and an outer radius, errata E2.6);
+- (i) the mount's existing ring bore (A§4.2: `bore_source == "ring"`; a ring needs an inner and an outer radius, errata E2.6), **read on the same stripped mesh the end slab is taken from** (errata E3.2). The bore probe for (i) runs on the host minus muzzle `occupied_by`, minus located parts, minus collision. If the stripped face has no ring, (i) does not hold and the end falls through to (ii), then (iii). A host or preset with no muzzle mount has no evidence (i);
 - (ii) a front-face ring: the innermost 1 mm radial bin holding ≥ 6 vertices, inside 0.75 of the slab's outer radius (`mount_probe.end_ring_d`, shared with the frame vote of §3.3);
 - (iii) a round end section: `min(extent_s, extent_u) / max(...)` ≥ `round_min` (0.8) and OD ≤ `barrel_od_max_m` (0.060).
 
-`od_m` is twice the slab's outer radius around the slab's centre. `centre_su` is that centre. The **bore axis** is host forward through `centre_su`.
+For evidence (i), `od_m` and `centre_su` are read from the muzzle face of the stripped mesh (errata E3.1, E3.2): `centre_su` is the mean of the face points' (s, u), and `od_m` is twice their largest distance from it. The face is the A0 probe's face, the first 1, 2, 5 or 10 mm window behind the forward extreme that holds 3 or more points. For evidence (ii) and (iii), `od_m` is twice the slab's outer radius around the slab's centre, and `centre_su` is that centre. The **bore axis** is host forward through `centre_su`. The stripped probe runs in `fit_geometry.host_features` (an injected callable) and reaches `barrel_end` as data inside the mount dict, so the `barrel_end` signature, the four stored keys of its record and §3.11 are unchanged.
 
 Part side: `footprint.mate_d_m` (existing; the mating ring's outer diameter, A§13.5 item 7), plus an inner bore ring on the mating face when one exists (`device_inner_d`, the same ring estimator).
 
@@ -304,11 +319,11 @@ The receiver is solid where the magazine enters (§1.1), so the host side is the
 
 1. **Reference.**
    - The host needs an authored magazine: the `child_node` magazine seat (the larger child when there are several, A§4.2). Without one the host has no well reference, and its magazine pairs are `not_judged`, which leaves the slot `none` as today. A fused magazine on a preset gives no reference (errata E2-Q3 dropped "or a located magazine on a preset").
-   - The **receiver-bottom plane** `u_rb` is the lowest host crossing on the vertical line through the reference's top-face centre, using host-minus-magazine triangles and `crossings()`, a line-triangle intersection with a 1e-5 m offset off edges.
+   - The **receiver-bottom plane** `u_rb` is the lowest host crossing on the vertical line through the reference's top-face centre, using the host triangles with **every** magazine node of the mount removed (the reference and any other magazine seat; errata E3.6) and `crossings()`, a line-triangle intersection with a 1e-5 m offset off edges.
    - The **entry section** `(L_ref, W_ref)` is the f and s extent of the reference magazine's triangles cut by the plane `u = u_rb − entry_depth_m` (0.002).
 2. **Candidate.**
    - Place P with the existing placement (C-21) at the reference seat. For a twin pair the twin's own seat is used.
-   - Cut it at the same plane to get `(L_p, W_p)`.
+   - Cut it at the same plane to get `(L_p, W_p)`. For a twin pair the cut uses the anchor as `twin_forward` leaves it: the directory corrects a twin's forward axis before it cuts the well section (errata E3.12).
    - A part whose section is empty at that plane, which covers drums and parts that do not reach the plane, is `unverified` with signal `drum`.
 3. **Verdict.** `fit` iff `|L_p − L_ref| / L_ref ≤ well_tol` **and** `|W_p − W_ref| / W_ref ≤ well_tol`, with `well_tol` = 0.15. Otherwise `no_fit`. Signal `well_entry`.
 
@@ -331,7 +346,7 @@ A cross-pack `fit` magazine still goes to `pending_hosts` (A8-1, unchanged). The
 
 Tom's standing refusals map onto these rules as shipped (AC139):
 - **"A built-in part fills its slot."** On an `attach_filled_hosts` (preset) host, a slot filled by a baked child refuses, except the magazine. So does a slot filled by a located fused part (below).
-- **Iron sights.** A baked sight refuses both sight slots on any host (`baked_sights` A and C).
+- **Iron sights.** A baked sight refuses both sight slots on any host (`baked_sights` A and C). On a host whose frame the vote changed (§3.3), the fused-post detector runs in the record's frame, so it can find a post that the build frame missed, and the sight slots then read `slot_disabled` (errata E3.5).
 - **Optics.** A glass-only host refuses `optic` (`baked_sights` B).
 - **Not a refusal.** On any other host, a baked optic body or muzzle device stays **replaceable**: it is hidden through `occupied_by` when a part mounts (A§4.3). That is not a refusal, and this amendment does not make it one.
 
@@ -484,7 +499,7 @@ fit_geometry:
     default_seat_len_m: 0.20
     sight_clear_m: 0.010
   flat: {band_m: 0.005, close_m: 0.015, min_m: 0.060}
-  clamp: {overhang_max_m: 0.010, ratio_min: 1.0}
+  clamp: {overhang_max_m: 0.010, ratio_min: 0.69}   # ratio_min: errata E3.8, section 4.2
   depth: {lo_m: -0.026, hi_m: 0.003}            # review list only (section 3.9)
   bore:
     end_slab_m: 0.010
@@ -504,26 +519,29 @@ Every key is required. The validator rejects a missing key, a negative length, a
 
 | literal | positives (n) | max observed | margin | literal | exceptions (reasoned) |
 |---|---|---|---|---|---|
-| `clamp.overhang_max_m` | toothed optic positives (16) | 8 mm | 2 mm | 10 mm | none |
-| `clamp.ratio_min` (clamp underside ≥ rail width) | toothed optic positives (16) | min ratio 1.63 | physical bound | 1.0 | **rule exception:** a one-sided physical bound (a clamp narrower than the rail cannot grip it), so the literal sits below the data, not beyond it. "Clamp width matches rail width" as an equality fails on Synty's own presets at any useful tolerance, because undersides are 26 to 75 mm against 16 to 18 mm rail tops. |
+| `clamp.overhang_max_m` | toothed optic positives (16 seats; the calibrate tool reads 26 observations over 19 seats, 16 optic and 3 underbarrel) | −21.2 mm (foot length minus run length; errata E3.9 (f)) | 31.2 mm | 10 mm | none |
+| `clamp.ratio_min` (how much of the rail top width the lowest pads cover; this row read "clamp underside ≥ rail width" before errata E3.8) | toothed optic positives (16 seats; 26 observations over 19 seats) | min ratio 0.7692 (after errata E3.7) | 0.08 | 0.69 | none. The "physical bound" reason is withdrawn (errata E3.8): neither of the two authored seats below 1.0 has jaws at any height, and their lowest pads are narrower than the rail, so the ratio does not measure whether a clamp closes. A lower bound sits at the observed minimum, 0.77 at two decimals, less 0.08, the margin of the two ratio rows. It is conditional on errata E3.7: without it the minimum is the 0.378 foot artefact and the rule would give 0.30. |
 | `rail.zone` | optic contact centres, all optic positives | [0.22, 0.80] | 0.07 rear, 0.05 front | [0.15, 0.85] | none |
 | `depth` (review list only) | toothed optic positives (16) | 0 to −23.9 mm | 2 mm below, 3 mm above (= `contact.dead_m`) | [−26, +3] mm | not a fit literal |
-| `bore.od_ratio` | bore positives (11) | [0.93, 1.92] | 0.08 each side | [0.85, 2.00] | E-G3 |
+| `bore.od_ratio` | bore positives (11) | [0.91, 1.65] (barrel-face OD, errata E3.1) | 0.06 below, 0.35 above | [0.85, 2.00] | none (E-G3 is retired) |
 | `bore.inner_ratio` | devices with an inner ring (6 placements) | [0.55, 1.13] | 0.08 each side | [0.47, 1.21] | none |
-| `bore.axis_offset_max_m` | bore positives (11) | 3.9 mm | 1.1 mm | 5 mm | none |
+| `bore.axis_offset_max_m` | bore positives (11) | 1.2 mm | 3.8 mm | 5 mm | none |
 | `bore.axis_tilt_max_deg` | bore positives (11) | 0° | 2° | 2° | none |
-| `well.tol` | judged twin magazines (15 of 16) | 0.105 | 0.045 | 0.15 | E-G2. Alternative 0.095 in Q-G2. |
+| `bore.circ_min` (lower bound, errata E1.1) | barrel-section positives proved by a face ring, evidence (ii): 2 (the non-host presets; 3 before errata E3.2 moved a fused-device preset to evidence (i)); all 7 barrel-section positives agree | min 0.8236 (hull ratio) | 0.0736 | 0.75 | none |
+| `well.tol` | judged twin magazines (16 of 16 once errata E3.6 and E3.12 are in; 15 of 16 before) | 0.1044 | 0.0456 | 0.15 | E-G2. Alternative 0.095 in Q-G2. |
 | `geometry._FRAME_BORE_MAX_M` (a `geometry.py` constant, Q-G4; not in `fit_geometry`) | frame-changed hosts (3) | 18 mm | 7 mm | 25 mm | none |
 
 The detector parameters (locator grid, tooth amplitude, pitch window, CV, count, merge, band, closing, minimum run, round section, OD cap, entry depth) are not tolerances on a pair. They cover the measured distributions in §1.1: pitch p5 to p95 is 17 to 32 mm inside a 5 to 40 mm window, and tooth amplitude p5 is 2.9 mm against a 0.8 mm floor. `attach-calibrate` prints them with those distributions.
 
 **Calibration exceptions (AC133 to AC136; reasons, not ids, are recorded in `fit_geometry.exceptions`):**
 - **E-G1. Stepped optic seats.** 3 untoothed twin hosts whose twin sits on a stepped seat (the A§5.4 known defects). They pass only through `seat_ref` with the child's own foot length. No flat run covers them.
-- **E-G2. Cross-family twin magazine.** It reads 0.105 in width. It passes at `well.tol` 0.15 and would be an exception at 0.095 (Q-G2). The drum twin has no section, so it is `unverified` (the twin listing is unaffected).
-- **E-G3. Slide-face silencer twin** (a pistol). The device mates on a slide face with no modelled barrel, so its OD ratio is below the band. It stays listed as `twin`. Other suppressors on that host are judged by the band.
+- **E-G2. Cross-family twin magazine.** It reads 0.105 in width. It passes at `well.tol` 0.15 and would be an exception at 0.095 (Q-G2). The drum twin has no section in the survey and is `unverified` there. On the a14 build it is `not_judged` until errata E3.6 gives its host a well reference, and it is judged, and `fit`, once errata E3.12 is in (the twin listing is unaffected).
+- **E-G3. Retired (errata E3.1).** Read against the barrel face rather than the end slab, the slide-face silencer twin's OD ratio is inside the band and it has no inner ring, so it needs no exception. The number is not reused.
 - **E-G4. Off-centreline underbarrel twin** (a launcher's foregrip) and the splayed bipod children. These are not on the centreline, so the rail check is skipped (`seat_ref` decides). They are not calibration data for `rail_runs(bottom)`.
 - **E-G5. The canted-adapter optic** on a non-host preset. The rail is an adapter part, not host geometry (Q-G10).
 - **E-G6. Policy-refused positives.** These are the launcher optics and every positive on a slot that policy refuses. They calibrate detectors and are never listed.
+
+E-G7 to E-G9 were drafted in errata E3 and are not entered (E3.3 is withdrawn). **No minimum rail width (errata E3.9, Q6).** No floor is set on the top width of a toothed run. The positives' rail top widths are 10.7 to 30.0 mm. Three toothed runs under 5 mm (3.7 and 4.4 mm wide) carry 24 `fit` and 8 `no_fit` pairs; the 24 `fit` pairs go on the S11 capture list (plan §4). A floor becomes a later erratum only if those captures show them wrong, and §4.2 then derives it from the 10.7 mm positive.
 
 ### 4.3 Determinism and digest
 
@@ -626,13 +644,13 @@ Each criterion is paired with the deliberate break that must fail it. Counts are
 |---|---|---|
 | AC131 | **Oracle: presets.** `locate_by_translation` on the 14 Military presets returns 164 placements at hit 1.0. By slot: optic 14, magazine 15, muzzle 4, underbarrel 4, laser_light 3, sight_front 6, other 118. No placement below 1.0 is returned. Synthetic fixture: a host built from 3 translated parts returns exactly those 3 translations. | `hit_min` lowered to 0.9, so the barrel aliases appear; the 27-neighbour tolerance dropped, so placements are lost |
 | AC132 | **Strip.** On the synthetic fixture, the host mesh after `strip` equals the base mesh, triangle for triangle. On every preset, no remaining host triangle has all three vertices on a located part. | strip skipped: a fused scope's top reads as the rail |
-| AC133 | **(a) Twins.** The geometry verdict is `fit` on 36 of the 38 twin pairs. The cross-family twin magazine (E-G2) is among the 36, at `well.tol` 0.15. The stepped optic seats (E-G1) are too, through `seat_ref`. The 2 others are the drum twin (`unverified`, E-G2) and the slide-face silencer (`no_fit`, E-G3). Each is printed with its reason. Twin listing is unchanged on all 38. | `seat_ref` disabled (the 13 untoothed optic twins fail); `well.tol` set to 0.09 (the cross-family twin fails, not reported as an exception) |
-| AC134 | **Rails on positives.** 13 of the 14 preset optic placements and all 16 toothed optic positives lie on a detected run of 4 or more teeth, with overhang ≤ 10 mm and clamp ratio ≥ 1.0. The odd one is E-G5. 3 of the 4 preset underbarrel placements lie on bottom teeth. The detected counts are 45 hosts on top and 14 on the bottom at 4 teeth, reported by class. | `tooth_min_count` 6, or `pitch_max_m` 0.016, drops positives |
-| AC135 | **Bore on positives.** On all 11 bore positives, the axis offset is ≤ 5 mm and the tilt ≤ 2°. The OD ratio lies in the band on 10 of 11, the exception being E-G3. The inner ratio lies in the band on all 6 ring placements. The has-end and no-end host counts are reported by class. The survey's 233 and 24 were measured in the build frame before strip. The 4 expected movers of §1.1 (the two Uzi-type SMG hosts, one nail gun, the brake preset) take the spec definition to about 237 and 20. Any other mover is listed with its class. | barrel end measured on the unreduced mesh (a baked device's face read as the barrel) |
-| AC136 | **Well on positives.** 14 twin magazines read 0.000. The Military matrix gives same-family ≤ 0.09, and the SMG and heavy magazines ≥ 0.38 off every rifle well, so they are `no_fit` there at 0.15. | section taken at the magazine's own top instead of `u_rb − 0.002` |
-| AC137 | **Tolerance rule.** `attach-calibrate` exits 0 on a14 and prints every row of §4.2. With `clamp.overhang_max_m` set to 0.007, it exits 6 and names the literal. The test's expected maxima are literals in the test, not values read from the rules file. | the check skipped; or the test's bound read from the rules file (which would loosen with the rule) |
+| AC133 | **(a) Twins.** The geometry verdict is `fit` on 38 of the 38 twin pairs once errata E3.1, E3.6, E3.7, E3.8 and E3.12 have merged (the survey's 36 of 38 is not what the build produces). The count the a14 build reads, slice by slice: 31 before E3; 33 after E3.1 (the two muzzle twins that read against the end slab now read against the barrel face); 34 after E3.6 (the standard-magazine twin on the two-seat host is judged); 34 after E3.7; 37 after E3.8 (the three optic twins clear `clamp.ratio_min` 0.69); 38 after E3.12 (the drum twin; INFERRED from its 0.0000 re-cut, confirmed at S10b). The cross-family twin magazine (E-G2) is among the 38, at `well.tol` 0.15. The stepped optic seats (E-G1) are too, through `seat_ref`. Each is printed with its reason. Twin listing is unchanged on all 38. | `seat_ref` disabled (the 13 untoothed optic twins fail); `well.tol` set to 0.09 (the cross-family twin fails, not reported as an exception); `clamp.ratio_min` left at 1.0 (the 3 optic twins fail); `od_m` read from the end slab (the 2 muzzle twins fail) |
+| AC134 | **Rails on positives.** 13 of the 14 preset optic placements and all 16 toothed optic positives lie on a detected run of 4 or more teeth, with overhang ≤ 10 mm and clamp ratio ≥ `clamp.ratio_min` (0.69, errata E3.8; the foot as errata E3.7 defines it). The odd one is E-G5. 3 of the 4 preset underbarrel placements lie on bottom teeth. The detected counts are 45 hosts on top and 14 on the bottom at 4 teeth, reported by class; the build's recount (52 and 16 with the strip, 47 and 16 without it) does not match them, and is reported, not matched (errata E3.9 (e)). | `tooth_min_count` 6, or `pitch_max_m` 0.016, drops positives; the foot taken without the mid-line rung (errata E3.7): the side-hook optic reads ratio 0.378 and fails the clamp ratio |
+| AC135 | **Bore on positives.** On all 11 bore positives, the axis offset is ≤ 5 mm and the tilt ≤ 2°. The OD ratio lies in the band on 11 of 11 (errata E3.1: for ring evidence `od_m` is the barrel face's; the survey's 10 of 11 and its 0.93 to 1.92 are not reproduced, and the measured range is 0.91 to 1.65). The inner ratio lies in the band on all ring placements (6 in the survey, 7 measured, on 5 devices). Evidence (i) is read on the stripped mesh (errata E3.2): a fused-device preset is judged on its own barrel, and `bore.circ_min` then enforces 2 positives, not 3. The has-end and no-end host counts are reported by class. The survey's 233 and 24 were measured in the build frame before strip. The 4 expected movers of §1.1 (the two Uzi-type SMG hosts, one nail gun, the brake preset) take the spec definition to about 237 and 20. Any other mover is listed with its class. | barrel end measured on the unreduced mesh (a baked device's face read as the barrel); `od_m` read from the end slab on a slide-face fixture (errata E3.1: the slab reads the block's corners); the ring bore probed on the unstripped host (errata E3.2: a rod barrel under a fused device reads as ringed) |
+| AC136 | **Well on positives.** Once errata E3.6 and E3.12 are in, 16 twin magazines are judged: 15 read 0.000 and the cross-family twin reads 0.1044, inside `well.tol` 0.15. The calibrate tool and the directory agree on every twin: the drum twin is judged against its host's reference (E3.6) and its section is cut with the corrected twin forward (E3.12), so it reads 0.0000 in both. The Military matrix gives same-family ≤ 0.09, and the SMG and heavy magazines ≥ 0.38 off every rifle well, so they are `no_fit` there at 0.15. | section taken at the magazine's own top instead of `u_rb − 0.002`; the plane taken with only the reference node removed (the two-seat host gets no reference); the section cut before the twin forward is corrected (the drum twin reads 0.229 and `no_fit`) |
+| AC137 | **Tolerance rule.** `attach-calibrate` exits 0 on a14 once errata E3.1 and E3.8 have merged, E3.8 after E3.7 (it exits 6 before: `clamp.ratio_min` is the last literal to clear, at E3.8), and prints every row of §4.2. With `clamp.overhang_max_m` set to 0.007, it exits 6 and names the literal. On synthetic toothed positives whose lowest clamp ratio is 0.80, the shipped rules (0.69) read that row `ok`, rules overridden to 0.85 exit 6 and name the literal, and no positives at all exit 6 with `no_positives` (errata E3.8). The test's expected maxima and minima are literals in the test, not values read from the rules file. | the check skipped; or the test's bound read from the rules file (which would loosen with the rule) |
 | AC138 | **(b) Negative controls.** Zero listed entries of each kind: optic on a `launcher`, `tool` or `fixed_heavy` host; any slot on a melee record (no mounts); muzzle on a host with no barrel end; magazine on a host with no well reference. On a8c the barrel-end control has 8 entries, on 3 hosts. | the barrel-end requirement removed: the count is 8 or more |
-| AC139 | **(c) Policy unchanged.** For every rule of §3.8, a14's refused (slot, host) set ⊇ a8c's. The only additions are the preset fill list (Q-G11, reported). One fixture test per standing refusal, as shipped (§3.8): (1) on a preset host, a baked child or a located fused optic or silencer refuses its slot, and the magazine stays open; (2) a baked iron sight refuses both sight slots on any host; (3) a glass-only host refuses `optic`; (4) on a non-preset host, a baked optic body or muzzle device stays replaceable (`occupied_by`), **not** refused; (5) no silencer on a launcher or any shotgun, no optic on a launcher, a tool and a minigun take nothing, `Sniper_Heavy_01` refuses muzzle (as recorded), a preset refuses only filled slots and keeps the magazine open, and a cross-setting pair is never a candidate. | any policy rule moved after the geometry step, or skipped for `fit` pairs |
+| AC139 | **(c) Policy unchanged.** For every rule of §3.8, a14's refused (slot, host) set ⊇ a8c's. The only additions are the preset fill list (Q-G11, reported) and, on a host whose frame the vote changed (§3.3), the sight slots that a fused front post refuses in the new frame (errata E3.5). Each is reported with its host class. One fixture test per standing refusal, as shipped (§3.8): (1) on a preset host, a baked child or a located fused optic or silencer refuses its slot, and the magazine stays open; (2) a baked iron sight refuses both sight slots on any host; (3) a glass-only host refuses `optic`; (4) on a non-preset host, a baked optic body or muzzle device stays replaceable (`occupied_by`), **not** refused; (5) no silencer on a launcher or any shotgun, no optic on a launcher, a tool and a minigun take nothing, `Sniper_Heavy_01` refuses muzzle (as recorded), a preset refuses only filled slots and keeps the magazine open, and a cross-setting pair is never a candidate. | any policy rule moved after the geometry step, or skipped for `fit` pairs |
 | AC140 | **(c) Cross-pack magazines.** Zero `cross_pack_fit` magazine entries in `compatible_hosts`. The count of cross-pack magazine pairs judged `fit` is printed for Q-G1. | A8-1 routing dropped |
 | AC141 | **(d) Spot check.** `--draw` writes 32 pairs (8 per slot), none of them twin, override or among the 449 labels, in hash order. A second `--draw` exits 6. `--score` prints `fits k of 32 (placed wrong m)`. No test, AC or rule reads the answers. | a draw that overwrites; any AC reading the file |
 | AC142 | **(d) Labels descriptive.** `attach-eval` prints the agreement table per slot and exits 0 whatever the agreement. AC80(c) is marked retired for the four slots. | an exit code tied to agreement |
@@ -642,7 +660,7 @@ Each criterion is paired with the deliberate break that must fail it. Counts are
 | AC146 | **Migration.** `WEAPON_ATTACH_VERSION` == 14 and `WEAPON_GEOMETRY_VERSION` == 6 (Q-G4). `rules_digest` and `overrides_digest` are unchanged from a8c, and `attach_rules_digest` is changed. The default export is identical to a8c's **except** the feature-frame records (3 today) and `generated_from.geometry_version` (amended INV-19, AC77). On those records only frame-derived fields (§3.3) differ, and each is listed. On the synthetic worlds the default export equals the untouched W7 references once `geometry_version` 5 is read as 6. The impact record holds the raw before/after table of §4.7 step 2. | geometry keys placed outside `attachment_rules` (`rules_digest` moves); the vote run on a non-eligible record, or a non-frame field changed on a feature-frame record (the default export differs on more than those records and that field) |
 | AC147 | **Frame.** `frame_vote` changes the forward axis on exactly the hosts whose body axis differs and whose bore-ring test holds at exactly one end: 3 today, one of them a tool. The frame-conflict count is reported (0 today). An Uzi-shaped synthetic fixture (magazine longer than barrel, 15 mm ring at the muzzle) gets its muzzle seat at the ring, not at the magazine bottom. A fixture with rings at both ends is a conflict with no detector seat, and keeps its build frame. **`geometry.axes` changes on exactly those 3 hosts** (Q-G4), with `forward_source` `"body"`, and on no other record. On the Uzi-shaped fixture, `geometry.axes`, `item_basis`, `length_m` and `geometry.muzzle` follow the body axis. Its muzzle mount equals `geometry.muzzle` (AC67, unchanged), and `item_basis` is a signed permutation. A `frame_axis` override on the both-rings fixture sets the record's axis, and `forward` then sets its sign. | the bounding-box frame used for detectors (the fixture's seat lands at the magazine); the vote applied to mounts only (record axes unchanged, AC67 parity fails on the fixture); a `forward` override applied before the axis is chosen |
 | AC148 | **Low poly and sight seats.** No optic or underbarrel pair is listed through `rail_flat` alone. On untoothed hosts with an authored optic child, pairs list through `seat_ref`. The number of hosts carrying each `feature` value is reported. A§4.6 gate 6(c) passes on every host with a rail seat. | flat seats treated as toothed (listed optic pairs appear on untoothed hosts with no authored seat); the sight clip removed (6(c) fails on a railed host with a front sight seat) |
-| AC149 | **Retired rules inert.** In the four slots, permuting part-name tokens (fixture) and blanking `attach_affinity` change no entry. In `laser_light`, `sight_front` and `sight_rear`, every entry is identical to a8c's. | a retired rule still consulted for a geometry slot; or a geometry rule leaking into a sight slot |
+| AC149 | **Retired rules inert.** In the four slots, permuting part-name tokens (fixture) and blanking `attach_affinity` change no entry. In `laser_light`, `sight_front` and `sight_rear`, every entry is identical to a8c's, except `sight_front` and `sight_rear` on a frame-changed host, where the fused-post rule may move `probe_unavailable` to `slot_disabled` and remove the pending pairs of those slots (errata E3.5). `laser_light` is identical everywhere. | a retired rule still consulted for a geometry slot; or a geometry rule leaking into a sight slot |
 
 ## 7. Failure modes
 
@@ -701,6 +719,7 @@ The questions as they were put to Tom, kept for the record:
 - **Q-G10 Canted adapters.** The one preset optic not on teeth sits on a canted rail adapter. Adapters are not attachments. Default: not modelled.
 - **Q-G11 Preset fill list.** Default: adopt. Fused parts located on a preset fill their slots for `attach_filled_hosts` (2 slots today: a fused silencer and a fused scope). This applies Tom's standing refusal and only adds refusals.
 - **Q-G12 The other three slots.** `laser_light` and the sights stay on the label-era rules. Default: a later amendment.
+- **E3-Q1 to E3-Q7 (errata E3).** Decided by Tom on 2026-10-28 (relayed by the peer; quoted in the errata's E3 status): Q1 B, Q2 M3 (withdrawn), Q3 F1, Q4 (ii) with the population-diff gate, Q5 Option 2 at 0.69, Q6 no floor now, Q7 rail slots only. E3.12 was accepted as a correction.
 
 ## 9. Gate
 
@@ -712,3 +731,4 @@ The questions as they were put to Tom, kept for the record:
 - The open questions were all NON-BLOCKING with defaults, and are now decided (§8).
 - With Q-G4 adopted, sit_armory 0.3.0 and sit_weapons 0.4.0 need no change (checked against their sources, §4.6). The default export differs from a8c only in the feature-frame records and `geometry_version` (amended INV-19).
 - **Approved by Tom, 2026-10-27.** The build follows [weapon_attach_geometry_plan.md](weapon_attach_geometry_plan.md).
+- **Errata E3 approved by Tom, 2026-10-28** (E3.3 withdrawn). Its text is folded through §1.1, §3.3, §3.5 to §3.8, §4.1, §4.2 and AC133 to AC137, AC139 and AC149; the build follows plan §9.
