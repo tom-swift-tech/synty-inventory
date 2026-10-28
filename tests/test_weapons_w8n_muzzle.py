@@ -6,8 +6,13 @@ exposed muzzle end (along the bore, toward the host), from the host's silhouette
     d = min(stub, max(cover * L, dev_rear_near + device_cover_m), max_frac * L)      L = the part's footprint height_m; d <= dead_m: no key
 
 ``stub`` is the bare shroud behind the tip, ``dev_rear_near`` the rear face of a device (a brake) within ``device_reach_m`` of the tip.
-Fixtures: ``w8n_world.muzzle_world`` (see its header for the hand-worked distances). The silhouette is read in 2 mm bins, so a number worked out
-by hand carries a tolerance of one bin (0.002); the exact values the build writes are asserted separately where they are stable.
+Fixtures: ``w8n_world.muzzle_world`` (see its header for the hand-worked distances), rebuilt here with a round barrel (below). The silhouette is read in
+2 mm bins, so a number worked out by hand carries a tolerance of one bin (0.002); the exact values the build writes are asserted separately where they are stable.
+
+G1 (S8): the muzzle is a geometry slot, and a host whose barrel end is not round, ringed or ring-bored is ``no_fit`` for every muzzle part (3.6). The
+shared fixture's barrels are 12 mm square boxes (E1.1: a square never fills the circle), so every pair would be gone and no silhouette would be read. This file
+builds the same hosts with the thin box swapped for a 16-sided prism of the same axis and tip (radius 0.0075; the bands, the receiver and so every
+hand-worked distance are the fixture's) and the silencer boxes ``+-0.008`` wide (mate diameter 0.0226 against the barrel's 0.015: inside the 0.85 to 2.0 band).
 """
 
 from __future__ import annotations
@@ -16,6 +21,8 @@ import importlib.util
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
+
+import math
 
 import numpy as np
 import pytest
@@ -33,6 +40,40 @@ from synty_inventory.weapons.rules import attach_rules_digest, attachment_rules,
 from synty_inventory.weapons.schema import validate_directory  # noqa: E402
 
 BIN = 0.002
+BARREL_R, PART_H = 0.0075, 0.008  # G1 (S8): see the docstring
+
+
+def round_barrel(z0, z1, r=BARREL_R, y=N.AXIS, sides=16):
+    """A 16-sided prism along z about (x 0, y ``y``): an open side wall, which is all the probes read."""
+    verts = [(r * math.cos(2 * math.pi * k / sides), y + r * math.sin(2 * math.pi * k / sides), z) for z in (z0, z1) for k in range(sides)]
+    tris = []
+    for k in range(sides):
+        j = (k + 1) % sides
+        tris += [[k, j, sides + j], [k, sides + j, sides + k]]
+    return np.array(verts, dtype=np.float64), np.array(tris, dtype=np.int64)
+
+
+def silencer_box(length):
+    return N.G.box((-PART_H, -PART_H, 0.0), (PART_H, PART_H, length))
+
+
+def barrel_host(*extra):
+    return N.G.merge(N.G.box((-0.02, 0.0, -0.25), (0.02, 0.10, 0.05)), round_barrel(0.05, 0.65), *extra)
+
+
+def muzzle_world():
+    """``N.muzzle_world()`` with a round barrel and the narrower silencers (same hosts, bands, baked children and names)."""
+    band = N.band
+    meshes = {N.SH_BARE: barrel_host(), N.SH_SHROUD: barrel_host(band(0.05, 0.589, 0.02)),
+              N.SH_BRAKE: barrel_host(band(0.05, 0.549, 0.02), band(0.595, 0.635, 0.015)), N.SH_FAR: barrel_host(band(0.505, 0.529, 0.015))}
+    nodes = {n: N.W.host_node(n, m) for n, m in meshes.items()}
+    at = (0.0, N.AXIS, 0.65)
+    nodes[N.SH_BAKED] = N.W.host_node(N.SH_BAKED, barrel_host(band(0.05, 0.589, 0.02)), [N.W.kid(N.SH_BAKED, "Silencer", silencer_box(0.12), at)])
+    nodes[N.SH_TWIN] = N.W.host_node(N.SH_TWIN, barrel_host(band(0.05, 0.589, 0.02)), [N.W.kid(N.SH_TWIN, "Silencer", silencer_box(0.2), at)])
+    return {N.PACK: {"hosts": nodes, "parts": {N.SILENCER: lambda: silencer_box(0.2), N.SILENCER_SHORT: lambda: silencer_box(0.12)}},
+            N.OTHER: {"parts": {N.SILENCER_X: lambda: silencer_box(0.2)}}}
+
+
 SPEC_TABLE = {
     "cover": 0.4, "device_cover_m": 0.005, "device_reach_m": 0.080, "max_frac": 0.75, "dead_m": 0.003, "window_m": 0.15, "bin_m": 0.002,
     "ref_ratio": 1.4, "run_min_bins": 3, "device_max_m": 0.045, "sample_pitch_m": 0.0015, "range_m": 0.30, "radius_cap_m": 0.035,
@@ -49,7 +90,7 @@ def test_the_shipped_table_is_the_specified_one():
 
 @pytest.fixture(scope="module")
 def built(tmp_path_factory):
-    directory, excluded, cat, root = W.build(tmp_path_factory.mktemp("w8n_muzzle"), N.muzzle_world(), overrides=N.muzzle_overrides())
+    directory, excluded, cat, root = W.build(tmp_path_factory.mktemp("w8n_muzzle"), muzzle_world(), overrides=N.muzzle_overrides())
     return SimpleNamespace(directory=directory, excluded=excluded, by_id=W.by_id(directory), root=root, cat=cat)
 
 
@@ -258,13 +299,13 @@ def test_the_schema_refuses_the_key_on_a_part_that_is_not_a_muzzle_suppressor(bu
 
 @pytest.fixture()
 def tree(tmp_path):
-    return W.write_world(tmp_path, N.muzzle_world())
+    return W.write_world(tmp_path, muzzle_world())
 
 
 def run(tree, cache, rules=None, with_root=True, base=None):
     cat, root = tree
     return dirmod.build_directory_report(
-        cat, overrides=N.muzzle_overrides(), pack_settings=W.pack_settings(N.muzzle_world()), rules=rules or W.sight_rules(),
+        cat, overrides=N.muzzle_overrides(), pack_settings=W.pack_settings(muzzle_world()), rules=rules or W.sight_rules(),
         threejs_v2_dir=root if with_root else None, geometry_cache=cache, base=base)
 
 
@@ -307,7 +348,7 @@ def test_the_table_the_attach_version_and_the_code_digests_are_in_the_fingerprin
         assert r["setback_stats"]["computed"] == 4 and r["setback_stats"]["cached"] == 0, name
         monkeypatch.undo()
     import synty_inventory.weapons as pkg
-    monkeypatch.setattr(pkg, "WEAPON_ATTACH_VERSION", 14)  # the shipped value is 13 (A8, W8p): any other value is a new fingerprint
+    monkeypatch.setattr(pkg, "WEAPON_ATTACH_VERSION", 15)  # the shipped value is 14 (G1 4.6/AC146): any other value is a new fingerprint
     _, _, r = run(tree, cache, rules)
     assert r["setback_stats"]["computed"] == 4, "WEAPON_ATTACH_VERSION is in the fingerprint"
 
@@ -373,7 +414,7 @@ def exported(tmp_path_factory):
     for key in H.ENV_KEYS:
         mp.delenv(key, raising=False)
     mp.setattr(export_mod, "_repo_root", lambda: None)  # the pytest tmp dir sits inside this checkout
-    directory, excluded, cat, root = W.build(tmp, N.muzzle_world(), overrides=N.muzzle_overrides())
+    directory, excluded, cat, root = W.build(tmp, muzzle_world(), overrides=N.muzzle_overrides())
     write_directory(cat, directory, excluded)
     out = tmp / "game_repo"
     out.mkdir()

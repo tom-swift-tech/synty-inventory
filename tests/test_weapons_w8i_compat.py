@@ -75,8 +75,12 @@ def test_ac94_a_melee_record_and_an_other_pack_host_get_nothing(gen):
 def test_ac94_the_relaxation_is_for_the_sight_slots_only(gen):
     rec = gen[f"{P1}/{SCOPE}"]
     assert rec["attachment"]["slot"] == "optic"
-    for key in ("compatible_hosts", "pending_hosts"):
-        assert not [e for e in rec["attachment"][key] if e["tier"] == "same_pack_fit"], key  # the rifle shares no token with the scope
+    # G1 3.1/3.8 (S8): the family test is retired for the optic slot (no slot has the relaxation to ask for any more); the scope shares no token with any
+    # host, and it is still a same-pack entry wherever the geometry has something to say: pending on the flat seats (rail_flat) and on the host with no
+    # seat (not_judged), never listed (no baked child, no toothed rail in this world)
+    assert not [e for e in rec["attachment"]["compatible_hosts"] if e["tier"] == "same_pack_fit"]
+    assert {(e["host"], tuple(e.get("signals", ()))) for e in rec["attachment"]["pending_hosts"] if e["tier"] == "same_pack_fit"} == {
+        (f"{P1}/{PISTOL}", ("rail_flat",)), (f"{P1}/{RIFLE}", ("rail_flat",)), (f"{P1}/{SHOTGUN}", ())}
 
 
 def test_ac94_a_sight_that_shares_a_name_token_keeps_family_overlap_in_its_signals(tmp_path):

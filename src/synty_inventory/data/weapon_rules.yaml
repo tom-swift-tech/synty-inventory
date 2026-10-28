@@ -426,20 +426,9 @@ attachment_rules:
   # tolerance) are named constants in compat.py; what is tunable lives here.
   # slot x kind -> the host archetypes that can carry it (this is where the genre knowledge lives; human-edited). `default`
   # covers the kinds of a slot that list no row (and `other`). A slot or kind without any row has no affinity.
+  # G1 (docs/weapon_attach_geometry.md 3.8): the rows of optic, muzzle, underbarrel and magazine are RETIRED (the geometry verdict decides those four
+  # slots; rules.py rejects the rows). The table stays for laser_light, sight_front and sight_rear.
   attach_affinity:
-    optic:
-      sniper_scope: [sniper, rifle, lmg, launcher]
-      scope: [sniper, rifle, smg, lmg, shotgun, launcher]
-      carry_handle_scope: [rifle, smg, lmg]
-      reflex: [pistol, revolver, smg, rifle, shotgun, lmg, launcher, utility_gun]
-      default: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, launcher, utility_gun]
-    muzzle:
-      suppressor: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
-      default: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
-    underbarrel:
-      foregrip: [smg, rifle, shotgun, sniper, lmg, heavy_gun, launcher]
-      bipod: [sniper, rifle, lmg, heavy_gun]
-      default: [smg, rifle, shotgun, sniper, lmg, heavy_gun]
     laser_light:
       laser: [pistol, revolver, smg, rifle, shotgun, utility_gun]
       light: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
@@ -448,12 +437,6 @@ attachment_rules:
     sight_front:
       default: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
     sight_rear:
-      default: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
-    magazine:
-      standard: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
-      extended: [pistol, smg, rifle, shotgun, sniper, lmg, utility_gun]
-      drum: [smg, rifle, shotgun, lmg]
-      cell: [pistol, smg, rifle, lmg, heavy_gun, launcher, utility_gun]
       default: [pistol, revolver, smg, rifle, shotgun, sniper, lmg, utility_gun]
   # Score parameters (spec 5.1: "initial values are parameters, not contract"). A candidate's score is `base` of its tier plus
   # the fit signals, clamped to the band of its tier (same_pack_fit 0.6-0.9, cross_pack_fit 0.3-0.6); override and twin are
@@ -464,21 +447,19 @@ attachment_rules:
     fit_span_bonus: 0.1
     fit_bore_bonus: 0.1
     fit_bore_penalty: 0.1
-    # Magazines (A6, 13.7 A6-3). drum_min_m: a magazine whose smaller body side (min of footprint length and width) reaches it reads the `drum` row of
-    # attach_affinity, whatever its name or kind (the record's kind is unchanged). fit_span_min: a non-twin, non-override magazine whose foot is
-    # shorter than this fraction of the host's well (foot_length_m / span_m) is not listed, whatever the span's source; twin and override tiers are
-    # never touched, and a pair without a span or a foot length is not judged.
+    # Magazines (A6, 13.7 A6-3). G1 (3.7, 3.8): the geometry verdict decides a magazine, so fit_span_min (the foot-to-well lower bound) is RETIRED and
+    # rules.py rejects it. drum_min_m (a magazine this thick on both body sides is a drum) is kept by 3.8 for kind classification only; compat no
+    # longer reads it.
     drum_min_m: 0.11
-    fit_span_min: 0.75
     # Cross-pack size gate (A7-2 R-a, 13.8): a cross_pack_fit pair on one of these slots whose seat names a baked child with recorded extents is dropped
     # (listed or pending) when max over the three sorted extents of |part / child - 1| exceeds the slot's number. Never twin, override or same_pack_fit;
-    # a slot absent here, or a host with no recorded child, is not checked. These were set on Tom's draw #1 and draw #2 labels (the largest labelled
-    # yes is 0.33 for magazine and optic, 0.38 for underbarrel), so they are FITTED, not validated: the control strata of draw #3 (A7-5) are the
-    # out-of-sample check. The same numbers gate the tokenless waiver below (A7-4).
-    cross_pack_size_tol: {magazine: 0.35, optic: 0.35, underbarrel: 0.45}
+    # a slot absent here, or a host with no recorded child, is not checked. G1 (3.8) RETIRES R-a for optic, magazine, underbarrel and muzzle
+    # (rules.py rejects those slots here), so the shipped map is empty: laser_light and the sight slots are the only slots it could still name.
+    cross_pack_size_tol: {}
     # Unverified cross-pack slots (A8-1, 13.9; Tom 2026-10-26, draw #3: cross magazines 6 of 12 yes, R-a cannot separate them): a cross_pack_fit pair on
-    # one of these slots is routed to pending_hosts ({host, tier}) after R-a, R-b, R-c and the A6 foot test. The directory keeps it and a game opts in
-    # with `--pending-min-tier cross_pack_fit`. Optic, muzzle and underbarrel stay listed. Empty or absent = nothing moves.
+    # one of these slots whose geometry verdict is `fit` is routed to pending_hosts ({host, tier, signals}) AFTER the tier is set by the pack relation (G1
+    # 3.1). The directory keeps it and a game opts in with `--pending-min-tier cross_pack_fit`. Optic, muzzle and underbarrel stay listed. Empty or absent
+    # = nothing moves.
     cross_pack_unverified_slots: [magazine]
     generic_tokens: [wep, sm, attachment, attach, separate, mod, accessory, part, small, medium, med, large, big, huge, tiny,
                      mini, long, short, left, right, front, rear, top, bottom, alt, clean]
@@ -630,13 +611,14 @@ attachment_rules:
       kinds:
         magazine: [standard]
         underbarrel: [bipod]
-  # Slots whose same_pack_fit candidate needs no family_overlap (A4, spec 5.1): the part names no gun. laser_light (no labelled pair yet), magazine
-  # and optic (their names carry the family) are left out on purpose. Inside attachment_rules: moves attach_rules_digest, never rules_digest.
-  family_free_slots: [sight_front, sight_rear, muzzle, underbarrel]
+  # Slots whose same_pack_fit candidate needs no family_overlap (A4, spec 5.1): the part names no gun. laser_light (no labelled pair yet) is left out on
+  # purpose. Inside attachment_rules: moves attach_rules_digest, never rules_digest. G1 (3.8): muzzle and underbarrel are RETIRED here with the family
+  # test itself (rules.py rejects the four geometry slots), so only the two sight slots remain.
+  family_free_slots: [sight_front, sight_rear]
   # A7-4 (13.8): a part with NO name tokens (every word generic) can never share a family token with a host. On these slots it passes the same_pack_fit
-  # family test anyway, but only when the host seat is a baked child (child_node) and the part is within cross_pack_size_tol of that child. A pair without
-  # a seat is neither listed nor pending; magazine and laser_light stay out. Remove the row to withdraw the waiver (draw #3 does the check).
-  tokenless_family_free_slots: [optic]
+  # family test anyway, but only when the host seat is a baked child (child_node) and the part is within cross_pack_size_tol of that child. G1 (3.8)
+  # RETIRES the waiver for optic with the family test (rules.py rejects the four geometry slots), so the shipped list is empty.
+  tokenless_family_free_slots: []
   # A8-2 R-c (13.9; A7's cross_pack_never, renamed and made symmetric): slot -> host archetypes on which a part of kind `suppressor` is vetoed at EVERY tier
   # (twin, same_pack_fit and cross_pack_fit, listed and pending) except `override` (a compatible.add names the pair by hand). Brakes, compensators and flash
   # hiders are not suppressors and are untouched. The kind is fixed to `suppressor` by the spec, there is no key for it. Empty or absent = no rule.

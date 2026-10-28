@@ -47,8 +47,9 @@ OTHER_SLOTS_SEATS = {"optic": ("probe", None), "underbarrel": ("none", "no_child
 
 
 def slim():
-    """A suppressor whose narrow end measures a mating diameter of 0.0130 m, the bore ring of the round-barrel host: a good bore, so another pack reaches cross_pack_fit."""
-    return W.G.loft(2, [(-0.1, 0.0046, 0.0046), (0.1, 0.02, 0.02)])
+    """A suppressor whose narrow end measures a mating diameter of 0.0252 m, the outer diameter (0.025 m) of the round-barrel host's barrel: a ``fit`` of
+    the barrel-end verdict (G1 3.6, S8; it was 0.0130 m, the bore ring, under the old bore evidence), so a part of another pack reaches cross_pack_fit."""
+    return W.G.loft(2, [(-0.1, 0.0089, 0.0089), (0.1, 0.02, 0.02)])
 
 
 def host(name: str):

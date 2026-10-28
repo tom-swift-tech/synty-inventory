@@ -96,7 +96,9 @@ def test_the_same_children_on_a_host_that_is_not_a_preset_refuse_nothing_more(bu
 
 def test_no_part_lists_a_slot_a_preset_has_filled_and_every_open_slot_still_lists(built):
     assert set(listed(built, N.C_MAG)) == {FULL, MAG, BARE, CONTROL}  # the magazine slot is open on every preset (Tom): a part lists on all four
-    assert set(listed(built, N.C_SILENCER)) == {MAG, BARE, CONTROL}  # not FULL: its muzzle is filled by its own suppressor
+    # not FULL: its muzzle is filled by its own suppressor. G1 3.6 (S8): the fixture barrels are boxes, so on MAG and BARE the silencer is no_fit; on CONTROL
+    # it is the twin of the baked suppressor (a twin's verdict is calibration only)
+    assert set(listed(built, N.C_SILENCER)) == {CONTROL}
     assert set(listed(built, N.C_FOREGRIP)) == {MAG, BARE, CONTROL}
     assert set(listed(built, N.C_SCOPE)) == {MAG, BARE, CONTROL}
     assert set(listed(built, N.C_LASER)) == {FULL, MAG, BARE, CONTROL}  # the laser slot is open on every one of them

@@ -2,10 +2,13 @@
 
 World: ``w8d_world`` with the same one change as the W8o export test (FAKE_CompB in a setting of its own). The exports go through the real CLI path.
 
-* ``FAKE_CompA/SM_Wep_Rifle_Mag_01``: twin on Alpha and on ``FAKE_Mount/..Mount_01``; its cross_pack_fit pair with ``FAKE_Mount/..Double_01`` has a seat, so
-  before A8 it was a LISTED cross entry. It is now a pending ``{host, tier: cross_pack_fit}`` entry, with the same-pack pending Beta and Epsilon unchanged.
-* The fixture holds no other listed cross magazine. Its listed cross entries of the other slots (counted from the fixture: laser_light 2, muzzle 6,
-  optic 84 since S7) must stay where they are.
+* ``FAKE_CompA/SM_Wep_Rifle_Mag_01``: twin on Alpha and on ``FAKE_Mount/..Mount_01``. Its cross_pack_fit pair with ``FAKE_Mount/..Double_01`` had a seat, so
+  before A8 it was a LISTED cross entry and under A8-1 a parked pending ``{host, tier: cross_pack_fit}`` one. G1 3.7 (S8): the Mag's entry section (0.04 x 0.02)
+  is not the default well of Double (the large child, 0.06 x 0.024), so that pair is ``no_fit`` and on neither list; the cross-pack pending entries of the
+  Mag are the seatless hosts (``not_judged``), and the same-pack ones Gamma, Beta and Epsilon. The parking of a cross-pack magazine ``fit`` is tested on
+  the G1 world (test_weapons_g1_compat.py).
+* The fixture holds no listed cross magazine. Its listed cross entries of the other slots (counted from the fixture, G1 S8: laser_light 2, muzzle 27, optic 17)
+  must stay where they are.
 """
 
 from __future__ import annotations
@@ -31,8 +34,10 @@ from synty_inventory.weapons.directory import write_directory  # noqa: E402
 PACKS = ",".join(sorted(X.ATTACH_PACKS))
 MAG = "FAKE_CompA/SM_Wep_Rifle_Mag_01"
 DOUBLE = "FAKE_Mount/SM_Wep_Rifle_Double_01"
-SAME_PENDING = ["FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]
-CROSS_PENDING = ["FAKE_Attach/SM_Wep_Rifle_Assault_01"] + [f"FAKE_Mount/SM_Wep_Rifle_{n}_01" for n in ("Fall", "Hull", "Muzz", "Plain", "Shared", "Tilt")]
+FALL = "FAKE_Mount/SM_Wep_Rifle_Fall_01"
+SAME_PENDING = ["FAKE_CompA/SM_Wep_Pistol_Gamma_01", "FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]
+CROSS_PENDING = (["FAKE_Attach/SM_Wep_Pistol_01", "FAKE_Attach/SM_Wep_Rifle_Assault_01", "FAKE_Mount/SM_Wep_Pistol_Mount_01"]
+                 + [f"FAKE_Mount/SM_Wep_Rifle_{n}_01" for n in ("Fall", "Hull", "Muzz", "Plain", "Shared", "Tilt")])
 
 
 @pytest.fixture(scope="module")
@@ -66,7 +71,8 @@ def by_id(path: Path) -> dict:
 def test_ac125_the_directory_holds_the_cross_magazine_as_a_pending_entry_and_no_listed_one(world):
     mag = world["by_id"][MAG]["attachment"]
     assert (DOUBLE, "cross_pack_fit") not in [(e["host"], e["tier"]) for e in mag["compatible_hosts"]]
-    assert {"host": DOUBLE, "tier": "cross_pack_fit"} in mag["pending_hosts"]  # the pending form: host and tier, nothing else
+    assert DOUBLE not in [e["host"] for e in mag["compatible_hosts"] + mag["pending_hosts"]]  # no_fit (G1 3.7): the large well is not the Mag's section
+    assert {"host": FALL, "tier": "cross_pack_fit"} in mag["pending_hosts"]  # the pending form: host and tier, nothing else (a not_judged host has no signals)
     assert "compat_cross_pack" in world["by_id"][MAG]["review"]["reasons"]
     for rec in world["by_id"].values():
         att = rec.get("attachment")
@@ -101,17 +107,20 @@ def test_ac125_the_other_slots_keep_their_listed_cross_entries(world, capsys):
         for e in (att or {}).get("compatible_hosts", ()):
             if e["tier"] == "cross_pack_fit":
                 cross[att["slot"]] = cross.get(att["slot"], 0) + 1
-    # literals counted from the fixture world; magazine: none. S7 (spec 3.4 step 3): the optic count was 6 while only hosts with a scope child had
-    # an optic seat; every host with a smooth top has an estimated flat seat now, so the exported optic entries are 84 = FAKE_Attach scope parts on
-    # FAKE_CompA hosts 11 + on FAKE_Mount hosts 43, and FAKE_CompA scope parts on FAKE_Attach hosts 4 + on FAKE_Mount hosts 26
-    assert cross == {"laser_light": 2, "muzzle": 6, "optic": 84}
+    # literals counted from the fixture world; magazine: none. S7 (spec 3.4 step 3) had the optic count at 84: every host with a smooth top had an
+    # estimated flat seat that listed. G1 3.5/AC148 (S8): a flat seat is `unverified`, so none lists; the cross-pack optic pairs on flat seats are pending
+    # `rail_flat` entries now (104 of them in the directory, more than the 84 listed before because the family and affinity cuts are gone) and the optic
+    # entries left in compatible_hosts are the seat_ref fits: FAKE_Attach scope parts on FAKE_CompA hosts 2 + on FAKE_Mount hosts 6, FAKE_CompA scope parts on FAKE_Mount hosts 9 = 17.
+    # The muzzle count was 6 (the old bore evidence and R-a/R-b cut the rest); the barrel-end verdict (3.6) lists every ring-bored host the part's mating
+    # diameter fits, whatever the names: FAKE_Attach muzzle parts on FAKE_CompA hosts 4 + on FAKE_Mount hosts 12, FAKE_CompA parts on FAKE_Mount hosts 11 = 27
+    assert cross == {"laser_light": 2, "muzzle": 27, "optic": 17}
 
 
 def test_ac125_pending_min_tier_cross_pack_fit_puts_the_parked_hosts_back_in_pending_hosts(world, capsys):
     code, _, out = export(world, capsys, "--roles", "all", "--attachments", "--pending-min-tier", "cross_pack_fit", name="pending_cross.json")
     assert code == 0
     mag = by_id(out)[MAG]["attachment"]
-    assert mag["pending_hosts"] == SAME_PENDING + sorted(CROSS_PENDING + [DOUBLE])  # (tier rank, host) order; the seated cross host is among them
+    assert mag["pending_hosts"] == SAME_PENDING + sorted(CROSS_PENDING)  # (tier rank, host) order; Double is a no_fit now (G1 3.7, S8)
     assert [e["tier"] for e in mag["compatible_hosts"]] == ["twin", "twin"]
     assert not [h for h in mag["pending_hosts"] if h.startswith("FAKE_CompB/")]
 
@@ -130,7 +139,7 @@ def test_ac125_min_compat_tier_is_unchanged(world, capsys):
 def test_ac125_the_header_carries_attach_version_13_and_the_w7_export_is_unchanged(world, capsys):
     _, _, out = export(world, capsys, "--roles", "all", "--attachments", name="header.json")
     gf = json.loads(out.read_text(encoding="utf-8"))["generated_from"]
-    assert gf["attach_version"] == 13 and gf["filter"]["attachments"] is True
+    assert gf["attach_version"] == 14 and gf["filter"]["attachments"] is True  # G1 4.6/AC146 (S8): attach version 13 -> 14
     code, _, plain = export(world, capsys, name="plain.json")
     assert code == 0
     assert json.loads(plain.read_bytes().decode("utf-8"))["generated_from"]["geometry_version"] == 6  # G1, on its own

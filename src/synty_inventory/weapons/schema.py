@@ -109,7 +109,12 @@ ATTACHMENT_SCHEMA = {
             "type": "object",
             "additionalProperties": False,
             "required": ["host", "tier"],
-            "properties": {"host": {"type": "string", "pattern": _ID_PATTERN}, "tier": _enum(COMPAT_TIERS)},
+            "properties": {
+                "host": {"type": "string", "pattern": _ID_PATTERN}, "tier": _enum(COMPAT_TIERS),
+                # G1 (docs/weapon_attach_geometry.md 4.4): optional; the geometry evidence of an `unverified` pair (rail_flat, drum, ...) or of a
+                # cross-pack `fit` that A8-1 parked. Absent on a `not_judged` pair, on a twin or override and on a part outside the four slots.
+                "signals": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+            },
         }},
     },
 }
@@ -321,7 +326,7 @@ DIRECTORY_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "required": ["schema", "weapon_version", "geometry_version", "rules_digest", "overrides_digest", "packs",
-                 "counts", "weapons"],  # attach_version / attach_rules_digest are optional: a W7 directory has neither
+                 "counts", "weapons"],  # attach_version / attach_rules_digest / fit_digest are optional: a W7 directory has none
     "properties": {
         "schema": {"const": "weapon-directory/1"},
         "weapon_version": {"type": "integer", "minimum": 1},
@@ -330,6 +335,7 @@ DIRECTORY_SCHEMA = {
         "overrides_digest": {"type": "string", "pattern": _HEX16},
         "attach_version": {"type": "integer", "minimum": 1},
         "attach_rules_digest": {"type": "string", "pattern": _HEX16},
+        "fit_digest": {"type": "string", "pattern": _HEX16},  # G1 (4.3): the digest of the measure records of the fit gate
         "packs": {"type": "array", "items": {
             "type": "object",
             "additionalProperties": False,

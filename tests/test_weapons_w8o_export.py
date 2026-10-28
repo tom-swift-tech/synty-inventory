@@ -4,10 +4,11 @@ World: ``w8d_world`` with ONE change to its rules: FAKE_CompB is moved out of th
 of the acceptance row: P1 = FAKE_CompA and P2 = FAKE_Mount in one setting, P3 = FAKE_CompB in another. Every expected id and count is a literal worked
 out from the fixture (see the comments), the exports go through the real CLI path.
 
-* ``FAKE_CompA/SM_Wep_Rifle_Mag_01`` (P1): twin of the Mag child of Alpha and of a child of ``FAKE_Mount/..Mount_01``; ``cross_pack_fit`` on
-  ``FAKE_Mount/..Double_01`` (P2; A8-1 (W8p) parks it in ``pending_hosts``: a cross-pack magazine is unverified, it was LISTED under A7 because the seat
-  measures); pending ``same_pack_fit`` on Beta and Epsilon; pending ``cross_pack_fit`` on the seatless hosts of the exported packs: Attach/Assault_01 and
-  the six FAKE_Mount hosts Fall, Hull, Muzz, Plain, Shared, Tilt (and, since A8-1, Double).
+* ``FAKE_CompA/SM_Wep_Rifle_Mag_01`` (P1): twin of the Mag child of Alpha and of a child of ``FAKE_Mount/..Mount_01``; pending ``same_pack_fit`` on Gamma,
+  Beta and Epsilon (G1 3.1/3.7, S8: no affinity or family cut any more, and these hosts have no well, so ``not_judged``); pending ``cross_pack_fit`` on the
+  seatless hosts of the exported packs: Attach/Pistol_01 and Assault_01 and the seven FAKE_Mount hosts Pistol_Mount, Fall, Hull, Muzz, Plain, Shared, Tilt.
+  ``FAKE_Mount/..Double_01`` is on neither list now: its default well (the large child, 0.06 x 0.024) is not the part's entry section (0.04 x 0.02),
+  so the pair is ``no_fit`` (3.7); under A8-1 (W8p) it had been parked in ``pending_hosts``, under A7 listed.
 * Nothing may name a FAKE_CompB host (Delta) from a part of another pack, nor a part of FAKE_CompB a host of another pack.
 """
 
@@ -35,8 +36,10 @@ PACKS = ",".join(sorted(X.ATTACH_PACKS))  # FAKE_Attach,FAKE_CompA,FAKE_CompB,FA
 MAG = "FAKE_CompA/SM_Wep_Rifle_Mag_01"
 P3_PART = "FAKE_CompB/SM_Wep_Alt_Scope_01"
 DOUBLE = "FAKE_Mount/SM_Wep_Rifle_Double_01"
-SAME_PENDING = ["FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]
-CROSS_PENDING = ["FAKE_Attach/SM_Wep_Rifle_Assault_01"] + [f"FAKE_Mount/SM_Wep_Rifle_{n}_01" for n in ("Fall", "Hull", "Muzz", "Plain", "Shared", "Tilt")]
+FALL = "FAKE_Mount/SM_Wep_Rifle_Fall_01"
+SAME_PENDING = ["FAKE_CompA/SM_Wep_Pistol_Gamma_01", "FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]
+CROSS_PENDING = (["FAKE_Attach/SM_Wep_Pistol_01", "FAKE_Attach/SM_Wep_Rifle_Assault_01", "FAKE_Mount/SM_Wep_Pistol_Mount_01"]
+                 + [f"FAKE_Mount/SM_Wep_Rifle_{n}_01" for n in ("Fall", "Hull", "Muzz", "Plain", "Shared", "Tilt")])
 
 
 @pytest.fixture(scope="module")
@@ -74,7 +77,8 @@ def named(rec) -> list[str]:
 
 def test_ac117_the_setting_wall_in_the_directory_p1_to_p2_yes_p3_never(world):
     mag = world["by_id"][MAG]["attachment"]
-    assert {"host": DOUBLE, "tier": "cross_pack_fit"} in mag["pending_hosts"]  # P1 -> P2 (pending since A8-1; listed under A7)
+    assert {"host": FALL, "tier": "cross_pack_fit"} in mag["pending_hosts"]  # P1 -> P2 (a seatless host: pending; Double is a no_fit now, see the docstring)
+    assert DOUBLE not in [e["host"] for e in mag["compatible_hosts"] + mag["pending_hosts"]]
     for rec in world["by_id"].values():
         att = rec.get("attachment")
         if att is None:
@@ -104,7 +108,7 @@ def test_ac117_pending_cross_pack_is_present_with_pending_min_tier_cross_pack_fi
     code, _, out = export(world, capsys, "--roles", "all", "--attachments", "--pending-min-tier", "cross_pack_fit", name="pending_cross.json")
     assert code == 0
     mag = by_id(out)[MAG]["attachment"]
-    assert mag["pending_hosts"] == SAME_PENDING + sorted(CROSS_PENDING + [DOUBLE])  # (tier rank, host) order; Double joined them in A8-1
+    assert mag["pending_hosts"] == SAME_PENDING + sorted(CROSS_PENDING)  # (tier rank, host) order; Double is a no_fit now (G1 3.7, S8)
     assert len(mag["compatible_hosts"]) == 2  # the compatible cut is its own flag (3 under A7: Double was listed)
     assert not [h for h in mag["pending_hosts"] if h.startswith("FAKE_CompB/")]
 
@@ -113,7 +117,7 @@ def test_ac117_the_two_cuts_are_independent(world, capsys):
     # compatible cut at twin, pending cut at cross_pack_fit; and the reverse
     _, _, out = export(world, capsys, "--roles", "all", "--attachments", "--min-compat-tier", "twin", "--pending-min-tier", "cross_pack_fit", name="c1.json")
     mag = by_id(out)[MAG]["attachment"]
-    assert [e["tier"] for e in mag["compatible_hosts"]] == ["twin", "twin"] and len(mag["pending_hosts"]) == 10  # 9 + Double (A8-1)
+    assert [e["tier"] for e in mag["compatible_hosts"]] == ["twin", "twin"] and len(mag["pending_hosts"]) == 12  # G1 (S8): 3 same-pack + 9 cross-pack
     _, _, out = export(world, capsys, "--roles", "all", "--attachments", "--min-compat-tier", "same_pack_fit", "--pending-min-tier", "twin", name="c2.json")
     mag = by_id(out)[MAG]["attachment"]
     assert [e["tier"] for e in mag["compatible_hosts"]] == ["twin", "twin"] and mag["pending_hosts"] == []
@@ -143,7 +147,7 @@ def test_ac117_without_attachments_the_export_is_the_w7_one_and_the_pending_flag
 def test_ac117_the_header_records_no_tier_and_carries_the_new_version(world, capsys):
     _, _, out = export(world, capsys, "--roles", "all", "--attachments", "--pending-min-tier", "cross_pack_fit", name="header.json")
     gf = json.loads(out.read_text(encoding="utf-8"))["generated_from"]
-    assert gf["attach_version"] == 13 and gf["filter"]["attachments"] is True
+    assert gf["attach_version"] == 14 and gf["filter"]["attachments"] is True  # G1 4.6/AC146 (S8): attach version 13 -> 14
     assert "min_compat_tier" not in gf["filter"] and "pending_min_tier" not in gf["filter"]  # no place records a tier cut (judgment call: none added)
 
 

@@ -164,10 +164,10 @@ def gated(tmp_path_factory):
 
 
 def test_ac91_hosts_of_the_same_pack_and_of_the_same_setting_are_candidates(gated):
-    # S7 (spec 3.4 step 3): Plain has no scope child but a smooth top, so its optic is a flat seat and it is compatible, not pending
-    assert hosts_of(gated, P1) == {f"{P1}/SM_Wep_Rifle_Alpha_01": "same_pack_fit", f"{P2}/SM_Wep_Rifle_Beta_01": "cross_pack_fit",
-                                   f"{P1}/SM_Wep_Rifle_Plain_01": "same_pack_fit"}
-    assert hosts_of(gated, P1, "pending_hosts") == {}
+    # S7 (spec 3.4 step 3): Plain has no scope child but a smooth top, so its optic is a flat seat. G1 3.5/AC148 (S8): a flat seat is `unverified`, so
+    # Plain is a pending same-pack entry, not a listed one
+    assert hosts_of(gated, P1) == {f"{P1}/SM_Wep_Rifle_Alpha_01": "same_pack_fit", f"{P2}/SM_Wep_Rifle_Beta_01": "cross_pack_fit"}
+    assert hosts_of(gated, P1, "pending_hosts") == {f"{P1}/SM_Wep_Rifle_Plain_01": "same_pack_fit"}
 
 
 def test_ac91_no_host_of_another_setting_or_an_unlisted_pack_is_listed_even_one_with_an_exact_twin_child(gated):
@@ -203,8 +203,9 @@ def test_ac91_every_non_override_entry_has_a_host_of_the_parts_setting(tmp_path)
 
 def test_ac91_without_a_table_every_pack_is_its_own_setting(tmp_path):
     d = W.build(tmp_path, gate_world(), rules=W.sight_rules({}))[0]
-    # S7 (spec 3.4 step 3): Plain's flat optic seat makes it a same-pack entry too
-    assert hosts_of(d, P1) == {f"{P1}/SM_Wep_Rifle_Alpha_01": "same_pack_fit", f"{P1}/SM_Wep_Rifle_Plain_01": "same_pack_fit"}
+    # S7 (spec 3.4 step 3): Plain's flat optic seat makes it a same-pack entry too; G1 3.5/AC148 (S8): a pending one
+    assert hosts_of(d, P1) == {f"{P1}/SM_Wep_Rifle_Alpha_01": "same_pack_fit"}
+    assert hosts_of(d, P1, "pending_hosts") == {f"{P1}/SM_Wep_Rifle_Plain_01": "same_pack_fit"}
 
 
 def test_ac91_editing_the_table_moves_the_attach_digest_and_not_the_rules_digest():

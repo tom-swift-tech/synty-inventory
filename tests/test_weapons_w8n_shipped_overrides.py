@@ -30,6 +30,7 @@ def _load(name: str):
 
 W = _load("w8h_world")
 M = _load("w8m_world")
+GW = _load("g1_world")
 A = W.A
 
 from synty_inventory.weapons.overrides import empty_overrides, load_overrides  # noqa: E402
@@ -42,10 +43,13 @@ ALL = ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight_front
 
 
 def world() -> dict:
+    # G1 3.6 (S8): the sniper hosts get the rod rifle (the box rifle with a round rod barrel) so the silencer has a barrel end to fit: on the box rifle's
+    # square barrel it is no_fit on every host, and the muzzle-refusal tests below would pass with the override removed
+    rod = GW.rod_rifle
     return {
-        BR: {"hosts": {HEAVY: W.host_node(HEAVY, W.box_rifle())},
+        BR: {"hosts": {HEAVY: W.host_node(HEAVY, rod())},
              "parts": {"SM_Wep_Attachment_Silencer_01": A.suppressor, "SM_Wep_Attachment_Foregrip_01": M.grip_part}},
-        MIL: {"hosts": {PRESET_A: W.host_node(PRESET_A, W.box_rifle()), PRESET_B: W.host_node(PRESET_B, W.box_rifle())},
+        MIL: {"hosts": {PRESET_A: W.host_node(PRESET_A, rod()), PRESET_B: W.host_node(PRESET_B, rod())},
               "parts": {"SM_Wep_Mod_Silencer_01": A.suppressor, "SM_Wep_Mod_Foregrip_01": M.grip_part}},
         # the reversed scope (flare toward -z) and a host that bakes the same mesh as its scope child: a twin whose own forward is the host's +z
         SFW: {"hosts": {SNIPER3: W.host_node(SNIPER3, W.box_rifle(), [W.kid(SNIPER3, "Scope", A.flip_z(A.optic()), (0.0, 0.10, 0.10))])},

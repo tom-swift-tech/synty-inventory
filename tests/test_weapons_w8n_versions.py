@@ -27,7 +27,7 @@ BASE_ATTACH_DIGEST = "769ab6e4a3106c40"  # attach_rules_digest(load_rules()) at 
 
 
 def test_the_version_constants():
-    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 6
+    assert pkg.WEAPON_ATTACH_VERSION == 14 and pkg.WEAPON_GEOMETRY_VERSION == 6  # G1 4.6/AC146 (S8): attach version 13 -> 14
 
 
 def test_the_rules_digest_stays_and_the_attach_digest_moves():
@@ -39,7 +39,7 @@ def test_the_rules_digest_stays_and_the_attach_digest_moves():
 @pytest.mark.parametrize("edit", [
     lambda t: t["attach_host_class"].update(launcher=["launcher"]),
     lambda t: t["attach_class_never"].update(launcher=["muzzle"]),
-    lambda t: t["attach_compat"].update(fit_span_min=0.7),
+    # G1 3.8 (S8): fit_span_min is retired for the magazine (the validator rejects it), so it no longer moves the digest by being edited
     lambda t: t["attach_compat"].update(drum_min_m=0.12),
     lambda t: t["contact"].update(cap_m=0.02),
     lambda t: t["muzzle_seat"].update(cover=0.5),
@@ -55,7 +55,7 @@ def test_every_new_table_moves_the_attach_digest_and_never_the_rules_digest(edit
 
 def test_the_header_of_a_built_directory_records_attach_version_10(tmp_path):
     directory, _, _, _ = W.build(tmp_path, N.mag_world())
-    assert directory["attach_version"] == 13 and directory["geometry_version"] == 6 and directory["rules_digest"] == "7b9829af37328fe7"
+    assert directory["attach_version"] == 14 and directory["geometry_version"] == 6 and directory["rules_digest"] == "7b9829af37328fe7"  # G1 4.6/AC146 (S8): attach version 13 -> 14
     assert directory["attach_rules_digest"] == attach_rules_digest(W.sight_rules())
 
 
@@ -78,7 +78,7 @@ def test_a_rules_file_without_any_of_the_new_tables_is_valid():
     t = rules["attachment_rules"]
     for key in ("attach_host_class", "attach_class_never", "muzzle_seat"):
         del t[key]
-    for key in ("drum_min_m", "fit_span_min"):
+    for key in ("drum_min_m",):  # G1 3.8 (S8): fit_span_min is gone from the shipped table
         del t["attach_compat"][key]
     del t["sight_probe"]["receiver_tol_by_host"]
     assert validate_rules(rules) == []

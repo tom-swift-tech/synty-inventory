@@ -101,7 +101,9 @@ COMPAT_SCORE_BANDS = {"same_pack_fit": (0.6, 0.9), "cross_pack_fit": (0.3, 0.6)}
 COMPAT_FIXED_TIERS = ("override", "twin")
 COMPAT_NUMBER_KEYS = ("fit_span_bonus", "fit_bore_bonus", "fit_bore_penalty")
 # A6 (W8n) magazine parameters (13.7 A6-3), optional in the table (compat.py has the defaults): name -> (minimum, maximum), metres or a ratio
-COMPAT_MAGAZINE_KEYS = {"drum_min_m": (0.01, 1.0), "fit_span_min": (0.0, 1.0)}
+COMPAT_MAGAZINE_KEYS = {"drum_min_m": (0.01, 1.0)}
+# G1 (docs/weapon_attach_geometry.md 3.8): fit_span_min (A6-3) bounded a magazine only, and the magazine is a geometry slot now, so the key is retired outright.
+RETIRED_COMPAT_KEYS = ("fit_span_min",)
 REQUIRED_TOP = (
     "version", "token_aliases", "candidates", "rules", "hold_by_archetype", "genre_by_archetype",
     "plausible_length_m", "axes_expected", "grip_proportion", "size_class_cuts_m", "weight_by_archetype",
@@ -729,7 +731,8 @@ def _check_family_free_slots(val, name: str = "family_free_slots") -> list[str]:
     where = f"attachment_rules.{name}"
     if not isinstance(val, list) or not all(isinstance(s, str) and s in ATTACH_SLOTS for s in val):
         return [f"{where}: must be a list of slots from {list(ATTACH_SLOTS)}"]
-    return [f"{where}: slots must be distinct"] if len(set(val)) != len(val) else []
+    errors = [f"{where}: {s!r} is a geometry slot; the family test is retired for {list(FIT_SLOTS)} (G1 3.8)" for s in val if s in FIT_SLOTS]
+    return errors + ([f"{where}: slots must be distinct"] if len(set(val)) != len(val) else [])
 
 
 def _check_suppressor_never(val) -> list[str]:
@@ -868,6 +871,8 @@ def _check_attach_affinity(val) -> list[str]:
         where = f"attachment_rules.attach_affinity.{slot}"
         if slot not in ATTACH_SLOTS:
             errors.append(f"{where}: slot not in {list(ATTACH_SLOTS)}")
+        elif slot in FIT_SLOTS:  # G1 3.8: the geometry verdict decides these four slots, the kind x archetype table is retired for them
+            errors.append(f"{where}: retired for the geometry slots {list(FIT_SLOTS)} (G1 3.8); the geometry verdict decides them")
         elif not isinstance(kinds, dict) or not kinds:
             errors.append(f"{where}: must be a non-empty mapping kind -> [archetypes]")
         else:
@@ -888,11 +893,15 @@ def _check_attach_compat(val) -> list[str]:
         return [f"{where}: must be a mapping"]
     errors: list[str] = []
     for key in val:
-        if key not in ("tier_score", "base", "generic_tokens", "cross_pack_size_tol", "cross_pack_unverified_slots", *COMPAT_NUMBER_KEYS, *COMPAT_MAGAZINE_KEYS):
+        if key in RETIRED_COMPAT_KEYS:
+            errors.append(f"{where}.{key}: retired (G1 3.8); a magazine is judged by the geometry verdict")
+        elif key not in ("tier_score", "base", "generic_tokens", "cross_pack_size_tol", "cross_pack_unverified_slots", *COMPAT_NUMBER_KEYS, *COMPAT_MAGAZINE_KEYS):
             errors.append(f"{where}.{key}: unknown key")
     tol = val.get("cross_pack_size_tol")  # A7-2 R-a: slot -> max deviation from the baked child; absent or empty = no slot is size-checked
     if tol is not None and not (isinstance(tol, dict) and all(k in ATTACH_SLOTS and _is_num(v) and v > 0 for k, v in tol.items())):
         errors.append(f"{where}.cross_pack_size_tol: must map slots from {list(ATTACH_SLOTS)} to numbers above 0")
+    elif tol:  # G1 3.8: R-a is retired for the four geometry slots
+        errors.extend(f"{where}.cross_pack_size_tol.{slot}: retired for the geometry slots {list(FIT_SLOTS)} (G1 3.8)" for slot in tol if slot in FIT_SLOTS)
     unverified = val.get("cross_pack_unverified_slots")  # A8-1: slots whose cross_pack_fit pairs are pending only; absent or empty = nothing moves
     if unverified is not None:
         if not isinstance(unverified, list) or not all(isinstance(s, str) and s in ATTACH_SLOTS for s in unverified):

@@ -24,13 +24,14 @@ from ..naming import SKIP_STEM_RE
 from ..paths import is_pack_catalog_file
 from ..schema import migrate_catalog
 from ..sources.glb_geometry import load_triangles
-from ..sources.glb_measure import node_cache_tag
+from ..sources.glb_measure import _cache_key, node_cache_tag
 from . import ATTACH_KINDS, InputError, SchemaError, digest, to_text, write_text_lf
+from . import fit_geometry as _fit
 from .candidates import evaluate_candidate
 from .classify import attachment_reason, classify, classify_attachment, tokenize_id
-from .attach import hidden_nodes, setback_applies, setback_of, settle_applies
+from .attach import hidden_nodes, place, setback_applies, setback_of, settle_applies
 from .compat import apply_compat
-from .geometry import measure_cached, muzzle_stub_cached, pass2_inputs, settle_cached
+from .geometry import code_digest, measure_cached, muzzle_stub_cached, pass2_inputs, settle_cached
 from .hints import build_group_stats, derive_hints
 from .mounts import eligible, is_filled_host, mount_reasons
 from .overrides import effective_override, load_overrides
@@ -434,6 +435,147 @@ def _apply_contact(records: list[dict], rules: dict, threejs_v2_dir: Path | None
     return removed
 
 
+# -- G1: the part side of the geometry verdict (spec 3.6 "Part side", 3.7 steps 1 and 2; plan S8) -----------------------------------------------
+#
+# ``compat`` stays a pure function over records and carried maps, so what needs a mesh is measured here, before it runs:
+#   * a muzzle device's inner bore ring (``fit_geometry.device_inner_d``), one result per part (cache id ``fitpart|<part id>``);
+#   * a magazine's entry section on every host that has a well reference: the part is placed at the reference seat with the existing placement (C-21,
+#     ``attach.place``), taken into the host's (f, s, u) frame and cut at ``u_rb - entry_depth_m`` (``fit_geometry.entry_section``), one result per
+#     (part, host) pair (cache id ``well|<part id>|<host id>``). The result holds a section for the mount's own seat (key "") and one for every child seat
+#     of a mount that lists several (A1, key = the child node), because a twin pair is judged on its twin's own seat (3.7 step 2).
+# Both are cached beside the measurements in the geometry cache, the way ``settle_cached`` caches a pair: valid while the part's file (mtime:size) and the
+# version (``WEAPON_GEOMETRY_VERSION`` + the digests of this file and of the ``fit_*`` modules) match, one result per fingerprint of the inputs that are
+# NOT the part's file (its anchor, the seat frames and the reference plane, the host axes, the rules, the attach version, ``attach.py``'s digest). The
+# host's mesh is not an input: everything the pair reads of the host is in its features. A cache hit equals a recompute, and a build with nothing changed
+# reads no mesh.
+
+_FIT_PASS_CODE = code_digest(Path(__file__).read_bytes())  # the digest of this file, as geometry.py keeps one for itself
+_ATTACH_CODE = code_digest((Path(__file__).parent / "attach.py").read_bytes())  # the placement the section is taken under
+_FIT_KEEP = 8  # fingerprints kept per cache entry (the oldest go first)
+
+
+def _fit_cached(cache: dict, cache_id: str, key: str, fp: str, compute: Callable[[], dict | None]) -> tuple[object, str]:
+    """``(result, how)``, ``how`` being ``cached``, ``computed`` or ``unavailable`` (``compute`` returned None: the mesh cannot be read, nothing is stored).
+
+    ``compute`` returns ``{"v": result}``; the result is any JSON value (a null result is cached too, as ``settle_cached`` does for "no key")."""
+    version = f"{_pkg.WEAPON_GEOMETRY_VERSION}+{_FIT_PASS_CODE}+{digest(_fit.FIT_CODE_DIGESTS)}"
+    entry = cache.get(cache_id)
+    if not isinstance(entry, dict) or entry.get("key") != key or entry.get("version") != version:
+        entry = {"key": key, "version": version, "by_inputs": {}}
+        cache[cache_id] = entry
+    hit = entry["by_inputs"].get(fp)
+    if hit is not None:
+        return hit["v"], "cached"
+    got = compute()
+    if got is None:
+        return None, "unavailable"
+    entry["by_inputs"][fp] = {"v": got["v"]}
+    while len(entry["by_inputs"]) > _FIT_KEEP:
+        del entry["by_inputs"][next(iter(entry["by_inputs"]))]
+    return got["v"], "computed"
+
+
+def _well_hosts(records: list[dict], feats_by_host: dict) -> list[tuple]:
+    """``[(host id, frame basis, {seat key: (seat frame, well reference)})]`` of the hosts a magazine can be placed on, sorted by host id: an authored
+    magazine seat (``child_node`` / ``override``) with a well reference. A host with no seat (none, or only a LOCATED magazine, errata E2.4) has none."""
+    by_id = {r["id"]: r for r in records}
+    out = []
+    for host_id in sorted(feats_by_host):
+        rec = by_id.get(host_id)
+        feats = (feats_by_host[host_id].get("slots") or {}).get("magazine") or {}
+        geo = (rec or {}).get("geometry") or {}
+        mount = (geo.get("mounts") or {}).get("magazine")
+        if not feats.get("well_ref") or not mount or mount["source"] == "none" or mount.get("point") is None or not geo.get("axes"):
+            continue
+        seats = {"": (mount, feats["well_ref"])}
+        for node, ref in sorted((feats.get("well_refs") or {}).items()):
+            if node in (mount.get("seats") or {}):
+                seats[node] = (mount["seats"][node], ref)
+        out.append((host_id, _fit.frame_basis(geo["axes"]), geo["axes"], seats))
+    return out
+
+
+def _apply_fit_parts(records: list[dict], rules: dict, threejs_v2_dir: Path | None, cache: dict, feats_by_host: dict, stats: dict) -> dict[str, dict]:
+    """``{part id: {"device_inner_d": float | None}}`` for muzzle parts and ``{part id: {"sections": {host id: {seat key: [L, W] | None}}}}`` for
+    magazine parts, the part side of the geometry verdict (see the section header). A part whose file cannot be read now has no entry, and a magazine
+    pair without a section is ``unverified`` in ``compat``. ``stats`` counts the entries by how they were found (computed, cached)."""
+    fit_rules = attachment_rules(rules).get("fit_geometry")
+    out: dict[str, dict] = {}
+    if not fit_rules or threejs_v2_dir is None:
+        return out
+    wells = _well_hosts(records, feats_by_host)
+    for part in sorted(records, key=lambda r: r["id"]):
+        att = part.get("attachment")
+        files = part.get("files") or {}
+        if not att or att["slot"] not in ("muzzle", "magazine") or att["anchor"] is None or not files.get("glb"):
+            continue
+        path = threejs_v2_dir / files["glb"]
+        file_key = _cache_key(path)
+        if file_key is None:
+            continue
+        node, scale = files.get("glb_node") or None, float(files.get("glb_scale") or 1.0)
+        loaded: list = []
+
+        def mesh(path=path, node=node, scale=scale, loaded=loaded):
+            """The part's render mesh (collision hulls dropped), read once and only when a result is not cached."""
+            if not loaded:
+                got = load_triangles(path, node, exclude=lambda n: bool(SKIP_STEM_RE.search(n or "")), scale=scale)
+                ok = got is not None and len(got[0]) and len(got[1]) and np.isfinite(got[0]).all()
+                loaded.append((np.asarray(got[0], dtype=np.float64), np.asarray(got[1], dtype=np.int64)) if ok else None)
+            return loaded[0]
+
+        anchor = att["anchor"]
+        common = {"av": _pkg.WEAPON_ATTACH_VERSION, "ad": _ATTACH_CODE}
+        if att["slot"] == "muzzle":
+            def inner(mesh=mesh, anchor=anchor):
+                got = mesh()
+                return None if got is None else {"v": _fit.device_inner_d(got[0], anchor, fit_rules)}
+
+            value, how = _fit_cached(cache, f"fitpart|{part['id']}", file_key, digest({"an": anchor, "bore": fit_rules["bore"], **common}), inner)
+            if how != "unavailable":
+                stats[how] += 1
+                out[part["id"]] = {"device_inner_d": value}
+            continue
+        sections: dict[str, dict] = {}
+        for host_id, basis, axes, seats in wells:
+            def cut(mesh=mesh, anchor=anchor, basis=basis, seats=seats):
+                got = mesh()
+                if got is None:
+                    return None
+                verts, tris = got
+                found = {}
+                for key, (seat, ref) in seats.items():
+                    m = place(anchor, seat)
+                    placed = _fit.to_fsu(basis, verts @ m[:3, :3].T + m[:3, 3])
+                    section = _fit.entry_section(placed, tris, ref["u_rb"] - fit_rules["well"]["entry_depth_m"])
+                    found[key] = None if section is None else [section[0], section[1]]
+                return {"v": found}
+
+            fp = digest({"an": anchor, "axes": axes, "depth": fit_rules["well"]["entry_depth_m"], **common,
+                         "seats": {k: [{f: s[f] for f in ("point", "forward", "up")}, r["u_rb"]] for k, (s, r) in seats.items()}})
+            value, how = _fit_cached(cache, f"well|{part['id']}|{host_id}", file_key, fp, cut)
+            if how != "unavailable":
+                stats[how] += 1
+                sections[host_id] = value
+        if sections:
+            out[part["id"]] = {"sections": sections}
+    return out
+
+
+def _fit_records(feats_by_host: dict, part_fit: dict) -> list[dict]:
+    """The measure records ``fit_geometry.fit_digest`` hashes (spec 4.3): one per (host, slot) that has features, the located placements of a preset as
+    slot ``located``, and one per part with a measure. The digest sorts them, and every float is rounded there to 1e-4."""
+    rows = []
+    for host_id, feats in feats_by_host.items():
+        for slot, got in (feats.get("slots") or {}).items():
+            if got:
+                rows.append({"host": host_id, "slot": slot, **got})
+        if feats.get("located"):
+            rows.append({"host": host_id, "slot": "located", "placements": feats["located"]})
+    rows.extend({"part": part_id, **got} for part_id, got in part_fit.items())
+    return rows
+
+
 def _stored_setbacks(records: list[dict]) -> dict[tuple[str, str], float]:
     """(part id, host id) -> seat_setback_m of the pairs the records carry now (those a partial build carries over from its base)."""
     return {(r["id"], e["host"]): e["seat_setback_m"] for r in records if r.get("attachment")
@@ -608,6 +750,8 @@ def build_directory_report(
     geo_stats = {"decoded": 0, "cached": 0}
     contact_stats = {"computed": 0, "cached": 0, "kept": 0}  # A5: the pairs of the contact post-pass, apart from geo_stats (which tests pin)
     setback_stats = {"computed": 0, "cached": 0, "kept": 0}  # A6: the HOSTS the silencer seat read (computed, cached) and the pairs it kept
+    fit_stats = {"computed": 0, "cached": 0}  # G1: the entries of the part pass (muzzle inner rings, magazine sections) by how they were found
+    compat_stats: dict = {}  # G1: filled by apply_compat (parked_fit: the cross-pack pairs the geometry judged fit and A8-1 routed to pending)
     can_measure = measure and threejs_v2_dir is not None
     skipped_for_root = False
     listing_cache: dict = {}  # Alts directory listings, shared by every record of the build (fast over ~2,700)
@@ -726,7 +870,9 @@ def build_directory_report(
     stored_shifts = _stored_shifts(records)  # compat rebuilds every entry; a pair that cannot be settled now keeps its carried value
     stored_setbacks = _stored_setbacks(records)
     apply_pairs(records, overrides)  # A2: sight sets, before compatibility (a set candidate needs both members' lists)
-    warnings.extend(apply_compat(records, rules, overrides, child_extents=child_extents))
+    part_fit = _apply_fit_parts(records, rules, threejs_v2_dir if can_measure else None, cache, feats_by_host, fit_stats)  # G1: the mesh side, before compat
+    warnings.extend(apply_compat(records, rules, overrides, child_extents=child_extents, host_feats=feats_by_host, part_fit=part_fit, stats=compat_stats))
+    fit_digest = _fit.fit_digest(_fit_records(feats_by_host, part_fit))
     contact_capped = _apply_contact(records, rules, threejs_v2_dir if can_measure else None, cache, contact_stats, stored_shifts)  # A5: after compat, it needs the entries
     _apply_muzzle_seat(records, rules, threejs_v2_dir if can_measure else None, cache, setback_stats, stored_setbacks)  # A6: after the contact pass
     excluded.sort(key=lambda e: e["id"])
@@ -751,6 +897,7 @@ def build_directory_report(
         "overrides_digest": overrides_digest,
         "attach_version": _pkg.WEAPON_ATTACH_VERSION,
         "attach_rules_digest": attach_digest,
+        "fit_digest": fit_digest,
         "packs": pack_rows,
         "counts": _counts(records),
         "weapons": records,
@@ -776,6 +923,8 @@ def build_directory_report(
         "contact_capped": contact_capped,  # A6: the entries the contact cap removed
         "setback_stats": dict(setback_stats),
         "feature_counts": _feature_counts(mine),  # G1 (S7): hosts per mount feature value
+        "fit_stats": dict(fit_stats),  # G1 (S8): the part pass (computed, cached)
+        "cross_pack_magazine_fit": compat_stats.get("parked_fit", {}).get("magazine", 0),  # G1 AC140: cross-pack magazine pairs judged `fit`, parked by A8-1 (Q-G1)
         "stale_overrides": _stale_overrides(overrides, all_ids, set(selected), partial=partial),
         "warnings": sorted(warnings),
     }

@@ -155,10 +155,12 @@ def test_ac74_two_equal_length_globs_that_disagree_are_a_schema_error():
 
 def test_ac74_compatible_add_and_remove_by_id(tmp_path):
     recs, report = run(tmp_path, O(ids={P_SCOPE: {"compatible": {"remove": [A_], "add": [G_]}}}))
-    # S7 (spec 3.4 step 3): GAMMA, BETA and DELTA have a flat optic seat now, so none of them is pending; GAMMA is listed by the override (1.0)
-    assert lists(recs, W.SCOPE) == ([(G_, OVERRIDE, 1.0), (E_, TWIN, 0.95), (B_, SAME, 0.8), (D_, CROSS, 0.5)], [])
+    # G1 3.5/AC148 (S8): BETA and DELTA have a flat optic seat, `unverified`: pending, never listed; GAMMA is listed by the override (1.0, no geometry consulted)
+    assert lists(recs, W.SCOPE) == ([(G_, OVERRIDE, 1.0), (E_, TWIN, 0.95)], [(B_, SAME), (D_, CROSS)])
     assert "twin_multi" not in recs[P_SCOPE]["review"]["reasons"]  # ALPHA was the second twin
-    assert "mount_missing" not in recs[G_]["review"]["reasons"]  # the added host has an (estimated) optic seat since S7
+    # G1 3.1 (S8): GAMMA has an (estimated) optic seat, but it has no magazine seat and is a same-pack pending host of the rifle magazine now (no archetype
+    # test keeps the pistol out), so it carries mount_missing for that slot
+    assert "mount_missing" in recs[G_]["review"]["reasons"]
     assert report["warnings"] == []
 
 
@@ -181,7 +183,7 @@ def test_ac74_a_missing_host_and_a_missing_node_are_reported_not_dropped(tmp_pat
         "FAKE_CompA/SM_Wep_Rifle_Beta_01: mount child_not_found: optic: NoSuchNode",
         "FAKE_CompA/SM_Wep_Rifle_Scope_01: child_not_found: compatible.add FAKE_CompA/SM_Wep_Nowhere_01 (no eligible host)"]
     assert recs[B_]["geometry"]["mounts"]["optic"]["source"] == "probe"  # the unusable override changed nothing (S7: the flat seat stays)
-    assert lists(recs, W.SCOPE)[0] == [(A_, TWIN, 0.95), (E_, TWIN, 0.95), (B_, SAME, 0.8), (D_, CROSS, 0.5)]
+    assert lists(recs, W.SCOPE)[0] == [(A_, TWIN, 0.95), (E_, TWIN, 0.95)]  # G1 3.5 (S8): the flat seats of BETA and DELTA are pending
 
 
 def test_ac74_a_glob_that_matches_no_host_is_reported_too(tmp_path):
@@ -193,11 +195,11 @@ def test_ac74_a_disabled_slot_vetoes_inferred_tiers_but_an_override_add_still_li
     off = O(ids={A_: {"mounts": {"optic": {"source": "none"}}}})
     recs, _ = run(tmp_path / "a", off)
     assert recs[A_]["geometry"]["mounts"]["optic"]["source"] == "none" and recs[A_]["geometry"]["mounts"]["optic"]["reason"] == "slot_disabled"
-    # ALPHA gone, and with it the twin evidence (S7: BETA and DELTA are compatible on their flat optic seats, not pending)
-    assert lists(recs, W.SCOPE) == ([(E_, TWIN, 0.95), (B_, SAME, 0.8), (D_, CROSS, 0.5)], [])
+    # ALPHA gone, and with it the twin evidence (G1 3.5/AC148, S8: BETA and DELTA keep their flat optic seats, `unverified`: pending)
+    assert lists(recs, W.SCOPE) == ([(E_, TWIN, 0.95)], [(G_, SAME), (B_, SAME), (D_, CROSS)])
     on = O(ids={A_: {"mounts": {"optic": {"source": "none"}}}, P_SCOPE: {"compatible": {"add": [A_]}}})
     recs, _ = run(tmp_path / "b", on)
-    assert lists(recs, W.SCOPE) == ([(E_, TWIN, 0.95), (B_, SAME, 0.8), (D_, CROSS, 0.5)], [(A_, OVERRIDE)])  # the disabled slot has no seat
+    assert lists(recs, W.SCOPE) == ([(E_, TWIN, 0.95)], [(A_, OVERRIDE), (G_, SAME), (B_, SAME), (D_, CROSS)])  # the disabled slot has no seat
 
 
 def test_ac75_a_measured_mount_by_override_moves_the_pending_host_to_compatible(tmp_path):
@@ -206,27 +208,27 @@ def test_ac75_a_measured_mount_by_override_moves_the_pending_host_to_compatible(
     P_GRIP = W.P[W.GRIP]
     base, _ = run(tmp_path / "a", O())
     assert lists(base, W.GRIP) == ([(G_, TWIN, 0.95)], [(A_, SAME), (B_, SAME), (E_, SAME), (D_, CROSS)])
-    assert lists(base, W.SCOPE) == ([(A_, TWIN, 0.95), (E_, TWIN, 0.95), (B_, SAME, 0.8), (D_, CROSS, 0.5)], [])
+    assert lists(base, W.SCOPE) == ([(A_, TWIN, 0.95), (E_, TWIN, 0.95)], [(G_, SAME), (B_, SAME), (D_, CROSS)])  # G1 3.5/AC148 (S8): flat seats are pending
     doc = O(ids={B_: {"mounts": {"underbarrel": {"source": "child_node", "child": AUX}}}})
     recs, report = run(tmp_path / "b", doc)
     mount = recs[B_]["geometry"]["mounts"]["underbarrel"]
     assert (mount["source"], mount["child_node"], mount["span_m"], mount["span_source"]) == ("override", AUX, 0.066, "child_foot")
-    # Aux is optic() x1.1, so the seat span is 0.066 and the 0.06 GRIP foot fits it
-    assert lists(recs, W.GRIP) == ([(G_, TWIN, 0.95), (B_, SAME, 0.8)], [(A_, SAME), (E_, SAME), (D_, CROSS)])
+    # Aux is optic() x1.1, so the seat span is 0.066 and the 0.06 GRIP foot fits it. G1 3.5 (S8): the authored child seat is a `seat_ref` fit at the tier base
+    assert lists(recs, W.GRIP) == ([(G_, TWIN, 0.95), (B_, SAME, 0.7)], [(A_, SAME), (E_, SAME), (D_, CROSS)])
     entry = next(e for e in recs[P_GRIP]["attachment"]["compatible_hosts"] if e["host"] == B_)
-    assert entry["replaces"] == [AUX] and "mount_available" in entry["signals"]
+    assert entry["replaces"] == [AUX] and entry["signals"] == ["seat_ref"]
     assert report["warnings"] == []
     assert "mount_missing" in recs[B_]["review"]["reasons"]  # its magazine is still without a seat and has candidates
-    # the optic override replaces BETA's estimated flat seat (span 0.181) by the Aux child (span 0.066): the 1.0 x scope fits it (0.06 / 0.066)
-    # and keeps its 0.8, the 1.2 x one is neutral (1.09) and drops from the 0.8 of the long flat seat to 0.7
+    # the optic override replaces BETA's estimated flat seat (span 0.181, `unverified` rail_flat: pending) by the Aux child (span 0.066): an authored seat with a
+    # flat run under it, `seat_ref`, so BETA moves from pending to listed at the tier base for every scope, whatever its foot (G1 3.5, S8)
     recs, report = run(tmp_path / "c", O(ids={B_: {"mounts": {"optic": {"source": "child_node", "child": AUX}}}}))
     mount = recs[B_]["geometry"]["mounts"]["optic"]
     assert (mount["source"], mount["child_node"], mount["span_m"], mount["span_source"]) == ("override", AUX, 0.066, "child_foot")
-    assert lists(recs, W.SCOPE) == ([(A_, TWIN, 0.95), (E_, TWIN, 0.95), (B_, SAME, 0.8), (D_, CROSS, 0.5)], [])
-    assert lists(recs, W.SCOPE_WIDE)[0] == [(A_, SAME, 0.7), (B_, SAME, 0.7), (E_, SAME, 0.7), (D_, CROSS, 0.5)]
-    assert lists(recs, W.ALT_SCOPE) == ([(A_, TWIN, 0.95), (E_, TWIN, 0.95), (B_, CROSS, 0.5)], [])
+    assert lists(recs, W.SCOPE) == ([(A_, TWIN, 0.95), (E_, TWIN, 0.95), (B_, SAME, 0.7)], [(G_, SAME), (D_, CROSS)])
+    assert lists(recs, W.SCOPE_WIDE) == ([(A_, SAME, 0.7), (B_, SAME, 0.7), (E_, SAME, 0.7)], [(G_, SAME), (D_, CROSS)])
+    assert lists(recs, W.ALT_SCOPE) == ([(A_, TWIN, 0.95), (E_, TWIN, 0.95), (B_, CROSS, 0.4)], [(D_, SAME), (G_, CROSS)])
     entry = next(e for e in recs[P_SCOPE]["attachment"]["compatible_hosts"] if e["host"] == B_)
-    assert entry["replaces"] == [AUX] and "mount_available" in entry["signals"]
+    assert entry["replaces"] == [AUX] and entry["signals"] == ["seat_ref"]
     assert report["warnings"] == []
 
 
@@ -251,7 +253,9 @@ def test_ac74_set_attachment_slot_and_kind_replace_the_rule_answer(tmp_path):
     recs, _ = run(tmp_path / "b", O(ids={giant: {"set": {"attachment_slot": "magazine", "attachment_kind": "drum"}}}))
     att = recs[giant]["attachment"]
     assert (att["slot"], att["kind"]) == ("magazine", "drum")
-    assert lists(recs, W.SCOPE_GIANT)[0] == [(A_, SAME, 0.7)]  # a magazine now: only ALPHA has a magazine seat
+    # a magazine now: only ALPHA has a magazine seat, and G1 3.7 (S8) judges the scope-shaped part against that well: its entry section does not match, `no_fit`
+    # (ALPHA is in neither list), and the four hosts without a magazine seat are `not_judged`: pending
+    assert lists(recs, W.SCOPE_GIANT) == ([], [(G_, SAME), (B_, SAME), (E_, SAME), (D_, CROSS)])
     recs, _ = run(tmp_path / "c", O(ids={giant: {"set": {"attachment_slot": "muzzle"}}}))
     assert (recs[giant]["attachment"]["slot"], recs[giant]["attachment"]["kind"]) == ("muzzle", "other")
 

@@ -104,8 +104,17 @@ def test_ac112_viii_the_contact_face_is_the_slab_at_the_extreme_not_the_whole_pa
 
 
 def test_ac112_ix_a_face_with_no_host_under_it_has_no_key(built):
-    assert entry(built, M.SCOPE_PART, "Aside")["tier"] == "same_pack_fit"  # listed, with the seat at x 0.10 beside the body (x +-0.02)
-    assert "seat_shift_m" not in entry(built, M.SCOPE_PART, "Aside")
+    # G1 3.5 (S8): the Aside seat child (foot 0.06) is shorter than the scope's foot (0.08) and has no flat run under it, so the verdict is no_fit and the
+    # pair is not listed any more. The settle pass is run on a listed entry put there by hand: the seat at x 0.10 is beside the body (x +-0.02)
+    assert not [e for e in built.by_id[M.pid(M.SCOPE_PART)]["attachment"]["compatible_hosts"] if e["host"] == M.hid("Aside")]
+
+    def list_aside(by):
+        att = by[M.pid(M.SCOPE_PART)]["attachment"]["compatible_hosts"]
+        att.append({**next(e for e in att if e["host"] == M.hid("Hover")), "host": M.hid("Aside")})
+
+    records, _ = run_post_pass(built, list_aside)
+    aside = next(e for e in records[M.pid(M.SCOPE_PART)]["attachment"]["compatible_hosts"] if e["host"] == M.hid("Aside"))
+    assert aside["tier"] == "same_pack_fit" and "seat_shift_m" not in aside
 
 
 def test_ac112_x_the_minimum_is_the_sample_that_touches_first(built):
@@ -118,11 +127,21 @@ def test_ac112_x_the_minimum_is_the_sample_that_touches_first(built):
 
 def test_ac112_xi_a_muzzle_magazine_laser_or_sight_part_never_has_a_key(built):
     assert shift(built, M.SCOPE_PART, "Hover") is not None  # not vacuous: the rule is on in this very directory
+    # G1 3.1/3.6/3.7 (S8): the magazine is a pending entry (no well on these hosts) and the silencer a no_fit (box barrels), so neither is listed; the
+    # laser and the front sight still are. The settle pass is run with a listed magazine and silencer entry on Misc put there by hand, so all four slots
+    # are exercised: the rule would fire on the magazine (15 mm gap) and the silencer if the slot were not excluded
+    def list_all(by):
+        for part in (M.MAG_PART, M.SILENCER_PART):
+            by[M.pid(part)]["attachment"]["compatible_hosts"].append(
+                {"host": M.hid("Misc"), "tier": "same_pack_fit", "score": 0.7, "signals": [], "replaces": []})
+
+    records, _ = run_post_pass(built, list_all)
     for part in M.OTHER_PARTS:
-        rec = built.by_id[M.pid(part)]
-        entries = rec["attachment"]["compatible_hosts"]
+        entries = records[M.pid(part)]["attachment"]["compatible_hosts"]
         assert entries, part
         assert not [e for e in entries if "seat_shift_m" in e], part
+    assert [e["host"] for e in built.by_id[M.pid(M.MAG_PART)]["attachment"]["compatible_hosts"]] == []
+    assert [e["host"] for e in built.by_id[M.pid(M.SILENCER_PART)]["attachment"]["compatible_hosts"]] == []
     # the magazine and the laser really are 15 mm off their seats' neighbours on Misc: the rule would have fired on them
     misc = built.by_id[M.hid("Misc")]["geometry"]["mounts"]
     assert misc["magazine"]["point"] == [0.0, -0.015, 0.1] and misc["laser_light"]["point"] == [0.0, 0.115, -0.1]

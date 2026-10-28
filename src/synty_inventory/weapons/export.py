@@ -74,6 +74,7 @@ _MOUNT_REASONS = ("compat_cross_pack", "mount_ambiguous", "mount_estimated", "mo
 ATTACHMENT_ROLE = "attachment"  # pseudo role of `--roles`: restricts the export to the attachment parts (with --attachments)
 _BASE_GF_KEYS = ["tool", "weapon_version", "geometry_version", "rules_digest", "overrides_digest", "packs", "filter"]
 _ATTACH_GF_KEYS = ["attach_version", "attach_rules_digest"]
+_FIT_GF_KEY = "fit_digest"  # G1 (docs/weapon_attach_geometry.md 4.3, 4.4): optional, with --attachments only, present when the directory carries it
 _BASE_FILTER_KEYS = ["engines", "frame", "game", "roles"]
 _HEX16 = re.compile(r"^[0-9a-f]{16}$")
 _DRIVE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]")
@@ -292,6 +293,8 @@ def export_snapshot(
     if attachments:  # these keys exist ONLY with --attachments: the default header is the W7 one (C-24)
         generated_from["attach_version"] = directory["attach_version"]
         generated_from["attach_rules_digest"] = directory["attach_rules_digest"]
+        if directory.get(_FIT_GF_KEY):  # a pre-G1 directory has none, and its export keeps the earlier header
+            generated_from[_FIT_GF_KEY] = directory[_FIT_GF_KEY]
         generated_from["filter"]["attachments"] = True
         if keep_foreign_hosts:  # judgment call: lets `validate --snapshot` accept hosts outside the set (INV-14)
             generated_from["filter"]["keep_foreign_hosts"] = True
@@ -397,10 +400,12 @@ def check_snapshot(doc) -> list[str]:
     if doc["schema_version"] != 1:
         errs.append(f"schema_version: expected 1, got {doc['schema_version']!r}")
     gf = doc["generated_from"]
-    # --attachments adds attach_version / attach_rules_digest / filter.attachments, and ONLY then (C-24)
+    # --attachments adds attach_version / attach_rules_digest / filter.attachments (and, optionally, fit_digest), and ONLY then (C-24)
     flt_in = gf.get("filter") if isinstance(gf, dict) else None
     attachments = isinstance(flt_in, dict) and "attachments" in flt_in
     want_gf = _BASE_GF_KEYS + (_ATTACH_GF_KEYS if attachments else [])
+    if attachments and isinstance(gf, dict) and _FIT_GF_KEY in gf:
+        want_gf = want_gf + [_FIT_GF_KEY]  # G1: optional, and only with --attachments (a plain header holding it fails the key check below)
     if not isinstance(gf, dict) or sorted(gf) != sorted(want_gf):
         return errs + [f"generated_from: keys must be {', '.join(want_gf)}"]
     if not (isinstance(gf["tool"], str) and gf["tool"].startswith("synty-inventory ")):
@@ -412,7 +417,7 @@ def check_snapshot(doc) -> list[str]:
         if not (isinstance(gf["attach_version"], int) and not isinstance(gf["attach_version"], bool)
                 and gf["attach_version"] >= 1):
             errs.append("generated_from.attach_version: must be a positive integer")
-    for key in ("rules_digest", "overrides_digest") + (("attach_rules_digest",) if attachments else ()):
+    for key in ("rules_digest", "overrides_digest") + (("attach_rules_digest",) if attachments else ()) + ((_FIT_GF_KEY,) if _FIT_GF_KEY in want_gf else ()):
         if not (isinstance(gf[key], str) and _HEX16.match(gf[key])):
             errs.append(f"generated_from.{key}: must be 16 lower-case hex characters")
     packs = gf["packs"]

@@ -43,14 +43,15 @@ def test_the_compatibility_tables_live_inside_attachment_rules_and_not_beside_it
     rules = load_rules()
     assert "attach_affinity" not in rules and "attach_compat" not in rules
     tables = attachment_rules(rules)
-    assert set(tables["attach_affinity"]) == {"optic", "muzzle", "underbarrel", "laser_light", "magazine", "sight_front", "sight_rear"}
+    # G1 3.8 (S8): the optic, muzzle, underbarrel and magazine rows are retired; the geometry verdict decides those four slots
+    assert set(tables["attach_affinity"]) == {"laser_light", "sight_front", "sight_rear"}
     assert tables["attach_compat"]["base"] == {"same_pack_fit": 0.7, "cross_pack_fit": 0.4}
     assert tables["attach_compat"]["tier_score"] == {"override": 1.0, "twin": 0.95}
 
 
 def test_editing_a_compatibility_table_moves_the_attach_digest_and_not_rules_digest():
     rules = load_rules()
-    for key, mutate in (("attach_affinity", lambda t: t["optic"].update(scope=["pistol"])),
+    for key, mutate in (("attach_affinity", lambda t: t["laser_light"].update(laser=["pistol"])),  # G1 3.8: laser_light keeps its rows
                         ("attach_compat", lambda t: t.update(fit_span_bonus=0.05))):
         edited = copy.deepcopy(rules)
         mutate(edited["attachment_rules"][key])
@@ -73,11 +74,12 @@ def broken(mutate) -> list[str]:
 
 
 @pytest.mark.parametrize(("mutate", "message"), [
+    # G1 3.8 (S8): the laser_light row stands in for the optic row these cases were written on (the four geometry slots have no rows to edit)
     (lambda t: t["attach_affinity"].update(scope={"x": ["rifle"]}), "slot not in"),
-    (lambda t: t["attach_affinity"]["optic"].update(drum=["rifle"]), "not a kind of the slot"),
-    (lambda t: t["attach_affinity"]["optic"].update(scope=["rifel"]), "unknown archetype"),
-    (lambda t: t["attach_affinity"]["optic"].update(scope="rifle"), "must be a list"),
-    (lambda t: t["attach_affinity"].update(muzzle={}), "non-empty"),
+    (lambda t: t["attach_affinity"]["laser_light"].update(drum=["rifle"]), "not a kind of the slot"),
+    (lambda t: t["attach_affinity"]["laser_light"].update(laser=["rifel"]), "unknown archetype"),
+    (lambda t: t["attach_affinity"]["laser_light"].update(laser="rifle"), "must be a list"),
+    (lambda t: t["attach_affinity"].update(laser_light={}), "non-empty"),
     (lambda t: t["attach_compat"].update(speed=1), "unknown key"),
     (lambda t: t["attach_compat"].update(fit_span_bonus=0.9), "from 0 to 0.5"),
     (lambda t: t["attach_compat"]["base"].update(same_pack_fit=0.85), "outside the band"),  # 0.85 + 0.1 + 0.1 > 0.9
@@ -116,8 +118,11 @@ def test_a_partial_build_of_one_pack_keeps_the_twins_of_the_carried_hosts(tmp_pa
         rules=W.compat_rules(), threejs_v2_dir=root, geometry_cache={})
     alt = W.by_id(part)[W.P[W.ALT_SCOPE]]
     # the hosts of FAKE_CompA are carried over (no child extents in this run): the twin relations come from the stored lists
-    # (S7, spec 3.4 step 3: BETA's flat optic seat makes it a cross_pack_fit entry of the Alt scope, carried over too)
-    assert W.hosts_of(alt) == [(W.H[W.ALPHA], "twin", 0.95), (W.H[W.EPSILON], "twin", 0.95), (W.H[W.BETA], "cross_pack_fit", 0.5)]
+    # (S7, spec 3.4 step 3: BETA has a flat optic seat; G1 3.5 / AC148 (S8): a flat seat is `unverified`, so BETA is a pending entry of the Alt scope with
+    # the signal rail_flat, never a listed cross_pack_fit; carried over too)
+    assert W.hosts_of(alt) == [(W.H[W.ALPHA], "twin", 0.95), (W.H[W.EPSILON], "twin", 0.95)]
+    assert [e for e in alt["attachment"]["pending_hosts"] if e["host"] == W.H[W.BETA]] == [
+        {"host": W.H[W.BETA], "tier": "cross_pack_fit", "signals": ["rail_flat"]}]
     assert "twin_multi" in alt["review"]["reasons"]
     assert to_text(part) == to_text(full)
 

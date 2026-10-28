@@ -1,4 +1,10 @@
-"""W8o: the three cross-pack precision rules, the tokenless family waiver and the versions (docs/weapon_attachments.md 13.8 A7-2, A7-4; AC118, AC119, AC121, AC123).
+"""W8o: the three cross-pack precision rules, the tokenless family waiver and the versions (docs/weapon_attachments.md 13.8 A7-2, A7-4; AC118, AC119, AC121, AC123),
+as G1 leaves them (S8; docs/weapon_attach_geometry.md 3.8, AC148).
+
+G1 retires R-a (the size gate), R-b (the gun class) and the tokenless waiver for the four geometry slots (optic, muzzle, underbarrel, magazine): the pack
+relation sets the tier and the geometry verdict lists the pair. R-c (``suppressor_never``) stays as policy. The three mechanisms still run on the label
+slots, so the cases below that used a magazine, an optic or an underbarrel now use ``laser_light`` (kind ``laser``, or ``light`` where every archetype has
+affinity), and the geometry slots get cases of their own that say what no longer happens.
 
 Pure ``compat.candidate`` cases (hand-made part and host views, no files), then ``compat.compute`` over hand-made records for the plumbing of the host's
 baked-child extents into the candidate. Every tolerance a case relies on is passed as a LITERAL in ``params`` (``rules(...)``), never read from the
@@ -20,6 +26,8 @@ TABLES = attachment_rules(load_rules())
 AFFINITY = TABLES["attach_affinity"]
 SAME, CROSS = "same_pack_fit", "cross_pack_fit"
 BASE_ATTACH_DIGEST = "2f23e707292a96c3"  # attach_rules_digest(load_rules()) at base 201e2d8 (attach version 11)
+PENDING_CROSS = {"host": "Q/Host_01", "tier": CROSS, "listed": False}
+PENDING_SAME = {"host": "Q/Host_01", "tier": SAME, "listed": False}
 
 
 def params(tol=None, never=None, tokenless=None):
@@ -37,7 +45,7 @@ def params(tol=None, never=None, tokenless=None):
     return compat._params(tables)
 
 
-TOL = {"magazine": 0.35, "optic": 0.35, "underbarrel": 0.45}
+TOL = {"laser_light": 0.35, "sight_front": 0.45}  # G1 (S8): the slots that can still carry a size gate (never the four geometry slots)
 NEVER = {"muzzle": ["shotgun"]}
 CHILD = [0.02, 0.04, 0.10]  # the baked child's sorted extents, used by every size case
 
@@ -46,7 +54,7 @@ def scaled(factor, base=CHILD):
     return [round(x * factor, 6) for x in base]
 
 
-def part(slot="magazine", kind="standard", *, pack="P", tokens=("zulu",), extents=None, **kw):
+def part(slot="laser_light", kind="light", *, pack="P", tokens=("zulu",), extents=None, **kw):
     base = {"id": f"{pack}/Zulu_Part_01", "pack": pack, "slot": slot, "kind": kind, "flags": set(), "tokens": frozenset(tokens),
             "foot_length_m": 0.12 if slot == "magazine" else 0.06, "mate_d_m": None, "setting": ("setting", "s"), "body_min_m": 0.02,
             "extents": extents}
@@ -59,7 +67,7 @@ def seat(*, source="child_node", occupied=("Kid",), span=None, **kw):
     return {**base, **kw}
 
 
-def host(slot="magazine", *, archetype="rifle", pack="Q", mount=None, children=None, tokens=("alpha",), **kw):
+def host(slot="laser_light", *, archetype="rifle", pack="Q", mount=None, children=None, tokens=("alpha",), **kw):
     if mount is None:
         mount = seat(span=0.15 if slot == "magazine" else 0.06)
     base = {"id": f"{pack}/Host_01", "pack": pack, "archetype": archetype, "flags": set(), "mounts": {slot: mount}, "tokens": frozenset(tokens),
@@ -83,35 +91,43 @@ def listed(got, tier):
 
 
 @pytest.mark.parametrize(("factor", "kept"), [(1.30, True), (1.40, False), (1.80, False), (0.70, True), (0.60, False)])
-def test_ac118_a_cross_pack_magazine_is_kept_30_dropped_40_and_80_percent_off_its_baked_child(factor, kept):
-    got = cand(part(extents=scaled(factor)), host(children={"magazine": kid()}), params(TOL))
+def test_ac118_a_cross_pack_laser_light_is_kept_30_dropped_40_and_80_percent_off_its_baked_child(factor, kept):
+    got = cand(part(extents=scaled(factor)), host(children={"laser_light": kid()}), params(TOL))
     assert (got is not None) is kept, factor
     if kept:
         assert listed(got, CROSS)
 
 
 @pytest.mark.parametrize(("factor", "kept"), [(1.40, True), (1.50, False)])
-def test_ac118_an_underbarrel_is_kept_40_and_dropped_50_percent_off(factor, kept):
+def test_ac118_a_front_sight_is_kept_40_and_dropped_50_percent_off_with_its_own_tolerance(factor, kept):
     child = [0.02, 0.03, 0.20]
-    p = part("underbarrel", "foregrip", extents=scaled(factor, child))
-    h = host("underbarrel", children={"underbarrel": kid(child)}, mount=seat(span=0.06))
+    p = part("sight_front", "post", extents=scaled(factor, child))
+    h = host("sight_front", children={"sight_front": kid(child)}, mount=seat(span=0.06))
     assert (cand(p, h, params(TOL)) is not None) is kept, factor
+
+
+@pytest.mark.parametrize(("slot", "kind"), [("magazine", "standard"), ("optic", "scope"), ("underbarrel", "foregrip"), ("muzzle", "suppressor")])
+def test_ac118_the_size_gate_is_retired_for_the_geometry_slots(slot, kind):
+    # G1 3.8 (S8): a row in the literal table is not read for these slots; with no recorded features the cross pair is not_judged: a bare pending entry
+    h = host(slot, children={slot: kid()}, mount=seat(span=0.15))
+    for factor in (1.0, 1.8, 3.0):
+        assert cand(part(slot, kind, extents=scaled(factor)), h, params({**TOL, slot: 0.35})) == PENDING_CROSS, (slot, factor)
 
 
 def test_ac118_the_deviation_is_the_worst_axis_not_the_mean():
     # two axes exact, the third 40 % off
-    got = cand(part(extents=[0.02, 0.04, 0.14]), host(children={"magazine": kid()}), params(TOL))
+    got = cand(part(extents=[0.02, 0.04, 0.14]), host(children={"laser_light": kid()}), params(TOL))
     assert got is None
-    assert listed(cand(part(extents=[0.02, 0.04, 0.13]), host(children={"magazine": kid()}), params(TOL)), CROSS)
+    assert listed(cand(part(extents=[0.02, 0.04, 0.13]), host(children={"laser_light": kid()}), params(TOL)), CROSS)
 
 
-def test_ac118_an_optic_40_percent_off_is_untouched_as_a_twin_and_as_a_same_pack_fit_and_dropped_as_a_cross_pack_fit():
+def test_ac118_a_laser_light_40_percent_off_is_untouched_as_a_twin_and_as_a_same_pack_fit_and_dropped_as_a_cross_pack_fit():
     child, mount = [0.06, 0.08, 0.20], seat(span=0.06)
     ext = scaled(1.4, child)
-    p_same, h_same = part("optic", "scope", pack="Q", extents=ext), host("optic", children={"optic": kid(child)}, mount=mount, tokens=("zulu",))
+    p_same, h_same = part("laser_light", "laser", pack="Q", extents=ext), host("laser_light", children={"laser_light": kid(child)}, mount=mount, tokens=("zulu",))
     assert listed(cand(p_same, h_same, params(TOL)), SAME)
     assert listed(cand(p_same, h_same, params(TOL), twin=True), "twin")
-    p_cross, h_cross = part("optic", "scope", pack="P", extents=ext), host("optic", children={"optic": kid(child)}, mount=mount)
+    p_cross, h_cross = part("laser_light", "laser", pack="P", extents=ext), host("laser_light", children={"laser_light": kid(child)}, mount=mount)
     assert cand(p_cross, h_cross, params(TOL)) is None
     assert listed(cand(p_cross, h_cross, params(TOL), twin=True), "twin")  # a twin entry is never size-gated
     assert listed(cand(p_cross, h_cross, params(TOL), verdict="add"), "override")
@@ -120,39 +136,39 @@ def test_ac118_an_optic_40_percent_off_is_untouched_as_a_twin_and_as_a_same_pack
 def test_ac118_a_host_with_no_recorded_child_is_not_checked():
     far = scaled(3.0)
     assert listed(cand(part(extents=far), host(children={}), params(TOL)), CROSS)  # no children at all
-    assert listed(cand(part(extents=far), host(children={"magazine": kid(name="Other")}), params(TOL)), CROSS)  # a child the seat does not name
-    assert listed(cand(part(extents=far), host(mount=seat(source="probe", occupied=(), span=0.15), children={"magazine": kid()}), params(TOL)), CROSS)
-    assert listed(cand(part(extents=None), host(children={"magazine": kid()}), params(TOL)), CROSS)  # a part without a footprint
+    assert listed(cand(part(extents=far), host(children={"laser_light": kid(name="Other")}), params(TOL)), CROSS)  # a child the seat does not name
+    assert listed(cand(part(extents=far), host(mount=seat(source="probe", occupied=(), span=0.06), children={"laser_light": kid()}), params(TOL)), CROSS)
+    assert listed(cand(part(extents=None), host(children={"laser_light": kid()}), params(TOL)), CROSS)  # a part without a footprint
     # a child with a zero extent is skipped, so it does not decide either
-    assert listed(cand(part(extents=far), host(children={"magazine": kid([0.0, 0.04, 0.10])}), params(TOL)), CROSS)
+    assert listed(cand(part(extents=far), host(children={"laser_light": kid([0.0, 0.04, 0.10])}), params(TOL)), CROSS)
 
 
 def test_ac118_the_smallest_deviation_over_the_children_the_seat_names_decides():
-    h = host(mount=seat(span=0.15, occupied=("A", "B")), children={"magazine": {**kid(scaled(3.0), "A"), **kid(CHILD, "B")}})
+    h = host(mount=seat(span=0.06, occupied=("A", "B")), children={"laser_light": {**kid(scaled(3.0), "A"), **kid(CHILD, "B")}})
     assert listed(cand(part(extents=scaled(1.1)), h, params(TOL)), CROSS)  # B is 10 % off, A is 63 % off
-    h = host(mount=seat(span=0.15, occupied=("A", "B")), children={"magazine": {**kid(scaled(3.0), "A"), **kid(scaled(2.0), "B")}})
+    h = host(mount=seat(span=0.06, occupied=("A", "B")), children={"laser_light": {**kid(scaled(3.0), "A"), **kid(scaled(2.0), "B")}})
     assert cand(part(extents=scaled(1.0)), h, params(TOL)) is None  # both far
 
 
 def test_ac118_a_pending_pair_has_no_seat_and_is_not_size_checked():
     none = seat(source="none", occupied=(), span=None)
-    got = cand(part(extents=scaled(3.0)), host(mount=none, children={"magazine": kid()}), params(TOL))
-    assert got == {"host": "Q/Host_01", "tier": CROSS, "listed": False}
+    got = cand(part(extents=scaled(3.0)), host(mount=none, children={"laser_light": kid()}), params(TOL))
+    assert got == PENDING_CROSS
 
 
 def test_ac118_a_slot_with_no_tolerance_and_a_missing_table_check_nothing():
-    h = host(children={"magazine": kid()})
-    assert listed(cand(part(extents=scaled(1.8)), h, params({"optic": 0.35})), CROSS)  # magazine is not a key
+    h = host(children={"laser_light": kid()})
+    assert listed(cand(part(extents=scaled(1.8)), h, params({"sight_front": 0.35})), CROSS)  # laser_light is not a key
     assert listed(cand(part(extents=scaled(1.8)), h, params(None)), CROSS)  # the table row removed: nothing is dropped
-    assert cand(part(extents=scaled(1.8)), h, params({"magazine": 0.35})) is None  # the same part with the row: dropped
+    assert cand(part(extents=scaled(1.8)), h, params({"laser_light": 0.35})) is None  # the same part with the row: dropped
 
 
-def test_ac118_the_deviation_is_compared_at_two_decimals_an_optic_at_0_3508_is_kept_and_at_0_3601_dropped():
-    # the third axis of the baked optic is 0.20: 0.27016 / 0.20 - 1 = 0.3508 (reads 0.35), 0.27202 / 0.20 - 1 = 0.3601 (reads 0.36)
+def test_ac118_the_deviation_is_compared_at_two_decimals_a_laser_light_at_0_3508_is_kept_and_at_0_3601_dropped():
+    # the third axis of the baked child is 0.20: 0.27016 / 0.20 - 1 = 0.3508 (reads 0.35), 0.27202 / 0.20 - 1 = 0.3601 (reads 0.36)
     child, mount = [0.06, 0.08, 0.20], seat(span=0.06)
-    h = host("optic", children={"optic": kid(child)}, mount=mount)
-    assert listed(cand(part("optic", "scope", extents=[0.06, 0.08, 0.27016]), h, params(TOL)), CROSS)
-    assert cand(part("optic", "scope", extents=[0.06, 0.08, 0.27202]), h, params(TOL)) is None
+    h = host("laser_light", children={"laser_light": kid(child)}, mount=mount)
+    assert listed(cand(part("laser_light", "laser", extents=[0.06, 0.08, 0.27016]), h, params(TOL)), CROSS)
+    assert cand(part("laser_light", "laser", extents=[0.06, 0.08, 0.27202]), h, params(TOL)) is None
     assert compat.child_deviation([0.06, 0.08, 0.27016], mount, kid(child)) == 0.35
     assert compat.child_deviation([0.06, 0.08, 0.27202], mount, kid(child)) == 0.36
 
@@ -175,28 +191,28 @@ def record(rec_id, *, role, archetype, geometry=None, attachment=None):
 
 
 def test_ac118_compute_hands_the_hosts_child_extents_and_the_parts_footprint_to_the_rule():
-    mount = {"source": "child_node", "point": [0.0, 0.1, 0.0], "forward": [0, 0, 1], "up": [0, 1, 0], "span_m": 0.15, "span_source": "child_foot",
-             "bore_d_m": None, "bore_source": None, "occupied_by": ["Mag"], "child_node": "Mag", "confidence": 0.9, "reason": None}
-    host_rec = record("Q/Gun_Alpha_01", role="whole", archetype="rifle", geometry={"mounts": {"magazine": mount}})
+    mount = {"source": "child_node", "point": [0.0, 0.1, 0.0], "forward": [0, 0, 1], "up": [0, 1, 0], "span_m": 0.06, "span_source": "child_foot",
+             "bore_d_m": None, "bore_source": None, "occupied_by": ["Lamp"], "child_node": "Lamp", "confidence": 0.9, "reason": None}
+    host_rec = record("Q/Gun_Alpha_01", role="whole", archetype="rifle", geometry={"mounts": {"laser_light": mount}})
 
-    def mag(name, scale):
-        foot = {"length_m": 0.04 * scale, "width_m": 0.02 * scale, "height_m": 0.10 * scale, "foot_length_m": 0.12, "foot_width_m": 0.02, "mate_d_m": None}
+    def lamp(name, scale):
+        foot = {"length_m": 0.04 * scale, "width_m": 0.02 * scale, "height_m": 0.10 * scale, "foot_length_m": 0.06, "foot_width_m": 0.02, "mate_d_m": None}
         anchor = {"point": [0, 0, 0], "forward": [0, 1, 0], "up": [0, 0, 1], "foot_source": "authored_up", "forward_source": "section", "symmetric": False}
-        att = {"slot": "magazine", "kind": "standard", "anchor": anchor, "footprint": foot, "compatible_hosts": [], "pending_hosts": []}
+        att = {"slot": "laser_light", "kind": "light", "anchor": anchor, "footprint": foot, "compatible_hosts": [], "pending_hosts": []}
         return record(f"P/{name}", role="part", archetype="unknown", attachment=att)
 
     rules = deepcopy(load_rules())
     rules["attachment_rules"]["attach_genre_by_pack"] = {"P": "s", "Q": "s"}
-    rules["attachment_rules"]["attach_compat"]["cross_pack_size_tol"] = {"magazine": 0.35}
-    rules["attachment_rules"]["attach_compat"]["cross_pack_unverified_slots"] = []  # A8-1 (W8p) would park these in pending_hosts; this case is the A7 size gate
-    evidence = {"Q/Gun_Alpha_01": {"magazine": {"Mag": {"extents": [0.02, 0.04, 0.10], "axes": [0.04, 0.02, 0.10], "seat": None}}}}
-    parts = [mag("Wep_Zulu_Mag_Near", 1.3), mag("Wep_Zulu_Mag_Far", 1.4)]
+    rules["attachment_rules"]["attach_compat"]["cross_pack_size_tol"] = {"laser_light": 0.35}
+    rules["attachment_rules"]["attach_compat"]["cross_pack_unverified_slots"] = []  # A8-1 (W8p) would park a magazine in pending_hosts; this case is the A7 size gate
+    evidence = {"Q/Gun_Alpha_01": {"laser_light": {"Lamp": {"extents": [0.02, 0.04, 0.10], "axes": [0.04, 0.02, 0.10], "seat": None}}}}
+    parts = [lamp("Wep_Zulu_Lamp_Near", 1.3), lamp("Wep_Zulu_Lamp_Far", 1.4)]
     got = compat.compute([host_rec, *parts], rules, None, child_extents=evidence)["parts"]
-    assert [e["tier"] for e in got["P/Wep_Zulu_Mag_Near"]["compatible"]] == [CROSS]
-    assert got["P/Wep_Zulu_Mag_Far"]["compatible"] == [] and got["P/Wep_Zulu_Mag_Far"]["pending"] == []
+    assert [e["tier"] for e in got["P/Wep_Zulu_Lamp_Near"]["compatible"]] == [CROSS]
+    assert got["P/Wep_Zulu_Lamp_Far"]["compatible"] == [] and got["P/Wep_Zulu_Lamp_Far"]["pending"] == []
     # no evidence for the host (a carried host without it): nothing to compare, both stay
     got = compat.compute([host_rec, *parts], rules, None, child_extents={})["parts"]
-    assert [e["tier"] for e in got["P/Wep_Zulu_Mag_Far"]["compatible"]] == [CROSS]
+    assert [e["tier"] for e in got["P/Wep_Zulu_Lamp_Far"]["compatible"]] == [CROSS]
 
 
 def test_ac117_the_mount_missing_loop_counts_the_old_default_tiers_only():
@@ -218,32 +234,41 @@ def test_ac117_the_mount_missing_loop_counts_the_old_default_tiers_only():
 # -- AC119 R-b: the gun class ---------------------------------------------------------------------------------------------------
 
 
-def mag_on(archetype, tokens, *, pack="P", seat_kind="seat", prm=None):
-    mount = seat(span=0.15) if seat_kind == "seat" else seat(source="none", occupied=(), span=None)
+def lamp_on(archetype, tokens, *, pack="P", seat_kind="seat", prm=None):
+    mount = seat(span=0.06) if seat_kind == "seat" else seat(source="none", occupied=(), span=None)
     return cand(part(tokens=tokens, pack=pack), host(archetype=archetype, mount=mount), prm or params(TOL, NEVER))
 
 
 @pytest.mark.parametrize("seat_kind", ["seat", "pending"])
 def test_ac119_a_handgun_named_part_on_a_long_gun_and_the_reverse_are_not_cross_candidates(seat_kind):
     for archetype in ("rifle", "shotgun", "sniper", "lmg"):
-        assert mag_on(archetype, ("zulu", "pistol"), seat_kind=seat_kind) is None, archetype
-        assert mag_on(archetype, ("zulu", "revolver"), seat_kind=seat_kind) is None, archetype
+        assert lamp_on(archetype, ("zulu", "pistol"), seat_kind=seat_kind) is None, archetype
+        assert lamp_on(archetype, ("zulu", "revolver"), seat_kind=seat_kind) is None, archetype
     for archetype in ("pistol", "revolver"):
         for word in ("rifle", "shotgun", "sniper", "lmg", "smg"):
-            assert mag_on(archetype, ("zulu", word), seat_kind=seat_kind) is None, (archetype, word)
+            assert lamp_on(archetype, ("zulu", word), seat_kind=seat_kind) is None, (archetype, word)
     # the same words on a host of their own group stay candidates
-    assert mag_on("pistol", ("zulu", "pistol"), seat_kind=seat_kind) is not None
-    assert mag_on("pistol", ("zulu", "revolver"), seat_kind=seat_kind) is not None
-    assert mag_on("rifle", ("zulu", "sniper"), seat_kind=seat_kind) is not None
-    assert mag_on("lmg", ("zulu", "rifle"), seat_kind=seat_kind) is not None
-    assert mag_on("smg", ("zulu", "rifle"), seat_kind=seat_kind) is not None
+    assert lamp_on("pistol", ("zulu", "pistol"), seat_kind=seat_kind) is not None
+    assert lamp_on("pistol", ("zulu", "revolver"), seat_kind=seat_kind) is not None
+    assert lamp_on("rifle", ("zulu", "sniper"), seat_kind=seat_kind) is not None
+    assert lamp_on("lmg", ("zulu", "rifle"), seat_kind=seat_kind) is not None
+    assert lamp_on("smg", ("zulu", "rifle"), seat_kind=seat_kind) is not None
 
 
 @pytest.mark.parametrize("seat_kind", ["seat", "pending"])
 def test_ac119_a_pistol_named_part_on_an_smg_host_is_a_cross_candidate(seat_kind):
     for word in ("pistol", "revolver"):
-        got = mag_on("smg", ("zulu", word), seat_kind=seat_kind)
+        got = lamp_on("smg", ("zulu", word), seat_kind=seat_kind)
         assert got is not None and got["tier"] == CROSS and got["listed"] is (seat_kind == "seat"), word
+
+
+@pytest.mark.parametrize(("slot", "kind"), [("magazine", "standard"), ("optic", "scope"), ("underbarrel", "foregrip"), ("muzzle", "brake")])
+def test_ac119_the_gun_class_rule_is_retired_for_the_geometry_slots(slot, kind):
+    # G1 3.8 (S8): a handgun-named part on a long gun (and the reverse) is a pending cross entry like any other while the host has no recorded features
+    for archetype, word in (("rifle", "pistol"), ("shotgun", "revolver"), ("pistol", "rifle"), ("revolver", "sniper")):
+        p = part(slot, kind, tokens=("zulu", word))
+        h = host(slot, archetype=archetype, mount=seat(span=0.06))
+        assert cand(p, h, params(TOL, NEVER)) == PENDING_CROSS, (slot, archetype, word)
 
 
 def test_ac119_the_class_rule_is_for_the_cross_pack_tier_only():
@@ -256,7 +281,7 @@ def test_ac119_the_class_rule_is_for_the_cross_pack_tier_only():
 
 
 def test_ac119_a_part_with_no_class_word_is_not_judged():
-    assert mag_on("pistol", ("zulu", "gamma")) is not None and mag_on("rifle", ("zulu", "gamma")) is not None
+    assert lamp_on("pistol", ("zulu", "gamma")) is not None and lamp_on("rifle", ("zulu", "gamma")) is not None
 
 
 # -- AC119 R-c: a suppressor on a shotgun ----------------------------------------------------------------------------------------
@@ -273,7 +298,8 @@ def test_ac119_a_cross_pack_suppressor_on_a_shotgun_is_vetoed_listed_and_pending
     assert muzzle("shotgun", ring=ring) is None
     for archetype in ("rifle", "smg", "pistol", "sniper"):
         got = muzzle(archetype, ring=ring)
-        assert got is not None and got["tier"] == CROSS and got["listed"] is ring, archetype
+        # G1 3.1 (S8): policy first, then the tier by pack relation; with no recorded host features the verdict is not_judged, so pending whatever the ring bore
+        assert got == PENDING_CROSS, archetype
 
 
 @pytest.mark.parametrize("ring", [True, False])
@@ -283,8 +309,7 @@ def test_ac119_the_same_pack_suppressor_on_a_shotgun_is_no_candidate_since_a8(ri
 
 
 def test_ac119_with_the_table_row_removed_the_shotgun_suppressor_is_a_cross_candidate_again():
-    got = muzzle("shotgun", prm=params(TOL, None))
-    assert got is not None and got["tier"] == CROSS and got["listed"]
+    assert muzzle("shotgun", prm=params(TOL, None)) == PENDING_CROSS
     assert muzzle("shotgun", prm=params(TOL, {"muzzle": []})) is not None  # an empty row is no rule
 
 
@@ -297,24 +322,24 @@ def test_ac119_the_rule_is_for_the_suppressor_kind_and_the_listed_archetypes_onl
 # -- AC121 A7-4: the tokenless family waiver -----------------------------------------------------------------------------------------
 
 
-OPTIC_CHILD = [0.06, 0.08, 0.20]
+LAMP_CHILD = [0.06, 0.08, 0.20]
 
 
-def tokenless(factor=1.0, *, slot="optic", kind="scope", tokens=(), mount=None, children="default", archetype="rifle", prm=None):
-    ext = scaled(factor, OPTIC_CHILD)
+def tokenless(factor=1.0, *, slot="laser_light", kind="laser", tokens=(), mount=None, children="default", archetype="rifle", prm=None):
+    ext = scaled(factor, LAMP_CHILD)
     p = part(slot, kind, pack="Q", tokens=tokens, extents=ext)
-    kids = {slot: kid(OPTIC_CHILD)} if children == "default" else children
+    kids = {slot: kid(LAMP_CHILD)} if children == "default" else children
     h = host(slot, archetype=archetype, mount=mount if mount is not None else seat(span=0.06), children=kids)
-    return cand(p, h, prm or params(TOL, NEVER, ["optic"]))
+    return cand(p, h, prm or params(TOL, NEVER, ["laser_light"]))
 
 
-def test_ac121_a_tokenless_optic_on_a_child_seat_within_the_tolerance_is_a_listed_same_pack_fit():
+def test_ac121_a_tokenless_laser_on_a_child_seat_within_the_tolerance_is_a_listed_same_pack_fit():
     for factor in (1.0, 1.30, 0.70):
         got = tokenless(factor)
         assert got is not None and got["tier"] == SAME and got["listed"] and "family_overlap" not in got["signals"], factor
 
 
-def test_ac121_a_tokenless_optic_beyond_the_tolerance_is_absent():
+def test_ac121_a_tokenless_laser_beyond_the_tolerance_is_absent():
     for factor in (1.5, 1.8, 0.4):
         assert tokenless(factor) is None, factor
 
@@ -323,57 +348,61 @@ def test_ac121_without_a_seat_it_is_absent_and_not_pending():
     assert tokenless(mount=seat(source="none", occupied=(), span=None)) is None
     assert tokenless(mount=seat(source="probe", occupied=(), span=0.06)) is None  # a probe seat is no child seat
     assert tokenless(children={}) is None  # a child seat with no recorded child
-    assert tokenless(children={"optic": kid(OPTIC_CHILD, "Other")}) is None
+    assert tokenless(children={"laser_light": kid(LAMP_CHILD, "Other")}) is None
 
 
-def test_ac121_a_tokenless_magazine_and_laser_light_are_absent():
-    assert tokenless(slot="magazine", kind="standard", mount=seat(span=0.15)) is None
-    assert tokenless(slot="laser_light", kind="laser", mount=seat(span=0.06)) is None
+def test_ac121_a_tokenless_part_of_a_geometry_slot_needs_no_waiver_any_more():
+    # G1 3.8 (S8): the family test is retired for the four slots, so a name-less magazine, optic, underbarrel or muzzle is a pending same-pack entry
+    # whatever its size and whatever the waiver row says
+    for slot, kind in (("magazine", "standard"), ("optic", "scope"), ("underbarrel", "foregrip"), ("muzzle", "brake")):
+        assert tokenless(slot=slot, kind=kind, mount=seat(span=0.06), prm=params(TOL, NEVER, None)) == PENDING_SAME, slot
+        assert tokenless(1.8, slot=slot, kind=kind, mount=seat(span=0.06), prm=params(TOL, NEVER, None)) == PENDING_SAME, slot
 
 
-def test_ac121_a_named_optic_that_fails_the_family_test_is_absent_and_a_named_one_that_passes_is_unchanged():
+def test_ac121_a_named_laser_that_fails_the_family_test_is_absent_and_a_named_one_that_passes_is_unchanged():
     assert tokenless(tokens=("zulu",)) is None  # the host's tokens are {alpha}
-    p = part("optic", "scope", pack="Q", tokens=("alpha",), extents=scaled(1.8, OPTIC_CHILD))
-    h = host("optic", mount=seat(span=0.06), children={"optic": kid(OPTIC_CHILD)})
-    assert listed(cand(p, h, params(TOL, NEVER, ["optic"])), SAME)  # family_overlap holds: no size gate on a named same-pack part
+    p = part("laser_light", "laser", pack="Q", tokens=("alpha",), extents=scaled(1.8, LAMP_CHILD))
+    h = host("laser_light", mount=seat(span=0.06), children={"laser_light": kid(LAMP_CHILD)})
+    assert listed(cand(p, h, params(TOL, NEVER, ["laser_light"])), SAME)  # family_overlap holds: no size gate on a named same-pack part
 
 
 def test_ac121_the_waiver_needs_its_table_row_and_the_slots_tolerance_and_keeps_affinity():
     assert tokenless(prm=params(TOL, NEVER, None)) is None  # row removed
-    assert tokenless(prm=params(TOL, NEVER, ["magazine"])) is None  # the slot is not in the row
-    assert tokenless(prm=params(None, NEVER, ["optic"])) is None  # no tolerance for the slot: no waiver
-    assert tokenless(prm=params({"magazine": 0.35}, NEVER, ["optic"])) is None
-    assert tokenless(kind="sniper_scope", archetype="pistol") is None  # affinity still decides
-    assert tokenless(1.3, prm=params({"optic": 0.5}, NEVER, ["optic"])) is not None
-    assert tokenless(1.4, prm=params({"optic": 0.3}, NEVER, ["optic"])) is None
+    assert tokenless(prm=params(TOL, NEVER, ["sight_front"])) is None  # the slot is not in the row
+    assert tokenless(prm=params(None, NEVER, ["laser_light"])) is None  # no tolerance for the slot: no waiver
+    assert tokenless(prm=params({"sight_front": 0.35}, NEVER, ["laser_light"])) is None
+    assert tokenless(kind="laser", archetype="sniper") is None  # affinity still decides: a sniper takes a light but no laser
+    assert tokenless(1.3, prm=params({"laser_light": 0.5}, NEVER, ["laser_light"])) is not None
+    assert tokenless(1.4, prm=params({"laser_light": 0.3}, NEVER, ["laser_light"])) is None
 
 
 def test_ac121_the_waiver_compares_at_two_decimals_too_0_3508_is_waived_and_0_3601_is_not():
     def got(third):
-        p = part("optic", "scope", pack="Q", tokens=(), extents=[0.06, 0.08, third])
-        h = host("optic", mount=seat(span=0.06), children={"optic": kid(OPTIC_CHILD)})
-        return cand(p, h, params(TOL, NEVER, ["optic"]))
+        p = part("laser_light", "laser", pack="Q", tokens=(), extents=[0.06, 0.08, third])
+        h = host("laser_light", mount=seat(span=0.06), children={"laser_light": kid(LAMP_CHILD)})
+        return cand(p, h, params(TOL, NEVER, ["laser_light"]))
     assert listed(got(0.27016), SAME)
     assert got(0.27202) is None
 
 
 def test_ac121_a_tokenless_part_on_another_pack_is_still_a_cross_pack_candidate_under_the_size_gate():
-    ext = scaled(1.3, OPTIC_CHILD)
-    p, h = part("optic", "scope", pack="P", tokens=(), extents=ext), host("optic", mount=seat(span=0.06), children={"optic": kid(OPTIC_CHILD)})
-    assert listed(cand(p, h, params(TOL, NEVER, ["optic"])), CROSS)
+    ext = scaled(1.3, LAMP_CHILD)
+    p, h = part("laser_light", "laser", pack="P", tokens=(), extents=ext), host("laser_light", mount=seat(span=0.06), children={"laser_light": kid(LAMP_CHILD)})
+    assert listed(cand(p, h, params(TOL, NEVER, ["laser_light"])), CROSS)
 
 
 # -- the tables: shipped literals, validation, digests (AC123) -------------------------------------------------------------------------
 
 
 def test_ac118_the_shipped_tables_are_the_specified_literals():
-    assert TABLES["attach_compat"]["cross_pack_size_tol"] == {"magazine": 0.35, "optic": 0.35, "underbarrel": 0.45}
+    # G1 3.8 (S8): R-a is empty (its three slots are geometry slots now), the waiver row is empty, family_free_slots is the two sights; R-c and A8-1 stay
+    assert TABLES["attach_compat"]["cross_pack_size_tol"] == {}
     assert TABLES["suppressor_never"] == {"muzzle": ["shotgun"]} and "cross_pack_never" not in TABLES  # A8-2: renamed
     assert TABLES["attach_compat"]["cross_pack_unverified_slots"] == ["magazine"]  # A8-1
-    assert TABLES["tokenless_family_free_slots"] == ["optic"]
+    assert TABLES["tokenless_family_free_slots"] == [] and TABLES["family_free_slots"] == ["sight_front", "sight_rear"]
     prm = compat._params(TABLES)
-    assert prm["cross_pack_size_tol"] == {"magazine": 0.35, "optic": 0.35, "underbarrel": 0.45}
-    assert prm["suppressor_never"] == {"muzzle": frozenset({"shotgun"})} and prm["tokenless_family_free_slots"] == frozenset({"optic"})
+    assert prm["cross_pack_size_tol"] == {}
+    assert prm["suppressor_never"] == {"muzzle": frozenset({"shotgun"})} and prm["tokenless_family_free_slots"] == frozenset()
     assert compat.GUN_CLASS_WORDS == {"pistol", "revolver", "smg", "rifle", "shotgun", "sniper", "lmg"}
     assert compat.HANDGUN_CLASSES == {"pistol", "revolver"}
     assert validate_rules(load_rules()) == []
@@ -386,22 +415,28 @@ def test_a_rules_dict_without_the_new_tables_is_valid_and_drops_nothing():
     assert validate_rules(rules) == []
     prm = compat._params(attachment_rules(rules))
     assert prm["cross_pack_size_tol"] == {} and prm["suppressor_never"] == {} and prm["tokenless_family_free_slots"] == frozenset()
-    assert listed(cand(part(extents=scaled(3.0)), host(children={"magazine": kid()}), prm), CROSS)
+    assert listed(cand(part(extents=scaled(3.0)), host(children={"laser_light": kid()}), prm), CROSS)
 
 
 @pytest.mark.parametrize(("edit", "needle"), [
     (lambda t: t["attach_compat"].update(cross_pack_size_tol={"barrel": 0.3}), "cross_pack_size_tol"),
-    (lambda t: t["attach_compat"].update(cross_pack_size_tol={"optic": 0}), "cross_pack_size_tol"),
-    (lambda t: t["attach_compat"].update(cross_pack_size_tol={"optic": -0.1}), "cross_pack_size_tol"),
-    (lambda t: t["attach_compat"].update(cross_pack_size_tol={"optic": "0.3"}), "cross_pack_size_tol"),
+    (lambda t: t["attach_compat"].update(cross_pack_size_tol={"laser_light": 0}), "cross_pack_size_tol"),
+    (lambda t: t["attach_compat"].update(cross_pack_size_tol={"laser_light": -0.1}), "cross_pack_size_tol"),
+    (lambda t: t["attach_compat"].update(cross_pack_size_tol={"laser_light": "0.3"}), "cross_pack_size_tol"),
     (lambda t: t["attach_compat"].update(cross_pack_size_tol=[0.3]), "cross_pack_size_tol"),
     (lambda t: t.update(suppressor_never={"barrel": ["shotgun"]}), "barrel"),
     (lambda t: t.update(suppressor_never={"muzzle": ["blaster"]}), "blaster"),
     (lambda t: t.update(suppressor_never={"muzzle": "shotgun"}), "suppressor_never.muzzle"),
     (lambda t: t.update(suppressor_never=["shotgun"]), "suppressor_never"),
     (lambda t: t.update(tokenless_family_free_slots=["barrel"]), "tokenless_family_free_slots"),
-    (lambda t: t.update(tokenless_family_free_slots=["optic", "optic"]), "distinct"),
-    (lambda t: t.update(tokenless_family_free_slots="optic"), "tokenless_family_free_slots"),
+    (lambda t: t.update(tokenless_family_free_slots=["laser_light", "laser_light"]), "distinct"),
+    (lambda t: t.update(tokenless_family_free_slots="laser_light"), "tokenless_family_free_slots"),
+    # G1 3.8 (S8), AC148: a retired row naming one of the four geometry slots is an error, not a dead entry
+    (lambda t: t["attach_compat"].update(cross_pack_size_tol={"optic": 0.35}), "cross_pack_size_tol.optic"),
+    (lambda t: t["attach_compat"].update(cross_pack_size_tol={"magazine": 0.35}), "cross_pack_size_tol.magazine"),
+    (lambda t: t["attach_compat"].update(cross_pack_size_tol={"underbarrel": 0.45}), "cross_pack_size_tol.underbarrel"),
+    (lambda t: t.update(tokenless_family_free_slots=["optic"]), "tokenless_family_free_slots"),
+    (lambda t: t.update(family_free_slots=["sight_front", "muzzle"]), "family_free_slots"),
 ])
 def test_a_malformed_new_table_is_rejected(edit, needle):
     rules = deepcopy(load_rules())
@@ -418,9 +453,9 @@ def test_empty_new_tables_are_valid():
 
 
 @pytest.mark.parametrize("edit", [
-    lambda t: t["attach_compat"]["cross_pack_size_tol"].update(optic=0.3),
+    lambda t: t["attach_compat"]["cross_pack_size_tol"].update(laser_light=0.3),
     lambda t: t["suppressor_never"].update(muzzle=["shotgun", "rifle"]),
-    lambda t: t.update(tokenless_family_free_slots=[]),
+    lambda t: t.update(tokenless_family_free_slots=["laser_light"]),
 ])
 def test_every_new_table_moves_the_attach_digest_and_never_the_rules_digest(edit):
     base = load_rules()
@@ -431,7 +466,7 @@ def test_every_new_table_moves_the_attach_digest_and_never_the_rules_digest(edit
 
 
 def test_ac123_the_versions_and_the_digests():
-    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 6  # A8 (W8p): 12 -> 13
+    assert pkg.WEAPON_ATTACH_VERSION == 14 and pkg.WEAPON_GEOMETRY_VERSION == 6  # G1 4.6/AC146 (S8): 13 -> 14
     rules = load_rules()
     assert weapon_rules_digest(rules) == "7b9829af37328fe7"
     assert len(attach_rules_digest(rules)) == 16 and attach_rules_digest(rules) != BASE_ATTACH_DIGEST

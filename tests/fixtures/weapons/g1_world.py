@@ -45,6 +45,10 @@ Parts (the pack's separate attachments)
   MAG_RIFLE / MAG_PISTOL    two magazine families (``Zulu`` and ``Alfa``) of one size; MAG_DRUM a drum (a big prism).
   RING_DEVICE / PLAIN_DEVICE   two muzzle devices: an 8-sided annulus with a 15 mm inner ring on its mating face, and a solid loft with none.
   OTHER pack: TWIN_SCOPE    the scope mesh again, in another pack (a cross-pack twin of the baked scope children).
+
+S8 (verdicts in compat) reads the world through ``cross_world()`` and ``cross_rules()``: the same hosts and parts, plus three more parts in OTHER (a
+magazine, a suppressor and a drum, the meshes of the FAKE_G1 ones), and rules that put both packs in one setting, so the cross-pack pairs are candidates.
+``world()`` itself is unchanged (S7 pins its ``fit_digest``).
 """
 
 from __future__ import annotations
@@ -225,6 +229,19 @@ def world() -> dict:
         RING_DEVICE: ring_device, PLAIN_DEVICE: plain_device,
     }
     return {PACK: {"hosts": hosts, "parts": parts}, OTHER: {"parts": {TWIN_SCOPE: A.optic}}}
+
+
+def cross_world() -> dict:
+    """``world()`` with a magazine, a suppressor and a drum added to OTHER: the cross-pack pairs of the S8 tests (names as in the FAKE_G1 pack)."""
+    both = world()
+    both[OTHER]["parts"].update({
+        MAG_RIFLE: lambda: A.mag_box(0.01, 0.12, 0.02), SILENCER: A.suppressor, MAG_DRUM: lambda: A.mag_box(0.06, 0.15, 0.065)})
+    return both
+
+
+def cross_rules() -> dict:
+    """The shipped rules with both packs of ``cross_world`` in one setting (the setting gate, A2, lets a cross-pack pair through)."""
+    return W.sight_rules({PACK: "modern", OTHER: "modern"})
 
 
 def pid(name: str, pack: str = PACK) -> str:
