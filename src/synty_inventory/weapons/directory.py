@@ -721,7 +721,8 @@ def build_directory_report(
     ``geometry_cache``; the caller persists it with ``fit_geometry.load_fit_cache`` / ``save_fit_cache`` (this module writes nothing but
     ``write_directory``). ``host_feats`` (default: none) is filled in place with ``{host id: {s0, slots, located}}`` for every eligible host,
     carried hosts of a partial build included, the way ``child_extents`` is carried: the detectors' features for the later verdict pass (S8). The
-    report counts the hosts per mount ``feature`` value (``feature_counts``).
+    report counts the hosts per mount ``feature`` value (``feature_counts``). E3 slice D3: it also carries ``frame_counts``, ``frame_changed_hosts``
+    and ``fill_list`` (AC147, AC139), over the packs built like ``feature_counts``; none of them is part of the directory.
     """
     rules = rules if rules is not None else load_rules()
     overrides = overrides if overrides is not None else load_overrides()
@@ -758,6 +759,8 @@ def build_directory_report(
     trees_missing = 0
     child_extents: dict[str, dict] = {}  # host id -> {slot: {child node: sorted AABB extents}} of the hosts measured now
     feats_by_host: dict[str, dict] = host_feats if host_feats is not None else {}  # host id -> detector features (S7)
+    votes_by_host: dict[str, dict] = {}  # host id -> the frame vote's state of the hosts measured now (E3 D3: the report's frame keys)
+    located_fills: dict[str, list[str]] = {}  # host id -> the slots a located part filled and refuse_filled refused (E3 D3: the report's fill_list)
     fused_for = _fused_parts_factory(docs, rules, overrides, settings, threejs_v2_dir) if measure and threejs_v2_dir is not None else None
 
     if partial:
@@ -841,6 +844,10 @@ def build_directory_report(
                     child_extents[full_id] = detail["child_extents"]
                 if "host_feats" in detail:
                     feats_by_host[full_id] = detail["host_feats"]
+                if "frame_vote" in detail:
+                    votes_by_host[full_id] = detail["frame_vote"]
+                if "refused_by_located" in detail:
+                    located_fills[full_id] = detail["refused_by_located"]
                 _apply_measurement(rec, detail)
                 if detail.get("warning"):
                     warnings.append(f"{full_id}: {detail['warning']}")
@@ -912,6 +919,7 @@ def build_directory_report(
     mine = [r for r in records if r["pack"] in set(selected)]
     with_glb = [r for r in mine if r["files"].get("glb")]
     n = len(mine) or 1
+    frame_counts, frame_changed_hosts, fill_list = _frame_and_fill_report(mine, votes_by_host, located_fills)
     report = {
         "packs_built": selected,
         "records": len(mine),
@@ -928,12 +936,30 @@ def build_directory_report(
         "contact_capped": contact_capped,  # A6: the entries the contact cap removed
         "setback_stats": dict(setback_stats),
         "feature_counts": _feature_counts(mine),  # G1 (S7): hosts per mount feature value
+        "frame_counts": frame_counts,  # E3 D3 (AC147): hosts whose frame vote changed / conflicted, over the packs built
+        "frame_changed_hosts": frame_changed_hosts,  # E3 D3 (AC139, AC147): the changed hosts with their class (archetype)
+        "fill_list": fill_list,  # E3 D3 (AC139, Q-G11): the preset slots a located fused part filled and refuse_filled refused
         "fit_stats": dict(fit_stats),  # G1 (S8): the part pass (computed, cached)
         "cross_pack_magazine_fit": compat_stats.get("parked_fit", {}).get("magazine", 0),  # G1 AC140: cross-pack magazine pairs judged `fit`, parked by A8-1 (Q-G1)
         "stale_overrides": _stale_overrides(overrides, all_ids, set(selected), partial=partial),
         "warnings": sorted(warnings),
     }
     return directory, excluded_doc, report
+
+
+def _frame_and_fill_report(records: list[dict], votes: dict[str, dict], fills: dict[str, list[str]]) -> tuple[dict, list[dict], list[dict]]:
+    """``(frame_counts, frame_changed_hosts, fill_list)`` of the report (E3 slice D3: AC139, AC147), over ``records`` = the packs built, as ``_feature_counts``.
+
+    ``votes`` / ``fills`` are the per-host ``frame_vote`` and ``refused_by_located`` of the hosts measured in this build (a carried host of a partial
+    build is not in ``records``, so it is out of scope). ``class`` is the record's archetype. ``fill_list`` is exactly what ``mounts.refuse_filled``
+    returned: the slots it refused where a located fused part fills them (alone or with the baked-glass disjunct; trace T-fill), not a guess from the
+    final mounts. Both lists are sorted, so the report is deterministic.
+    """
+    changed = sorted((r for r in records if (votes.get(r["id"]) or {}).get("changed")), key=lambda r: r["id"])
+    counts = {"changed": len(changed), "conflict": sum(1 for r in records if (votes.get(r["id"]) or {}).get("conflict"))}
+    hosts = [{"host": r["id"], "class": r["archetype"]} for r in changed]
+    fill_list = [{"host": r["id"], "class": r["archetype"], "slot": slot} for r in records for slot in fills.get(r["id"]) or ()]
+    return counts, hosts, sorted(fill_list, key=lambda f: (f["host"], f["slot"]))
 
 
 def _feature_counts(records: list[dict]) -> dict[str, int]:
