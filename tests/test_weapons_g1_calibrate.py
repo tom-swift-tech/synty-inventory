@@ -1,6 +1,6 @@
 """G1 S9 ``weapons attach-calibrate`` (docs/weapon_attach_geometry.md 3.11, 4.2, errata E1.1; AC137, INV-24).
 
-Two layers. The pure maths (``fit_calibrate.calibrate``) is driven with hand-written observations and a LITERAL ``fit_geometry`` block (``FIT``: this test's own
+Two layers. The pure maths (``calibrate.calibrate``) is driven with hand-written observations and a LITERAL ``fit_geometry`` block (``FIT``: this test's own
 copy of the literals of spec 4.1, never read from the rules file, so a rules edit cannot loosen a bound here). The verb is run over ``g1_tools_world``, a
 synthetic world of boxes, lofts and tubes whose observed values are worked out by hand:
 
@@ -42,7 +42,7 @@ T = _load("g1_tools_world")
 H = _load("review_helpers")
 
 from synty_inventory.weapons import export as export_mod  # noqa: E402
-from synty_inventory.weapons import fit_calibrate as FC  # noqa: E402
+from synty_inventory.weapons import calibrate as FC  # noqa: E402
 from synty_inventory.weapons import guards, rules as rules_mod  # noqa: E402
 
 # this test's own copy of the literals of spec 4.1 (the shipped values at the G1 spec); a change of the rules file does not move it

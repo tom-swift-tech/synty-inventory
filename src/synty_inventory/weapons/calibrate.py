@@ -4,7 +4,8 @@
 The oracle (spec 3.2) is the set of authored assemblies: a preset's fused parts (found by translation), the A1 twins seated on the child they match,
 and the baked children of the four slots. ``cli`` gathers it from a built directory and the GLBs and hands this module plain data, so nothing here
 opens a file, reads the clock or touches ``geometry``, ``mounts``, ``compat``, ``directory`` or ``cli`` (the AC144 dependency rule: the standard
-library, numpy and the sibling ``fit_*`` detectors only).
+library, numpy and the sibling ``fit_*`` detectors only). It is deliberately not a ``fit_*.py``: that glob keys the fit caches
+(``fit_geometry.FIT_CODE_DIGESTS``), and an edit to this reporting tool must not rebuild every host (G1 S9b).
 
 Two layers, both pure:
 

@@ -336,7 +336,24 @@ def test_inv26_score_against_a_baseline_exits_6_when_more_than_an_answer_changed
     doc["pairs"][1]["host"] = "Q/Rewritten"
     files["out"].write_text(json.dumps(doc), encoding="utf-8")
     code, out = spot(files, capsys, "--score", "--baseline", str(baseline))
-    assert code == 6 and out["errors"]  # a rewritten host also breaks the hash order, which the schema check reports first
+    assert code == 6 and out["errors"]  # a schema case, not INV-26: a rewritten host also breaks the hash order, which the schema check reports first
+
+
+def test_inv26_a_given_answer_flipped_on_a_schema_valid_file_is_the_only_error_reported(files, capsys):
+    # the write-once diff alone: the file is a valid draw (schema and hash order hold), one given answer goes from one boolean to the other
+    spot(files, capsys, "--draw")
+    doc = json.loads(files["out"].read_text(encoding="utf-8"))
+    doc["pairs"][0]["fits"] = True
+    files["out"].write_text(json.dumps(doc), encoding="utf-8")
+    baseline = files["tmp"] / "as_saved.json"
+    baseline.write_bytes(files["out"].read_bytes())  # the file as last saved: pairs[0].fits is given
+    doc["pairs"][0]["fits"] = False
+    files["out"].write_text(json.dumps(doc), encoding="utf-8")
+    assert SP.validate(doc) == []  # the flipped file is schema-valid
+    code, out = spot(files, capsys, "--score", "--baseline", str(baseline))
+    assert code == 6 and out["ok"] is False
+    assert out["errors"] == ["pairs[0].fits: changed from True to False (an answer is given once)"]  # nothing of the schema or hash order alongside
+    assert out["error"] == "the spot-check file is not valid:\n  pairs[0].fits: changed from True to False (an answer is given once)"
 
 
 def test_score_exits_2_for_a_missing_file_and_6_for_a_broken_one(files, capsys):
