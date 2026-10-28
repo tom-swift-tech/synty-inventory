@@ -297,7 +297,7 @@ Width is not checked on a `seat_ref` host. No calibration exists for an untoothe
 
 - (i) the mount's existing ring bore (A§4.2: `bore_source == "ring"`; a ring needs an inner and an outer radius, errata E2.6), **read on the same stripped mesh the end slab is taken from** (errata E3.2). The bore probe for (i) runs on the host minus muzzle `occupied_by`, minus located parts, minus collision. If the stripped face has no ring, (i) does not hold and the end falls through to (ii), then (iii). A host or preset with no muzzle mount has no evidence (i);
 - (ii) a front-face ring: the innermost 1 mm radial bin holding ≥ 6 vertices, inside 0.75 of the slab's outer radius (`mount_probe.end_ring_d`, shared with the frame vote of §3.3);
-- (iii) a round end section: `min(extent_s, extent_u) / max(...)` ≥ `round_min` (0.8) and OD ≤ `barrel_od_max_m` (0.060).
+- (iii) a round end section: `min(extent_s, extent_u) / max(...)` ≥ `round_min` (0.8), **and** the section fills its circle, `A_hull / (π (od_m / 2)²)` ≥ `circ_min` (0.75), **and** OD ≤ `barrel_od_max_m` (0.060). `A_hull` is the area of the convex hull of the slab's (s, u) points. A regular hexagon or finer polygon passes. A square or any rectangle never does (≤ 2/π) (errata E1.1).
 
 For evidence (i), `od_m` and `centre_su` are read from the muzzle face of the stripped mesh (errata E3.1, E3.2): `centre_su` is the mean of the face points' (s, u), and `od_m` is twice their largest distance from it. The face is the A0 probe's face, the first 1, 2, 5 or 10 mm window behind the forward extreme that holds 3 or more points. For evidence (ii) and (iii), `od_m` is twice the slab's outer radius around the slab's centre, and `centre_su` is that centre. The **bore axis** is host forward through `centre_su`. The stripped probe runs in `fit_geometry.host_features` (an injected callable) and reaches `barrel_end` as data inside the mount dict, so the `barrel_end` signature, the four stored keys of its record and §3.11 are unchanged.
 
@@ -504,6 +504,7 @@ fit_geometry:
   bore:
     end_slab_m: 0.010
     round_min: 0.8
+    circ_min: 0.75                              # E1: hull area / circle of od_m, section 3.6 (iii)
     barrel_od_max_m: 0.060
     od_ratio: [0.85, 2.00]
     inner_ratio: [0.47, 1.21]
