@@ -86,10 +86,12 @@ def close(got, want, tol=1e-3):
 
 
 def gate_6c(m):
-    """The sight seats the optic span covers: a twin of gate 6(c) of A 4.6 (``test_weapons_w8h_probe.gate_violations``), +z forward hosts."""
+    """The sight seats the optic span covers: a twin of gate 6(c) of A 4.6 (``test_weapons_w8h_probe.gate_violations``), +z forward hosts. The span
+    covers [run start, run start + span_m]; a rail seat is the centre of the rearmost min(run, 0.20) m of the clipped run and span_m is the whole run
+    (src fit_rails.py:446-451, fit_geometry.py:447-448), so the run starts at point - min(span_m, 0.20) / 2."""
     opt = m["optic"]
-    half = opt["span_m"] / 2
-    return [n for n in ("sight_front", "sight_rear") if abs(m[n]["point"][2] - opt["point"][2]) <= half]
+    lo = opt["point"][2] - min(opt["span_m"], 0.20) / 2
+    return [n for n in ("sight_front", "sight_rear") if lo <= m[n]["point"][2] <= lo + opt["span_m"]]
 
 
 def part(**kw):
@@ -127,6 +129,20 @@ def test_ac148_gate_6c_holds_on_the_railed_host_with_a_front_sight_and_only_beca
     assert abs(front_f - 0.006) <= 0.094
     # and with it the span's front edge is 10 mm behind the sight
     assert m["optic"]["point"][2] + m["optic"]["span_m"] / 2 == pytest.approx(front_f - 0.010, abs=2e-3)
+
+
+def test_ac148_gate_6c_covers_a_front_sight_past_the_centred_window_on_a_long_toothed_run():
+    # E3.19, a hand-built record: a toothed run 0.12 .. 0.449 (0.329 m) has its seat point at 0.22 (centre of the rearmost 0.20 m) and span 0.329. A
+    # window centred on the point reaches 0.22 + 0.1645 = 0.3845; the span from the run's rear reaches 0.12 + 0.329 = 0.449.
+    seat = {"point": [0.0, 0.105, 0.22], "span_m": 0.329}
+    m = {"optic": seat, "sight_rear": {"point": [0.0, 0.1, -0.3]}, "sight_front": {"point": [0.0, 0.1, 0.40]}}
+    assert abs(0.40 - 0.22) > 0.329 / 2  # the centred window misses it
+    assert gate_6c(m) == ["sight_front"]
+    m["sight_front"]["point"][2] = 0.46  # past the run's front: not covered
+    assert gate_6c(m) == []
+    m["sight_front"]["point"][2] = 0.40
+    seat["span_m"] = 0.18  # a run under 0.20 m is centred on its point: 0.22 +- 0.09 does not reach 0.40
+    assert gate_6c(m) == []
 
 
 def test_ac148_a_toothed_bottom_rail_gives_a_rail_teeth_underbarrel_seat_with_up_minus_u_and_no_clip(built):
