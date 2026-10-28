@@ -523,10 +523,10 @@ Every key is required. The validator rejects a missing key, a negative length, a
 |---|---|---|---|---|---|
 | `clamp.overhang_max_m` | toothed optic positives (16 seats; the calibrate tool reads 26 observations over 19 seats, 16 optic and 3 underbarrel) | −21.2 mm (foot length minus run length; errata E3.9 (f)) | 31.2 mm | 10 mm | none |
 | `clamp.ratio_min` (how much of the rail top width the lowest pads cover; this row read "clamp underside ≥ rail width" before errata E3.8) | toothed optic positives (16 seats; 26 observations over 19 seats) | min ratio 0.7692 (after errata E3.7) | 0.08 | 0.69 | none. The "physical bound" reason is withdrawn (errata E3.8): neither of the two authored seats below 1.0 has jaws at any height, and their lowest pads are narrower than the rail, so the ratio does not measure whether a clamp closes. A lower bound sits at the observed minimum, 0.77 at two decimals, less 0.08, the margin of the two ratio rows. It is conditional on errata E3.7: without it the minimum is the 0.378 foot artefact and the rule would give 0.30. |
-| `rail.zone` | optic contact centres, all optic positives | [0.22, 0.80] | 0.07 rear, 0.05 front | [0.15, 0.85] | none |
-| `depth` (review list only) | toothed optic positives (16) | 0 to −23.9 mm | 2 mm below, 3 mm above (= `contact.dead_m`) | [−26, +3] mm | not a fit literal |
+| `rail.zone` | optic contact centres, all optic positives | [0.1992, 0.7823] (errata E3.15) | 0.0492 rear, 0.0677 front (errata E3.15) | [0.15, 0.85] | none |
+| `depth` (review list only) | toothed optic positives (16) | −23.9 to −7.0 mm (errata E3.15) | 2 mm below; the +3 mm end is `contact.dead_m`, not a margin on the observed range | [−26, +3] mm | not a fit literal |
 | `bore.od_ratio` | bore positives (11) | [0.91, 1.65] (barrel-face OD, errata E3.1) | 0.06 below, 0.35 above | [0.85, 2.00] | none (E-G3 is retired) |
-| `bore.inner_ratio` | devices with an inner ring (6 placements) | [0.55, 1.13] | 0.08 each side | [0.47, 1.21] | none |
+| `bore.inner_ratio` | devices with an inner ring (7 placements; errata E3.15) | [0.5581, 1.1315] (errata E3.15) | 0.0881 below, 0.0785 above | [0.47, 1.21] | none |
 | `bore.axis_offset_max_m` | bore positives (11) | 1.2 mm | 3.8 mm | 5 mm | none |
 | `bore.axis_tilt_max_deg` | bore positives (11) | 0° | 2° | 2° | none |
 | `bore.circ_min` (lower bound, errata E1.1) | barrel-section positives proved by a face ring, evidence (ii): 2 (the non-host presets; 3 before errata E3.2 moved a fused-device preset to evidence (i)); all 7 barrel-section positives agree | min 0.8236 (hull ratio) | 0.0736 | 0.75 | none |
