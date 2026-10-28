@@ -19,16 +19,22 @@ breaks, and the tests that fail on each:
 * the text left at the pre-E3 wording: ``test_ac139_additions_are_the_preset_fill_list_plus_frame_changed_sight_refusals`` (its negative control);
 * a sight slot of a host that is not frame-changed, or ``laser_light`` anywhere, moving between the frames:
   ``test_ac149_laser_light_identical_everywhere``,
-  ``test_ac149_the_sight_slots_move_only_on_the_frame_changed_host_and_take_its_pending_pairs_with_them``.
+  ``test_ac149_the_sight_slots_move_only_on_the_frame_changed_host_and_take_its_pending_pairs_with_them``;
+* a frame-changed host that has no fused post but GAINS sight seats in the voted frame (``probe_unavailable`` in the build frame): the clause does
+  not cover it, so it is counted. The synthetic PLAIN host shows the mechanism (``test_a_frame_changed_host_without_a_post_gains_sight_seats``);
+  the live pin ``test_live_no_frame_changed_host_gains_a_sight_seat`` holds the count of real hosts at 0.
 """
 
 from __future__ import annotations
 
 import importlib.util
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
+from synty_inventory.paths import load_config
 
 _FIX = Path(__file__).parent / "fixtures" / "weapons"
 _spec = importlib.util.spec_from_file_location("e3_sight_world", _FIX / "e3_sight_world.py")
@@ -43,8 +49,8 @@ OTHER_SLOTS = ("optic", "muzzle", "underbarrel", "magazine", "laser_light")
 PRESET_HOSTS: frozenset = frozenset()
 
 
-def _build(tmp_path_factory, name, overrides, rules=None):
-    d, _excluded, _cat, _root = W.build(tmp_path_factory.mktemp(name), S.sight_world(), overrides=overrides, rules=rules)
+def _build(tmp_path_factory, name, overrides, rules=None, world=None):
+    d, _excluded, _cat, _root = W.build(tmp_path_factory.mktemp(name), world or S.sight_world(), overrides=overrides, rules=rules)
     return SimpleNamespace(directory=d, by_id=W.by_id(d))
 
 
@@ -63,6 +69,16 @@ def voted_without_the_detector(tmp_path_factory):
     rules = W.sight_rules()
     del rules["attachment_rules"]["baked_sights"]["fused_post"]  # no table, no detector: the one thing that differs from `voted`
     return _build(tmp_path_factory, "e3_sight_nodet", S.voted_overrides(), rules)
+
+
+@pytest.fixture(scope="module")
+def plain_voted(tmp_path_factory):
+    return _build(tmp_path_factory, "e3_plain_voted", S.voted_overrides(), world=S.sight_world(with_plain=True))
+
+
+@pytest.fixture(scope="module")
+def plain_old(tmp_path_factory):
+    return _build(tmp_path_factory, "e3_plain_old", S.build_frame_overrides(with_plain=True), world=S.sight_world(with_plain=True))
 
 
 def short(pid: str) -> str:
@@ -208,3 +224,87 @@ def test_ac149_the_sight_slots_move_only_on_the_frame_changed_host_and_take_its_
         assert pair_hosts(voted, part) == ({"SM_Wep_Rifle_Plain_01"}, {"SM_Wep_SMG_Both_01"}), part  # the fused post removes it; nothing else moves
         for host in ("SM_Wep_Rifle_Plain_01", "SM_Wep_SMG_Both_01"):
             assert pair_entries(voted, part, host) == pair_entries(old, part, host), (part, host)
+
+
+# --- a frame-changed host without a post that gains sight seats --------------------------------------------------------------
+
+
+def seat_gaining_hosts(voted_by_id: dict, old_by_id: dict) -> list:
+    """The frame-changed hosts (a body forward in the voted directory) whose sight slot is ``probe_unavailable`` in the build frame and seated by
+    the probe in the voted frame: the voted frame found seats the build frame did not, and no fused post refused them (that would read
+    ``slot_disabled``, the clause of AC139 and AC149). Short host names, sorted. Both arguments map record id to record."""
+    out = []
+    for pid, rec in sorted(voted_by_id.items()):
+        g = rec.get("geometry") or {}
+        if (g.get("axes") or {}).get("forward_source") != "body":
+            continue
+        old = ((old_by_id[pid].get("geometry") or {}).get("mounts") or {}) if pid in old_by_id else {}
+        for slot in SIGHTS:
+            was = old.get(slot) or {}
+            if (was.get("source"), was.get("reason")) == ("none", "probe_unavailable") and g["mounts"][slot]["source"] == "probe":
+                out.append(short(pid))
+                break
+    return out
+
+
+def assert_no_seat_gaining_hosts(voted_by_id: dict, old_by_id: dict) -> None:
+    got = seat_gaining_hosts(voted_by_id, old_by_id)
+    assert len(got) == 0, f"{len(got)} frame-changed host(s) gain sight seats in the voted frame: {got}"  # the pin: 0, written out here
+
+
+def test_a_frame_changed_host_without_a_post_gains_sight_seats(plain_voted, plain_old):
+    """The mechanism the live pin guards against: the plain Uzi has no post, no seat in the build frame and both seats in the voted frame."""
+    for slot in SIGHTS:
+        assert state(plain_old, S.PLAIN, slot) == ("none", "probe_unavailable"), slot
+        assert state(plain_voted, S.PLAIN, slot) == ("probe", None), slot
+    assert seat_gaining_hosts(plain_voted.by_id, plain_old.by_id) == ["SM_Wep_SMG_Uzi_01"]  # POST is refused by its post, so it is not counted
+    assert refused(plain_voted) == {("SM_Wep_SMG_Post_01", "sight_front"), ("SM_Wep_SMG_Post_01", "sight_rear")}  # and the plain host adds no refusal
+
+
+def test_the_pin_is_red_on_a_world_with_a_post_less_frame_changed_host(plain_voted, plain_old):
+    with pytest.raises(AssertionError, match="1 frame-changed host"):
+        assert_no_seat_gaining_hosts(plain_voted.by_id, plain_old.by_id)
+
+
+def test_the_pin_is_green_on_the_world_without_it(voted, old):
+    assert_no_seat_gaining_hosts(voted.by_id, old.by_id)  # POST has its post; RIFLE and BOTH are not frame-changed
+
+
+@pytest.mark.live
+def test_live_no_frame_changed_host_gains_a_sight_seat():
+    """The live pin: in the real directory no host whose frame the vote changed gets sight seats it did not have in the build frame (count 0).
+
+    The voted directory is built in memory from the configured catalogs (nothing is written: ``build_directory_report`` writes nothing and the
+    caches are throwaway dicts). The build-frame directory is the same build with a ``frame_axis`` override per frame-changed host, naming the
+    host's own build axis (its bounding-box ``long_axis``, which is what the build frame follows), on top of the committed overrides."""
+    from synty_inventory.paths import ConfigError
+    from synty_inventory.weapons import overrides as overrides_mod
+    from synty_inventory.weapons.directory import build_directory_report
+    from synty_inventory.weapons.overrides import load_overrides
+    from synty_inventory.weapons.rules import load_rules
+
+    try:
+        cfg = load_config(require=False)
+    except ConfigError:
+        pytest.skip("the library is not on this machine")
+    if not all(cfg.get(k) is not None and Path(cfg[k]).is_dir() for k in ("catalogs", "threejs_v2", "extracted_root")):
+        pytest.skip("the library is not on this machine")
+    rules = load_rules()
+    committed = Path(overrides_mod.__file__).resolve().parent.parent / "data" / "weapon_overrides.json"  # by path: the suite points the default at an empty file
+
+    def build(overrides):
+        d, _excluded, _report = build_directory_report(
+            Path(cfg["catalogs"]), packs=None, rules=rules, overrides=overrides, measure=True, base=None, threejs_v2_dir=Path(cfg["threejs_v2"]),
+            geometry_cache={}, extracted_root=Path(cfg["extracted_root"]), fit_cache={})
+        return {r["id"]: r for r in d["weapons"]}
+
+    voted_by_id = build(load_overrides(committed))
+    changed = sorted(pid for pid, r in voted_by_id.items() if ((r.get("geometry") or {}).get("axes") or {}).get("forward_source") == "body")
+    assert len(changed) == 3  # AC147: three frame-changed hosts today, one of them a tool
+    old_doc = deepcopy(load_overrides(committed))
+    for pid in changed:
+        old_doc["ids"].setdefault(pid, {})["frame_axis"] = voted_by_id[pid]["geometry"]["long_axis"]
+    old_by_id = build(old_doc)
+    for pid in changed:  # the override really gave the build frame back
+        assert old_by_id[pid]["geometry"]["axes"]["forward_source"] != "body", pid
+    assert_no_seat_gaining_hosts(voted_by_id, old_by_id)

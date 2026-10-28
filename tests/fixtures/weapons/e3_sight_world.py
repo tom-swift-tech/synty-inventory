@@ -18,6 +18,10 @@ POST      the Uzi of AC147 (receiver x +-0.02, y 0..0.08, z -0.10..0.05; barrel 
 RIFLE     the plain rifle of g1_frame_world: its body axis is the build axis, so the vote leaves its frame alone.
 BOTH      the both-rings host of g1_frame_world: a frame conflict, which keeps the build frame; the vote changes nothing either.
 SIGHT_*   a front and a rear iron sight part (the W8h sight stand-in), so that the hosts have listed and pending pairs to count.
+PLAIN     the Uzi of g1_frame_world as it is, with no post (added to the world on request only, ``sight_world(with_plain=True)``). Its frame
+          changes with the vote, and its sight probe finds no seat in the build frame but seats both slots in the voted frame (separation
+          0.287, over the 0.06 minimum), with no fused post to refuse them: a frame-changed host that GAINS a seat. The clause of AC139 and
+          AC149 does not cover that; the live pin of ``test_weapons_e3_sight_clause.py`` counts such hosts in the real directory.
 
 The "old frame" of the tests is the ``frame_axis: y`` id override on POST (the build axis; ``test_frame_axis_on_the_build_axis_keeps_the_build_frame``
 in test_weapons_g1_frame.py): the same mesh, measured and probed in the build frame, as the label-era directory had it. The voted build is the
@@ -44,7 +48,7 @@ W, G = F.W, F.G
 
 PACK = F.PACK
 POST = "SM_Wep_SMG_Post_01"
-RIFLE, BOTH = F.RIFLE, F.BOTH
+RIFLE, BOTH, PLAIN = F.RIFLE, F.BOTH, F.UZI
 SIGHT_FRONT, SIGHT_REAR = "SM_Wep_IronSight_Front_01", "SM_Wep_IronSight_Rear_01"
 
 POST_Z = (0.160, 0.185)  # the post along the barrel: 25 mm
@@ -57,13 +61,15 @@ def post_body():
     return G.merge(F.uzi_body(), F.box((-POST_HALF_X, 0.04, POST_Z[0]), (POST_HALF_X, POST_TOP, POST_Z[1])))
 
 
-def sight_world() -> dict:
-    """Three hosts (POST, RIFLE, BOTH) and the two iron sight parts, in the one pack FAKE_G1."""
+def sight_world(with_plain: bool = False) -> dict:
+    """Three hosts (POST, RIFLE, BOTH) and the two iron sight parts, in the one pack FAKE_G1; PLAIN too when ``with_plain``."""
     hosts = {
         POST: F.host_nodes(POST, post_body(), "Mag", F.mag(-0.30)),
         RIFLE: F.host_nodes(RIFLE, F.rifle_body(), "Mag", F.mag(-0.10, -0.2, -0.16)),
         BOTH: F.host_nodes(BOTH, F.both_body(), "Mag", F.mag(-0.45)),
     }
+    if with_plain:
+        hosts[PLAIN] = F.host_nodes(PLAIN, F.uzi_body(), "Mag", F.mag(-0.30))
     return {PACK: {"hosts": hosts, "parts": {SIGHT_FRONT: W.sight_part, SIGHT_REAR: W.sight_part}}}
 
 
@@ -76,6 +82,9 @@ def voted_overrides() -> dict:
     return F.overrides()
 
 
-def build_frame_overrides() -> dict:
-    """The old frame: ``frame_axis: y`` names the build axis for POST, so its frame, and with it the sight probe, stays the build frame."""
-    return F.overrides({pid(POST): {"frame_axis": "y"}})
+def build_frame_overrides(with_plain: bool = False) -> dict:
+    """The old frame: ``frame_axis: y`` names the build axis for POST (and PLAIN), so its frame, and with it the sight probe, stays the build frame."""
+    ids = {pid(POST): {"frame_axis": "y"}}
+    if with_plain:
+        ids[pid(PLAIN)] = {"frame_axis": "y"}
+    return F.overrides(ids)
