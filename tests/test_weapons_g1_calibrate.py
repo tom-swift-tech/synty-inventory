@@ -371,12 +371,20 @@ def test_the_population_world_calibrates_on_the_spec_populations(pop, capsys, mo
 
 
 def test_every_row_prints_the_spec_count_beside_its_own(pop, capsys, monkeypatch):
-    # spec 4.2, column "positives (n)": a LITERAL table. rail.zone is "all optic positives" (no number: null); bore.circ_min is errata E1.1's 4
-    spec = {"clamp.overhang_max_m": 16, "clamp.ratio_min": 16, "rail.zone": None, "depth": 16, "bore.od_ratio": 11, "bore.inner_ratio": 6,
-            "bore.axis_offset_max_m": 11, "bore.axis_tilt_max_deg": 11, "bore.circ_min": 4, "well.tol": 15, "geometry._FRAME_BORE_MAX_M": 3}
+    # spec 4.2, column "positives (n)": a LITERAL table. rail.zone is "all optic positives" (no number: null); bore.circ_min is errata E1.1's 2 (evidence (ii)) and
+    # bore.inner_ratio is E3.15's corrected 7
+    spec = {"clamp.overhang_max_m": 16, "clamp.ratio_min": 16, "rail.zone": None, "depth": 16, "bore.od_ratio": 11, "bore.inner_ratio": 7,
+            "bore.axis_offset_max_m": 11, "bore.axis_tilt_max_deg": 11, "bore.circ_min": 2, "well.tol": 15, "geometry._FRAME_BORE_MAX_M": 3}
     assert {r["literal"]: r.get("spec_n", "absent") for r in calibrate(ALL)["rows"]} == spec  # the pure layer carries it
     with_rules(monkeypatch)
     _code, out = calibrate_cli(pop, capsys)
     assert {r["literal"]: r.get("spec_n", "absent") for r in out["rows"]} == spec
     assert (out.get("placements") or {}).get("spec") == {"total": 163, "by_slot": {"optic": 14, "magazine": 15, "muzzle": 4, "underbarrel": 4,
                                                                                    "laser_light": 3, "sight_front": 6, "other": 117}}
+
+
+def test_the_pure_layer_rows_state_two_for_circ_min_and_seven_for_inner_ratio():
+    # E3.16: spec 4.2 after E3.15 states 2 positives for bore.circ_min (errata E1.1, evidence (ii)) and 7 for bore.inner_ratio; the literals are this test's own
+    spec_n = {r["literal"]: r["spec_n"] for r in calibrate(ALL)["rows"]}
+    assert spec_n["bore.circ_min"] == 2
+    assert spec_n["bore.inner_ratio"] == 7

@@ -45,8 +45,9 @@ Readings of the spec (each is a choice where 4.2 is silent; the slice report lis
 * **Seats (C1).** Each row carries ``seats``, the count of distinct seats among the observations it uses, beside ``n`` (spec 4.2 states ``n`` as
   seats). A seat is the distinct (host, slot, seat node), plan 9.6 ruling 5: ``cli`` names the node as ``seat_node`` on a positive, which ``_obs`` copies
   to its observations. A baked child is its own node; a twin carries the node of the baked child it is seated on, so it shares that seat; a preset's
-  fused part is its own node. An observation with no node (a hand-built one, or a frame observation) stands in with its part, so ``seats`` never
-  exceeds ``n`` and a missing node never merges two parts into one seat.
+  seat is its placed seat point clustered at 1 mm per (host, slot) (``cli._fused_node``): two preset points within 1 mm on one host and slot are one
+  seat, and a preset never merges with a baked child or with another host's (C1). An observation with no node (a hand-built one, or a frame
+  observation) stands in with its part, so ``seats`` never exceeds ``n`` and a missing node never merges two parts into one seat.
 * ``rules['exceptions']`` lists class keys (strings ``<slot>:<class>``, e.g. ``optic:preset``, no asset ids); an observation whose tags (its own ``<slot>:<class>``) hit one is counted apart and bounds nothing.
 """
 
@@ -68,11 +69,11 @@ _SAMPLE = 5  # violating or outside positives listed per row
 FRAME_ROW = "geometry._FRAME_BORE_MAX_M"
 
 # The count of positives each row of spec 4.2 states (column "positives (n)"), by row id: a literal table, so a population that drifts from the spec
-# shows beside the tool's own count. None where 4.2 states no number (rail.zone: "all optic positives"). bore.circ_min is the 4 of errata E1.1's table
-# (the bore positives proved by a face ring, evidence (ii)); 4.2 itself has no such row.
+# shows beside the tool's own count. None where 4.2 states no number (rail.zone: "all optic positives"). bore.circ_min is the 2 of errata E1.1's row
+# (the bore positives proved by a face ring, evidence (ii)); bore.inner_ratio's 7 is E3.15's corrected count (E3.16).
 SPEC_N = {
-    "clamp.overhang_max_m": 16, "clamp.ratio_min": 16, "rail.zone": None, "depth": 16, "bore.od_ratio": 11, "bore.inner_ratio": 6,
-    "bore.axis_offset_max_m": 11, "bore.axis_tilt_max_deg": 11, "bore.circ_min": 4, "well.tol": 15, FRAME_ROW: 3,
+    "clamp.overhang_max_m": 16, "clamp.ratio_min": 16, "rail.zone": None, "depth": 16, "bore.od_ratio": 11, "bore.inner_ratio": 7,
+    "bore.axis_offset_max_m": 11, "bore.axis_tilt_max_deg": 11, "bore.circ_min": 2, "well.tol": 15, FRAME_ROW: 3,
 }
 
 # The locator placements AC131 counts on the 14 Military presets (errata E1-Q1: 163, "other" 117), by the part's attachment-block slot ("other": no slot).
