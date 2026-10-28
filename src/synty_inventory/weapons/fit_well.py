@@ -3,7 +3,7 @@
 The receiver is solid where a magazine enters, so the host side of the magazine verdict is the authored magazine's own **entry section**:
 
 * ``crossings`` casts a vertical line (along ``u``) through a mesh and lists where it meets triangles;
-* ``well_reference`` finds the receiver-bottom plane ``u_rb`` (the lowest HOST crossing above the reference magazine's top-face centre) and
+* ``well_reference`` finds the receiver-bottom plane ``u_rb`` (the lowest HOST crossing on the reference magazine's top-face centre) and
   cuts the reference magazine at ``u_rb - entry_depth_m`` to get ``(L_ref, W_ref)``;
 * ``entry_section`` is that cut, for any magazine mesh: the verdict (``fit_geometry.verdict``, step 3) compares a candidate's cut at the same plane.
 
