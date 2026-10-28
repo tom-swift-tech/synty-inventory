@@ -356,7 +356,7 @@ All four have base S2 merged, and each runs in its own worktree. Each owns exact
 ## 3. S10: first full build and re-measurement (live)
 
 - **Where:**
-  - In the integ worktree `D:/game_assets_library/tools/inventoryagent-wt-integ`, at the S9 merge SHA, with `PYTHONPATH=<integ>/src`.
+  - In the integ worktree `D:/game_assets_library/tools/inventoryagent-wt-integ`, at the S9b merge SHA, with `PYTHONPATH=<integ>/src`.
   - Through the lead's scratch config (§0 rule 4).
   - Outputs go to a new scratch folder, `g1_build/`.
 - **Who:** an operator agent runs the commands and returns raw numbers and files. The lead compares them with §1.1 and writes the impact record.
@@ -398,7 +398,14 @@ All four have base S2 merged, and each runs in its own worktree. Each owns exact
    - the cross-pack magazine count judged `fit`;
    - the Q-G9 parts;
    - the untoothed hosts whose flat seat is not on their highest qualifying run, by class (errata E2-Q1, data for Tom);
-   - the live same-pack and cross-pack muzzle listing counts, and the live underbarrel and magazine pending counts. On the w8d world S8 moved muzzle listings 38 → 32 (same-pack 30 → 3, cross-pack 6 → 27), underbarrel pending 136 → 200 and magazine pending 178 → 319, explained by square fixture barrels; the live counts confirm or refute that reading.
+   - the live same-pack and cross-pack muzzle listing counts, and the live underbarrel and magazine pending counts. On the w8d world S8 moved muzzle listings 38 → 32 (same-pack 30 → 3, cross-pack 6 → 27), underbarrel pending 136 → 200 and magazine pending 178 → 319, explained by square fixture barrels; the live counts confirm or refute that reading;
+   - measured lines (peer, at S9b): AC131 placements (expected 163, "other" 117) and AC135 ends (expected has-end 236, none 21);
+   - the E1.1 calibrate row: the live `bore.circ_min` minimum and its margin against the 0.75 literal, and the full §4.2 table with its exit code (expected 0);
+   - E1-Q2: every optic span over a stripped fused front-sight post, by count and span range;
+   - E2.6 ring-end census: expected 16 stay `barrel_ring`, 3 go to `barrel_round`, 0 drop, reported as measured;
+   - spot-check feasibility: the listed pairs per slot × draw tier. If any slot has fewer than 8 listed pairs across the two tiers, S10 says so and stops before any draw, because the draw is made once and "fits k of 32" would be wrong.
+
+   Counts and ranges only; no pack ids in anything committed. A value off its expected one is reported, not tuned, and the peer rules on it.
 
    The classes and counts go into the spec as a new §10, committed by the lead on `integ/attach`. Per-asset lists stay in scratch.
 5. **Captures** (look-first; the lead views every one):
@@ -477,3 +484,5 @@ The merge commits of the landed slices on `integ/attach`:
 - S8 non-discriminating fixture edits: `test_weapons_w8l_prop.py`, `test_weapons_w8m_placement.py`, `test_weapons_w8n_muzzle.py` and `test_weapons_w8n_shipped_overrides.py` pass in full on the old source. They are fixture edits, not pure re-pins. `w8n_shipped_overrides` regains discrimination through `g1_world.rod_rifle`; `w8n_muzzle` is a fixture rebuild that keeps every hand-worked distance; `w8l_prop` lost its muzzle prop-host refusal and the E2 slice restores it on `rod_rifle`; `w8m_placement` no longer exercises the magazine placement matrix (S11 coverage list, §4; E2 adds a g1 test if none covers it on `CARBINE`).
 - E2: `906be0b` (`08cbdb9` + `4f7f613` on `fbb5c52`, 3474 / 5, digests unchanged). Plan doc `13c95dc` merged before it. Beyond the brief (peer-accepted): `fit_geometry.part_tris` removed, dead once the located-magazine branch went (an internal name, not a spec interface). The `fit_digest` literals of AC143 (`9e88713e0a47d5d0`) and AC145 (`e4245a0e01a13252`) moved with the feature output under E2-Q2 / E2-Q3; the hash-seed identity asserts stay beside them. No g1 test covered the well-seat placement on `CARBINE` (a 0.05 m seat shift left 188 g1 tests green); E2 added `test_the_well_pass_places_the_magazine_part_at_the_hosts_reference_seat`, red on four named breaks.
 - Fit cache keys (peer ruling at S9): spec §3.11 keys host features only, and that key carries `attach_rules_digest` (`mounts.py`). The part and well caches (`directory._fit_cached`) are per-input by design: each key carries the exact rule inputs its measure reads (the `bore` block for `device_inner_d`, `well.entry_depth_m` for the entry section) plus `WEAPON_ATTACH_VERSION` and the code digest. S9 tests a miss on each.
+- S9: `0310747` (`ecca7b7` + `18bd510` on `906be0b`, 3587 / 5, digests unchanged). Plan doc `e8e56d2` merged before it. The three cache-miss tests are each red on their named key break, and an over-keyed break is red too; no rule input is read but unkeyed. Spot-check quotas (peer-accepted reading of §3.10): 8 per slot in proportion to the listed counts per tier, half up, at least 2 per non-empty tier, at most 6, capped by availability when a tier is short.
+- S9b (peer ruling at S9): `fit_calibrate.py` is a reporting tool, not a detector, but the `fit_*.py` glob put it into `FIT_CODE_DIGESTS`, which keys the fit caches and the geometry cache fingerprint (`geometry.py`), so an edit to it would rebuild every host. S9b renames it `calibrate.py` beside `eval.py`, `preview.py` and `spotcheck.py` (the `attach-calibrate` verb stays), restores the six-detector set plus `mount_probe`, reverts S9's key-list re-pin, and pins `FIT_CODE_DIGESTS` to that literal list so a seventh `fit_*.py` is a conscious re-pin. `fit_geometry.py` is untouched. It also adds an INV-26 case that passes the schema check and trips only the write-once diff (an answer changed from one boolean to the other), asserting the INV-26 error text; S9's rewritten-host case stays as a schema case.
