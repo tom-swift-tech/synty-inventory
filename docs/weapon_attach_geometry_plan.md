@@ -510,6 +510,7 @@ The merge commits of the landed slices on `integ/attach`:
 - E3.7 (peer ruling, merged first in Wave A): the population diff equals the 2 rail-slot parts of Q7. The toothed render sheet (49 cells) changes by one cell; that is a downstream effect of the two ruled flips, not a third change. The side-hook part's stored foot sits 13.45 mm off its own mid-line and 16.1 mm from the run centre; the stored footprint cannot know the run, so the 16.1 mm figure is the offset against the run, not off the mid-line.
 - Wave A build findings, corrected in the docs as errata E3.4a and E3.5a (peer rulings): `hints.inventory_cells` and `hints.weight_class` follow `length_m` across a step (the E3.4 fixture's cells move; 0 live hosts do); a frame-changed host with no fused post may seat sights in the voted frame (the E3.5 synthetic host; 0 live hosts). Each guard pins its live count at 0 as its own literal.
 - E3.1 capture checkpoint (peer ruling): the returning cell on a shrouded SMG is a data item, not a defect. The stripped barrel face lies 26.2 mm ahead of the shroud front, on a narrow stub, and the strip under the shroud is the host's own mesh (it stays in a control render with the part moved away). The three rifle cans that leave on inner ratio alone read 1.236 (two pairs) and 1.363 against the band's 1.21; they stay `no_fit` and go on the S11 capture list.
+- Process: the merge message of `fe4d401` (the docs line after E3.1) was amended once before any push. That breaks the new-commits-only rule; it was not repeated, and every correction from here on is a new commit.
 - Fixture names (peer ruling): a new synthetic name that equals a real catalog id is renamed before merge; pattern-following names stay. Each Wave A merge reports names checked, collisions and renames.
 
 ## 9. Errata E3: the build ladder (E3.0 to S10b)
@@ -532,6 +533,7 @@ The merge commits of the landed slices on `integ/attach`:
    - G-6 test bounds are the test's own literals, never read from the rules (the shipped-block pin test excepted).
    - G-7 live check (operator): rebuild on a COPY of the catalogs with empty caches, then `python -m synty_inventory --config <cfg> weapons attach-calibrate --directory <dir> --json <out outside the repo>`. Compare with the slice's live row in §9.5. Never build in the shared catalogs. This extends §0 rule 4 (live data only at S10 and S12) to the E3 slices, on the same terms (scratch copy, GLBs read-only, nothing committed); S10b is the same kind of run.
    - G-8 findings, not tuning (§0 rule 7): a deviation from the ledger is reported, never tuned away.
+   - Live-count tests (E3.4, E3.5) skip without a catalog config, so the integ suite does not exercise them. The slice's report carries the builder's run line showing each passed against the copy catalog; S10b runs them with the config.
 5. **Environment:** `PYTHONDONTWRITEBYTECODE=1`; `pythonpath = ["src"]` in `pyproject.toml` makes pytest use the worktree's own `src`.
 
 ### 9.2 Order of work
@@ -717,7 +719,7 @@ Red: a row's `seats` counts distinct seats, not observations (synthetic: a twin 
 
 #### S10b Live re-read (operator run, not a slice)
 
-An operator run on the merged result (G-7), with the final rows of §9.5, plus the §4.2 observed-column check (the rewrite is already in the spec). No owned files. It confirms the inferred twin count (38) and the E3.12 numbers, and it says which population `bore.circ_min` enforces (n 2). A value off its expected one is reported, not tuned.
+An operator run on the merged result (G-7), with the final rows of §9.5, plus the §4.2 observed-column check (the rewrite is already in the spec). No owned files. It confirms the inferred twin count (38) and the E3.12 numbers, and it says which population `bore.circ_min` enforces (n 2). It also runs the E3.4 and E3.5 live-count tests with the catalog config (each pins 0) and reports them passed, not skipped. A value off its expected one is reported, not tuned.
 
 ### 9.5 Ledgers
 
