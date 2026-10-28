@@ -71,6 +71,11 @@ Judgment calls, stated once (the spec fixes only the 0.5 / 0.4 muzzle values):
   well reference. A frame-conflict host (3.3 step 4, INV-27) keeps no detector seat: its probe muzzle and its empty rail and magazine slots are
   ``none`` / ``probe_unavailable``; an authored (child or override) seat is not a detector seat and stays. On a preset host (``attach_filled_hosts``)
   the fused parts the locator finds count as filled for ``refuse_filled`` (Q-G11).
+* E3.1 / E3.2 (docs/weapon_attach_geometry_errata.md): the barrel end's evidence (i) and its outer diameter are read on the STRIPPED host (minus the muzzle
+  ``occupied_by``, the located slot parts and collision), not on the host the mount probed. ``stripped_muzzle_face`` is the one helper that probes it
+  (the A0 probe and ``bore_diameter`` on the stripped mesh); ``build_mounts`` injects it into ``host_features`` and ``cli._gather_oracle`` calls the same
+  function, so the build and ``attach-calibrate`` cannot drift. The helper's code is not a fit module, so its digest (``_MOUNTS_CODE_DIGEST``) joins the
+  host-features cache key.
 """
 
 from __future__ import annotations
@@ -90,6 +95,7 @@ from . import ATTACH_SLOTS, SIGHT_SLOTS, TWIN_ABS_TOL_M, TWIN_REL_TOL
 from . import fit_geometry as _fit
 from .attach import measure_anchor
 from .classify import raw_tokens
+from .fit_bore import _used_vertices
 from .mount_probe import fused_front_posts, sight_profile, sight_seats
 from .rules import attach_rules_digest, attachment_rules
 
@@ -114,6 +120,9 @@ _BODY_FRAC = 0.9  # a node this large against the whole host is the body, not a 
 _RING_BIN_M = 0.001  # radial histogram bin of the bore estimator (spec 4.2)
 _RING_MIN_POINTS = 6
 _EPS = 1e-9
+# The digest of this file, for the host-features cache key (E3.2): ``stripped_muzzle_face`` is mounts code, so it is in neither ``FIT_CODE_DIGESTS`` nor the
+# geometry cache fingerprint of the fit modules. Cache-only, like ``geometry._MOUNTS_CODE_DIGEST`` (the same bytes, so the same value); read at call time.
+_MOUNTS_CODE_DIGEST = _fit._code_digest(Path(__file__).read_bytes())
 # slot -> sign of the host's up axis that the mount's `up` takes (spec 4.2): optic out of the receiver, the others hang below
 _UP_SIGN = {"optic": 1, "sight_front": 1, "sight_rear": 1, "underbarrel": -1, "magazine": -1, "laser_light": -1}
 
@@ -509,6 +518,33 @@ def bore_diameter(face: np.ndarray, forward_axis: int) -> tuple[float | None, st
     return _r(2.0 * float(radius.max())), "face_extent"
 
 
+def stripped_muzzle_face(verts_fsu, tris=None) -> dict | None:
+    """The muzzle face of the STRIPPED host (E3.1, E3.2): ``{"ring": bool, "centre_su": [s, u] | None, "od_m": float | None}``, or None for an empty mesh.
+
+    ``verts_fsu`` (and ``tris``) is the host in its (f, s, u) frame, minus the muzzle ``occupied_by``, minus the located slot parts and minus collision:
+    the mesh ``fit_bore.barrel_end`` reads its end slab from. Only the vertices a triangle uses count and they are taken in lexicographic order
+    (as ``barrel_end`` does), so the answer does not depend on the order the file lists them. It runs the one A0 algorithm (``geometry.muzzle_probe``,
+    forward ``+x`` and up ``+z`` in this frame) and the same bore test as the mount (``bore_diameter``); ``ring`` is its ring verdict.
+
+    ``centre_su`` is the mean of the face points' (s, u) and ``od_m`` twice their largest distance from it, unrounded (``barrel_end`` rounds): the
+    barrel face's own centre and outer diameter (B). A ``bounds_fallback`` face has no points, so no ring and no centre. ``geometry`` imports this module,
+    so the A0 probe is imported at call time.
+    """
+    from .geometry import muzzle_probe
+
+    v = _used_vertices(verts_fsu, tris)
+    if not len(v):
+        return None
+    _point, _source, face = muzzle_probe(v, "+x", "+z")
+    _bore, bore_source = bore_diameter(face, 0)
+    if not len(face):
+        return {"ring": False, "centre_su": None, "od_m": None}
+    lat = np.asarray(face, dtype=np.float64)[:, 1:]
+    centre = lat.mean(axis=0)
+    return {"ring": bore_source == "ring", "centre_su": [float(centre[0]), float(centre[1])],
+            "od_m": 2.0 * float(np.linalg.norm(lat - centre, axis=1).max())}
+
+
 def _muzzle_mount(path, glb_node, scale, verts, axes: dict, occupied: list[str], cap: float | None,
                   probe: Callable) -> dict:
     """The A0 probe on the host minus ``occupied`` (the whole host when it is empty), as a mount (spec 4.2)."""
@@ -725,14 +761,15 @@ def build_mounts(
             return np.asarray(got[0], dtype=np.float64), np.asarray(got[1])
 
         cache_key = None
-        if fit_cache is not None and fit_cache_id is not None:  # spec 3.11: the cache key (the code digests join it inside host_features)
+        if fit_cache is not None and fit_cache_id is not None:  # spec 3.11: the cache key (the fit code digests join it inside host_features)
             cache_key = {"sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(), "glb_node": node_cache_tag(glb_node),
                          "glb_scale": scale_cache_tag(scale), "geometry_version": _pkg.WEAPON_GEOMETRY_VERSION,
-                         "attach_version": _pkg.WEAPON_ATTACH_VERSION, "attach_rules_digest": attach_rules_digest(rules)}
+                         "attach_version": _pkg.WEAPON_ATTACH_VERSION, "attach_rules_digest": attach_rules_digest(rules),
+                         "mounts_code": _MOUNTS_CODE_DIGEST}  # E3.2: the stripped probe below is mounts code, not a fit module
         feats = _fit.host_features(
             tables["fit_geometry"], axes=axes, mounts=mounts, mesh=mesh, child_mesh=child_mesh,
             fused_parts=fused_parts if is_filled_host(host_id, tables) else None, frame_changed=frame_changed, frame_conflict=frame_conflict,
-            cache=fit_cache, cache_id=fit_cache_id, cache_key=cache_key)
+            cache=fit_cache, cache_id=fit_cache_id, cache_key=cache_key, stripped_probe=stripped_muzzle_face)
     _apply_features(mounts, feats, axes, cap, frame_conflict)
     refuse_filled(mounts, found, host_id, tables, feats["located"])
     return {"mounts": mounts, "problems": problems, "host_feats": feats,
