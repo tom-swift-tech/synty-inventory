@@ -737,6 +737,8 @@ AC146 and AC147 are unchanged; the list AC146 checks is the amended one. No AC i
 
 **The slice that builds E3.4.** `E3.4`, branch `build/g1-e3-4`, worktree `D:/game_assets_library/tools/inventoryagent-wt-g1-e3-4`. Sonnet builder, or Codex Sol through dispatch. Never Opus. Size S. Owns 2 new files: `tests/test_weapons_e3_frame_fields.py`, `tests/fixtures/weapons/e3_frame_fields_world.py`. No `src/`. If the fixture cannot reproduce the old-frame side, the builder stops and reports (plan §9.4).
 
+**E3.4a (correction, from the build).** The E3.4 builder found the Uzi-shaped fixture's `inventory_cells` move when the vote shortens `length_m` across a step, so the parenthesis above ("`inventory_cells` and `weight_class` did not move") holds on the live hosts but not as a rule. Both are derived from `length_m`. §3.3 lists them: "derived from `length_m`, may move when it crosses a step; 0 live hosts do, reported". The guard keeps the fixture's cells drift as its red and pins the live count of hosts whose cells or weight class move at 0, as its own literal. AC146 and AC147 are unchanged.
+
 ### E3.5 Sight slots on frame-changed hosts (AC139, AC149; §3.8)
 
 **Status: APPROVED, as written.** The peer ruled this a correct Q-G4 consequence.
@@ -759,6 +761,8 @@ AC146 and AC147 are unchanged; the list AC146 checks is the amended one. No AC i
 - **Breaks.** A clause that permits any new refusal on a frame-changed host (not only sight slots) lets a muzzle or optic regression through. A detector run in the build frame leaves the fixture at `probe_unavailable`.
 
 **The slice that builds E3.5.** `E3.5`, branch `build/g1-e3-5`, worktree `D:/game_assets_library/tools/inventoryagent-wt-g1-e3-5`. Sonnet builder, or Codex Sol through dispatch. Never Opus. Size S. Owns 2 new files: `tests/test_weapons_e3_sight_clause.py`, `tests/fixtures/weapons/e3_sight_world.py`. No `src/`.
+
+**E3.5a (correction, from the build).** The E3.5 builder's synthetic host with no fused post shows the other direction: a frame-changed host whose sight slots read `probe_unavailable` in the build frame may seat sights in the voted frame. AC149 gains that clause: "a frame-changed host whose sight slots read `probe_unavailable` in the build frame may seat sights in the voted frame when it has no fused post; the count of such hosts is reported (0 live)". The guard pins the live count at 0 as its own literal; the synthetic no-post host documents the mechanism. AC139 is unchanged (a seat is not a refusal).
 
 ### E3.6 The well reference when a second magazine is in the way (§3.7, §4.2)
 

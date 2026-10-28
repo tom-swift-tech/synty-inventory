@@ -507,6 +507,9 @@ The merge commits of the landed slices on `integ/attach`:
 - E3 APPROVED by Tom on 2026-10-28 (the ruling reached the architect through the peer): "Approve E3 at the defaults: Q1 B, Q2 M3 (withdrawn under B plus Option 2), Q3 F1, Q4 (ii) with the population-diff gate, Q5 Option 2 at 0.69, Q6 no floor now, Q7 rail slots only. E3.12 accepted as a correction." E3.3 is **withdrawn**: no exception mechanism is built, `fit_geometry.exceptions` stays empty, E-G3 is retired, and E-G7, E-G8 and E-G9 are not entered. E3.0 writes the approved text on `docs/g1-e3` (base `4c9d9e7`), in the spec, the errata, `weapon_attachments.md` and this plan. The slices of §9 start after its merge.
 - E3.0 text departs from the E3 draft where later measurements disagree, and the measurement is used: the twin ladder is 31, 33, 34, 34, 37, 38 (the last INFERRED), replacing the spec's 36 of 38; the E3.7 mid-line proxy moves 5 parts on every slot and 2 on rail slots (Q7), not "up to 4"; 4 bore positives, not 3, sit outside the band under the slab (6 of 14 observations); the drum twin reads `no_fit` under F1 alone and `fit` only with E3.12; the positives' rail top widths are 10.7 to 30.0 mm; the 24 `fit` pairs on the three sub-5 mm runs (with 8 `no_fit`) go to the S11 capture list.
 - The E3 build ladder is §9. Its rulings (no version bump, the `barrel_end` signature, the host-features cache key, one worktree per slice, the C1 seat rule, the E3.12 ownership, the B capture checkpoint) are in §9.6.
+- E3.7 (peer ruling, merged first in Wave A): the population diff equals the 2 rail-slot parts of Q7. The toothed render sheet (49 cells) changes by one cell; that is a downstream effect of the two ruled flips, not a third change. The side-hook part's stored foot sits 13.45 mm off its own mid-line and 16.1 mm from the run centre; the stored footprint cannot know the run, so the 16.1 mm figure is the offset against the run, not off the mid-line.
+- Wave A build findings, corrected in the docs as errata E3.4a and E3.5a (peer rulings): `hints.inventory_cells` and `hints.weight_class` follow `length_m` across a step (the E3.4 fixture's cells move; 0 live hosts do); a frame-changed host with no fused post may seat sights in the voted frame (the E3.5 synthetic host; 0 live hosts). Each guard pins its live count at 0 as its own literal.
+- Fixture names (peer ruling): a new synthetic name that equals a real catalog id is renamed before merge; pattern-following names stay. Each Wave A merge reports names checked, collisions and renames.
 
 ## 9. Errata E3: the build ladder (E3.0 to S10b)
 
@@ -777,6 +780,10 @@ Carried, so nothing is lost:
 - **The `fit_well.py:6` docstring** rides E3.6.
 - **The calibrate `seats` field** is slice C1.
 - **The 24 `fit` pairs on the three sub-5 mm toothed runs** go on the S11 capture list (errata E3.9 (d), Q6: no floor now). A floor becomes a later erratum only if the captures show them wrong.
+- **Three rifle cans refused on inner ratio** (E3.1) go on the S11 capture list with their mate, OD and inner values stated. They leave as specified.
+- **Preset `point_s` from the unstripped probe** (E3.1 builder item 1): presets still take `point_s` from the unstripped probe. No change in E3.1.
+- **Oracle and fused-set alignment** (E3.1 builder item 2): the test keeps its literal of 1 unmatched oracle call as a tripwire, with a comment naming the two sets and when it goes red. Aligning the two sets is later work.
+- **`_used_vertices` made public** (E3.1 builder item 3): E3.1 imports a private helper; the next slice that owns its module makes it public.
 
 Not determined from the tree:
 - the real E3.1 output (the live digests are emulation predictions; the keys the slice stores decide whether AC143 and AC145 move);
