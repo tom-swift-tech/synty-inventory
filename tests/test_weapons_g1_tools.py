@@ -516,21 +516,73 @@ def test_a_changed_attach_rules_digest_misses_the_fit_cache_and_recomputes(built
     assert len(computes) == hosts  # every host missed: the key carries the digest
 
 
-def test_the_part_and_well_caches_key_on_their_inputs_not_the_digest(built):
-    # the finding of item 8, as a test: the part pass (cache ids fitpart|..., well|...) lives in the geometry cache and keys on what it reads, so an
-    # attach-rules value it does not read does not recompute it, and one it reads does. Only the host-feature cache keys on the whole digest.
-    rules = T.tools_rules()
-    geometry: dict = {}
-    first = build_api(built, rules, {}, geometry)[2]
-    assert first["fit_stats"]["computed"] > 0 and first["fit_stats"]["cached"] == 0
-    unrelated = copy.deepcopy(rules)
-    unrelated["attachment_rules"]["fit_geometry"]["clamp"]["overhang_max_m"] = 0.011  # read by the verdict, not by the part measures
-    stats = build_api(built, unrelated, {}, copy.deepcopy(geometry))[2]["fit_stats"]
-    assert stats["computed"] == 0 and stats["cached"] == first["fit_stats"]["computed"]
-    read = copy.deepcopy(rules)
-    read["attachment_rules"]["fit_geometry"]["well"]["entry_depth_m"] = 0.003  # the depth a well section is cut at: an input of the magazine parts
-    stats = build_api(built, read, {}, copy.deepcopy(geometry))[2]["fit_stats"]
-    assert stats["computed"] > 0
+@pytest.fixture
+def pass_computes(monkeypatch):
+    """The part and well results computed (not cached) by a build, counted per kind: ``fitpart|`` (a muzzle part's inner ring) and ``well|`` (a magazine's entry section)."""
+    seen = {"part": 0, "well": 0}
+    real = directory_mod._fit_cached
+
+    def counting(cache, cache_id, key, fp, compute):
+        value, how = real(cache, cache_id, key, fp, compute)
+        if how == "computed":
+            seen["well" if cache_id.startswith("well|") else "part"] += 1
+        return value, how
+    monkeypatch.setattr(directory_mod, "_fit_cached", counting)
+    return seen
+
+
+def fit_edit(rules, block, key, value):
+    edited = copy.deepcopy(rules)
+    edited["attachment_rules"]["fit_geometry"][block][key] = value
+    return edited
+
+
+def cold_then_warm(built, pass_computes):
+    """Build cold (so the geometry cache holds every part and well result), then return (rules, the cache, the cold counts)."""
+    rules, geometry = T.tools_rules(), {}
+    build_api(built, rules, {}, geometry)
+    cold = dict(pass_computes)
+    for k in pass_computes:
+        pass_computes[k] = 0
+    return rules, geometry, cold
+
+
+def rebuild(built, rules, geometry, pass_computes):
+    for k in pass_computes:
+        pass_computes[k] = 0
+    build_api(built, rules, {}, copy.deepcopy(geometry))
+    return dict(pass_computes)
+
+
+def test_the_tools_world_computes_4_muzzle_parts_and_25_wells_cold_and_none_warm(built, pass_computes):
+    rules, geometry, cold = cold_then_warm(built, pass_computes)
+    assert cold == {"part": 4, "well": 25}
+    assert rebuild(built, rules, geometry, pass_computes) == {"part": 0, "well": 0}
+
+
+@pytest.mark.parametrize("key", ["end_slab_m", "inner_ratio"])
+def test_the_part_cache_keys_on_the_bore_block_so_a_bore_value_recomputes_the_muzzle_parts_only(built, pass_computes, key):
+    # spec 3.11 / the ruling on item 8: the part pass keys on the rule inputs it reads, not on attach_rules_digest. ``device_inner_d`` reads
+    # bore.end_slab_m; the key carries the whole bore block, so any bore value recomputes the 4 muzzle parts and nothing else
+    rules, geometry, _cold = cold_then_warm(built, pass_computes)
+    value = {"end_slab_m": 0.012, "inner_ratio": [0.5, 1.2]}[key]
+    assert value != rules["attachment_rules"]["fit_geometry"]["bore"][key]
+    assert rebuild(built, fit_edit(rules, "bore", key, value), geometry, pass_computes) == {"part": 4, "well": 0}
+
+
+@pytest.mark.parametrize(("block", "key", "value"), [
+    ("clamp", "overhang_max_m", 0.011), ("clamp", "ratio_min", 0.9), ("well", "tol", 0.2)])
+def test_a_value_the_part_and_well_measures_do_not_read_recomputes_none(built, pass_computes, block, key, value):
+    rules, geometry, _cold = cold_then_warm(built, pass_computes)
+    assert value != rules["attachment_rules"]["fit_geometry"][block][key]
+    assert rebuild(built, fit_edit(rules, block, key, value), geometry, pass_computes) == {"part": 0, "well": 0}
+
+
+def test_the_well_cache_keys_on_the_entry_depth_so_a_new_depth_recomputes_the_25_wells_only(built, pass_computes):
+    # ``entry_section`` is cut at u_rb - well.entry_depth_m: the depth is in the well key, and the muzzle parts do not read it
+    rules, geometry, _cold = cold_then_warm(built, pass_computes)
+    assert rules["attachment_rules"]["fit_geometry"]["well"]["entry_depth_m"] != 0.003
+    assert rebuild(built, fit_edit(rules, "well", "entry_depth_m", 0.003), geometry, pass_computes) == {"part": 0, "well": 25}
 
 
 def test_the_fit_cache_file_is_never_committed_it_is_ignored_by_git():
