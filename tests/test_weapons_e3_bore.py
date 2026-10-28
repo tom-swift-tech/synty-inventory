@@ -281,6 +281,9 @@ def test_oracle_and_build_share_the_stripped_probe(tmp_path_factory, monkeypatch
     # one oracle mesh is the build's own only up to a part: the population world's preset has a muzzle brake that is a part with NO attachment block. The
     # oracle strips it (it reads the slot off the part's name, cli.fit_slot) and the directory build's fused set holds attachment parts only (directory.
     # _fused_parts_factory). That difference is in the part sets, not in the helper, and E3.1 does not touch it
+    # The two part sets: the one cli._gather_oracle strips (every pack part whose name reads as a slot, an attachment-less muzzle brake included)
+    # versus the one directory._fused_parts_factory fuses (only parts that carry an attachment block). The literal 1 is that known gap: it goes red the
+    # day the two sets are aligned. That is intended; aligning them is a carried item, not part of this slice, so a red here is not a regression of E3.1
     assert len(calls["oracle"]) - len(shared) == 1
 
 
