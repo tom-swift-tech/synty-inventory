@@ -505,7 +505,7 @@ def test_the_versions_and_digests_are_those_of_the_base():
     assert pkg.WEAPON_ATTACH_VERSION == 14 and pkg.WEAPON_GEOMETRY_VERSION == 6  # S7 bumps neither (the lead decides the bump)
     from synty_inventory.weapons.rules import attach_rules_digest, weapon_rules_digest
     rules = load_rules()
-    assert weapon_rules_digest(rules) == "7b9829af37328fe7" and attach_rules_digest(rules) == "2fa41961e3c387b0"  # G1 4.6/AC146 (S8): the retired rules leave the four slots (was 1dacc105674aff85); E1.4: bore.circ_min moved it before (was 59268363ae44fd9e)
+    assert weapon_rules_digest(rules) == "7b9829af37328fe7" and attach_rules_digest(rules) == "2fa41961e3c387b0"  # G1 4.6/AC146 (S8): the retired rules leave the four slots (was 1dacc105674aff85); E1.4: bore.circ_min moved it before (was 59268363ae44fd9e); E3.8 (clamp.ratio_min 1.0 to 0.69, Tom 2026-10-28) re-pinned it; S11 finding 12
 
 
 # --- fold-ins -------------------------------------------------------------------------------------------------------------------

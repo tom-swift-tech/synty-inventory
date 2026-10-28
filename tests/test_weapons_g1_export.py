@@ -180,7 +180,7 @@ def test_ac146_the_versions_and_the_digests():
     assert pkg.WEAPON_ATTACH_VERSION == 14 and pkg.WEAPON_GEOMETRY_VERSION == 6
     rules = load_rules()
     got = attach_rules_digest(rules)
-    assert got == "2fa41961e3c387b0" and got != OLD_ATTACH_DIGEST
+    assert got == "2fa41961e3c387b0" and got != OLD_ATTACH_DIGEST  # E3.8 (clamp.ratio_min 1.0 to 0.69, Tom 2026-10-28) re-pinned this digest; S11 finding 12
     from synty_inventory.weapons.rules import weapon_rules_digest
 
     assert weapon_rules_digest(rules) == "7b9829af37328fe7"  # unchanged since a8c: the geometry block lives under attachment_rules
@@ -191,7 +191,7 @@ def test_ac146_the_directory_header_of_the_w8d_world(w8d):
     assert (d["attach_version"], d["geometry_version"], d["rules_digest"]) == (14, 6, "7b9829af37328fe7")
     assert d["overrides_digest"] == "7d8dd8ce21b0f42b"  # the overrides code is untouched
     # the world's rules carry its own attach_genre_by_pack (FAKE_CompB in a setting of its own), so its attach_rules_digest is not the shipped table's
-    assert d["attach_rules_digest"] == "6f49a2ac6efa8120" and d["fit_digest"] == "d8a5f85413f90698"
+    assert d["attach_rules_digest"] == "6f49a2ac6efa8120" and d["fit_digest"] == "d8a5f85413f90698"  # E3.8 (clamp.ratio_min 1.0 to 0.69, Tom 2026-10-28) re-pinned both digests of this world; S11 finding 12
     print(f"AC146: rules_digest {d['rules_digest']}, overrides_digest {d['overrides_digest']}, attach_rules_digest {d['attach_rules_digest']} "
           f"(was {OLD_ATTACH_DIGEST}), fit_digest {d['fit_digest']}")
 
