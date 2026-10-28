@@ -26,7 +26,7 @@ BLOCK = {
         "pitch_cv_max": 0.25, "tooth_min_count": 4, "tooth_h_tol_m": 0.0015, "zone": [0.15, 0.85], "default_seat_len_m": 0.20, "sight_clear_m": 0.010,
     },
     "flat": {"band_m": 0.005, "close_m": 0.015, "min_m": 0.060},
-    "clamp": {"overhang_max_m": 0.010, "ratio_min": 1.0},
+    "clamp": {"overhang_max_m": 0.010, "ratio_min": 0.69},  # E3.8 (was 1.0): the lowest toothed positive reads 0.7692
     "depth": {"lo_m": -0.026, "hi_m": 0.003},
     "bore": {
         "end_slab_m": 0.010, "round_min": 0.8, "circ_min": 0.75, "barrel_od_max_m": 0.060, "od_ratio": [0.85, 2.00], "inner_ratio": [0.47, 1.21],

@@ -685,7 +685,7 @@ attachment_rules:
       default_seat_len_m: 0.20
       sight_clear_m: 0.010
     flat: {band_m: 0.005, close_m: 0.015, min_m: 0.060}
-    clamp: {overhang_max_m: 0.010, ratio_min: 1.0}
+    clamp: {overhang_max_m: 0.010, ratio_min: 0.69}
     depth: {lo_m: -0.026, hi_m: 0.003}  # review list only (3.9), a signed interval
     bore:
       end_slab_m: 0.010
