@@ -24,6 +24,7 @@ from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 FIX = Path(__file__).parent / "fixtures" / "weapons"
@@ -40,8 +41,9 @@ GW = _load("g1_world")
 J = _load("w8j_world")
 W, A = GW.W, GW.A
 
-from synty_inventory.weapons import compat  # noqa: E402
+from synty_inventory.weapons import attach, compat  # noqa: E402
 from synty_inventory.weapons import directory as dirmod  # noqa: E402
+from synty_inventory.weapons import fit_geometry  # noqa: E402
 from synty_inventory.weapons import overrides as overrides_mod  # noqa: E402
 from synty_inventory.weapons.overrides import empty_overrides, load_overrides  # noqa: E402
 from synty_inventory.weapons.rules import attachment_rules, load_rules, validate_rules  # noqa: E402
@@ -650,3 +652,52 @@ def test_ac143_two_builds_under_different_hash_seeds_give_identical_bytes_and_th
     # four rod-rifle hosts' barrel_end evidence ring -> round_section, and the fused-magazine preset's located well_ref is gone: nothing else moved
     assert fit0 == "9e88713e0a47d5d0"
     print(f"AC143: fit_digest {fit0}, directory sha256 {sha0[:16]}")
+
+
+# -- the magazine well pass places the part at the host's reference seat (peer ruling c, E2) -----------------------------------------------------
+
+
+def test_the_well_pass_places_the_magazine_part_at_the_hosts_reference_seat(tmp_path, monkeypatch):
+    """``directory._apply_fit_parts`` cuts the part with ``attach.place(anchor, seat)``. No section depends on WHERE the part sits: the box magazine
+    cuts the same 0.04 x 0.02 section anywhere along the well, so the AC133/AC140 fit counts and the cache-key test stay green with the seat moved
+    or the matrix replaced by the identity. That is why this test asserts the placement itself: it spies the ``place`` call and the mesh handed to
+    ``entry_section`` while the g1 world builds through the directory path.
+
+    ``MAG_RIFLE`` on ``CARBINE``: the host's magazine mount is the child seat at (0, 0, -0.045) with up -y (the baked Mag box, z -0.06..-0.03, hangs from
+    y 0); the part's anchor is its origin with up -y. So the matrix is a pure translation by (0, 0, -0.045), and the part box (x +-0.01, y -0.12..0,
+    z +-0.02) lands at z -0.065..-0.025, which in the (f, s, u) frame (+z forward, +y up) is the literal below."""
+    events = []
+    place_of, section_of = attach.place, fit_geometry.entry_section
+
+    def place(anchor, seat):
+        events.append(("place", deepcopy(anchor), deepcopy(seat)))
+        return place_of(anchor, seat)
+
+    def section(verts, tris, plane):
+        events.append(("section", np.array(verts, dtype=np.float64), plane))
+        return section_of(verts, tris, plane)
+
+    monkeypatch.setattr(dirmod, "place", place)
+    monkeypatch.setattr(fit_geometry, "entry_section", section)
+    d, _ex, _report = build(tmp_path, GW.cross_world())
+    by = W.by_id(d)
+    mount = by[GW.pid(GW.CARBINE)]["geometry"]["mounts"]["magazine"]
+    anchor = by[GW.pid(GW.MAG_RIFLE)]["attachment"]["anchor"]
+    # the matrix the pass must use is attach.place of the part's record anchor and the host's mount; the box in the frame of CARBINE (+z, +y)
+    m = attach.place(anchor, mount)
+    assert np.allclose(m[:3, :3], np.eye(3), atol=1e-6) and np.allclose(m[:3, 3], [0.0, 0.0, -0.045], atol=1e-6)
+    box = np.asarray(A.mag_box(0.01, 0.12, 0.02)[0], dtype=np.float64)
+    basis = fit_geometry.frame_basis(by[GW.pid(GW.CARBINE)]["geometry"]["axes"])
+    want = fit_geometry.to_fsu(basis, box @ m[:3, :3].T + m[:3, 3])
+    assert np.allclose(want.min(axis=0), [-0.065, -0.01, -0.12], atol=1e-6) and np.allclose(want.max(axis=0), [-0.025, 0.01, 0.0], atol=1e-6)
+
+    def key(v):
+        v = np.round(v, 4) + 0.0
+        return v[np.lexsort(v.T[::-1])]
+
+    # every place call made with this part's anchor and this host's seat is followed by the cut of the placed mesh; one of them is MAG_RIFLE's
+    # (the other parts that share the anchor have other boxes)
+    placed = [events[i + 1][1] for i, e in enumerate(events[:-1])
+              if e[0] == "place" and e[1] == anchor and e[2] == mount and events[i + 1][0] == "section"]
+    assert placed, "the well pass never placed a magazine part at the CARBINE seat with the part's own anchor"
+    assert any(len(p) == len(want) and np.allclose(key(p), key(want), atol=1e-5) for p in placed)
