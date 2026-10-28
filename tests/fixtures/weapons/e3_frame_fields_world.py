@@ -22,10 +22,18 @@ so the bounding box says y while the body (minus the magazine) says z, with a 15
            (0.60), z 0.40 (0.40 < 0.95 * 0.60); body z 0.40, y 0.30 (0.30 < 0.95 * 0.40): the body says z. The origin is at 50 % of the y range: no
            pivot, so the pre-vote forward sign is a section guess and the record carries ``forward_by_fallback``. The ring at +z confirms the sign.
            Pre-vote length 0.60 (medium, 2 cells), voted 0.40 (small, 2 cells).
+  DELTA    the Uzi-shaped host of AC147 (the dimensions of ``g1_frame_world.UZI``): receiver box x +-0.02, y 0..0.08, z -0.10..0.05; barrel tube
+           z 0.05..0.20 (axis x 0, y 0.04); magazine y -0.30..0. Whole y -0.30..0.08 (0.38), z -0.10..0.20 (0.30). Pre-vote length 0.38 (small,
+           2 cells), voted 0.30 (small, 1 cell): the length crosses a cell step (0.30 m) and no size-class cut.
+  ECHO     like ALPHA with a short body: receiver z -0.10..0.03, barrel tube z 0.03..0.08, magazine y -0.32..0. Whole y -0.32..0.08 (0.40), z 0.18
+           (0.18 < 0.95 * 0.40); body z 0.18, y 0.08. Pre-vote length 0.40 (small, 2 cells), voted 0.18 (tiny, 1 cell): the length crosses a cell step
+           and the 0.20 m cut to tiny, which steps the weight class down once.
   CHARLIE  the plain rifle of ``g1_frame_world`` (body and bounding box both say z): no frame change.
 
-Size classes and cells are from the shipped cuts, written out here as literals: small is 0.20 m to under 0.45 m, medium 0.45 m to under 0.90 m, one
-cell per 0.30 m of length (rounded up). The lengths above sit so that the class moves and the cell count does not.
+Size classes, cells and weight are from the shipped rules, written out here as literals: tiny is under 0.20 m, small 0.20 m to under 0.45 m, medium
+0.45 m to under 0.90 m; one cell of length per 0.30 m (rounded up); the weight class of an SMG is medium, one step lighter when the size is tiny
+and one heavier when it is huge. ALPHA and BRAVO sit so that the class moves and the cell count does not; DELTA so that the cell count moves and
+the class does not; ECHO so that both move and the weight class with them.
 """
 
 from __future__ import annotations
@@ -50,6 +58,8 @@ PACK = "FAKE_E3"
 
 ALPHA = "SM_Wep_SMG_Alpha_01"
 BRAVO = "SM_Wep_SMG_Bravo_01"
+DELTA = "SM_Wep_SMG_Delta_01"
+ECHO = "SM_Wep_SMG_Echo_01"
 CHARLIE = "SM_Wep_Rifle_Charlie_01"
 
 
@@ -61,11 +71,21 @@ def bravo_body():
     return G.merge(F.box((-0.02, 0.0, -0.20), (0.02, 0.30, 0.05)), F.tube(2, 0.05, 0.20, (0.0, 0.15)))
 
 
+def delta_body():
+    return F.uzi_body()
+
+
+def echo_body():
+    return G.merge(F.box((-0.02, 0.0, -0.10), (0.02, 0.08, 0.03)), F.tube(2, 0.03, 0.08, (0.0, 0.04)))
+
+
 def frame_world() -> dict:
-    """Three records: two frame-changed hosts (ALPHA, BRAVO) and a host with no frame change (CHARLIE)."""
+    """Five records: four frame-changed hosts (ALPHA, BRAVO, DELTA, ECHO) and a host with no frame change (CHARLIE)."""
     hosts = {
         ALPHA: F.host_nodes(ALPHA, alpha_body(), "Mag", F.mag(-0.47)),
         BRAVO: F.host_nodes(BRAVO, bravo_body(), "Mag", F.mag(-0.30)),
+        DELTA: F.host_nodes(DELTA, delta_body(), "Mag", F.mag(-0.30)),
+        ECHO: F.host_nodes(ECHO, echo_body(), "Mag", F.mag(-0.32)),
         CHARLIE: F.host_nodes(CHARLIE, F.rifle_body(), "Mag", F.mag(-0.10, -0.2, -0.16)),
     }
     return {PACK: {"hosts": hosts}}
@@ -80,7 +100,8 @@ def overrides(extra: dict | None = None) -> dict:
 
 
 def old_frame_overrides() -> dict:
-    """``frame_axis`` y on both frame-changed hosts (their bounding-box and build axis), and z on CHARLIE (its own axis): the build frame
+    """``frame_axis`` y on the frame-changed hosts (their bounding-box and build axis), and z on CHARLIE (its own axis): the build frame
     everywhere, as version 5 had it. CHARLIE's entry is a no-op by construction (its body axis is its build axis); it is there so the no-change
     guard compares a build that went through the override path with one that did not."""
-    return overrides({pid(ALPHA): {"frame_axis": "y"}, pid(BRAVO): {"frame_axis": "y"}, pid(CHARLIE): {"frame_axis": "z"}})
+    return overrides({pid(ALPHA): {"frame_axis": "y"}, pid(BRAVO): {"frame_axis": "y"},
+                      pid(DELTA): {"frame_axis": "y"}, pid(ECHO): {"frame_axis": "y"}, pid(CHARLIE): {"frame_axis": "z"}})
