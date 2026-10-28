@@ -35,6 +35,9 @@ Readings of the spec (each is a choice where 4.2 is silent; the slice report lis
   the barrel end's centre in (s, u). Both are zero on an authored, axis-aligned assembly, which is what the spec's table records.
 * **circ_min** is enforced on the positives whose host barrel end is proved by a face ring (evidence (ii), errata E1.1): the hull share of the end slab.
 * **well.tol** is the larger of the length and width deviations of the candidate's entry section from the reference.
+* **Populations (S10a).** Each row carries ``spec_n``, the count its 4.2 line states (``SPEC_N``), beside ``n``, the tool's own. ``n`` counts
+  observations: a twin seated on the child it twins is a second observation of that seat. A difference of count is read from the classes and reported,
+  never tuned away.
 * **depth** is a review list (spec 3.9): it never fails the check, and its pairs outside ``depth.lo_m`` .. ``depth.hi_m`` are listed.
 * ``rules['exceptions']`` lists class keys (strings ``<slot>:<class>``, e.g. ``optic:preset``, no asset ids); an observation whose tags (its own ``<slot>:<class>``) hit one is counted apart and bounds nothing.
 """
@@ -55,6 +58,20 @@ _NOISE = 6  # an observation is rounded here first: a difference of two 1e-4 val
 _SAMPLE = 5  # violating or outside positives listed per row
 
 FRAME_ROW = "geometry._FRAME_BORE_MAX_M"
+
+# The count of positives each row of spec 4.2 states (column "positives (n)"), by row id: a literal table, so a population that drifts from the spec
+# shows beside the tool's own count. None where 4.2 states no number (rail.zone: "all optic positives"). bore.circ_min is the 4 of errata E1.1's table
+# (the bore positives proved by a face ring, evidence (ii)); 4.2 itself has no such row.
+SPEC_N = {
+    "clamp.overhang_max_m": 16, "clamp.ratio_min": 16, "rail.zone": None, "depth": 16, "bore.od_ratio": 11, "bore.inner_ratio": 6,
+    "bore.axis_offset_max_m": 11, "bore.axis_tilt_max_deg": 11, "bore.circ_min": 4, "well.tol": 15, FRAME_ROW: 3,
+}
+
+# The locator placements AC131 counts on the 14 Military presets (errata E1-Q1: 163, "other" 117), by the part's attachment-block slot ("other": no slot).
+PLACEMENTS_SPEC = {
+    "total": 163,
+    "by_slot": {"optic": 14, "magazine": 15, "muzzle": 4, "underbarrel": 4, "laser_light": 3, "sight_front": 6, "other": 117},
+}
 
 # (row id, measure, kind, literal from (rules, frame_bore_max_m)). kind: upper (literal >= max), lower (literal <= min), band (literal interval
 # around [min, max]) or review (a band that is only listed, never enforced).
@@ -221,7 +238,7 @@ def _row(rid: str, measure: str, kind: str, literal, observations: list[dict], e
     for o in used:
         by_class.setdefault(o["cls"], []).append(o)
     row: dict = {
-        "literal": rid, "kind": kind, "value": literal, "n": len(used), "excepted": len(mine) - len(used),
+        "literal": rid, "kind": kind, "value": literal, "n": len(used), "spec_n": SPEC_N.get(rid), "excepted": len(mine) - len(used),
         "positives": {cls: {"n": len(v), "min": _round(min(o["value"] for o in v)), "max": _round(max(o["value"] for o in v))}
                       for cls, v in sorted(by_class.items())},
     }
