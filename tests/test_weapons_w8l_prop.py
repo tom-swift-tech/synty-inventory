@@ -18,6 +18,9 @@ _FIX = Path(__file__).parent / "fixtures" / "weapons"
 _spec = importlib.util.spec_from_file_location("w8h_world", _FIX / "w8h_world.py")
 W = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(W)
+_spec = importlib.util.spec_from_file_location("g1_world", _FIX / "g1_world.py")
+GW = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(GW)
 
 from synty_inventory.weapons import mounts as M  # noqa: E402
 from synty_inventory.weapons.rules import load_rules  # noqa: E402
@@ -27,9 +30,7 @@ ALL_SLOTS = ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight
 PACK = "FAKE_W8L_PROP"
 # `Zulu` is the family word the hosts and the magazine and flashlight share (those two slots need a family overlap)
 PROP, PLAIN, FLARE = "SM_Wep_Zulu_Rifle_Prop_01", "SM_Wep_Zulu_Rifle_Alpha_01", "SM_Wep_Zulu_Pistol_Flare_01"
-# G1 3.6 (S8): the fixture rifle's barrel is a box, so a silencer is no_fit on every host here and would make the control vacuous; a foregrip (underbarrel,
-# not_judged: a pending entry) stands in for the muzzle-side part
-SILENCER, MAG, LASER = "SM_Wep_Zulu_Foregrip_01", "SM_Wep_Zulu_Mag_01", "SM_Wep_Zulu_Flashlight_01"
+SILENCER, MAG, LASER = "SM_Wep_Zulu_Silencer_01", "SM_Wep_Zulu_Mag_01", "SM_Wep_Zulu_Flashlight_01"
 
 
 def rid(name):
@@ -44,8 +45,10 @@ def refused(m):
 def built(tmp_path_factory):
     a = W.A
     world = {PACK: {
-        "hosts": {n: W.host_node(n, W.box_rifle()) for n in (PROP, PLAIN, FLARE)},
-        "parts": {SILENCER: lambda: a.flip_y(a.optic()), MAG: lambda: a.mag_box(0.01, 0.12, 0.02), LASER: lambda: a.flip_y(a.optic())},
+        # G1 3.6 (S8): the hosts are the rod rifle (the box rifle with a round rod barrel), so the silencer has a barrel end to fit: on the box rifle's
+        # square barrel it is no_fit on every host and the muzzle refusal below would pass with the refusal removed
+        "hosts": {n: W.host_node(n, GW.rod_rifle()) for n in (PROP, PLAIN, FLARE)},
+        "parts": {SILENCER: a.suppressor, MAG: lambda: a.mag_box(0.01, 0.12, 0.02), LASER: lambda: a.flip_y(a.optic())},
     }}
     return {w["id"]: w for w in W.build(tmp_path_factory.mktemp("w8l_prop"), world)[0]["weapons"]}
 
@@ -90,6 +93,10 @@ def test_the_control_hosts_list_the_muzzle_magazine_and_laser_parts(built):
     # without this the next test could pass because the parts never fit anything
     for part in (SILENCER, MAG, LASER):
         assert listing(built, part, PLAIN), part
+    # `listing` counts both lists, and a pending entry would let the muzzle part stand in vacuously: the silencer is a fit (compatible), not a pending row
+    att = built[rid(SILENCER)]["attachment"]
+    assert rid(PLAIN) in [e["host"] for e in att["compatible_hosts"]]
+    assert rid(PLAIN) not in [e["host"] for e in att["pending_hosts"]]
 
 
 @pytest.mark.parametrize("part", [SILENCER, MAG, LASER])

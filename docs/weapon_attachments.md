@@ -326,6 +326,7 @@ with `attach_compat.generic_tokens`, whose list also strips `front` and `rear` a
   `bore_source = "ring"`; no such ring -> `bore_d_m = face extent`, `bore_source = "face_extent"` and the muzzle mount
   confidence is 0.5. `muzzle_source == "bounds_fallback"` -> confidence 0.4 and review reason `muzzle_fallback`
   (existing). `occupied_by` is `[]` unless a muzzle-device child exists; the ring estimator also runs on the reduced mesh.
+  A ring estimate needs both an inner and an outer radius; see `docs/weapon_attach_geometry_errata.md` E2.6 (G1 E2-Q2).
 - **`probe` (sight_front, sight_rear; W8h-B, §4.6).** Approved by the lead (2026-10-23): W8h-A and W8h-B ship as one build. It reuses this source value (no new enum value) at confidence 0.5 with `mount_estimated`; the sight slots are otherwise `child_node`, `override` or `none`.
 - **`override` (categorical, §6.1).** Selects the child node to use (`child_node` name), or forces `none`
   (`slot_disabled`). It cannot supply coordinates.

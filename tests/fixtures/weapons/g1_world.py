@@ -34,7 +34,7 @@ Hosts of the seat tests (S7)
             ``SILENCER`` parts, moved by PRESET_SCOPE_AT and PRESET_SILENCER_AT) and a baked magazine (Mag). The locator finds both parts; the optic
             and muzzle slots are filled (Q-G11), the magazine stays open (``attach_filled_open``).
   PRESET_MAG  a preset with a magazine FUSED into the mesh (MAG_RIFLE moved by PRESET_MAG_AT under the receiver, no baked Mag child): the locator
-            finds it, the magazine has a located well reference (``source`` "located", S7 fold-in 4) and no seat.
+            finds it, and the magazine has no well reference and no seat (G1 errata E2-Q3 retired S7 fold-in 4): its pairs are ``not_judged``.
   UZI, BOTH, RIFLE_PLAIN   see ``g1_frame_world``.
   ROCKET, SHOTGUN, NAILGUN, MINIGUN   a launcher with a baked optic, a shotgun, a tool and a minigun on the rod rifle mesh: the host classes
             (A6) refuse their slots; S7 only needs them to build, S8 needs them for the veto.

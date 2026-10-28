@@ -102,7 +102,10 @@ def test_ac67_the_ring_estimator_needs_six_points_and_reads_the_innermost_ring()
     got = M.bore_diameter(np.array(ring(0.02, 12) + ring(0.005, 8)), 2)
     assert got[1] == "ring" and abs(got[0] - 0.010) <= 1e-3
     assert M.bore_diameter(np.array(ring(0.005, 5)), 2)[1] == "face_extent"  # five points cannot make a ring
-    assert M.bore_diameter(np.array(ring(0.005, 6)), 2)[1] == "ring"
+    # G1 errata E2-Q2: a ring needs two radii. A lone ring of six points has nothing beyond it (it was "ring"); with an outer ring it still is one
+    assert M.bore_diameter(np.array(ring(0.005, 6)), 2)[1] == "face_extent"
+    got = M.bore_diameter(np.array(ring(0.02, 12) + ring(0.005, 6)), 2)
+    assert got[1] == "ring" and abs(got[0] - 0.010) <= 1e-3
 
 
 def test_ac67_the_muzzle_probe_is_the_one_a0_function_not_a_second_algorithm(world):

@@ -91,7 +91,7 @@ class WellRef:
     u_rb: float
     length_m: float
     width_m: float
-    source: Literal["child", "located"]
+    source: Literal["child"]
 
 
 @dataclass(frozen=True)

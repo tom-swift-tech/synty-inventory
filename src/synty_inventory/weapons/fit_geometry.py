@@ -229,8 +229,6 @@ def fit_digest(measure_records: list[dict]) -> str:
 #   verdict falls to ``ref``.
 # * The flat run of ``ref``. ``fit_rails.flat_seat`` returns the longest flat run of the zone (and None on a host with a toothed top run), so
 #   ``ref.flat_run_m`` is that run's length when it contains the reference contact's f, and None otherwise (a stepped seat, or an underbarrel).
-# * Located magazine. A fused magazine on a preset is the reference when the host has no authored magazine seat (source "located"). It gives a
-#   ``well_ref`` but no seat: 3.4 step 4 writes rail seats only.
 # * A slot refused by policy before the detectors (``none`` / ``slot_disabled``) is skipped: nothing reads its features.
 
 FIT_CACHE_NAME = "_fit_cache.json"
@@ -321,10 +319,6 @@ def _well_dict(ref: WellRef) -> dict:
     return {"length_m": ref.length_m, "width_m": ref.width_m, "u_rb": ref.u_rb, "source": ref.source}
 
 
-def _volume(verts: np.ndarray) -> float:
-    return float(np.prod(verts.max(axis=0) - verts.min(axis=0))) if len(verts) else 0.0
-
-
 def _compute(rules, *, axes, mounts, mesh, child_mesh, fused_parts, frame_changed, frame_conflict) -> dict:
     out = {"s0": None, "slots": {slot: {} for slot in FIT_SLOTS}, "seats": {}, "located": []}
     if frame_conflict:
@@ -340,7 +334,6 @@ def _compute(rules, *, axes, mounts, mesh, child_mesh, fused_parts, frame_change
     # -- presets: locate the fused parts (translation only), then every host mesh below is stripped of the slot parts (spec 3.2, E1.3) -----------------------
     placements: list[Placement] = []
     part_meshes: dict[str, np.ndarray] = {}
-    part_tris: dict[str, np.ndarray] = {}
     part_slot: dict[str, str | None] = {}
     if fused_parts is not None:
         full = mesh(frozenset())
@@ -353,7 +346,6 @@ def _compute(rules, *, axes, mounts, mesh, child_mesh, fused_parts, frame_change
                     out["located"].append({"part": part["id"], "slot": part.get("slot"), "t": [_r(c) for c in pl.t], "hit": _r(pl.hit)})
                 if found:
                     part_meshes[part["id"]], part_slot[part["id"]] = pv, part.get("slot")
-                    part_tris[part["id"]] = np.asarray(part["tris"], dtype=np.int64).reshape(-1, 3)
 
     # G1 errata E1.3: "minus the located parts" is minus the parts that FILL A SLOT (the scope, the silencer, a magazine). A preset's own body parts
     # (receiver, rail, barrel, handguard) are located too, but stripping them would empty the host the detectors measure.
@@ -470,16 +462,7 @@ def _compute(rules, *, axes, mounts, mesh, child_mesh, fused_parts, frame_change
             if m_mag.get("seats"):
                 refs = {node: well(node) for node in sorted(m_mag["seats"])}
                 slots["magazine"]["well_refs"] = {node: _well_dict(r) for node, r in refs.items() if r is not None}
-        elif placements:
-            fused = [(_volume(part_meshes[pl.part]), pl) for pl in placements if part_slot.get(pl.part) == "magazine"]
-            if fused:
-                _, pl = min(fused, key=lambda vp: (-vp[0], vp[1].part, vp[1].t))  # the larger magazine; the name then the translation break a tie
-                host = reduced(frozenset())
-                if host is not None:
-                    mag_v = to_fsu(basis, part_meshes[pl.part] + np.asarray(pl.t, dtype=np.float64))
-                    ref = well_reference(host[0], host[1], mag_v, part_tris[pl.part], rules)
-                    if ref is not None:
-                        slots["magazine"]["well_ref"] = _well_dict(dataclasses.replace(ref, source="located"))  # S7 fold-in 4
+        # E2-Q3: no else. A fused magazine with no baked child gets no well reference (S7 fold-in 4 is retired), so its pairs are not_judged.
 
     out["located"].sort(key=lambda p: (p["part"], p["t"]))
     return json.loads(json.dumps(out))

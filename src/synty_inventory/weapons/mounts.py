@@ -487,9 +487,11 @@ def mirrored_point(listed: list[str], measured: dict, vertices: Callable, axes: 
 def bore_diameter(face: np.ndarray, forward_axis: int) -> tuple[float | None, str | None]:
     """``(bore_d_m, 'ring' | 'face_extent' | None)`` from the muzzle face points (spec 4.2 and 4.4).
 
-    Radial histogram of the points around the face centre in 1 mm bins; the innermost bin holding at least
-    ``_RING_MIN_POINTS`` points is the bore ring and ``bore_d_m`` is twice its mean radius. With no such bin the face
-    extent (twice the largest radial distance) is returned and marked as the weaker ``face_extent``.
+    Radial histogram of the points around the face centre in 1 mm bins; the innermost bin other than the centre bin
+    (radius under 1 mm) holding at least ``_RING_MIN_POINTS`` points is the bore ring, and ``bore_d_m`` is twice its
+    mean radius, but only when some point lies in a bin beyond it: a ring needs an inner and an outer radius (G1 errata
+    E2.6, E2-Q2). With no such ring the face extent (twice the largest radial distance) is returned and marked as the
+    weaker ``face_extent``.
     """
     if not len(face):
         return None, None
@@ -499,8 +501,11 @@ def bore_diameter(face: np.ndarray, forward_axis: int) -> tuple[float | None, st
     bins = np.floor(radius / _RING_BIN_M + _EPS).astype(np.int64)
     for b in np.unique(bins):
         sel = bins == b
-        if int(sel.sum()) >= _RING_MIN_POINTS:
-            return _r(2.0 * float(radius[sel].mean())), "ring"
+        # bin 0 is the centre (a fan's hub, a solid end's middle), never a ring; a ring needs a point beyond it, or the end is one radius (E2-Q2)
+        if b > 0 and int(sel.sum()) >= _RING_MIN_POINTS:
+            if int(bins.max()) > b:
+                return _r(2.0 * float(radius[sel].mean())), "ring"
+            break
     return _r(2.0 * float(radius.max())), "face_extent"
 
 

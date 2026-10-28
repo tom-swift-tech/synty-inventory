@@ -16,10 +16,14 @@ Deliberate breaks, in a scratch copy of the branch (reported with the slice):
 * E1.1, ``circ_min`` 0.75 -> 0.60 in ``RULES`` (or the hull test dropped from (iii)): ``test_a_square_end_gives_none`` goes red (the square, hull
   ratio 0.637, reads as a round section);
 * E1.1, ``circ_min`` 0.75 -> 0.85: ``test_a_hexagonal_and_an_octagonal_end_are_round_sections`` goes red (the hexagon, 0.827, is lost).
+* E2-Q2 (errata E2.6), the ring rule left out of ``mounts.bore_diameter``: the rod and the centre-bin fixtures go red; the rule aligned with
+  ``end_ring_d``'s 0.75: the thin-wall tube goes red; a rule that calls an end solid when its outermost bin holds 6 or more points: the tube goes red;
+  "two bins of six": the square face goes red.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -29,8 +33,13 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures" / "weapons"))
 import g1_bore_meshes as M  # noqa: E402
 
-from synty_inventory.weapons import fit_geometry  # noqa: E402
+from synty_inventory.weapons import fit_geometry, geometry, mounts  # noqa: E402
 from synty_inventory.weapons.fit_bore import barrel_end, device_inner_d  # noqa: E402
+from synty_inventory.weapons.mount_probe import end_ring_d  # noqa: E402
+
+_spec = importlib.util.spec_from_file_location("g1_world", Path(__file__).resolve().parent / "fixtures" / "weapons" / "g1_world.py")
+GW = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(GW)
 
 # A literal copy of the spec 4.1 block (attachment_rules.fit_geometry).
 RULES = {
@@ -297,3 +306,72 @@ def test_an_unusable_anchor_gives_none(anchor):
 
 def test_device_inner_d_of_an_empty_mesh_is_none():
     assert device_inner_d(np.zeros((0, 3)), {"up": [0.0, 1.0, 0.0]}, RULES) is None
+
+
+# -- E2-Q2: a ring needs two radii (errata E2.6, AC135) ----------------------------------------------------------------------
+# Each mount comes from the probe path (geometry.muzzle_probe, then mounts.bore_diameter on its face, as mounts._muzzle_mount runs it), never a
+# hand-set bore_source. The meshes are asset coordinates (z forward, y up), as the rod rifle is.
+ASSET_AXES = {"forward": "+z", "up": "+y"}
+
+
+def probe_bore(verts):
+    """``(bore_d_m, bore_source)`` of the A0 face of ``verts``."""
+    _point, _source, face = geometry.muzzle_probe(verts, "+z", "+y")
+    return mounts.bore_diameter(face, 2)
+
+
+def muzzle_features(mesh):
+    """``(bore_d_m, bore_source, host_features)`` of a host mesh whose muzzle mount is the probe's."""
+    point, _source, face = geometry.muzzle_probe(mesh[0], "+z", "+y")
+    bore, bore_source = mounts.bore_diameter(face, 2)
+    muzzle = {**mounts.none_mount("x"), "source": "probe", "point": point, "reason": None, "bore_d_m": bore, "bore_source": bore_source}
+    mts = {"muzzle": muzzle, **{slot: mounts.none_mount("no_child_no_probe") for slot in ("optic", "underbarrel", "magazine")}}
+    feats = fit_geometry.host_features(RULES, axes=ASSET_AXES, mounts=mts, mesh=lambda drop: mesh, child_mesh=lambda name: None)
+    return bore, bore_source, feats
+
+
+def face_points(radii_and_counts, z=0.5):
+    """Points of a muzzle face (z forward) at the given radii around the origin, plus one vertex 0.2 m behind it (not in the face)."""
+    pts = [[r * np.cos(2.0 * np.pi * k / n), r * np.sin(2.0 * np.pi * k / n), z] for r, n in radii_and_counts for k in range(n)]
+    return np.array(pts + [[0.0, 0.0, z - 0.2]])
+
+
+def test_e2_q2_a_solid_round_rod_has_no_ring_bore_and_is_barrel_round():
+    # The solid 32-sided rod (radius 8.5 mm, a fan to one centre vertex): 32 points in the 8 mm bin, the centre alone in bin 0, nothing beyond the rim.
+    # Before E2-Q2 that read as a ring (0.017, "ring"), evidence (i), barrel_ring. Now it is the face extent, and end_ring_d finds no ring (the rim is
+    # the outer radius), so (iii) calls it a round section.
+    rod = GW.rod_rifle()
+    bore, bore_source, feats = muzzle_features(rod)
+    assert (bore, bore_source) == (0.017, "face_extent")
+    assert end_ring_d(rod[0][:, [2, 0, 1]], 0, 1, 0.010) is None
+    end = feats["slots"]["muzzle"]["barrel_end"]
+    assert (end["evidence"], feats["seats"]["muzzle"]) == ("round_section", {"feature": "barrel_round"})
+    assert end["od_m"] == pytest.approx(0.017, abs=5e-4)
+
+
+def test_e2_q2_a_lone_ring_of_six_points_near_the_centre_with_a_rim_is_the_face_extent():
+    # The estimator unit case: 6 points within 1 mm of the centre (bin 0, the centre bin, never a ring) and a 12-point rim at 10 mm. The rim bin
+    # holds 12 points but nothing lies beyond it. Before E2-Q2 the bin 0 six read as a ring: bore_d_m 0.001.
+    assert probe_bore(face_points([(0.0005, 6), (0.010, 12)])) == (0.020, "face_extent")
+
+
+def test_e2_q2_guard_a_thin_wall_tube_keeps_its_ring():
+    # A GUARD: it passes on the base (fbb5c52) and cannot fail there, because the base reads every bin of six as a ring, a true bore included.
+    # It guards the rule against over-reach. OD 20 mm, modelled bore 16 mm (bore/OD 0.8, outside end_ring_d's 0.75): the bore bin has the outer
+    # rim beyond it, so it is a ring, evidence (i), barrel_ring. The rule aligned with end_ring_d's 0.75, or "solid when the outermost bin
+    # holds 6 or more", would fail it.
+    tube = GW.fsu_to_xyz(M.tube(0.0, 0.25, 0.010, 0.008))
+    bore, bore_source, feats = muzzle_features(tube)
+    assert (bore, bore_source) == (0.016, "ring")
+    assert end_ring_d(tube[0][:, [2, 0, 1]], 0, 1, 0.010) is None  # (ii) cannot rescue it: only the mount's ring proves this end
+    end = feats["slots"]["muzzle"]["barrel_end"]
+    assert (end["evidence"], feats["seats"]["muzzle"]) == ("ring", {"feature": "barrel_ring"})
+
+
+def test_e2_q2_guard_a_ring_inside_a_sparse_square_outline_keeps_its_ring():
+    # A GUARD: it passes on the base and cannot fail there, for the same reason. A 12-point ring at 6.5 mm inside a 30 x 30 mm square face of
+    # four corners: the outline beyond the ring is sparse (4 points in one bin, under 6), but a point lies beyond the ring, so it is a ring.
+    # The "two bins of six" reading would fail it.
+    corners = [[sx * 0.015, su * 0.015, 0.5] for sx in (-1, 1) for su in (-1, 1)]
+    verts = np.concatenate([face_points([(0.0065, 12)])[:-1], np.array(corners), [[0.0, 0.0, 0.3]]])
+    assert probe_bore(verts) == (0.013, "ring")
