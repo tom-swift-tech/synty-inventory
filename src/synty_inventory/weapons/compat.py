@@ -231,7 +231,7 @@ def _params(tables: dict) -> dict:
     out["tokenless_family_free_slots"] = frozenset(tables.get("tokenless_family_free_slots") or ())  # A7-4: the slots a name-less part passes the family test on, size-gated
     out["cross_pack_unverified_slots"] = frozenset(out["cross_pack_unverified_slots"] or ())  # A8-1: a set, whatever the YAML list (or the default) was
     out["suppressor_never"] = {slot: frozenset(archs or ()) for slot, archs in (tables.get("suppressor_never") or {}).items()}  # A8-2 R-c: slot -> host archetypes
-    out["fit_rules"] = tables.get("fit_geometry")  # G1: the block ``fit_geometry.verdict`` reads (None: no geometry can be judged, every pair is not_judged)
+    out["fit_rules"] = tables.get("fit_geometry")  # G1: the block ``fit_geometry.verdict`` reads (None: pair_verdict raises on any host with features)
     return out
 
 

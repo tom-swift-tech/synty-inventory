@@ -1073,7 +1073,8 @@ def test_cli_build_measures_writes_the_cache_and_reuses_it(tmp_path, monkeypatch
     rep = out["report"]
     assert rep["geometry"] == "measured" and rep["geometry_coverage"] == 1.0 and rep["geometry_stats"]["decoded"] > 0
     wdir = cat / "weapons"
-    assert sorted(p.name for p in wdir.iterdir()) == ["_geometry_cache.json", "directory.json", "excluded.json"]
+    # G1 S9 re-pin (spec 3.11, plan S9 "fit cache persistence"): the build also keeps the fit cache, `_fit_cache.json`, beside the geometry cache
+    assert sorted(p.name for p in wdir.iterdir()) == ["_fit_cache.json", "_geometry_cache.json", "directory.json", "excluded.json"]
     first = (wdir / "directory.json").read_bytes()
     cache_bytes = (wdir / "_geometry_cache.json").read_bytes()
     assert validate_directory(json.loads(first), json.loads((wdir / "excluded.json").read_bytes())) == []

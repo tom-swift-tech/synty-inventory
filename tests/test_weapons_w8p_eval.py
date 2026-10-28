@@ -39,7 +39,9 @@ def host_rec(name):
 def directory():
     comp = [("LC", "cross_pack_fit"), ("LT", "twin"), ("LCn", "cross_pack_fit")]
     pend = [("PC", "cross_pack_fit"), ("PS", "same_pack_fit"), ("PO", "override"), ("PCn", "cross_pack_fit"), ("PSn", "same_pack_fit")]
-    att = {"slot": "magazine", "compatible_hosts": [{"host": f"Q/{h}", "tier": t} for h, t in comp],
+    # G1 S9 re-pin (spec 3.10, AC142, Q-G12): the gates read the label-era slots only, and the four geometry slots (magazine among them) are descriptive.
+    # The part is a laser_light, so the hand-counted table below is still the one the gates read.
+    att = {"slot": "laser_light", "compatible_hosts": [{"host": f"Q/{h}", "tier": t} for h, t in comp],
            "pending_hosts": [{"host": f"Q/{h}", "tier": t} for h, t in pend]}
     return {"weapons": [{"id": PART, "role": "part", "kind": None, "hold_class": "none", "attachment": att}, *(host_rec(h) for h in HOSTS)]}
 

@@ -16,6 +16,11 @@ booleans only, INV-17). Every labelled pair is judged against the built director
 A pair whose part is not an attachment record, or whose host is not an eligible host of the directory, is listed under
 ``skipped`` and counted nowhere. Exit 0 when every supplied gate holds, 4 below one (``--min-precision``, ``--min-recall``),
 2 for an unreadable labels file or a missing directory, 6 for a labels file that breaks its schema.
+
+G1 (spec 3.10, AC142): for the four geometry slots (``fit_types.FIT_SLOTS``) the labels are DESCRIPTIVE. ``slots`` is the agreement table, per slot: the
+labelled pairs by the state the directory gives them (``listed`` in ``compatible_hosts`` at any tier, ``pending`` in ``pending_hosts``, ``absent``
+from both) against the label. No exit code depends on it, so the gates read only the ``label_era`` block: the pairs of the other slots (``laser_light``
+and the sight slots, which keep the label-era rules, Q-G12). The ``views`` over all pairs stay as they were, printed and never gated.
 """
 
 from __future__ import annotations
@@ -27,10 +32,12 @@ from . import EXIT_COVERAGE, EXIT_OK, InputError, SchemaError
 from .cli import _catalogs, _emit, _guarded
 from . import COMPAT_TIERS
 from .compat import DEFAULT_PENDING_TIERS, DEFAULT_TIERS
+from .fit_types import FIT_SLOTS
 from .mounts import eligible
 from .overrides import well_formed_id
 
 LABELS_SCHEMA = "weapon-attach-labels/1"
+STATES = ("listed", "pending", "absent")  # what the directory says of a labelled geometry-slot pair
 PAIR_KEYS = ("fits", "host", "part")
 # A8 (AC127): view -> the tiers a pair is predicted at, per list. The default view reads the export's own cuts (compat.DEFAULT_TIERS for the
 # compatible list, compat.DEFAULT_PENDING_TIERS for the pending one), so a change of the export moves the gated view with it.
@@ -98,10 +105,26 @@ def _scores(counts: dict) -> dict:
     return {**counts, "precision": precision, "recall": recall}
 
 
+def _empty_slot_row() -> dict:
+    return {"pairs": 0, **{state: {"labelled_fit": 0, "labelled_no_fit": 0} for state in STATES}}
+
+
+def _slot_row(row: dict) -> dict:
+    """The derived columns of one slot's table: agreement over the decided pairs (``pending`` is undecided, not counted either way)."""
+    agree = row["listed"]["labelled_fit"] + row["absent"]["labelled_no_fit"]
+    disagree = row["listed"]["labelled_no_fit"] + row["absent"]["labelled_fit"]
+    undecided = row["pending"]["labelled_fit"] + row["pending"]["labelled_no_fit"]
+    return {**row, "agree": agree, "disagree": disagree, "undecided": undecided,
+            "agreement": _ratio(agree, agree + disagree)}
+
+
 def evaluate(directory: dict, pairs: list[dict], *, packs: set[str] | None = None) -> dict:
     """The metrics of ``pairs`` against the directory (pure). Ratios are exact floats; ``cmd`` rounds them for printing."""
     by_id = {w["id"]: w for w in directory["weapons"]}
     counts = {name: {"tp": 0, "fp": 0, "fn": 0, "tn": 0} for name in VIEWS}
+    era = {name: {"tp": 0, "fp": 0, "fn": 0, "tn": 0} for name in VIEWS}  # the pairs of the label-era slots: what the gates read
+    table = {slot: _empty_slot_row() for slot in FIT_SLOTS}
+    era_pairs = 0
     skipped: list[dict] = []
     used = 0
     for pair in sorted(pairs, key=lambda p: (p["part"], p["host"])):
@@ -117,13 +140,27 @@ def evaluate(directory: dict, pairs: list[dict], *, packs: set[str] | None = Non
         att = part["attachment"]
         found = {lst: [e["tier"] for e in att[lst] if e["host"] == pair["host"]] for lst in ("compatible_hosts", "pending_hosts")}
         used += 1
+        slot = att.get("slot")
+        geometry = slot in FIT_SLOTS
+        if geometry:
+            state = "listed" if found["compatible_hosts"] else "pending" if found["pending_hosts"] else "absent"
+            row = table[slot]
+            row["pairs"] += 1
+            row[state]["labelled_fit" if pair["fits"] else "labelled_no_fit"] += 1
+        else:
+            era_pairs += 1
         for name, cuts in VIEWS.items():
             predicted = any(t in cuts[lst] for lst, tiers in found.items() for t in tiers)
             key = ("tp" if pair["fits"] else "fp") if predicted else ("fn" if pair["fits"] else "tn")
             counts[name][key] += 1
+            if not geometry:
+                era[name][key] += 1
     default = counts["default"]
     return {"pairs": used, "positives": default["tp"] + default["fn"], "skipped": skipped,
-            **{name: _scores(c) for name, c in counts.items()}}
+            **{name: _scores(c) for name, c in counts.items()},
+            "slots": {slot: _slot_row(row) for slot, row in table.items()},
+            "label_era": {"pairs": era_pairs, "positives": era["default"]["tp"] + era["default"]["fn"],
+                          **{name: _scores(c) for name, c in era.items()}}}
 
 
 def _shown(block: dict) -> dict:
@@ -132,7 +169,10 @@ def _shown(block: dict) -> dict:
 
 @_guarded
 def cmd(args, cfg) -> int:
-    """``attach-eval --labels FILE [--min-precision X] [--min-recall Y] [--pack A,B]``; JSON on stdout."""
+    """``attach-eval --labels FILE [--min-precision X] [--min-recall Y] [--pack A,B]``; JSON on stdout.
+
+    The gates read ``label_era`` (laser_light and the sight slots, Q-G12) and nothing else: the agreement table of the four geometry slots (``slots``,
+    AC142) never moves the exit code."""
     from .directory import load_directory
 
     if not getattr(args, "labels", None):
@@ -146,7 +186,7 @@ def cmd(args, cfg) -> int:
     for gate, metric in (("min_precision", "precision"), ("min_recall", "recall")):
         if gates[gate] is None:
             continue
-        got = result["default"][metric]
+        got = result["label_era"]["default"][metric]
         if got is None or got < gates[gate]:
             failed.append({"gate": gate, "wanted": gates[gate], "got": None if got is None else round(got, 4)})
     _emit({
@@ -154,6 +194,10 @@ def cmd(args, cfg) -> int:
         "views": {name: {"predicted_from": {lst: list(tiers) for lst, tiers in cuts.items()}} for name, cuts in VIEWS.items()},
         "predicted_from": ["compatible_hosts", "pending_hosts"],  # the lists read (unchanged); the tiers per view are in views.<name>.predicted_from
         **{name: _shown(result[name]) for name in VIEWS},
+        "slots": {slot: {k: (round(v, 4) if isinstance(v, float) else v) for k, v in row.items()} for slot, row in result["slots"].items()},
+        "label_era": {"pairs": result["label_era"]["pairs"], "positives": result["label_era"]["positives"],
+                      **{name: _shown(result["label_era"][name]) for name in VIEWS}},
+        "gated": "label_era",  # the block the gates read; the geometry slots (slots) are descriptive only (spec 3.10)
         "gates": {k: v for k, v in gates.items() if v is not None}, "failed": failed, "skipped": result["skipped"],
     })
     return EXIT_COVERAGE if failed else EXIT_OK

@@ -18,7 +18,9 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 WEAPONS = ROOT / "src" / "synty_inventory" / "weapons"
-FIT_FILES = ["fit_bore", "fit_geometry", "fit_locate", "fit_rails", "fit_types", "fit_well"]
+# G1 S9 re-pin (AC144, plan S9 "AC144 re-run, covering the new modules"): fit_calibrate.py joins the glob. It is not a detector and not part of the
+# facade: it is the pure maths of `attach-calibrate`, kept pure so that cli.py does the build and hands it the data.
+FIT_FILES = ["fit_bore", "fit_calibrate", "fit_geometry", "fit_locate", "fit_rails", "fit_types", "fit_well"]
 DETECTORS = ["fit_bore", "fit_locate", "fit_rails", "fit_well"]
 ALLOWED_TOP = set(sys.stdlib_module_names) | {"numpy", "synty_inventory", "__future__"}
 
@@ -44,7 +46,7 @@ def imports_of(path: Path):
     return top, siblings
 
 
-def test_the_fit_modules_are_exactly_the_six_of_the_plan():
+def test_the_fit_modules_are_exactly_the_seven_of_the_plan_and_s9():
     assert sorted(p.stem for p in WEAPONS.glob("fit_*.py")) == FIT_FILES
 
 
@@ -58,6 +60,14 @@ def test_a_fit_module_imports_only_the_standard_library_numpy_and_synty_inventor
 def test_a_detector_module_imports_only_fit_types_and_mount_probe_of_the_package(name):
     _, siblings = imports_of(WEAPONS / f"{name}.py")
     assert siblings <= {"fit_types", "mount_probe"}, sorted(siblings)
+
+
+def test_fit_calibrate_is_pure_it_imports_only_detectors_never_the_build():
+    # G1 S9 (AC144 re-run): the calibration maths reads the detectors and nothing of the build, so cli.py hands it the data and no cycle can form
+    top, siblings = imports_of(WEAPONS / "fit_calibrate.py")
+    assert top <= ALLOWED_TOP, sorted(top - ALLOWED_TOP)
+    assert siblings <= {"fit_types", "fit_bore", "fit_rails", "fit_well", "mount_probe", "rules"}, sorted(siblings)
+    assert not siblings & {"geometry", "mounts", "compat", "directory", "cli", "fit_geometry"}
 
 
 def test_fit_types_imports_nothing_of_the_package():

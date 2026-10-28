@@ -38,9 +38,10 @@ _LATER_MODULES = {
     "export": "export",
     "attach-eval": "eval",  # W8c
     "attach-preview": "preview",  # W8d
+    "attach-spotcheck": "spotcheck",  # G1 S9
 }
 # the slice that provides each later verb that has no module yet, named in the "not built" answer
-_BUILT_BY = {"attach-eval": "W8c", "attach-preview": "W8d"}
+_BUILT_BY = {"attach-eval": "W8c", "attach-preview": "W8d", "attach-spotcheck": "G1 S9"}
 
 
 def _emit(obj) -> None:
@@ -103,6 +104,7 @@ def cmd_build(args, cfg) -> int:
         write_directory,
     )
     from ..cli import _threejs_v2
+    from .fit_geometry import FIT_CACHE_NAME, load_fit_cache, save_fit_cache
     from .geometry import CACHE_NAME, load_cache, save_cache
     from .overrides import load_overrides
     from .rules import load_rules
@@ -119,9 +121,14 @@ def cmd_build(args, cfg) -> int:
     threejs_v2 = _threejs_v2(cfg)
     cache_path = wdir / CACHE_NAME
     cache = {} if args.rebuild else load_cache(cache_path)
+    # G1 (spec 3.11, plan S9): the host features of the fit gate are cached beside the geometry cache, in <catalogs>/weapons/_fit_cache.json. Its
+    # entries carry their own key (GLB sha256, node, scale, versions, attach_rules_digest, the fit code digests), so a stale file only misses
+    fit_path = wdir / FIT_CACHE_NAME
+    fit_cache = {} if args.rebuild else load_fit_cache(fit_path)
+    fit_before = json.dumps(fit_cache, sort_keys=True)
     directory, excluded, report = build_directory_report(
         catalogs_dir, packs=packs, rules=rules, overrides=overrides, measure=not args.no_geometry, base=base,
-        threejs_v2_dir=threejs_v2, geometry_cache=cache,
+        threejs_v2_dir=threejs_v2, geometry_cache=cache, fit_cache=fit_cache,
         # the configured per-pack extracted trees: variant discovery (spec 3.7) lists the colourways found there
         extracted_root=Path(cfg["extracted_root"]) if cfg.get("extracted_root") else None,
     )
@@ -135,6 +142,8 @@ def cmd_build(args, cfg) -> int:
         report["geometry"] = "measured"
         if cache and report["geometry_stats"]["decoded"]:
             save_cache(cache_path, cache)  # only when something was decoded: a cache-hit run rewrites nothing
+        if fit_cache and json.dumps(fit_cache, sort_keys=True) != fit_before:
+            save_fit_cache(fit_path, fit_cache)  # likewise: only a changed cache is written
     if args.report:
         rpath = Path(args.report)
         rpath.parent.mkdir(parents=True, exist_ok=True)
@@ -263,6 +272,306 @@ def cmd_validate(args, cfg) -> int:
     return EXIT_OK if not problems else EXIT_SCHEMA
 
 
+# -- attach-calibrate: the oracle (docs/weapon_attach_geometry.md 3.2, 3.11; plan S9) -------------------------------------------------------
+#
+# ``fit_calibrate`` is pure (AC144), so this is where files are read. A built directory has lost part of the authored assemblies (a preset's
+# ``refuse_filled`` empties the ``occupied_by`` of its filled slots, a policy refusal turns a slot ``none``), so the oracle is re-derived from the
+# directory records and the GLBs by the SAME steps ``mounts.build_mounts`` and ``fit_geometry._compute`` take: the child vocabulary and the body
+# filter give the baked children, ``locate_by_translation`` the fused parts of a preset, the A1 twin entries the twins. Every positive is handed to
+# ``fit_calibrate.observe_positive`` as the plain dict that module documents. A positive's ``tags`` are its class key, ``<slot>:<class>``, which is
+# what ``fit_geometry.exceptions`` lists (4.2: reasons by class, never asset ids).
+
+
+def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] | None) -> dict:
+    """``{observations, toothed, frame, positives, hosts, skipped}``: the observations of every positive of the directory's eligible hosts.
+
+    ``toothed`` / ``frame`` are the host ids whose reduced mesh carries a toothed run, and the hosts whose forward axis the frame vote moved
+    (the two sheets of ``attach-preview``). ``positives`` counts the positives per ``<slot>:<class>``, ``skipped`` the hosts left out by reason."""
+    import dataclasses
+
+    import numpy as np
+
+    from ..naming import SKIP_STEM_RE
+    from ..sources.glb_geometry import load_triangles
+    from ..sources.glb_measure import read_glb_json
+    from . import fit_calibrate as fc
+    from . import fit_geometry as fit
+    from . import geometry, mounts
+    from .attach import measure_anchor, place
+    from .mount_probe import end_ring_d
+    from .rules import attachment_rules
+
+    tables = attachment_rules(rules)
+    fit_rules = tables.get("fit_geometry")
+    if not fit_rules:
+        raise WeaponsError("the rules carry no attachment_rules.fit_geometry block: there is nothing to calibrate", EXIT_SCHEMA)
+    parts = [w for w in directory["weapons"] if w.get("attachment") and (w.get("files") or {}).get("glb")]
+    twins: dict[tuple[str, str], list[tuple[dict, dict]]] = {}  # (host, slot) -> [(part record, its twin entry)]
+    for part in parts:
+        for e in part["attachment"]["compatible_hosts"]:
+            if e["tier"] == "twin":
+                twins.setdefault((e["host"], part["attachment"]["slot"]), []).append((part, e))
+    mesh_memo: dict[str, tuple | None] = {}
+
+    def part_mesh(rec: dict):
+        """``(verts, tris)`` of a part record, collision hulls dropped (as the preset's fused-part set loads it), or None."""
+        if rec["id"] not in mesh_memo:
+            files = rec["files"]
+            got = load_triangles(threejs / files["glb"], files.get("glb_node") or None,
+                                 exclude=lambda n: bool(SKIP_STEM_RE.search(n or "")), scale=float(files.get("glb_scale") or 1.0))
+            ok = got is not None and len(got[0]) and len(got[1])
+            mesh_memo[rec["id"]] = (np.asarray(got[0], dtype=np.float64), np.asarray(got[1], dtype=np.int64)) if ok else None
+        return mesh_memo[rec["id"]]
+
+    observations: list[dict] = []
+    positives: dict[str, int] = {}
+    skipped: dict[str, int] = {}
+    toothed_hosts: set[str] = set()
+    frame_hosts: set[str] = set()
+    used = 0
+    empty = (np.zeros((0, 3)), np.zeros((0, 3), dtype=np.int64))
+
+    for host in sorted((w for w in directory["weapons"] if not packs or w["pack"] in packs), key=lambda w: w["id"]):
+        geo, files = host.get("geometry"), host.get("files") or {}
+        if not geo or not geo.get("mounts") or not geo.get("axes") or not files.get("glb") \
+                or not mounts.eligible(host["role"], host["kind"], host["hold_class"]):
+            continue
+        path = threejs / files["glb"]
+        glb_node, scale = files.get("glb_node") or None, float(files.get("glb_scale") or 1.0)
+        whole = mounts._load_mesh(path, glb_node, scale, frozenset()) if path.is_file() else None
+        if whole is None:
+            skipped["glb_unreadable"] = skipped.get("glb_unreadable", 0) + 1
+            continue
+        axes = {"forward": geo["axes"]["forward"], "up": geo["axes"]["up"]}
+        basis = fit.frame_basis(axes)
+        verts_all = np.asarray(whole[0], dtype=np.float64)
+        f_idx = "xyz".index(axes["forward"][1])
+        f_sign = 1 if axes["forward"][0] == "+" else -1
+
+        # -- the frame (spec 3.3). The vote is not stored in a record, so it is read back: the voted axis differs from the bounding-box axis
+        # (``geometry.long_axis``), or, when it does not, a body axis that differs from the record's is the conflict the vote kept the build's frame on
+        body = geometry._body_vertices(path, glb_node, scale, rules, verts_all)
+        changed = axes["forward"][1] != geo["long_axis"]
+        if not changed and geometry._pick_long_axis(np.ptp(body, axis=0), 2) != f_idx:
+            skipped["frame_conflict"] = skipped.get("frame_conflict", 0) + 1  # INV-27: no detector runs on it, so it is no positive
+            continue
+        if changed:
+            frame_hosts.add(host["id"])
+            ring = end_ring_d(body, f_idx, f_sign, geometry._FRAME_END_SLAB_M)
+            if ring is not None:
+                observations.append(fc.frame_observation(host["id"], ring))
+        used += 1
+
+        # -- the baked children of the four slots, as build_mounts finds them (the body filter included, the policy refusals not) --------------
+        candidates = mounts.mesh_nodes(read_glb_json(path), glb_node)
+        vert_memo: dict[str, np.ndarray | None] = {}
+
+        def vertices(name: str, path=path, glb_node=glb_node, scale=scale, vert_memo=vert_memo):
+            if name not in vert_memo:
+                vert_memo[name] = mounts._load(path, name, glb_node, scale)
+            return vert_memo[name]
+
+        volume = mounts._volume(verts_all)
+        by_slot: dict[str, list[str]] = {slot: [] for slot in fit.FIT_SLOTS}
+        for name in sorted(candidates):
+            slots = mounts.matching_slots(name, tables)
+            if not slots:
+                continue
+            v = vertices(name)
+            if v is not None and volume > 1e-9 and mounts._volume(v) >= mounts._BODY_FRAC * volume:
+                continue  # the body of the gun, not a baked child
+            for slot in slots:
+                if slot in by_slot:
+                    by_slot[slot].append(name)
+        measured = {slot: mounts._measure_children(vertices, slot, by_slot[slot], tables.get("anchor"))
+                    for slot in ("optic", "underbarrel", "magazine")}
+        listed = {slot: sorted(n for n in by_slot[slot] if n in measured[slot]) for slot in measured}
+
+        # -- a preset's fused parts (spec 3.2): the parts of the host's pack the locator finds in its mesh --------------------------------------
+        placements: list = []
+        located_mesh: dict[str, np.ndarray] = {}
+        located_rec: dict[str, dict] = {}
+        if mounts.is_filled_host(host["asset_id"], tables):
+            for rec in (p for p in parts if p["pack"] == host["pack"]):
+                got = part_mesh(rec)
+                if got is None:
+                    continue
+                found = fit.locate_by_translation(verts_all, got[0], fit_rules)
+                placements += [dataclasses.replace(pl, part=rec["id"]) for pl in found]
+                if found:
+                    located_mesh[rec["id"]], located_rec[rec["id"]] = got[0], rec
+        filling = [pl for pl in placements if located_rec[pl.part]["attachment"]["slot"]]
+        reduced_memo: dict[frozenset, tuple | None] = {}
+
+        def reduced(drop: frozenset, path=path, glb_node=glb_node, scale=scale, basis=basis, filling=filling,
+                    located_mesh=located_mesh, reduced_memo=reduced_memo):
+            """The host minus ``drop`` and minus the located slot parts, in the (f, s, u) frame (as ``fit_geometry._compute`` reduces it)."""
+            if drop not in reduced_memo:
+                got = mounts._load_mesh(path, glb_node, scale, drop)
+                if got is None:
+                    reduced_memo[drop] = None
+                else:
+                    v, t = np.asarray(got[0], dtype=np.float64), np.asarray(got[1], dtype=np.int64)
+                    if filling:
+                        v, t = fit.strip(v, t, filling, located_mesh, fit_rules)
+                    reduced_memo[drop] = (fit.to_fsu(basis, v), t)
+            return reduced_memo[drop]
+
+        def fsu(point, basis=basis):
+            return tuple(float(c) for c in fit.to_fsu(basis, [point])[0])
+
+        # -- the centreline and the muzzle seat of the real pipeline: the A0 probe on the host minus its muzzle children ----------------------
+        muzzle_children = frozenset(by_slot["muzzle"])
+        muzzle_v = verts_all if not muzzle_children else mounts._load(path, None, glb_node, scale, muzzle_children)
+        point_s = bore_source = None
+        if muzzle_v is not None:
+            point, _src, face = geometry.muzzle_probe(muzzle_v, axes["forward"], axes["up"])
+            point_s = float(np.dot([round(float(c), 4) for c in point], basis[1]))
+            bore_source = mounts.bore_diameter(face, f_idx)[1]
+        muzzle_mesh = reduced(muzzle_children)
+        s0 = fc.centreline(muzzle_mesh, reduced(frozenset()), point_s, bore_source, fit_rules)
+        sight = geo["mounts"].get("sight_front")
+        sight_f = float(np.dot(sight["point"], basis[0])) if sight and sight.get("source") == "probe" and sight.get("point") else None
+
+        def add(pos: dict, host=host) -> None:
+            pos.update(host=host["id"], tags=[f"{pos['slot']}:{pos['cls']}"])
+            positives[pos["tags"][0]] = positives.get(pos["tags"][0], 0) + 1
+            observations.extend(fc.observe_positive(pos, fit_rules))
+
+        # -- optic (top) and underbarrel (bottom): baked children, A1 twins, located parts ----------------------------------------------------
+        for slot, side in (("optic", "top"), ("underbarrel", "bottom")):
+            names = listed[slot]
+            mesh = reduced(frozenset(names)) or empty
+            if fc.toothed(mesh, side, s0, fit_rules):
+                toothed_hosts.add(host["id"])
+
+            def rail(cls, label, point, footprint, slot=slot, mesh=mesh, s0=s0, sight_f=sight_f):
+                add({"cls": cls, "slot": slot, "part": label, "mesh": mesh, "s0": s0, "seat": fsu(point),
+                     "foot_length_m": footprint.get("foot_length_m"), "foot_width_m": footprint.get("foot_width_m"),
+                     "sight_f": sight_f if slot == "optic" else None})
+
+            for name in names:
+                anchor, footprint, _vol = measured[slot][name]
+                rail("baked", name, anchor["point"], footprint)
+            for rec, entry in twins.get((host["id"], slot), ()):
+                child = (entry.get("replaces") or [None])[0]
+                child = child if child in measured[slot] else (mounts._seat(measured[slot]) if measured[slot] else None)
+                if child is not None and rec["attachment"]["anchor"] is not None:
+                    rail("twin", rec["id"], measured[slot][child][0]["point"], rec["attachment"]["footprint"])
+            for pl in placements:
+                rec = located_rec[pl.part]
+                if rec["attachment"]["slot"] == slot and rec["attachment"]["anchor"] is not None:
+                    rail("preset", rec["id"], np.asarray(rec["attachment"]["anchor"]["point"]) + np.asarray(pl.t), rec["attachment"]["footprint"])
+
+        # -- muzzle: the barrel end of the host minus its muzzle devices, against each device's mating face -----------------------------------
+        def device(cls, label, verts, anchor, footprint, point, axis, muzzle_mesh=muzzle_mesh, bore_source=bore_source, basis=basis):
+            add({"cls": cls, "slot": "muzzle", "part": label, "mesh": muzzle_mesh or empty, "bore_source": bore_source, "seat": fsu(point),
+                 "axis_fsu": tuple(float(c) for c in fit.to_fsu(basis, [axis])[0]), "mate_d_m": (footprint or {}).get("mate_d_m"),
+                 "device": {"verts": verts, "anchor": anchor}})
+
+        baked_anchor: dict[str, tuple] = {}
+        for name in by_slot["muzzle"]:
+            v = vertices(name)
+            got = measure_anchor(v, "muzzle") if v is not None else None
+            if got is not None and got["anchor"] is not None:
+                baked_anchor[name] = (v, got["anchor"], got["footprint"])
+                device("baked", name, v, got["anchor"], got["footprint"], got["anchor"]["point"], got["anchor"]["up"])
+        for rec, entry in twins.get((host["id"], "muzzle"), ()):
+            child = (entry.get("replaces") or [None])[0]
+            child = child if child in baked_anchor else (sorted(baked_anchor)[0] if baked_anchor else None)
+            got = part_mesh(rec)
+            if child is not None and got is not None and rec["attachment"]["anchor"] is not None:  # seated where the device it twins stands
+                seat = baked_anchor[child][1]
+                device("twin", rec["id"], got[0], rec["attachment"]["anchor"], rec["attachment"]["footprint"], seat["point"], seat["up"])
+        for pl in placements:
+            rec = located_rec[pl.part]
+            if rec["attachment"]["slot"] == "muzzle" and rec["attachment"]["anchor"] is not None:
+                anchor = rec["attachment"]["anchor"]
+                device("preset", rec["id"], located_mesh[rec["id"]], anchor, rec["attachment"]["footprint"],
+                       np.asarray(anchor["point"]) + np.asarray(pl.t), anchor["up"])
+
+        # -- magazine: the well of a baked magazine against the entry section of the magazine on its seat ----------------------------------
+        def well_pos(cls, label, child, part_verts, part_tris, path=path, scale=scale, basis=basis):
+            child_got = load_triangles(path, child, exclude=mounts._collision, scale=scale)
+            ref_host = reduced(frozenset({child}))
+            if child_got is None or ref_host is None or not len(child_got[0]) or not len(child_got[1]):
+                return
+            add({"cls": cls, "slot": "magazine", "part": label, "ref_host": ref_host,
+                 "ref_mag": (fit.to_fsu(basis, np.asarray(child_got[0], dtype=np.float64)), np.asarray(child_got[1], dtype=np.int64)),
+                 "part_mesh": (fit.to_fsu(basis, part_verts), part_tris)})
+
+        for name in listed["magazine"]:
+            got = load_triangles(path, name, exclude=mounts._collision, scale=scale)
+            if got is not None and len(got[0]) and len(got[1]):
+                well_pos("baked", name, name, np.asarray(got[0], dtype=np.float64), np.asarray(got[1], dtype=np.int64))
+        for rec, entry in twins.get((host["id"], "magazine"), ()):
+            child = (entry.get("replaces") or [None])[0]
+            child = child if child in measured["magazine"] else (mounts._seat(measured["magazine"]) if measured["magazine"] else None)
+            got = part_mesh(rec)
+            if child is None or got is None or rec["attachment"]["anchor"] is None:
+                continue
+            # the magazine is placed on the seat of the child it twins, as the pair pass of the directory places it
+            m = place(rec["attachment"]["anchor"], mounts._child_frame("magazine", child, measured["magazine"], axes))
+            well_pos("twin", rec["id"], child, got[0] @ m[:3, :3].T + m[:3, 3], got[1])
+        # a magazine fused into a preset with no baked magazine has no well reference to compare with (errata E2-Q3): it is no positive
+        for pl in placements:
+            if located_rec[pl.part]["attachment"]["slot"] == "magazine" and not listed["magazine"]:
+                skipped["located_magazine_without_reference"] = skipped.get("located_magazine_without_reference", 0) + 1
+
+    return {"observations": observations, "toothed": toothed_hosts, "frame": frame_hosts, "positives": dict(sorted(positives.items())),
+            "hosts": used, "skipped": dict(sorted(skipped.items()))}
+
+
+@_guarded
+def cmd_calibrate(args, cfg) -> int:
+    """``attach-calibrate [--directory PATH] [--json OUT] [--pack A,B]``: does each literal of the fit gate cover its oracle positives?
+
+    Prints, per literal of spec 4.2, the positives by class, the extreme observed value, the margin and the literal (``fit_calibrate.calibrate``).
+    Exit 0 when every literal covers its positives, 6 (as ``validate``) when one has no positives or a positive lies beyond it; the JSON names the
+    literals in ``failed``. ``--json`` writes the full report, with the pair lists of ``attach-preview --pairs`` (``sheets``), to OUT, which must be
+    outside this repository (the report is pack-derived)."""
+    from .. import weapons as _pkg
+    from ..cli import _threejs_v2
+    from . import export as _export
+    from . import fit_calibrate
+    from .directory import DIRECTORY_NAME, read_json, weapons_dir
+    from .geometry import _FRAME_BORE_MAX_M
+    from .guards import refuse_export_target
+    from .rules import attachment_rules, load_rules
+
+    out_path = None
+    if args.json_out:
+        out_path = Path(args.json_out)
+        refuse_export_target(out_path, repo=_export._repo_root())  # exit 3 before anything is read
+    dpath = Path(args.directory) if args.directory else weapons_dir(_catalogs(args, cfg)) / DIRECTORY_NAME
+    if not dpath.is_file():
+        raise WeaponsError(f"directory file not found: {dpath}", EXIT_BAD_INPUT)
+    threejs = _threejs_v2(cfg)
+    if threejs is None:
+        raise WeaponsError("threejs_v2 is not configured: the oracle GLBs cannot be found", EXIT_BAD_INPUT)
+    directory = read_json(dpath)
+    rules = load_rules()
+    fit_rules = attachment_rules(rules).get("fit_geometry")
+    packs = set(_csv(args.pack) or [])
+    oracle = _gather_oracle(directory, threejs, rules, packs or None)
+    result = fit_calibrate.calibrate(oracle["observations"], fit_rules, frame_bore_max_m=_FRAME_BORE_MAX_M)
+    report = {
+        "ok": result["ok"], "hosts": oracle["hosts"], "skipped": oracle["skipped"], "positives": oracle["positives"],
+        "rows": result["rows"], "failed": result["failed"], "unmeasured": result["unmeasured"],
+        "parameters": fit_calibrate.parameters(fit_rules),
+    }
+    if out_path is not None:
+        sheets = fit_calibrate.sheet_pairs(directory, oracle["toothed"], oracle["frame"], tuple(COMPAT_TIERS))
+        full = {**report, "sheets": sheets, "attach_rules_digest": directory.get("attach_rules_digest"),
+                "weapon_attach_version": _pkg.WEAPON_ATTACH_VERSION}
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_bytes((json.dumps(full, indent=1, sort_keys=True) + "\n").encode("utf-8"))
+        report["json"] = out_path.name
+        report["sheets"] = {name: len(pairs) for name, pairs in sheets.items()}
+    _emit(report)
+    return EXIT_OK if result["ok"] else EXIT_SCHEMA
+
+
 def register(sub) -> None:
     """Add the ``weapons`` group to the root parser's subparsers (spec 3.2)."""
     wp = sub.add_parser("weapons", help="Weapon directory: classified, measured per-weapon profiles")
@@ -344,12 +653,15 @@ def register(sub) -> None:
                     help="keep hosts that are not in the exported set (with --attachments)")
     ex.set_defaults(func=lambda a, c: _not_built(a, c, "export"))
 
-    ae = wsub.add_parser("attach-eval", help="Precision/recall of the attachment compatibility against a labels file (W8c)")
+    ae = wsub.add_parser("attach-eval", help="Agreement of the attachment compatibility with a labels file: a table per geometry slot, "
+                                             "precision/recall for the label-era slots (W8c, G1 S9)")
     pack_opt(ae)
     ae.add_argument("--labels", default=None, help="weapon-attach-labels/1 file")
     ae.add_argument("--min-precision", dest="min_precision", type=float, default=None,
-                    help="exit 4 when the precision is below this")
-    ae.add_argument("--min-recall", dest="min_recall", type=float, default=None, help="exit 4 when the recall is below this")
+                    help="exit 4 when the precision of the label-era slots (laser_light, the sight slots) is below this; the four geometry "
+                         "slots are never gated (spec 3.10)")
+    ae.add_argument("--min-recall", dest="min_recall", type=float, default=None,
+                    help="exit 4 when the recall of the label-era slots is below this")
     ae.set_defaults(func=lambda a, c: _not_built(a, c, "attach-eval"))
 
     ap = wsub.add_parser("attach-preview", help="Render attachment placement previews (W8d)")
@@ -363,7 +675,31 @@ def register(sub) -> None:
     ap.add_argument("--sheet", action="store_true", help="also write sheet.png, a contact sheet of the rendered pairs")
     ap.add_argument("--plan", action="store_true",
                     help="print the pairs that would render and write nothing; needs no renderer")
+    ap.add_argument("--pairs", default=None, metavar="FILE",
+                    help="render exactly these pairs: a weapon-attach-spotcheck/1 file, or {\"pairs\": [{\"part\", \"host\"}]} (G1 S9)")
+    ap.add_argument("--icons", nargs="+", default=None, metavar="ROOT",
+                    help="HUD icon folders: each pair's host and part icon (ICON_SM_Wep_<name>[_<pack>][_Side|_Clean].png) goes beside its "
+                         "render on the sheet, read by path and never copied; implies --sheet")
+    ap.add_argument("--directory", default=None, metavar="PATH",
+                    help="render against this directory.json instead of the catalogs one (the same pairs from an older build)")
     ap.set_defaults(func=lambda a, c: _not_built(a, c, "attach-preview"))
+
+    cal = wsub.add_parser("attach-calibrate", help="Does each literal of the fit gate cover its oracle positives? (spec 3.11; exit 6 if not)")
+    pack_opt(cal)
+    cal.add_argument("--directory", default=None, help="directory.json to calibrate against (default: the catalogs one)")
+    cal.add_argument("--json", dest="json_out", default=None, metavar="OUT",
+                     help="write the full report, with the attach-preview pair lists (sheets), here; must be outside this repository")
+    cal.set_defaults(func=cmd_calibrate)
+
+    spc = wsub.add_parser("attach-spotcheck", help="The one-off spot check of the geometry fit gate: --draw 32 pairs once, --score the answers (spec 3.10)")
+    mode = spc.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--draw", action="store_true", help="draw the 32 pairs and write the spot-check file; exit 6 if it exists")
+    mode.add_argument("--score", action="store_true", help="print `fits k of 32 (placed wrong m)` from the answers in the file")
+    spc.add_argument("--directory", default=None, help="directory.json to draw from (default: the catalogs one)")
+    spc.add_argument("--file", default=None, help="the spot-check file (default: the committed weapon_attach_spotcheck.json in the package data)")
+    spc.add_argument("--labels", default=None, help="weapon-attach-labels/1 file whose pairs the draw skips (default: the committed one, if any)")
+    spc.add_argument("--baseline", default=None, help="with --score: the file as drawn; any change but fits/placed_wrong from null is exit 6")
+    spc.set_defaults(func=lambda a, c: _not_built(a, c, "attach-spotcheck"))
 
     v = wsub.add_parser("validate", help="Validate rules, overrides and a directory (exit 6 on violations)")
     v.add_argument("--directory", default=None, help="directory.json to check (default: the catalogs one)")
