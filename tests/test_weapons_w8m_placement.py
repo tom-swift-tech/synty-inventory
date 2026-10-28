@@ -97,9 +97,10 @@ def test_a_pair_with_no_key_is_placed_exactly_as_place_does(world):
 
 
 def test_a_part_never_keyed_keeps_the_matrix_of_place(world):
-    p, h = world["by_id"][M.pid(M.MAG_PART)], world["by_id"][M.hid("Misc")]
-    mount = h["geometry"]["mounts"]["magazine"]
-    got = job(world, M.MAG_PART, "Misc")["matrix"]
+    # G1 (S8): the magazine is a pending entry on Misc now (no well), so the laser, listed there and never keyed, stands for the slots without a key
+    p, h = world["by_id"][M.pid(M.LASER_PART)], world["by_id"][M.hid("Misc")]
+    mount = h["geometry"]["mounts"]["laser_light"]
+    got = job(world, M.LASER_PART, "Misc")["matrix"]
     assert np.array_equal(np.asarray(got), np.asarray(place(p["attachment"]["anchor"], mount)))
 
 
@@ -175,7 +176,12 @@ def test_the_60_mm_bound_itself_is_valid(world, capsys):
 
 
 def test_exit_6_on_a_key_on_a_slot_other_than_optic_or_underbarrel(world, capsys):
-    code, res = broken(world, capsys, "mag", lambda recs: recs[M.pid(M.MAG_PART)]["attachment"]["compatible_hosts"][0].update(seat_shift_m=0.01))
+    # G1 (S8): neither the magazine nor the silencer is listed anywhere in this world any more, so the keyed entry is added by hand
+    def keyed(part, shift):
+        return lambda recs: recs[M.pid(part)]["attachment"]["compatible_hosts"].append(
+            {"host": M.hid("Misc"), "tier": "same_pack_fit", "score": 0.7, "signals": [], "replaces": [], "seat_shift_m": shift})
+
+    code, res = broken(world, capsys, "mag", keyed(M.MAG_PART, 0.01))
     assert code == 6 and any("seat_shift_m" in e for e in res["errors"]), res["errors"]
-    code, res = broken(world, capsys, "sil", lambda recs: recs[M.pid(M.SILENCER_PART)]["attachment"]["compatible_hosts"][0].update(seat_shift_m=-0.01))
+    code, res = broken(world, capsys, "sil", keyed(M.SILENCER_PART, -0.01))
     assert code == 6 and any("seat_shift_m" in e for e in res["errors"]), res["errors"]

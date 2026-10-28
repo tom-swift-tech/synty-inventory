@@ -83,7 +83,7 @@ def listing(by, part_id, host_id):
     return [e for key in ("compatible_hosts", "pending_hosts") for e in att[key] if e["host"] == host_id]
 
 
-SLIM_H = 0.0046  # 2 * 0.0046 * sqrt(2) = 0.01301 m mating diameter, the bore ring diameter (tube r_in 0.0065)
+SLIM_H = 0.0089  # 2 * 0.0089 * sqrt(2) = 0.02517 m mating diameter, the barrel's outer diameter (tube r_out 0.0125): ratio 1.007 of the 0.85 to 2.0 band (G1 3.6, S8)
 SETTING = {PA: "s1", PB: "s1"}  # one setting, so the other pack passes the setting gate and the tier rules decide
 
 
@@ -92,7 +92,7 @@ def ring_barrel_host(name):
 
 
 def slim_suppressor():
-    return W.A.G.loft(2, [(-0.1, SLIM_H, SLIM_H), (0.1, W.A.MUZZLE_WIDE_H, W.A.MUZZLE_WIDE_H)])  # a narrow end matching the 13 mm bore
+    return W.A.G.loft(2, [(-0.1, SLIM_H, SLIM_H), (0.1, W.A.MUZZLE_WIDE_H, W.A.MUZZLE_WIDE_H)])  # a narrow end matching the 25 mm barrel
 
 
 def world():

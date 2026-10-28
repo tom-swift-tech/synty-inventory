@@ -177,7 +177,7 @@ def test_a_correction_never_touches_confidence_or_reasons(rev):
 
 
 def test_the_attach_version_is_8_and_nothing_else_about_the_identity_moved(rev):
-    assert pkg.WEAPON_ATTACH_VERSION == 13 and rev["directory"]["attach_version"] == 13
+    assert pkg.WEAPON_ATTACH_VERSION == 14 and rev["directory"]["attach_version"] == 14  # G1 4.6/AC146 (S8): attach version 13 -> 14
     assert pkg.WEAPON_GEOMETRY_VERSION == 6 and rev["directory"]["geometry_version"] == 6
     assert weapon_rules_digest(load_rules()) == "7b9829af37328fe7"
     assert pkg.ANCHOR_FORWARD_SOURCES == ("section", "authored", "twin", "override", "free_end")  # A4 (W8l) appends free_end
@@ -196,17 +196,31 @@ def child_extents_of(world):
     return out
 
 
+def host_feats_of(world) -> dict:
+    """``{host id: host_features}`` from the geometry cache (G1 S7: the carried detector features the build handed to apply_compat)."""
+    out = {}
+    for cache_id, entry in world["cache"].items():
+        for detail in entry["by_inputs"].values():
+            if "host_feats" in detail:
+                out[f"{W.PACK}/{Path(cache_id).stem}"] = detail["host_feats"]
+    return out
+
+
 def test_apply_compat_twice_gives_identical_records(rev):
     records = copy.deepcopy(rev["directory"]["weapons"])
     evidence = child_extents_of(rev)
     assert sorted(evidence) == [REV, TILT]
+    # G1 3.1 (S8): the four slots are judged from the carried host features, so the second run is handed the same maps the build used; this world has
+    # no muzzle or magazine part, so there is no part-side measure to carry
+    feats = host_feats_of(rev)
+    assert sorted(feats) == [REV, TILT]
     rules = load_rules()
     first = copy.deepcopy(records)
-    compat.apply_compat(first, rules, OVERRIDES, child_extents=evidence)
+    compat.apply_compat(first, rules, OVERRIDES, child_extents=evidence, host_feats=feats)
     assert first == records  # the build already ran it once: a second run changes nothing
-    compat.apply_compat(first, rules, OVERRIDES, child_extents=evidence)
+    compat.apply_compat(first, rules, OVERRIDES, child_extents=evidence, host_feats=feats)
     assert first == records
     # a partial build hands the pass no evidence for a carried host: the stored twin relation and the corrected anchor survive
     carried = copy.deepcopy(records)
-    compat.apply_compat(carried, rules, OVERRIDES, child_extents={})
+    compat.apply_compat(carried, rules, OVERRIDES, child_extents={}, host_feats=feats)  # G1: a carried host keeps its cached features (directory.py reads them back)
     assert carried == records

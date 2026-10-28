@@ -2,27 +2,27 @@
 
 docs/weapon_attachments.md 7 and 11. The labels are ids and booleans only (``weapon-attach-labels/1``). Every number below is
 counted by hand from the tiers worked out in test_weapons_w8c_compat.py; "predicted" means the host is in the part's
-``compatible_hosts`` or ``pending_hosts`` at ``same_pack_fit`` or better (A8: the ``same_pack_only`` view). S7 (spec 3.4 step 3): DELTA and BETA have
-a flat optic seat now, so DELTA's scope entries are cross_pack_fit entries in ``compatible_hosts``, which the ``default`` view predicts (AC127):
-Scope - Delta is a TP of ``default`` (a FN of ``same_pack_only``), and ALT - Beta is a TP of ``default`` too.
+``compatible_hosts`` or ``pending_hosts`` at ``same_pack_fit`` or better (A8: the ``same_pack_only`` view). G1 3.1/3.5 (S8): the tier is the pack
+relation and the flat optic seats are pending, so every same-pack host of a part is predicted (listed or pending) whatever its name or archetype, and every
+cross-pack host is a pending cross_pack_fit entry, which neither the ``default`` nor the ``same_pack_only`` view predicts (AC127). The two views agree.
 
   pair                     label   predicted                      outcome
   Scope - Alpha            fits    yes (twin)                     TP
   Scope - Epsilon          fits    yes (twin)                     TP
   Scope - Beta             fits    yes (same_pack_fit, pending)   TP
-  Scope - Gamma            no      no                             TN
-  Scope - Delta            fits    yes (cross_pack_fit, listed)   TP      (FN of same_pack_only)
+  Scope - Gamma            no      yes (same_pack_fit, pending)   FP
+  Scope - Delta            fits    no (cross_pack_fit, pending)   FN      (TP when cross-pack counts)
   Mag - Alpha              fits    yes (twin)                     TP
   Mag - Beta               no      yes (same_pack_fit, pending)   FP
   Mag - Epsilon            fits    yes (same_pack_fit, pending)   TP
-  Mag - Gamma              no      no                             TN
+  Mag - Gamma              no      yes (same_pack_fit, pending)   FP
   Mag - Delta              fits    no (cross_pack_fit only)       FN      (TP when cross-pack counts)
   Scope_Tight - Alpha      fits    yes (same_pack_fit)            TP
-  Scope_Tight - Gamma      fits    no                             FN
+  Scope_Tight - Gamma      fits    yes (same_pack_fit, pending)   TP
   Scope_Tight - Epsilon    no      yes (same_pack_fit)            FP
 
-  default: TP 7, FP 2, FN 2, TN 2: precision 7/9 = 0.7778, recall 7/9. same_pack_only: TP 6, FP 2, FN 3, TN 2 (0.75, 0.6667).
-  With cross-pack: TP 8, FN 1: precision 8/10, recall 8/9.
+  default and same_pack_only: TP 7, FP 4, FN 2, TN 0: precision 7/11 = 0.6364, recall 7/9 = 0.7778.
+  With cross-pack: TP 9, FN 0: precision 9/13, recall 9/9.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ PAIRS = [
 ]
 # not counted anywhere: a host used as the part, a part used as the host, an id that is nowhere
 SKIPPED = [(A_, B_, True), (SCOPE, W.P[W.GRIP], True), (f"{W.PACK_A}/SM_Wep_Nowhere_01", A_, True)]
-ALT_PAIRS = [(ALT, A_, True), (ALT, B_, True), (ALT, G_, False)]  # TP, FN (cross_pack_fit only), TN
+ALT_PAIRS = [(ALT, A_, True), (ALT, B_, True), (ALT, G_, False)]  # TP, FN (cross_pack_fit, pending), TN (G1 3.1, S8: both cross hosts are pending)
 
 
 def labels_doc(pairs) -> dict:
@@ -91,14 +91,14 @@ def cli(world, capsys, tmp_path, pairs, *flags, doc=None):
 def test_ac79_the_reported_precision_and_recall_equal_the_hand_counted_values_exactly(world):
     result = evaluate(world[0], load_labels_from(labels_doc(PAIRS + SKIPPED)))
     d = result["default"]
-    assert (d["tp"], d["fp"], d["fn"], d["tn"]) == (7, 2, 2, 2)  # S7: Scope - Delta is a listed cross entry now, a TP of the default view
-    assert d["precision"] == 7 / 9 and d["recall"] == 7 / 9
+    assert (d["tp"], d["fp"], d["fn"], d["tn"]) == (7, 4, 2, 0)  # G1 3.1/3.5 (S8): see the table above
+    assert d["precision"] == 7 / 11 and d["recall"] == 7 / 9
     old = result["same_pack_only"]
-    assert (old["tp"], old["fp"], old["fn"], old["tn"]) == (6, 2, 3, 2) and old["precision"] == 6 / 8 == 0.75 and old["recall"] == 6 / 9
+    assert (old["tp"], old["fp"], old["fn"], old["tn"]) == (7, 4, 2, 0) and old["precision"] == 7 / 11 and old["recall"] == 7 / 9
     assert (result["pairs"], result["positives"]) == (13, 9)
     cross = result["with_cross_pack"]
-    assert (cross["tp"], cross["fp"], cross["fn"], cross["tn"]) == (8, 2, 1, 2)
-    assert cross["precision"] == 8 / 10 and cross["recall"] == 8 / 9
+    assert (cross["tp"], cross["fp"], cross["fn"], cross["tn"]) == (9, 4, 0, 0)
+    assert cross["precision"] == 9 / 13 and cross["recall"] == 9 / 9
 
 
 def test_ac79_the_pairs_that_cannot_be_judged_are_listed_not_counted(world):
@@ -111,21 +111,21 @@ def test_ac79_the_pairs_that_cannot_be_judged_are_listed_not_counted(world):
 
 
 def test_ac79_a_ratio_with_an_empty_denominator_is_null(world):
-    result = evaluate(world[0], load_labels_from(labels_doc([(SCOPE, G_, False)])))
+    result = evaluate(world[0], load_labels_from(labels_doc([(ALT, G_, False)])))  # G1 3.1 (S8): ALT - Gamma is a pending cross_pack_fit entry, which default does not predict: a TN
     assert result["default"]["precision"] is None and result["default"]["recall"] is None
     assert result["default"]["tn"] == 1
 
 
 def test_ac79_the_cli_prints_the_values_and_exits_0_at_the_gates(world, capsys, tmp_path):
-    code, out = cli(world, capsys, tmp_path, PAIRS + SKIPPED, "--min-precision", "0.75", "--min-recall", "0.66")
+    code, out = cli(world, capsys, tmp_path, PAIRS + SKIPPED, "--min-precision", "0.63", "--min-recall", "0.66")
     assert code == 0 and out["ok"] is True and out["failed"] == []
-    assert out["default"] == {"tp": 7, "fp": 2, "fn": 2, "tn": 2, "precision": 0.7778, "recall": 0.7778}  # S7: see the table above
-    assert out["with_cross_pack"]["precision"] == 0.8 and out["with_cross_pack"]["recall"] == 0.8889
+    assert out["default"] == {"tp": 7, "fp": 4, "fn": 2, "tn": 0, "precision": 0.6364, "recall": 0.7778}  # G1 (S8): see the table above
+    assert out["with_cross_pack"]["precision"] == 0.6923 and out["with_cross_pack"]["recall"] == 1.0
     assert out["pairs"] == 13 and out["positives"] == 9 and "max_tier" not in out  # A8 (AC127): max_tier is replaced by the views object
     assert out["views"]["default"]["predicted_from"]["pending_hosts"] == ["override", "twin", "same_pack_fit"]
-    assert out["same_pack_only"]["tp"] == 6  # A8: the old default stays as same_pack_only
+    assert out["same_pack_only"]["tp"] == 7  # A8: the old default stays as same_pack_only
     assert out["predicted_from"] == ["compatible_hosts", "pending_hosts"]
-    assert out["gates"] == {"min_precision": 0.75, "min_recall": 0.66}
+    assert out["gates"] == {"min_precision": 0.63, "min_recall": 0.66}
     assert len(out["skipped"]) == 3
 
 
@@ -138,7 +138,7 @@ def test_ac79_the_cli_exits_4_below_a_gate(world, capsys, tmp_path, flags, faili
     code, out = cli(world, capsys, tmp_path, PAIRS, *flags)
     assert code == 4 and out["ok"] is False
     assert [f["gate"] for f in out["failed"]] == failing
-    assert out["default"]["precision"] == 0.7778  # the numbers are printed on a failure too
+    assert out["default"]["recall"] == 0.7778  # the numbers are printed on a failure too
 
 
 def test_ac79_without_gates_the_exit_is_0(world, capsys, tmp_path):
@@ -148,12 +148,12 @@ def test_ac79_without_gates_the_exit_is_0(world, capsys, tmp_path):
 def test_ac79_the_pack_flag_restricts_the_parts_judged(world, capsys, tmp_path):
     code, out = cli(world, capsys, tmp_path, PAIRS + ALT_PAIRS, "--pack", "FAKE_CompB")
     assert code == 0 and out["pairs"] == 3
-    # S7: ALT - BETA is a cross_pack_fit entry in compatible_hosts (BETA's flat optic seat), a TP of the default view
-    assert out["default"] == {"tp": 2, "fp": 0, "fn": 0, "tn": 1, "precision": 1.0, "recall": 1.0}
+    # G1 3.5 (S8): ALT - BETA is a pending cross_pack_fit entry (BETA's flat optic seat), a FN of the default view and a TP when cross-pack counts
+    assert out["default"] == {"tp": 1, "fp": 0, "fn": 1, "tn": 1, "precision": 1.0, "recall": 0.5}
     assert out["same_pack_only"]["recall"] == 0.5  # the cross entry is not same_pack_fit or better
     assert out["with_cross_pack"]["recall"] == 1.0
     code, out = cli(world, capsys, tmp_path, PAIRS + ALT_PAIRS, "--pack", "FAKE_CompA")
-    assert out["pairs"] == 13 and out["default"]["precision"] == 0.7778
+    assert out["pairs"] == 13 and out["default"]["precision"] == 0.6364
     code, out = cli(world, capsys, tmp_path, ALT_PAIRS, "--pack", "FAKE_CompA", "--min-recall", "0.1")
     assert code == 4 and out["default"]["recall"] is None  # nothing judged proves nothing
 

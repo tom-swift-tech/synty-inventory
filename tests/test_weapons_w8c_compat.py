@@ -37,24 +37,27 @@ def rec(directory, part):
 
 
 # part -> (compatible_hosts as (host, tier, score) in stored order, pending_hosts as (host, tier) in stored order)
-# S7 re-pin (spec 3.4 step 3): BETA and DELTA have a smooth top and no claimed optic child, so their optic slot is a flat seat (a probe
-# seat, span 0.181 m on BETA and 0.447 m on DELTA) and neither is pending for an optic any more. BETA is a same-pack fit: 0.7 base + 0.1
-# for the foot fitting that span (the Wide and Giant feet, 0.072 and 0.108 m, are inside 1.5 x of 0.181 too); DELTA a cross-pack fit, 0.4 + 0.1.
+# G1 re-pin (docs/weapon_attach_geometry.md 3.1, 3.8; S8): the four geometry slots (optic, muzzle, underbarrel, magazine) take the tier from the pack
+# relation alone and the list from the geometry verdict, with the tier base as the score (0.7 same pack, 0.4 cross pack, 0.95 twin). So:
+#   * optic: ALPHA and EPSILON have the baked Scope child, an authored seat with a flat run under it: `seat_ref`, `fit`, listed. BETA, GAMMA and DELTA
+#     have a smooth top and no claimed child: a flat seat, `unverified` (rail_flat): pending, never listed (3.5, AC148);
+#   * muzzle: ALPHA, EPSILON and DELTA have a barrel ring (15 mm bore ring, `barrel_ring`); BETA and GAMMA are square bodies with no barrel end, so
+#     every muzzle part is `no_fit` there (neither list, 3.6). Silencer_Slim's 10 mm mate is under 0.85 x the 15 mm end: `no_fit` on all three;
+#   * magazine: only ALPHA has a well (the baked Mag child), where the part is its twin (`fit`, well_entry); the rest are `not_judged`: pending;
+#   * underbarrel: GAMMA has the Foregrip child (twin); the rifles have no seat: `not_judged`: pending (unchanged).
 EXPECTED = {
-    W.SCOPE: ([(A_, TWIN, 0.95), (E_, TWIN, 0.95), (B_, SAME, 0.8), (D_, CROSS, 0.5)], []),
-    W.SCOPE_TIGHT: ([(A_, SAME, 0.8), (B_, SAME, 0.8), (E_, SAME, 0.8), (D_, CROSS, 0.5)], []),
-    W.SCOPE_WIDE: ([(B_, SAME, 0.8), (A_, SAME, 0.7), (E_, SAME, 0.7), (D_, CROSS, 0.5)], []),
-    W.SCOPE_GIANT: ([(B_, SAME, 0.8), (A_, SAME, 0.7), (E_, SAME, 0.7), (D_, CROSS, 0.5)], []),
-    # W8l (A4, spec 5.1 family_free_slots): a muzzle part needs no name overlap, so the pistol GAMMA (no "rifle" token) joins every silencer's list
-    # at the same-pack base 0.7 (a square body: no ring, no bore signal) and sorts by host id beside BETA (0.7)
-    W.SIL: ([(G_, SAME, 0.7), (B_, SAME, 0.7), (A_, SAME, 0.6), (E_, SAME, 0.6)], []),
-    W.SIL_SLIM: ([(A_, SAME, 0.8), (E_, SAME, 0.8), (G_, SAME, 0.7), (B_, SAME, 0.7), (D_, CROSS, 0.5)], []),
-    W.SIL_BRAKE: ([(E_, TWIN, 0.95), (G_, SAME, 0.7), (B_, SAME, 0.7), (A_, SAME, 0.6)], []),
-    W.MAG: ([(A_, TWIN, 0.95)], [(B_, SAME), (E_, SAME), (D_, CROSS)]),
+    W.SCOPE: ([(A_, TWIN, 0.95), (E_, TWIN, 0.95)], [(G_, SAME), (B_, SAME), (D_, CROSS)]),
+    W.SCOPE_TIGHT: ([(A_, SAME, 0.7), (E_, SAME, 0.7)], [(G_, SAME), (B_, SAME), (D_, CROSS)]),
+    W.SCOPE_WIDE: ([(A_, SAME, 0.7), (E_, SAME, 0.7)], [(G_, SAME), (B_, SAME), (D_, CROSS)]),
+    W.SCOPE_GIANT: ([(A_, SAME, 0.7), (E_, SAME, 0.7)], [(G_, SAME), (B_, SAME), (D_, CROSS)]),
+    W.SIL: ([(A_, SAME, 0.7), (E_, SAME, 0.7), (D_, CROSS, 0.4)], []),
+    W.SIL_SLIM: ([], []),
+    W.SIL_BRAKE: ([(E_, TWIN, 0.95), (A_, SAME, 0.7), (D_, CROSS, 0.4)], []),
+    W.MAG: ([(A_, TWIN, 0.95)], [(G_, SAME), (B_, SAME), (E_, SAME), (D_, CROSS)]),
     # W8l: an underbarrel part needs no name overlap either; the three rifles have no foregrip child and no probe for the slot, so they are pending
     W.GRIP: ([(G_, TWIN, 0.95)], [(A_, SAME), (B_, SAME), (E_, SAME), (D_, CROSS)]),
     W.LASER: ([(G_, TWIN, 0.95)], [(D_, CROSS)]),
-    W.ALT_SCOPE: ([(A_, TWIN, 0.95), (E_, TWIN, 0.95), (B_, CROSS, 0.5)], []),  # S7: BETA's flat optic seat
+    W.ALT_SCOPE: ([(A_, TWIN, 0.95), (E_, TWIN, 0.95)], [(D_, SAME), (G_, CROSS), (B_, CROSS)]),  # DELTA is in the Alt scope's own pack
 }
 
 
@@ -94,7 +97,7 @@ def test_ac71_one_part_that_twins_several_hosts_gets_twin_multi_and_a_part_with_
 def test_ac71_a_twin_in_another_pack_is_still_a_twin(built):
     # judgment call (compat.py docstring): twin evidence is geometric, so the pack does not matter
     got = W.hosts_of(rec(built, W.ALT_SCOPE))
-    assert got == [(A_, TWIN, 0.95), (E_, TWIN, 0.95), (B_, CROSS, 0.5)]  # S7: BETA's flat optic seat (spec 3.4 step 3) is the third entry
+    assert got == [(A_, TWIN, 0.95), (E_, TWIN, 0.95)]  # G1 3.5/AC148 (S8): the flat optic seats (BETA, GAMMA, DELTA) are pending, never listed
 
 
 # --- AC72: tiers, scores and ordering ----------------------------------------------------------------------------------
@@ -106,26 +109,27 @@ def test_ac72_each_part_lists_its_hosts_in_the_hand_derived_tiers_scores_and_ord
     att = rec(built, part)["attachment"]
     assert W.hosts_of(rec(built, part)) == compatible
     assert [(e["host"], e["tier"]) for e in att["pending_hosts"]] == pending
-    assert all(set(e) == {"host", "tier"} for e in att["pending_hosts"])  # a pending host has no score, no signals
+    # G1 4.4 (S8): a pending host has no score; an `unverified` pair names what was measured (`signals`), a `not_judged` pair carries nothing
+    assert all(set(e) <= {"host", "tier", "signals"} for e in att["pending_hosts"])
 
 
 def test_ac72_the_signals_and_replaces_of_a_few_entries_are_literal(built):
     def entry(part, host):
         return next(e for e in rec(built, part)["attachment"]["compatible_hosts"] if e["host"] == host)
 
-    assert entry(W.SCOPE, A_)["signals"] == ["affinity", "family_overlap", "fit_span", "mount_available", "twin"]
+    # G1 4.3 (S8): the signals are the geometry vocabulary of 3.1 step 5 (plus the tier mark of a twin); the label signals are gone
+    assert entry(W.SCOPE, A_)["signals"] == ["seat_ref", "twin"]
     assert entry(W.SCOPE, A_)["replaces"] == ["SM_Wep_Rifle_Alpha_01_Scope"]
-    assert entry(W.SCOPE_TIGHT, A_)["signals"] == ["affinity", "family_overlap", "fit_span", "mount_available"]
-    assert entry(W.SCOPE_WIDE, A_)["signals"] == ["affinity", "family_overlap", "mount_available"]  # 1.2 x: no span bonus
-    assert entry(W.SIL, A_)["signals"] == ["affinity", "bore_mismatch", "family_overlap", "mount_available"]
-    assert entry(W.SIL_SLIM, A_)["signals"] == ["affinity", "family_overlap", "fit_bore", "mount_available"]
-    assert entry(W.SIL_SLIM, A_)["replaces"] == []  # no baked muzzle device on ALPHA
+    assert entry(W.SCOPE_TIGHT, A_)["signals"] == ["seat_ref"]
+    assert entry(W.SCOPE_WIDE, A_)["signals"] == ["seat_ref"]  # 1.2 x the child foot: still inside the flat run under the contact
+    assert entry(W.SIL, A_)["signals"] == ["barrel_ring"]
+    assert entry(W.SIL_BRAKE, A_)["replaces"] == []  # no baked muzzle device on ALPHA
     assert entry(W.SIL_BRAKE, E_)["replaces"] == ["SM_Wep_Rifle_Epsilon_01_Brake"]
-    assert entry(W.ALT_SCOPE, A_)["signals"] == ["affinity", "fit_span", "mount_available", "twin"]  # no family token
-    assert entry(W.SIL_SLIM, D_)["signals"] == ["affinity", "family_overlap", "fit_bore", "mount_available"]
+    assert entry(W.ALT_SCOPE, A_)["signals"] == ["seat_ref", "twin"]  # no family token
+    assert entry(W.SIL, D_)["signals"] == ["barrel_ring"]
 
 
-def test_ac72_same_pack_fit_needs_family_overlap_and_affinity_and_another_pack_only_reaches_cross_pack_fit(built):
+def test_ac72_the_tier_is_the_pack_relation_and_another_pack_only_reaches_cross_pack_fit(built):
     for part in EXPECTED:
         part_rec = rec(built, part)
         for e in part_rec["attachment"]["compatible_hosts"] + part_rec["attachment"]["pending_hosts"]:
@@ -134,13 +138,16 @@ def test_ac72_same_pack_fit_needs_family_overlap_and_affinity_and_another_pack_o
                 assert same_pack
             if not same_pack and e["tier"] != TWIN:
                 assert e["tier"] == CROSS and e.get("score", 0.5) <= 0.6
-    assert G_ not in {e["host"] for e in rec(built, W.MAG)["attachment"]["compatible_hosts"] + rec(built, W.MAG)["attachment"]["pending_hosts"]}
-    assert D_ not in {e["host"] for e in rec(built, W.ALT_SCOPE)["attachment"]["compatible_hosts"] + rec(built, W.ALT_SCOPE)["attachment"]["pending_hosts"]}
+    # G1 3.1 (S8): no name or archetype test decides a geometry pair any more. The pistol GAMMA (no "rifle" token, another archetype) is a same-pack pending
+    # host of the rifle magazine (no seat to judge), and DELTA, in the Alt scope's own pack, is a same-pack pending host of the Alt scope
+    assert G_ in {e["host"] for e in rec(built, W.MAG)["attachment"]["pending_hosts"]}
+    assert (D_, SAME) in [(e["host"], e["tier"]) for e in rec(built, W.ALT_SCOPE)["attachment"]["pending_hosts"]]
 
 
 def test_ac72_the_cross_pack_candidate_is_flagged_on_the_part_and_nothing_else_is(built):
     flagged = {p for p in EXPECTED if "compat_cross_pack" in rec(built, p)["review"]["reasons"]}
-    assert flagged == {W.SCOPE, W.SCOPE_TIGHT, W.SCOPE_WIDE, W.SCOPE_GIANT, W.SIL_SLIM, W.MAG, W.GRIP, W.LASER, W.ALT_SCOPE}
+    # G1 3.1 (S8): every part with a cross_pack_fit entry, listed or pending; Silencer_Slim fits no host, so it names none
+    assert flagged == {W.SCOPE, W.SCOPE_TIGHT, W.SCOPE_WIDE, W.SCOPE_GIANT, W.SIL, W.SIL_BRAKE, W.MAG, W.GRIP, W.LASER, W.ALT_SCOPE}
 
 
 def test_ac72_the_order_is_rank_then_descending_score_then_host(built):
@@ -148,9 +155,9 @@ def test_ac72_the_order_is_rank_then_descending_score_then_host(built):
         entries = rec(built, part)["attachment"]["compatible_hosts"]
         keys = [(compat.tier_rank(e["tier"]), -e["score"], e["host"]) for e in entries]
         assert keys == sorted(keys)
-    # the descending score is visible in the literals: SIL lists the two 0.7 entries (GAMMA, BETA: by host id) before the two 0.6 entries
-    # although BETA sorts after ALPHA
-    assert [h for h, _, _ in EXPECTED[W.SIL][0]] == [G_, B_, A_, E_]
+    # the rank and the descending score are visible in the literals: the brake part lists its twin (0.95), then the same-pack fit (0.7), then the cross-pack
+    # fit (0.4), although EPSILON (the twin) sorts after ALPHA by host id (G1 3.1: the score is the tier base alone, so within a tier the host id decides)
+    assert [h for h, _, _ in EXPECTED[W.SIL_BRAKE][0]] == [E_, A_, D_]
 
 
 def test_ac72_two_builds_are_identical(built, tmp_path):
@@ -163,16 +170,17 @@ def test_ac72_two_builds_are_identical(built, tmp_path):
     (True, True, False, CROSS), (False, True, False, CROSS), (True, False, False, None),
 ])
 def test_ac72_the_tier_rules_as_a_truth_table(family, affine, same_pack, expected):
+    # G1 3.8 (S8): the family and affinity tests are retired for the four geometry slots and live on for laser_light, which these pure cases use
     got = compat.candidate(part_view(pack="P" if same_pack else "Q", tokens=frozenset({"x"}) if family else frozenset({"y"})),
-                           host_view(archetype="rifle" if affine else "pistol", mounts={"optic": mount()}),
+                           host_view(archetype="rifle" if affine else "pistol", mounts={SLOT: mount()}),
                            verdict=None, twin=False, affinity=AFFINITY, params=PARAMS)
     assert (got["tier"] if got else None) == expected
 
 
 def test_ac72_a_cross_pack_score_never_exceeds_0_6_and_a_same_pack_one_stays_between_0_6_and_0_9():
-    cross = compat.candidate(part_view(pack="Q", foot_length_m=0.05), host_view(mounts={"optic": mount()}), verdict=None,
+    cross = compat.candidate(part_view(pack="Q", foot_length_m=0.05), host_view(mounts={SLOT: mount()}), verdict=None,
                              twin=False, affinity=AFFINITY, params=PARAMS)
-    same = compat.candidate(part_view(foot_length_m=0.05), host_view(mounts={"optic": mount()}), verdict=None, twin=False,
+    same = compat.candidate(part_view(foot_length_m=0.05), host_view(mounts={SLOT: mount()}), verdict=None, twin=False,
                             affinity=AFFINITY, params=PARAMS)
     assert (cross["tier"], cross["score"]) == (CROSS, 0.5)
     assert (same["tier"], same["score"]) == (SAME, 0.8)
@@ -183,13 +191,13 @@ def test_ac72_a_cross_pack_score_never_exceeds_0_6_and_a_same_pack_one_stays_bet
 
 
 def test_ac72_a_twin_does_not_need_family_or_affinity_and_a_mech_host_is_vetoed():
-    odd = compat.candidate(part_view(tokens=frozenset({"zzz"})), host_view(archetype="pistol", mounts={"optic": mount()}),
+    odd = compat.candidate(part_view(tokens=frozenset({"zzz"})), host_view(archetype="pistol", mounts={SLOT: mount()}),
                            verdict=None, twin=True, affinity=AFFINITY, params=PARAMS)
     assert odd["tier"] == TWIN and odd["score"] == 0.95
-    mech = compat.candidate(part_view(), host_view(flags={"mech_scale"}, mounts={"optic": mount()}), verdict=None, twin=True,
+    mech = compat.candidate(part_view(), host_view(flags={"mech_scale"}, mounts={SLOT: mount()}), verdict=None, twin=True,
                             affinity=AFFINITY, params=PARAMS)
     assert mech is None  # a hand-scale part never fits a mech-scale gun, twin or not
-    both = compat.candidate(part_view(flags={"mech_scale"}), host_view(flags={"mech_scale"}, mounts={"optic": mount()}),
+    both = compat.candidate(part_view(flags={"mech_scale"}), host_view(flags={"mech_scale"}, mounts={SLOT: mount()}),
                             verdict=None, twin=False, affinity=AFFINITY, params=PARAMS)
     assert both["tier"] == SAME
 
@@ -208,26 +216,27 @@ def test_ac73_fit_span_cuts_use_binary_exact_numbers():
 
 
 def test_ac73_a_foot_1_2x_a_child_foot_span_still_fits_and_1_8x_a_probe_span_is_vetoed():
-    host = host_view(mounts={"optic": mount(span_m=0.06)})
+    host = host_view(mounts={SLOT: mount(span_m=0.06)})
     got = compat.candidate(part_view(foot_length_m=0.072), host, verdict=None, twin=False, affinity=AFFINITY, params=PARAMS)
     assert got["tier"] == SAME and got["score"] == 0.7  # 1.2 x: neutral, no span bonus
-    probe = host_view(mounts={"optic": mount(span_m=0.06, span_source="probe")})
+    probe = host_view(mounts={SLOT: mount(span_m=0.06, span_source="probe")})
     assert compat.candidate(part_view(foot_length_m=0.108), probe, verdict=None, twin=False, affinity=AFFINITY, params=PARAMS) is None
     assert compat.candidate(part_view(foot_length_m=0.072), probe, verdict=None, twin=False, affinity=AFFINITY, params=PARAMS)["tier"] == SAME
 
 
 def test_ac73_a_foot_1_8x_a_child_foot_span_is_not_vetoed_in_the_built_directory(built):
     # Giant_01: foot 0.108 against the 0.06 child_foot span of the Scope child of ALPHA and EPSILON
-    # (S7, spec 3.4 step 3: BETA's flat seat is longer than the foot, so it keeps the span bonus; DELTA is cross-pack)
-    assert W.hosts_of(rec(built, W.SCOPE_GIANT)) == [(B_, SAME, 0.8), (A_, SAME, 0.7), (E_, SAME, 0.7), (D_, CROSS, 0.5)]
-    assert W.hosts_of(rec(built, W.SCOPE_WIDE)) == [(B_, SAME, 0.8), (A_, SAME, 0.7), (E_, SAME, 0.7), (D_, CROSS, 0.5)]
+    # G1 3.5 (S8): `seat_ref` reads the flat run under the contact, which is longer than the foot, so both are `fit` at the tier base; the flat seats
+    # (BETA, GAMMA, DELTA) are pending, so the pair no longer lists them with the span bonus
+    assert W.hosts_of(rec(built, W.SCOPE_GIANT)) == [(A_, SAME, 0.7), (E_, SAME, 0.7)]
+    assert W.hosts_of(rec(built, W.SCOPE_WIDE)) == [(A_, SAME, 0.7), (E_, SAME, 0.7)]
 
 
 def test_ac73_a_cross_pack_part_needs_a_foot_that_fits_a_measured_seat():
-    over = compat.candidate(part_view(pack="Q", foot_length_m=0.108), host_view(mounts={"optic": mount(span_m=0.06)}),
+    over = compat.candidate(part_view(pack="Q", foot_length_m=0.108), host_view(mounts={SLOT: mount(span_m=0.06)}),
                             verdict=None, twin=False, affinity=AFFINITY, params=PARAMS)
     assert over is None  # 1.8 x a child_foot span: not a veto, but also not a "measured fit" for another pack's part
-    neutral = compat.candidate(part_view(pack="Q", foot_length_m=0.072), host_view(mounts={"optic": mount(span_m=0.06)}),
+    neutral = compat.candidate(part_view(pack="Q", foot_length_m=0.072), host_view(mounts={SLOT: mount(span_m=0.06)}),
                                verdict=None, twin=False, affinity=AFFINITY, params=PARAMS)
     assert neutral["tier"] == CROSS and neutral["score"] == 0.4
 
@@ -243,17 +252,19 @@ def test_ac73_fit_bore_good_bad_and_ignored():
     assert compat.fit_bore(None, ring) is None and compat.fit_bore(0.02, None) is None
 
 
-def test_ac73_a_face_extent_mount_gives_no_bore_signal_in_the_built_directory(built):
-    # BETA has a square barrel (face extent 0.0283): 0.026 would be a "good" bore and 0.013 a "bad" one if it counted (GAMMA, a square pistol
-    # that the family-free muzzle rule of W8l lists as well, is the same case and sorts first at 0.7)
-    assert W.hosts_of(rec(built, W.SIL))[:2] == [(G_, SAME, 0.7), (B_, SAME, 0.7)]
-    slim_beta = next(e for e in rec(built, W.SIL_SLIM)["attachment"]["compatible_hosts"] if e["host"] == B_)
-    assert slim_beta["score"] == 0.7 and "fit_bore" not in slim_beta["signals"] and "bore_mismatch" not in slim_beta["signals"]
+def test_ac73_a_square_barrel_has_no_barrel_end_so_no_muzzle_part_fits_it_in_the_built_directory(built):
+    # G1 3.6 (S8): BETA and GAMMA are square bodies (the label-era `face_extent` bore was ignored; there is no barrel end now): a muzzle part is `no_fit`
+    # there, in neither list, whatever its size, where W8l listed them at 0.7 by name-free affinity
+    for part in (W.SIL, W.SIL_SLIM, W.SIL_BRAKE):
+        att = rec(built, part)["attachment"]
+        assert not {B_, G_} & {e["host"] for e in att["compatible_hosts"] + att["pending_hosts"]}, part
 
 
-def test_ac73_a_bad_ring_bore_blocks_a_cross_pack_candidate_and_a_good_one_admits_it(built):
-    assert D_ not in {e["host"] for e in rec(built, W.SIL)["attachment"]["compatible_hosts"]}  # 0.026 against the 0.0130 ring
-    assert (D_, CROSS, 0.5) in W.hosts_of(rec(built, W.SIL_SLIM))
+def test_ac73_the_outer_ratio_band_replaces_the_ring_bore_bonus_and_penalty_in_the_built_directory(built):
+    # G1 3.6 (S8): the 15 mm bore ring of ALPHA, EPSILON and DELTA against each part's mate diameter, as a band [0.85, 2.00]; the bore terms of the score are gone
+    assert (D_, CROSS, 0.4) in W.hosts_of(rec(built, W.SIL))  # the cross-pack silencer fits DELTA's ring and lists at the cross-pack base
+    att = rec(built, W.SIL_SLIM)["attachment"]  # a 10 mm mate on a 15 mm end is under 0.85: no_fit on every ring host
+    assert att["compatible_hosts"] == [] and att["pending_hosts"] == []
 
 
 # --- AC75: pending hosts ---------------------------------------------------------------------------------------------
@@ -277,7 +288,7 @@ def test_ac75_no_host_is_in_both_lists_and_an_empty_compatible_list_is_allowed(b
 
 
 def test_ac75_pending_entries_in_the_directory_keep_their_tier(built):
-    assert [(e["host"], e["tier"]) for e in rec(built, W.MAG)["attachment"]["pending_hosts"]] == [(B_, SAME), (E_, SAME), (D_, CROSS)]
+    assert [(e["host"], e["tier"]) for e in rec(built, W.MAG)["attachment"]["pending_hosts"]] == [(G_, SAME), (B_, SAME), (E_, SAME), (D_, CROSS)]  # G1 3.1: GAMMA too
 
 
 def test_ac75_the_default_export_view_of_pending_hosts_drops_the_cross_pack_candidate():
@@ -297,16 +308,18 @@ def test_ac75_the_export_view_of_compatible_hosts_filters_by_tier_too():
 
 
 def test_ac75_pending_of_the_built_directory_through_the_export_filter(built):
-    assert compat.export_pending(rec(built, W.MAG)["attachment"]["pending_hosts"], SAME) == [B_, E_]
-    assert compat.export_pending(rec(built, W.SCOPE)["attachment"]["pending_hosts"], SAME) == []  # S7: BETA has a flat optic seat
-    assert compat.export_pending(rec(built, W.ALT_SCOPE)["attachment"]["pending_hosts"], SAME) == []  # only a cross-pack candidate
+    # G1 3.1/3.5 (S8): the tier is the pack relation, so GAMMA is a same-pack pending host of the magazine and the flat optic seats are pending hosts
+    assert compat.export_pending(rec(built, W.MAG)["attachment"]["pending_hosts"], SAME) == [G_, B_, E_]
+    assert compat.export_pending(rec(built, W.SCOPE)["attachment"]["pending_hosts"], SAME) == [G_, B_]
+    assert compat.export_pending(rec(built, W.ALT_SCOPE)["attachment"]["pending_hosts"], SAME) == [D_]  # DELTA is in the Alt scope's own pack
 
 
 def test_ac75_a_host_with_a_default_tier_pending_slot_gets_mount_missing_and_others_do_not(built):
     flagged = {r["asset_id"] for r in built["weapons"] if "mount_missing" in r["review"]["reasons"]}
-    # BETA: no optic and no magazine seat but candidates for both; EPSILON: no magazine seat. DELTA has only cross-pack candidates.
-    # W8l: the foregrip part now lists the rifles with no name overlap (underbarrel is a family-free slot) and ALPHA has no underbarrel seat.
-    assert flagged == {W.ALPHA, W.BETA, W.EPSILON}
+    # BETA: no magazine seat but a candidate for it; EPSILON: no magazine seat. DELTA has only cross-pack candidates.
+    # W8l: the foregrip part lists the rifles and ALPHA has no underbarrel seat. G1 3.1 (S8): no archetype test keeps the rifle magazine off the pistol
+    # GAMMA, which has no magazine seat either, so GAMMA is flagged too.
+    assert flagged == {W.ALPHA, W.BETA, W.EPSILON, W.GAMMA}
 
 
 # --- INV-14 in the schema --------------------------------------------------------------------------------------------
@@ -340,8 +353,11 @@ def rec_pending(rows):
     return [{"host": h, "tier": t} for h, t in rows]
 
 
+SLOT = "laser_light"  # G1 3.8 (S8): the label rules these pure cases were written on survive for laser_light and the two sight slots only
+
+
 def part_view(**kw):
-    base = {"id": "P/part", "pack": "P", "slot": "optic", "kind": "scope", "flags": set(), "tokens": frozenset({"x"}),
+    base = {"id": "P/part", "pack": "P", "slot": SLOT, "kind": "laser", "flags": set(), "tokens": frozenset({"x"}),
             "foot_length_m": 0.06, "mate_d_m": None, "setting": ("setting", "s")}  # A2: one setting for P and Q
     return {**base, **kw}
 
@@ -358,5 +374,5 @@ def mount(**kw):
     return {**base, **kw}
 
 
-AFFINITY = {"optic": {"scope": ["rifle"], "default": ["rifle"]}}
+AFFINITY = {SLOT: {"laser": ["rifle"], "default": ["rifle"]}}
 PARAMS = compat._params(attachment_rules(load_rules()))

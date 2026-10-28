@@ -27,7 +27,9 @@ ALL_SLOTS = ["optic", "muzzle", "underbarrel", "magazine", "laser_light", "sight
 PACK = "FAKE_W8L_PROP"
 # `Zulu` is the family word the hosts and the magazine and flashlight share (those two slots need a family overlap)
 PROP, PLAIN, FLARE = "SM_Wep_Zulu_Rifle_Prop_01", "SM_Wep_Zulu_Rifle_Alpha_01", "SM_Wep_Zulu_Pistol_Flare_01"
-SILENCER, MAG, LASER = "SM_Wep_Zulu_Silencer_01", "SM_Wep_Zulu_Mag_01", "SM_Wep_Zulu_Flashlight_01"
+# G1 3.6 (S8): the fixture rifle's barrel is a box, so a silencer is no_fit on every host here and would make the control vacuous; a foregrip (underbarrel,
+# not_judged: a pending entry) stands in for the muzzle-side part
+SILENCER, MAG, LASER = "SM_Wep_Zulu_Foregrip_01", "SM_Wep_Zulu_Mag_01", "SM_Wep_Zulu_Flashlight_01"
 
 
 def rid(name):
@@ -43,7 +45,7 @@ def built(tmp_path_factory):
     a = W.A
     world = {PACK: {
         "hosts": {n: W.host_node(n, W.box_rifle()) for n in (PROP, PLAIN, FLARE)},
-        "parts": {SILENCER: a.suppressor, MAG: lambda: a.mag_box(0.01, 0.12, 0.02), LASER: lambda: a.flip_y(a.optic())},
+        "parts": {SILENCER: lambda: a.flip_y(a.optic()), MAG: lambda: a.mag_box(0.01, 0.12, 0.02), LASER: lambda: a.flip_y(a.optic())},
     }}
     return {w["id"]: w for w in W.build(tmp_path_factory.mktemp("w8l_prop"), world)[0]["weapons"]}
 

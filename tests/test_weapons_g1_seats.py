@@ -496,10 +496,10 @@ def test_a_geometry_cache_hit_equals_a_recompute_with_the_features(tree):
 
 
 def test_the_versions_and_digests_are_those_of_the_base():
-    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 6  # S7 bumps neither (the lead decides the bump)
+    assert pkg.WEAPON_ATTACH_VERSION == 14 and pkg.WEAPON_GEOMETRY_VERSION == 6  # S7 bumps neither (the lead decides the bump)
     from synty_inventory.weapons.rules import attach_rules_digest, weapon_rules_digest
     rules = load_rules()
-    assert weapon_rules_digest(rules) == "7b9829af37328fe7" and attach_rules_digest(rules) == "1dacc105674aff85"  # E1.4: the new bore.circ_min key moves it (was 59268363ae44fd9e)
+    assert weapon_rules_digest(rules) == "7b9829af37328fe7" and attach_rules_digest(rules) == "a981c4c7c27972e8"  # G1 4.6/AC146 (S8): the retired rules leave the four slots (was 1dacc105674aff85); E1.4: bore.circ_min moved it before (was 59268363ae44fd9e)
 
 
 # --- fold-ins -------------------------------------------------------------------------------------------------------------------

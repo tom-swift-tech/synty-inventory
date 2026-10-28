@@ -1,12 +1,11 @@
-"""W8n item 2: magazines (docs/weapon_attachments.md 13.7 A6-3).
+"""W8n item 2: magazines (docs/weapon_attachments.md 13.7 A6-3), as G1 leaves them (S8; docs/weapon_attach_geometry.md 3.7, 3.8).
 
-(i) A magazine whose smaller body side (``min(length_m, width_m)``) reaches ``attach_compat.drum_min_m`` (0.11 m) reads the ``drum`` row of
-``attach_affinity`` (smg, rifle, shotgun, lmg), whatever its name or its classified kind; the record's ``kind`` is untouched.
-(ii) A non-twin, non-override magazine whose ``foot_length_m / span_m`` is under ``attach_compat.fit_span_min`` (0.75) is not listed; a part or a
-seat without the number is not judged.
+The two A6-3 rules are RETIRED: the drum-by-shape affinity row (``attach_compat.drum_min_m`` stays in the table as a dead key, kept by 3.8) and the
+``attach_compat.fit_span_min`` lower bound (rejected by ``rules.py`` now). The magazine is a geometry slot: the tier is the pack relation and the listing is
+the well-entry verdict (3.7), so a thick magazine, a short one and a thin one are judged by their entry section against the well and by nothing else.
 
-Pure ``compat.candidate`` cases first (the boundaries), then a built directory (``w8n_world.mag_world``: three hosts with a 0.15 m well, four
-magazines). Every expected value is a LITERAL.
+Pure ``compat.candidate`` cases first (a host with no recorded features is ``not_judged``: a pending entry, so no foot, span or body size can veto or list
+a pair any more), then a built directory (``w8n_world.mag_world``: three hosts with a 0.15 m well, four magazines). Every expected value is a LITERAL.
 """
 
 from __future__ import annotations
@@ -30,6 +29,7 @@ TABLES = attachment_rules(load_rules())
 PARAMS = compat._params(TABLES)
 AFFINITY = TABLES["attach_affinity"]
 SAME, CROSS = "same_pack_fit", "cross_pack_fit"
+PENDING_SAME = {"host": "P/Zulu_Host_01", "tier": SAME, "listed": False}
 
 
 def part(foot=0.12, body_min=0.02, pack="P", **kw):
@@ -46,96 +46,62 @@ def host(span=0.15, archetype="rifle", pack="P", **kw):
     return {**base, **kw}
 
 
-def cand(p, h, *, verdict=None, twin=False):
-    return compat.candidate(p, h, verdict=verdict, twin=twin, affinity=AFFINITY, params=PARAMS)
+def cand(p, h, *, verdict=None, twin=False, params=PARAMS):
+    return compat.candidate(p, h, verdict=verdict, twin=twin, affinity=AFFINITY, params=params)
 
 
 def test_the_shipped_numbers_are_the_specified_literals():
-    assert TABLES["attach_compat"]["drum_min_m"] == 0.11 and TABLES["attach_compat"]["fit_span_min"] == 0.75
-    assert PARAMS["drum_min_m"] == 0.11 and PARAMS["fit_span_min"] == 0.75
+    # G1 3.8 (S8): drum_min_m stays in the table (a dead key, kept for the kind classification); fit_span_min is gone
+    assert TABLES["attach_compat"]["drum_min_m"] == 0.11 and "fit_span_min" not in TABLES["attach_compat"]
+    assert "drum_min_m" not in PARAMS and "fit_span_min" not in PARAMS  # compat reads neither
     assert validate_rules(load_rules()) == []
 
 
-# -- (ii) the lower bound, pure ----------------------------------------------------------------------------------------------
+# -- (ii) the lower bound is retired, pure -----------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(("foot", "span", "listed"), [
-    (0.09, 0.15, False),      # 0.60
-    (0.10, 0.15, False),      # 0.667
-    (0.1124, 0.15, False),    # 0.7493
-    (0.12, 0.15, True),       # 0.80
-    (0.15, 0.15, True),       # 1.0
-    (0.375, 0.50, True),      # exactly 0.75: the bound is a floor (the ratio must be under it to be vetoed)
-])
-def test_a_same_pack_magazine_under_three_quarters_of_the_well_is_not_listed(foot, span, listed):
-    got = cand(part(foot=foot), host(span=span))
-    assert (got is not None and got["listed"] and got["tier"] == SAME) is listed, (foot, span)
-    assert (got is None) is (not listed)  # not pending either: the pair is gone
+@pytest.mark.parametrize(("foot", "span"), [(0.09, 0.15), (0.10, 0.15), (0.1124, 0.15), (0.12, 0.15), (0.15, 0.15), (0.375, 0.50), (None, 0.15), (0.045, None)])
+def test_a_same_pack_magazine_is_a_pending_entry_whatever_its_foot_against_the_well(foot, span):
+    # G1 3.7/3.8: the foot-to-well ratio (0.60 ... 1.0 here) vetoes and lists nothing; with no recorded host features the pair is not_judged: bare pending
+    assert cand(part(foot=foot), host(span=span)) == PENDING_SAME
 
 
-def test_a_cross_pack_magazine_is_judged_by_the_same_bound():
-    assert cand(part(foot=0.09, pack="Q"), host(span=0.15)) is None
-    got = cand(part(foot=0.12, pack="Q"), host(span=0.15))
-    # A8-1 (W8p): a cross-pack magazine that passes the bound is parked in pending_hosts, not listed (the bound still runs first: 0.09 above is gone)
-    assert got == {"host": got["host"], "tier": CROSS, "listed": False}
+def test_a_cross_pack_magazine_is_a_pending_cross_entry_whatever_its_foot():
+    want = {"host": "P/Zulu_Host_01", "tier": CROSS, "listed": False}
+    assert cand(part(foot=0.09, pack="Q"), host(span=0.15)) == want  # A8-1 parks a cross-pack magazine in pending; the bound that dropped it is retired
+    assert cand(part(foot=0.12, pack="Q"), host(span=0.15)) == want
 
 
-def test_a_twin_and_an_override_are_never_vetoed_by_the_bound():
+def test_a_twin_and_an_override_are_never_vetoed():
     assert cand(part(foot=0.045), host(span=0.15), twin=True)["tier"] == "twin"   # 0.30
     assert cand(part(foot=0.045), host(span=0.15), verdict="add")["tier"] == "override"
     assert cand(part(foot=0.045, pack="Q"), host(span=0.15), verdict="add")["tier"] == "override"
 
 
-def test_a_pair_without_a_foot_or_a_span_is_not_judged():
-    assert cand(part(foot=None), host(span=0.15))["tier"] == SAME
-    assert cand(part(foot=0.045), host(span=None))["tier"] == SAME
+def test_a_pair_without_a_seat_is_pending():
     no_seat = host(span=None)
     no_seat["mounts"]["magazine"] = {"source": "none", "reason": "no_child_no_probe", "span_m": None}
-    assert cand(part(foot=0.045), no_seat) == {"host": "P/Zulu_Host_01", "tier": SAME, "listed": False}  # pending as before
+    assert cand(part(foot=0.045), no_seat) == PENDING_SAME  # pending as before
 
 
-def test_the_bound_is_for_the_magazine_slot_only():
-    underbarrel = part(foot=0.03, kind="foregrip", slot="underbarrel")
-    h = host(span=0.15)
-    h["mounts"] = {"underbarrel": h["mounts"]["magazine"]}
-    assert cand(underbarrel, h)["listed"]  # 0.20, listed all the same
+def test_the_removed_bound_is_not_a_parameter_any_more():
+    for value in (0.5, 0.9):
+        assert cand(part(foot=0.09), host(span=0.15), params=dict(PARAMS, fit_span_min=value)) == PENDING_SAME  # a stale key in the params changes nothing
 
 
-def test_the_bound_is_a_parameter():
-    params = dict(PARAMS, fit_span_min=0.5)
-    assert compat.candidate(part(foot=0.09), host(span=0.15), verdict=None, twin=False, affinity=AFFINITY, params=params)["tier"] == SAME   # 0.60
-    params = dict(PARAMS, fit_span_min=0.9)
-    assert compat.candidate(part(foot=0.12), host(span=0.15), verdict=None, twin=False, affinity=AFFINITY, params=params) is None   # 0.80
+# -- (i) the drum by shape is retired, pure ----------------------------------------------------------------------------------
 
 
-# -- (i) the drum by shape, pure ---------------------------------------------------------------------------------------------
+@pytest.mark.parametrize("archetype", ["pistol", "rifle", "sniper"])
+@pytest.mark.parametrize("body_min", [0.02, 0.10, 0.1099, 0.11, 0.12, None])
+def test_a_magazine_thick_on_both_sides_reads_no_drum_row_any_more(archetype, body_min):
+    # G1 3.8: the `drum` row of attach_affinity and its 0.11 threshold are retired; a thick body (the drum shape) is judged by its entry section like any
+    assert cand(part(foot=0.15, body_min=body_min), host(archetype=archetype)) == PENDING_SAME
 
 
-def test_a_magazine_thick_on_both_sides_reads_the_drum_row():
-    # a pistol is in the standard row, not in the drum row (smg, rifle, shotgun, lmg)
-    assert cand(part(foot=0.15, body_min=0.10), host(archetype="pistol"))["tier"] == SAME
-    assert cand(part(foot=0.15, body_min=0.12), host(archetype="pistol")) is None
-    assert cand(part(foot=0.15, body_min=0.12), host(archetype="rifle"))["tier"] == SAME
-    assert cand(part(foot=0.15, body_min=0.12), host(archetype="sniper")) is None
-
-
-def test_the_drum_threshold_is_inclusive_at_0_11():
-    assert cand(part(foot=0.15, body_min=0.11), host(archetype="pistol")) is None
-    assert cand(part(foot=0.15, body_min=0.1099), host(archetype="pistol"))["tier"] == SAME
-
-
-def test_a_part_without_a_body_size_and_other_slots_are_not_drums():
-    assert cand(part(foot=0.15, body_min=None), host(archetype="pistol"))["tier"] == SAME
-    scope = part(foot=0.15, body_min=0.12, kind="scope", slot="optic")
-    h = host(archetype="pistol")
-    h["mounts"] = {"optic": h["mounts"]["magazine"]}
-    assert cand(scope, h) == cand(dict(scope, body_min_m=0.02), h)  # a body size changes nothing outside the magazine slot
-
-
-def test_the_drum_number_is_a_parameter():
-    params = dict(PARAMS, drum_min_m=0.2)
-    assert compat.candidate(part(foot=0.15, body_min=0.12), host(archetype="pistol"), verdict=None, twin=False, affinity=AFFINITY,
-                            params=params)["tier"] == SAME
+def test_the_drum_number_is_not_read():
+    assert cand(part(foot=0.15, body_min=0.12), host(archetype="pistol"), params=dict(PARAMS, drum_min_m=0.2)) == PENDING_SAME
+    assert cand(part(foot=0.15, body_min=0.12), host(archetype="pistol"), params=dict(PARAMS, drum_min_m=0.01)) == PENDING_SAME
 
 
 # -- a built directory ------------------------------------------------------------------------------------------------------
@@ -149,7 +115,7 @@ def built(tmp_path_factory):
 
 def listed(by, name) -> dict:
     att = by[N.pid(name)]["attachment"]
-    return {"compatible": {e["host"].split("/", 1)[1]: (e["tier"], e["score"]) for e in att["compatible_hosts"]},
+    return {"compatible": {e["host"].split("/", 1)[1]: (e["tier"], e["score"], e["signals"]) for e in att["compatible_hosts"]},
             "pending": [e["host"].split("/", 1)[1] for e in att["pending_hosts"]]}
 
 
@@ -163,40 +129,42 @@ def test_the_fixture_is_what_the_comments_say(built):
         assert fp["foot_length_m"] == pytest.approx(foot, abs=0.0006) and min(fp["length_m"], fp["width_m"]) == pytest.approx(body_min, abs=0.0006)
 
 
-def test_the_drum_shaped_magazine_lists_on_the_drum_row_only_and_keeps_its_kind(built):
+def test_the_drum_shaped_magazine_fits_every_well_whose_entry_it_matches_and_keeps_its_kind(built):
+    # the wells of this world are the thick body's size (the baked magazine child), so the well-entry section of the 0.12 magazine matches all three hosts:
+    # the pistol and the sniper no longer refuse it by archetype (G1 3.8). Tier base 0.7, signals `well_entry` (3.1 step 5, 3.7)
     assert built[N.pid(N.MAG_DRUM)]["attachment"]["kind"] == "standard"  # the record is unchanged
-    assert listed(built, N.MAG_DRUM) == {"compatible": {N.MAG_RIFLE: ("same_pack_fit", 0.8)}, "pending": []}  # not the pistol, not the sniper
+    assert listed(built, N.MAG_DRUM) == {
+        "compatible": {N.MAG_PISTOL: ("same_pack_fit", 0.7, ["well_entry"]), N.MAG_RIFLE: ("same_pack_fit", 0.7, ["well_entry"]),
+                       N.MAG_SNIPER: ("same_pack_fit", 0.7, ["well_entry"])}, "pending": []}
 
 
-def test_the_slim_magazine_lists_on_the_standard_row(built):
-    assert listed(built, N.MAG_SLIM) == {
-        "compatible": {N.MAG_PISTOL: ("same_pack_fit", 0.8), N.MAG_RIFLE: ("same_pack_fit", 0.8), N.MAG_SNIPER: ("same_pack_fit", 0.8)},
-        "pending": []}
+@pytest.mark.parametrize("name", [N.MAG_SLIM, N.MAG_BOARD, N.MAG_FAIR])
+def test_the_thin_magazines_do_not_match_the_thick_well_and_list_nowhere(built, name):
+    # no_fit (3.7): the 0.02 thin entry section is far off the well's 0.12; neither listed nor pending. Their foot (0.09, 0.12, 0.13 of 0.15) decides nothing
+    assert listed(built, name) == {"compatible": {}, "pending": []}
 
 
-def test_a_magazine_at_60_percent_of_the_well_lists_nowhere_and_one_at_80_percent_does(built):
-    assert listed(built, N.MAG_BOARD) == {"compatible": {}, "pending": []}   # 0.09 / 0.15
-    assert sorted(listed(built, N.MAG_FAIR)["compatible"]) == [N.MAG_PISTOL, N.MAG_RIFLE, N.MAG_SNIPER]   # 0.12 / 0.15
-
-
-def test_the_bound_off_lists_the_board_magazine_again(tmp_path):
+def test_a_stale_fit_span_min_in_the_rules_changes_nothing_in_the_directory(tmp_path):
     rules = W.sight_rules()
     rules["attachment_rules"]["attach_compat"]["fit_span_min"] = 0.0
-    assert validate_rules(rules) == []
+    assert validate_rules(rules) != []  # rejected as retired, so the world is built with the table as shipped and the key is read by nothing
+    rules["attachment_rules"]["attach_compat"].pop("fit_span_min")
     by = W.by_id(W.build(tmp_path, N.mag_world(), rules=rules)[0])
-    assert sorted(listed(by, N.MAG_BOARD)["compatible"]) == [N.MAG_PISTOL, N.MAG_RIFLE, N.MAG_SNIPER]
+    assert listed(by, N.MAG_BOARD) == {"compatible": {}, "pending": []}
 
 
 def test_an_override_still_lists_the_board_magazine_on_a_host(tmp_path):
     ovr = W.overrides_doc(ids={N.pid(N.MAG_BOARD): {"compatible": {"add": [N.pid(N.MAG_PISTOL)]}}})
     by = W.by_id(W.build(tmp_path, N.mag_world(), overrides=ovr)[0])
-    assert listed(by, N.MAG_BOARD)["compatible"] == {N.MAG_PISTOL: ("override", 1.0)}
+    assert listed(by, N.MAG_BOARD)["compatible"] == {N.MAG_PISTOL: ("override", 1.0, ["override"])}
 
 
-def test_the_rules_validation_rejects_a_malformed_magazine_number():
-    for key, bad in (("drum_min_m", 0.0), ("drum_min_m", 1.5), ("drum_min_m", "big"), ("fit_span_min", -0.1), ("fit_span_min", 1.5),
-                     ("fit_span_min", True)):
+def test_the_rules_validation_rejects_a_malformed_drum_number_and_any_fit_span_min():
+    for key, bad in (("drum_min_m", 0.0), ("drum_min_m", 1.5), ("drum_min_m", "big"), ("fit_span_min", 0.75), ("fit_span_min", -0.1), ("fit_span_min", True)):
         rules = deepcopy(load_rules())
         rules["attachment_rules"]["attach_compat"][key] = bad
         errors = validate_rules(rules)
         assert errors and any(key in e for e in errors), (key, bad, errors)
+    rules = deepcopy(load_rules())
+    rules["attachment_rules"]["attach_compat"]["fit_span_min"] = 0.75
+    assert any("fit_span_min" in e and "retired" in e for e in validate_rules(rules))  # G1 3.8: a retired key, not a number out of range

@@ -5,7 +5,7 @@ review_helpers world plus FAKE_Attach / FAKE_Mount / FAKE_CompA / FAKE_CompB, 23
 (``w8d_gen_reference.py``). The W8 build of the same world must differ from it in exactly the ways the spec allows:
 
 * the counts and the digests that W7 knew (``rules_digest`` 7b9829af37328fe7, ``geometry_version`` 5 (6 since G1), ``overrides_digest``) are equal;
-* the only new header fields are ``attach_version`` and ``attach_rules_digest``;
+* the only new header fields are ``attach_version``, ``attach_rules_digest`` and (G1 4.3) ``fit_digest``;
 * every pre-existing field of every record is equal, except ``review.confidence`` and ``review.reasons``;
 * those two move only by the spec 8 attachment reasons plus the ``low_confidence`` / cap / scale they cause: reasons are only
   ever added, confidence only ever goes down, and it goes down only on an attachment part whose anchor is unmeasured or whose
@@ -41,7 +41,7 @@ ATTACH_REASONS = {  # spec 8
 }
 CAUSED = {"low_confidence"}  # the cap a reason causes
 CONFIDENCE_MOVERS = {"anchor_unmeasured", "anchor_forward_unsure", "sight_side_unsure"}  # the only reasons that cap or scale confidence
-NEW_HEADER = {"attach_version", "attach_rules_digest"}
+NEW_HEADER = {"attach_version", "attach_rules_digest", "fit_digest"}  # G1 4.3/AC145 (S8): the digest of the fit gate's measure records
 NEW_RECORD = {"attachment"}  # plus geometry.mounts
 
 
@@ -125,7 +125,7 @@ def test_counts_and_digests_equal_the_w7_report(built, reference):
     assert (built["rules_digest"], built["geometry_version"]) == ("7b9829af37328fe7", 6)
     assert built["overrides_digest"] == reference["overrides_digest"]
     assert set(built) - set(reference) == NEW_HEADER and not set(reference) - set(built)
-    assert built["attach_version"] == 13 and len(built["attach_rules_digest"]) == 16
+    assert built["attach_version"] == 14 and len(built["attach_rules_digest"]) == 16  # G1 4.6/AC146 (S8): attach version 13 -> 14
 
 
 def test_every_pre_existing_field_is_equal_and_review_moves_only_by_the_attachment_reasons(built, reference):
@@ -136,7 +136,7 @@ def test_every_pre_existing_field_is_equal_and_review_moves_only_by_the_attachme
 def test_the_diff_is_not_vacuous_and_the_new_fields_are_present(built, reference):
     ref_by = {w["id"]: w for w in reference["weapons"]}
     moved = [w["id"] for w in built["weapons"] if w["review"] != ref_by[w["id"]]["review"]]
-    assert len(moved) == 77  # records whose reasons gained an attachment reason (12 of them also move in confidence); A2: +39 hosts with a sight probe seat (mount_estimated); A3 (W8i): -3 (the Prop_Pistol, Flare_Gun and Prop_Rifle hosts are slot_disabled, no mount_estimated) and +1 (Pistol_Mount is now seated: its baked laser child is out of the probe mesh); A3 addendum 3 (W8j): -4 (the Alpha, Mount, Shared and Tilt hosts carry a baked Scope body child, so both their sight slots are slot_disabled, no mount_estimated); A4 (W8l): +1 (FAKE_CompA Alpha has no underbarrel seat and the foregrip part now lists it, family-free, so it gains mount_missing; the five FAKE_Modern hosts that gain it already moved by mount_estimated); A6 (W8n): -1 (the FAKE_Modern Nail_Gun host is a tool-class host, slot_disabled on all seven slots, so no mount_estimated); A6 (W8n, Tom's two answers): -2 more (the FAKE_Modern flame thrower and stun gun hosts join the tool class, so they lose their mount_estimated too); A6 (W8n, Tom's minigun rule): -1 more (the FAKE_Modern Minigun_01 host joins the fixed_heavy class and loses its mount_estimated)
+    assert len(moved) == 79  # records whose reasons gained an attachment reason (12 of them also move in confidence); A2: +39 hosts with a sight probe seat (mount_estimated); A3 (W8i): -3 (the Prop_Pistol, Flare_Gun and Prop_Rifle hosts are slot_disabled, no mount_estimated) and +1 (Pistol_Mount is now seated: its baked laser child is out of the probe mesh); A3 addendum 3 (W8j): -4 (the Alpha, Mount, Shared and Tilt hosts carry a baked Scope body child, so both their sight slots are slot_disabled, no mount_estimated); A4 (W8l): +1 (FAKE_CompA Alpha has no underbarrel seat and the foregrip part now lists it, family-free, so it gains mount_missing; the five FAKE_Modern hosts that gain it already moved by mount_estimated); A6 (W8n): -1 (the FAKE_Modern Nail_Gun host is a tool-class host, slot_disabled on all seven slots, so no mount_estimated); A6 (W8n, Tom's two answers): -2 more (the FAKE_Modern flame thrower and stun gun hosts join the tool class, so they lose their mount_estimated too); A6 (W8n, Tom's minigun rule): -1 more (the FAKE_Modern Minigun_01 host joins the fixed_heavy class and loses its mount_estimated); G1 3.8/AC148 (S8): +2 (FAKE_Attach Pistol_Suppressor and Silencer now hold a cross-pack pending entry, compat_cross_pack, which the retired R-a and R-c rows used to drop; FAKE_CompA Silencer_Slim stops holding one and Silencer, Silencer_Brake gain it; the extra mount_missing reasons land on hosts that already moved by mount_estimated)
     assert sum(1 for w in built["weapons"] if w["review"]["confidence"] != ref_by[w["id"]]["review"]["confidence"]) == 12
     assert sum(1 for w in built["weapons"] if "attachment" in w) == 56  # every part record carries the key
     assert sum(1 for w in built["weapons"] if w.get("attachment")) == 39  # 39 non-null blocks (A2: the iron-sight part is sight_side_unsure, no block)

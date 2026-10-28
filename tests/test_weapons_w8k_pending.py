@@ -276,7 +276,7 @@ def test_ac104_the_versions_and_the_digest():
     import synty_inventory.weapons as pkg
     from synty_inventory.weapons.rules import load_rules, weapon_rules_digest
 
-    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 6
+    assert pkg.WEAPON_ATTACH_VERSION == 14 and pkg.WEAPON_GEOMETRY_VERSION == 6
     assert weapon_rules_digest(load_rules()) == "7b9829af37328fe7"  # the W7 digest: item 9 touches no rule table
 
 

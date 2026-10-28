@@ -2,7 +2,12 @@
 
 Pure ``compat.candidate`` cases over hand-made part and host views (no files), then ``compat.compute`` over hand-made records for the plumbing
 (reasons, ``mount_missing``). Every table a case relies on is passed as a LITERAL in ``params`` (never read from the shipped YAML), so a change of the
-shipped rows cannot loosen a case; the shipped rows have their own test. Part sizes are scaled from the baked child by literal factors (1.4 = 40 % off).
+shipped rows cannot loosen a case; the shipped rows have their own test. Part sizes are scaled from a 0.04 x 0.02 well by literal factors (1.4 = 40 % off).
+
+G1 (S8, docs/weapon_attach_geometry.md 3.1, 3.8): A8-1 and A8-2 survive, but they now act on a geometry verdict. The four geometry slots take their tier from
+the pack relation and their listing from ``fit_geometry.verdict``, so the host views below carry literal ``feats`` (a well reference, a toothed run, a
+barrel end) and the part views carry a measured anchor and, for a magazine, the pair's entry section. A8-1 parks a cross-pack ``fit`` AFTER the tier. R-a,
+R-b and the A6 foot test are retired for these slots (their cases are re-pointed at the verdict), and the label slot (``laser_light``) keeps them.
 """
 
 from __future__ import annotations
@@ -19,8 +24,14 @@ TABLES = attachment_rules(load_rules())
 AFFINITY = TABLES["attach_affinity"]
 SAME, CROSS, TWIN, OVERRIDE = "same_pack_fit", "cross_pack_fit", "twin", "override"
 A7_ATTACH_DIGEST = "306a4a553e8e5060"  # attach_rules_digest(load_rules()) at 6e55ce5 (attach version 12), measured by running the function there
-TOL = {"magazine": 0.35, "optic": 0.35, "underbarrel": 0.45}
+TOL = {"laser_light": 0.35}  # the surviving label slot only: cross_pack_size_tol rows for the four geometry slots are retired (G1 3.8)
 CHILD = [0.02, 0.04, 0.10]  # the baked child's sorted extents
+# the fit_geometry rows the cases read, as literals (3.5 clamp, 3.6 bore, 3.7 well)
+FIT_RULES = {"slots": ["optic", "muzzle", "underbarrel", "magazine"], "clamp": {"overhang_max_m": 0.010, "ratio_min": 1.0},
+             "bore": {"od_ratio": [0.85, 2.0], "inner_ratio": [0.47, 1.21]}, "well": {"tol": 0.15}}
+# what each geometry slot of the host measured: a 0.04 x 0.02 well, a 0.20 x 0.02 toothed run, a 0.02 ring barrel end
+SLOT_FEATS = {"magazine": {"well_ref": {"length_m": 0.04, "width_m": 0.02}}, "optic": {"toothed_run": {"length_m": 0.20, "width_m": 0.02}},
+              "underbarrel": {"toothed_run": {"length_m": 0.20, "width_m": 0.02}}, "muzzle": {"barrel_end": {"od_m": 0.02, "evidence": "ring"}}}
 
 
 def params(unverified=None, never=None, tol=None):
@@ -34,6 +45,7 @@ def params(unverified=None, never=None, tol=None):
     tables.pop("cross_pack_never", None)
     tables["suppressor_never"] = {} if never is None else never
     tables["tokenless_family_free_slots"] = []
+    tables["fit_geometry"] = FIT_RULES
     return compat._params(tables)
 
 
@@ -46,9 +58,11 @@ def scaled(factor, base=CHILD):
 
 
 def part(slot="magazine", kind="standard", *, pack="P", tokens=("zulu",), extents=None, **kw):
+    # the entry section of a magazine against host Q/Host_01's well: the two larger baked-child extents, [L, W] (3.7 step 2)
+    sections = {"Q/Host_01": {"": [extents[1], extents[0]]}} if slot == "magazine" and extents else {}
     base = {"id": f"{pack}/Zulu_Part_01", "pack": pack, "slot": slot, "kind": kind, "flags": set(), "tokens": frozenset(tokens),
             "foot_length_m": 0.12 if slot == "magazine" else 0.06, "mate_d_m": None, "setting": ("setting", "s"), "body_min_m": 0.02,
-            "extents": extents}
+            "extents": extents, "anchor_measured": True, "foot_width_m": 0.02, "device_inner_d": None, "sections": sections}
     return {**base, **kw}
 
 
@@ -62,7 +76,8 @@ def host(slot="magazine", *, archetype="rifle", pack="Q", mount=None, children=N
     if mount is None:
         mount = seat(span=0.15 if slot == "magazine" else 0.06)
     base = {"id": f"{pack}/Host_01", "pack": pack, "archetype": archetype, "flags": set(), "mounts": {slot: mount}, "tokens": frozenset(tokens),
-            "setting": ("setting", "s"), "children": {} if children is None else children}
+            "setting": ("setting", "s"), "children": {} if children is None else children,
+            "feats": {"slots": {slot: SLOT_FEATS[slot]}} if slot in SLOT_FEATS else None}
     return {**base, **kw}
 
 
@@ -85,13 +100,14 @@ def pending(got, tier):
 # -- AC124 A8-1: a cross-pack magazine is unverified -----------------------------------------------------------------------------------
 
 
-def test_ac124_a_cross_pack_magazine_on_a_host_with_a_seat_is_pending_as_host_and_tier_only():
+def test_ac124_a_cross_pack_magazine_the_well_accepts_is_pending_with_its_evidence_and_no_score():
     h = host(children={"magazine": kid()})
     got = cand(part(extents=scaled(1.1)), h, params(UNVERIFIED))
-    assert got == {"host": "Q/Host_01", "tier": CROSS, "listed": False}  # no score, signals or replaces: the pending form
-    # the seat is there: with the row removed the same pair is a listed entry with all its evidence
+    # G1 3.1 step 4/5: the pending form {host, tier} plus the signals the verdict measured; no score or replaces. `fit_parked` is the AC140 counter's marker
+    assert got == {"host": "Q/Host_01", "tier": CROSS, "listed": False, "signals": ["well_entry"], "fit_parked": True}
+    # the well accepts the section: with the row removed the same pair is a listed entry with all its evidence, scored by the tier base alone
     full = cand(part(extents=scaled(1.1)), h, params(None))
-    assert listed(full, CROSS) and {"score", "signals", "replaces"} <= set(full)
+    assert listed(full, CROSS) and full["score"] == 0.4 and full["signals"] == ["well_entry"] and full["replaces"] == ["Kid"]
 
 
 def test_ac124_the_row_removed_or_empty_lists_the_cross_magazine_again():
@@ -122,7 +138,7 @@ def test_ac124_a_cross_pack_optic_underbarrel_muzzle_and_laser_stay_listed(slot,
     mount = seat(span=span) if slot != "muzzle" else seat(source="probe", occupied=(), bore_d_m=0.02, bore_source="ring")
     children = {slot: kid(extents_of)} if extents_of else {}
     p = part(slot, kind, extents=extents_of, mate_d_m=0.02 if slot == "muzzle" else None, foot_length_m=None if slot == "muzzle" else 0.06)
-    h = host(slot, mount=mount, children=children)
+    h = host(slot, mount=mount, children=children)  # optic/underbarrel: a toothed run the foot fits; muzzle: a ring end the mate matches (SLOT_FEATS)
     got = cand(p, h, params(UNVERIFIED))
     assert listed(got, CROSS), slot
 
@@ -133,22 +149,35 @@ def test_ac124_a_cross_pack_suppressor_on_a_rifle_stays_listed():
     assert listed(cand(p, host("muzzle", mount=mount), params(UNVERIFIED, NEVER)), CROSS)
 
 
-def test_ac124_a_pair_r_a_drops_is_dropped_not_parked():
-    # a cross magazine 40 % off the baked child it replaces: R-a drops it. If the routing came BEFORE R-a it would be a pending entry here.
+def test_ac124_a_pair_the_verdict_drops_is_dropped_not_parked():
+    # G1 3.1 step 4: R-a is retired for the magazine; the well-entry verdict (tol 0.15) drops what it refuses. A no_fit cross magazine is on neither list:
+    # if the parking came BEFORE the verdict it would be a pending entry here.
     h = host(children={"magazine": kid()})
-    assert cand(part(extents=scaled(1.4)), h, params(UNVERIFIED)) is None
-    assert pending(cand(part(extents=scaled(1.3)), h, params(UNVERIFIED)), CROSS)  # 30 % off: kept, and parked
+    assert cand(part(extents=scaled(1.4)), h, params(UNVERIFIED)) is None  # 40 % over the well
+    assert cand(part(extents=scaled(1.3)), h, params(UNVERIFIED)) is None  # 30 % over: past the 15 % tolerance
+    assert pending(cand(part(extents=scaled(1.1)), h, params(UNVERIFIED)), CROSS)  # 10 % over: fit, and parked
     assert cand(part(extents=scaled(0.6)), h, params(UNVERIFIED)) is None  # 40 % under
 
 
-def test_ac124_the_other_drops_come_first_too_the_gun_class_and_the_foot_test():
+def test_ac124_the_gun_class_and_the_foot_test_are_retired_for_the_magazine():
     h = host(children={"magazine": kid()})
-    # R-b: a pistol-named part on a rifle host
-    assert cand(part(tokens=("zulu", "pistol"), extents=scaled(1.1)), h, params(UNVERIFIED)) is None
+    # G1 3.8: R-b (a pistol-named part on a rifle host) and the A6 foot test (a foot of 0.05 in a 0.15 well) no longer drop a magazine; the verdict alone
+    # decides, so both pairs are fits and A8-1 parks them
+    assert pending(cand(part(tokens=("zulu", "pistol"), extents=scaled(1.1)), h, params(UNVERIFIED)), CROSS)
     assert pending(cand(part(tokens=("zulu", "rifle"), extents=scaled(1.1)), h, params(UNVERIFIED)), CROSS)
-    # the A6 foot test: a foot of 0.05 in a 0.15 well (0.33 < 0.75)
-    assert cand(part(extents=scaled(1.1), foot_length_m=0.05), h, params(UNVERIFIED)) is None
+    assert pending(cand(part(extents=scaled(1.1), foot_length_m=0.05), h, params(UNVERIFIED)), CROSS)
     assert pending(cand(part(extents=scaled(1.1), foot_length_m=0.12), h, params(UNVERIFIED)), CROSS)
+
+
+def test_ac124_the_label_slot_keeps_r_a_and_r_b_and_is_never_parked():
+    # laser_light is outside the four geometry slots: R-a (cross_pack_size_tol 0.35), R-b and the unverified row all read as before. 1.4 is 40 % off
+    # the baked child, 1.3 is 30 % off
+    mount = seat(span=0.06)
+    h = host("laser_light", mount=mount, children={"laser_light": kid()})
+    laser = {"slot": "laser_light", "kind": "laser"}  # the part's default foot (0.06) matches the 0.06 seat
+    assert cand(part(**laser, extents=scaled(1.4)), h, params(UNVERIFIED)) is None  # R-a
+    assert listed(cand(part(**laser, extents=scaled(1.3)), h, params(UNVERIFIED)), CROSS)
+    assert cand(part(**laser, tokens=("zulu", "pistol"), extents=scaled(1.1)), h, params(UNVERIFIED)) is None  # R-b
 
 
 def test_ac124_a_pending_cross_magazine_without_a_seat_is_the_same_pending_form():
@@ -172,7 +201,7 @@ def world_records(unverified, *, with_seatless_host=True):
                   "bore_d_m": None, "bore_source": None, "occupied_by": ["Mag"], "child_node": "Mag", "confidence": 0.9, "reason": None}
     none = {"source": "none", "point": None, "forward": None, "up": None, "span_m": None, "span_source": None, "bore_d_m": None, "bore_source": None,
             "occupied_by": [], "child_node": None, "confidence": 0.0, "reason": "no_child_no_probe"}
-    foot = {"length_m": 0.044, "width_m": 0.022, "height_m": 0.11, "foot_length_m": 0.12,  # 10 % over the baked child: not a twin, inside R-a
+    foot = {"length_m": 0.044, "width_m": 0.022, "height_m": 0.11, "foot_length_m": 0.12,  # 10 % over the baked child: not a twin, inside the well tolerance
              "foot_width_m": 0.02, "mate_d_m": None}
     anchor = {"point": [0, 0, 0], "forward": [0, 1, 0], "up": [0, 0, 1], "foot_source": "authored_up", "forward_source": "section", "symmetric": False}
     att = {"slot": "magazine", "kind": "standard", "anchor": anchor, "footprint": foot, "compatible_hosts": [], "pending_hosts": []}
@@ -182,34 +211,39 @@ def world_records(unverified, *, with_seatless_host=True):
         records.append(record("Q/Gun_Seatless_01", role="whole", archetype="rifle", geometry={"mounts": {"magazine": none}}))
     rules = deepcopy(load_rules())
     rules["attachment_rules"]["attach_genre_by_pack"] = {"P": "s", "Q": "s"}
-    rules["attachment_rules"]["attach_compat"]["cross_pack_size_tol"] = {"magazine": 0.35}
+    rules["attachment_rules"]["fit_geometry"] = FIT_RULES
     if unverified is None:
         rules["attachment_rules"]["attach_compat"].pop("cross_pack_unverified_slots", None)
     else:
         rules["attachment_rules"]["attach_compat"]["cross_pack_unverified_slots"] = unverified
     evidence = {"Q/Gun_Seated_01": {"magazine": {"Mag": {"extents": [0.02, 0.04, 0.10], "axes": [0.04, 0.02, 0.10], "seat": None}}}}
-    return records, rules, evidence
+    # the carried maps of the directory's pair pass: the seated host's well, and the part's entry section on it (10 % over the 0.04 x 0.02 well: a fit)
+    carried = {"host_feats": {"Q/Gun_Seated_01": {"slots": {"magazine": SLOT_FEATS["magazine"]}}},
+               "part_fit": {"P/Wep_Zulu_Mag_01": {"device_inner_d": None, "sections": {"Q/Gun_Seated_01": {"": [0.044, 0.022]}}}}}
+    return records, rules, evidence, carried
 
 
 def test_ac124_compute_parks_the_seated_cross_magazine_and_keeps_reasons_and_mount_missing():
-    records, rules, evidence = world_records(["magazine"])
-    got = compat.compute(records, rules, None, child_extents=evidence)
+    records, rules, evidence, carried = world_records(["magazine"])
+    got = compat.compute(records, rules, None, child_extents=evidence, **carried)
     mag = got["parts"]["P/Wep_Zulu_Mag_01"]
     assert mag["compatible"] == []
-    assert mag["pending"] == [{"host": "Q/Gun_Seated_01", "tier": CROSS}, {"host": "Q/Gun_Seatless_01", "tier": CROSS}]
+    # the seated host's parked fit keeps the evidence it was judged on; the seatless host was never judged: the bare pending form
+    assert mag["pending"] == [{"host": "Q/Gun_Seated_01", "tier": CROSS, "signals": ["well_entry"]}, {"host": "Q/Gun_Seatless_01", "tier": CROSS}]
     assert mag["reasons"] == {"compat_cross_pack"}  # the part still says it holds a cross-pack entry
     assert got["host_slots"] == {}  # the pending cross entries never counted toward mount_missing
+    assert got["parked_fit"] == {"magazine": 1}  # AC140: the one fit A8-1 held back
     # row removed: the seated pair is listed again, the seatless one stays pending; reasons and mount_missing are the same
-    records, rules, evidence = world_records(None)
-    base = compat.compute(records, rules, None, child_extents=evidence)
+    records, rules, evidence, carried = world_records(None)
+    base = compat.compute(records, rules, None, child_extents=evidence, **carried)
     mag = base["parts"]["P/Wep_Zulu_Mag_01"]
     assert [e["host"] for e in mag["compatible"]] == ["Q/Gun_Seated_01"] and mag["pending"] == [{"host": "Q/Gun_Seatless_01", "tier": CROSS}]
-    assert mag["reasons"] == {"compat_cross_pack"} and base["host_slots"] == {}
+    assert mag["reasons"] == {"compat_cross_pack"} and base["host_slots"] == {} and base["parked_fit"] == {}
 
 
 def test_ac124_apply_compat_writes_the_pending_entry_and_the_reason_into_the_records():
-    records, rules, evidence = world_records(["magazine"])
-    compat.apply_compat(records, rules, None, child_extents=evidence)
+    records, rules, evidence, carried = world_records(["magazine"])
+    compat.apply_compat(records, rules, None, child_extents=evidence, **carried)
     part_rec = next(r for r in records if r["id"] == "P/Wep_Zulu_Mag_01")
     assert part_rec["attachment"]["compatible_hosts"] == []
     assert [(e["host"], e["tier"]) for e in part_rec["attachment"]["pending_hosts"]] == [("Q/Gun_Seated_01", CROSS), ("Q/Gun_Seatless_01", CROSS)]
@@ -223,6 +257,7 @@ def test_ac124_apply_compat_writes_the_pending_entry_and_the_reason_into_the_rec
 
 
 def muzzle(archetype, *, pack="P", kind="suppressor", prm=None, ring=True, twin=False, verdict=None):
+    # `ring` is whether the host has a seat to list on; its barrel end is measured either way (SLOT_FEATS), so the verdict is `fit` and a seatless host is pending
     mount = seat(source="probe", occupied=(), bore_d_m=0.02, bore_source="ring") if ring else seat(source="none", occupied=(), span=None)
     p = part("muzzle", kind, pack=pack, tokens=("zulu",), mate_d_m=0.02, foot_length_m=None)
     h = host("muzzle", archetype=archetype, mount=mount, tokens=("zulu",) if pack == "Q" else ("alpha",))
@@ -312,7 +347,7 @@ def test_a_rules_dict_without_the_new_rows_is_valid_and_moves_nothing():
     t = rules["attachment_rules"]
     del t["attach_compat"]["cross_pack_unverified_slots"], t["suppressor_never"]
     assert validate_rules(rules) == []
-    prm = compat._params(attachment_rules(rules))
+    prm = dict(compat._params(attachment_rules(rules)), fit_rules=FIT_RULES)
     assert prm["cross_pack_unverified_slots"] == frozenset() and prm["suppressor_never"] == {}
     assert listed(cand(part(extents=scaled(1.1)), host(children={"magazine": kid()}), prm), CROSS)
     assert muzzle("shotgun", pack="Q", prm=prm)["tier"] == SAME
@@ -352,8 +387,8 @@ def test_every_new_row_moves_the_attach_digest_and_never_the_rules_digest(edit):
 
 
 def test_ac129_the_versions_and_the_digests():
-    assert pkg.WEAPON_ATTACH_VERSION == 13 and pkg.WEAPON_GEOMETRY_VERSION == 6
+    assert pkg.WEAPON_ATTACH_VERSION == 14 and pkg.WEAPON_GEOMETRY_VERSION == 6  # G1 4.6/AC146 (S8): attach version 13 -> 14
     rules = load_rules()
     assert weapon_rules_digest(rules) == "7b9829af37328fe7"
     assert len(attach_rules_digest(rules)) == 16 and attach_rules_digest(rules) != A7_ATTACH_DIGEST
-    assert attach_rules_digest(rules) == "1dacc105674aff85"  # G1 errata E1.4: the new bore.circ_min key moved it (was 59268363ae44fd9e). G1 S2: fit_geometry block (was bcd5dbd0b3d7a651); this build's value, pinned so a later edit of the shipped rows is a deliberate re-pin (A8 erratum 2026-10-26: the tool token `flare` moved it from 30827a8915c9584d)
+    assert attach_rules_digest(rules) == "a981c4c7c27972e8"  # G1 4.6/AC146 (S8): the retired rules leave the four slots (was 1dacc105674aff85). G1 errata E1.4: the new bore.circ_min key moved it (was 59268363ae44fd9e). G1 S2: fit_geometry block (was bcd5dbd0b3d7a651); this build's value, pinned so a later edit of the shipped rows is a deliberate re-pin (A8 erratum 2026-10-26: the tool token `flare` moved it from 30827a8915c9584d)

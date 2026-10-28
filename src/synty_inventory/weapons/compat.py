@@ -7,6 +7,16 @@ randomness. ``apply_compat`` is the post-pass ``directory.py`` runs once every r
 
 Tiers, strongest first (D-7): ``override > twin > same_pack_fit > cross_pack_fit``.
 
+G1 (docs/weapon_attach_geometry.md 3.1, 3.8). For the four geometry slots (``fit_types.FIT_SLOTS``: optic, muzzle, underbarrel, magazine) the
+label-era test sequence below is replaced by ``fit_geometry.verdict`` (``pair_verdict``): POLICY runs first and is unchanged (the setting gate, a
+disabled slot, ``mech_scale``, R-c ``suppressor_never``, an override), a ``twin`` is listed as before, and every other pair takes its tier from the
+PACK RELATION alone (``same_pack_fit`` in one pack, ``cross_pack_fit`` across two); the verdict then decides the list: ``fit`` is listed (A8-1 first
+routes a cross-pack pair of a ``cross_pack_unverified_slots`` slot to ``pending_hosts``), ``unverified`` and ``not_judged`` are pending, ``no_fit`` is
+neither. The score is the tier base alone and ``signals`` is the geometry vocabulary of 3.1 step 5 (plus the tier mark of a twin or override). The
+retired rules (``family_overlap``, ``attach_affinity``, the span and bore bonuses, R-a, R-b, ``fit_span_min``, the tokenless waiver) are not consulted for
+these four slots; they stay in force, unchanged, for laser_light, sight_front and sight_rear. The verdict reads carried maps and no file: the host
+features (``host_features``), the part's measures and the well sections of the pair pass are passed in (``compute``), so this module stays pure.
+
 A2 (W8h). The SETTING GATE runs before any tier: a candidate that is not an ``override`` needs the part's pack and the host's pack
 in one setting (``attachment_rules.attach_genre_by_pack``; a pack absent from the map is a setting of its own). It covers twin,
 same_pack_fit, cross_pack_fit and the pending list, which are one candidate list (D-8); only a ``compatible.add`` crosses it
@@ -36,11 +46,7 @@ same_pack_fit, cross_pack_fit and the pending list, which are one candidate list
   ``pending_hosts`` as ``{host, tier}`` AFTER R-a, R-b, R-c and the A6 foot test, so a pair those drop is dropped, not parked; ``reasons`` keeps
   ``compat_cross_pack`` and ``mount_missing`` does not move. Every other tier and slot is untouched. (A8-2) R-c is symmetric: ``suppressor_never`` vetoes
   a ``suppressor`` part at every tier but ``override`` (``twin`` and ``same_pack_fit``, listed and pending, included).
-* A6 (W8n, 13.7 A6-3), magazines only. (i) DRUM BY SHAPE: a magazine whose smaller body side (``min(length_m, width_m)`` of the footprint) is at least
-  ``attach_compat.drum_min_m`` (0.11) reads the ``drum`` row of ``attach_affinity`` for its affinity, whatever its name or its classified kind; the
-  record's ``kind`` is not touched. (ii) LOWER BOUND: a ``same_pack_fit`` or ``cross_pack_fit`` magazine whose ``foot_length_m / span_m`` is below
-  ``attach_compat.fit_span_min`` (0.75) is not listed (a foot far smaller than the well), whatever the span's source; a part or a seat without
-  the number is not judged, and the ``twin`` and ``override`` tiers are never touched. The ``fit_span`` buckets above are unchanged.
+* A6 (W8n, 13.7 A6-3), magazines only: the drum-by-shape affinity row and the ``fit_span_min`` lower bound. RETIRED by G1 (magazine is a geometry slot).
 
 Signals: ``family_overlap`` (the names share a token once generic ones are gone), ``affinity`` (the slot x kind table
 ``attach_affinity`` lists the host's archetype), ``mount_available`` (the host's seat is not ``none``), ``fit_span`` (the
@@ -78,6 +84,8 @@ from fnmatch import fnmatchcase
 
 from . import ATTACH_SLOTS, COMPAT_TIERS, TWIN_ABS_TOL_M, TWIN_REL_TOL
 from .classify import _CAMEL_RE, _SEGMENT_SPLIT_RE
+from .fit_geometry import verdict as fit_verdict
+from .fit_types import FIT_SLOTS, Verdict
 from .mounts import eligible, excluded_slots, mount_reasons
 from .overrides import compatible_verdict, effective_override
 from .rules import attachment_rules
@@ -100,8 +108,7 @@ HIDES_MARGIN_M = 0.010  # an optic hides the rear sight when its placed extent, 
 _DEFAULTS = {
     "tier_score": {"override": 1.0, "twin": 0.95}, "base": {"same_pack_fit": 0.7, "cross_pack_fit": 0.4},
     "fit_span_bonus": 0.1, "fit_bore_bonus": 0.1, "fit_bore_penalty": 0.1, "generic_tokens": [],
-    "drum_min_m": 0.11, "fit_span_min": 0.75,  # A6 (W8n): a magazine this thick on both sides is a drum; a foot under this share of the well is vetoed
-    "cross_pack_size_tol": {},  # A7-2 R-a: slot -> max per-axis deviation from the baked child; empty = no slot is checked
+    "cross_pack_size_tol": {},  # A7-2 R-a: slot -> max per-axis deviation from the baked child; empty = no slot is checked (never a geometry slot, G1 3.8)
     "cross_pack_unverified_slots": (),  # A8-1: the slots whose cross_pack_fit pairs are routed to pending_hosts; empty = nothing moves
 }
 
@@ -224,6 +231,7 @@ def _params(tables: dict) -> dict:
     out["tokenless_family_free_slots"] = frozenset(tables.get("tokenless_family_free_slots") or ())  # A7-4: the slots a name-less part passes the family test on, size-gated
     out["cross_pack_unverified_slots"] = frozenset(out["cross_pack_unverified_slots"] or ())  # A8-1: a set, whatever the YAML list (or the default) was
     out["suppressor_never"] = {slot: frozenset(archs or ()) for slot, archs in (tables.get("suppressor_never") or {}).items()}  # A8-2 R-c: slot -> host archetypes
+    out["fit_rules"] = tables.get("fit_geometry")  # G1: the block ``fit_geometry.verdict`` reads (None: no geometry can be judged, every pair is not_judged)
     return out
 
 
@@ -233,7 +241,8 @@ def setting_of(genre_by_pack: dict | None, pack: str):
     return ("setting", word) if word else ("pack", pack)
 
 
-def _host_view(rec: dict, generic, genre_by_pack: dict | None = None, tables: dict | None = None, children: dict | None = None) -> dict:
+def _host_view(rec: dict, generic, genre_by_pack: dict | None = None, tables: dict | None = None, children: dict | None = None,
+               feats: dict | None = None) -> dict:
     mounts = (rec.get("geometry") or {}).get("mounts") or {}
     # A6 (W8n, 13.7 A6-1): a host with no measured mounts (a prefab-only preset) has no `slot_disabled` seat to veto its pairs, so the slots its name
     # refuses (attach_host_never and the host classes) are carried here and read as disabled. A measured host already has them as its mounts.
@@ -241,7 +250,8 @@ def _host_view(rec: dict, generic, genre_by_pack: dict | None = None, tables: di
     return {"id": rec["id"], "pack": rec["pack"], "archetype": rec["archetype"], "flags": set(rec["flags"]),
             "mounts": mounts, "tokens": name_tokens(rec["asset_id"], generic),
             "setting": setting_of(genre_by_pack, rec["pack"]), "refused": refused,
-            "children": children or {}}  # A7-2: {slot: {baked child node: {"extents": sorted, ...}}} of this build's measurement (empty: none recorded)
+            "children": children or {},  # A7-2: {slot: {baked child node: {"extents": sorted, ...}}} of this build's measurement (empty: none recorded)
+            "feats": feats}  # G1: ``fit_geometry.host_features`` of the host ({s0, slots, located}); None = never measured (every geometry pair is not_judged)
 
 
 def forward_extent(rec: dict) -> tuple[float, float] | None:
@@ -274,12 +284,99 @@ def hides_slots(extent, seat: dict | None, rear: dict | None) -> list[str]:
     return ["sight_rear"] if origin + extent[0] - HIDES_MARGIN_M <= at <= origin + extent[1] + HIDES_MARGIN_M else []
 
 
+def pair_verdict(part: dict, host: dict, fit_rules: dict | None, seat: str | None = None) -> Verdict:
+    """``V(P, H, X)`` of a part on a host in a geometry slot (spec 3.1 step 4), from the carried maps alone; pure.
+
+    ``part`` is a ``compute`` part view (its geometry keys: ``anchor_measured``, ``foot_length_m``, ``foot_width_m``, ``mate_d_m``,
+    ``device_inner_d`` and ``sections``, the well sections of the directory's pair pass as ``{host id: {seat key: [L, W] | None}}``), ``host`` a
+    ``_host_view`` (``feats`` and ``mounts``), ``fit_rules`` the ``fit_geometry`` block. ``seat`` is the child a ``twin`` pair sits on (A1, 3.7 step 2):
+    where the slot lists several seats the pair is judged against that seat's reference, else against the mount's own.
+
+    A host that was never measured (no features), and a magazine on a host with no seat to place the part at (``mount`` none: no authored magazine,
+    or a located one, errata E2.4), are ``not_judged``. A magazine whose pair section the pass did not measure reads like an unmeasured anchor:
+    ``unverified``, never ``fit``.
+    """
+    slot = part["slot"]
+    feats = ((host.get("feats") or {}).get("slots") or {}).get(slot)
+    mount = host["mounts"].get(slot)
+    if feats is None or (slot == "magazine" and (mount is None or mount["source"] == "none")):
+        return Verdict("not_judged", ())
+    if fit_rules is None:
+        raise ValueError("host features without attachment_rules.fit_geometry: the geometry verdict has no tolerances")
+    measure = {"anchor_measured": bool(part.get("anchor_measured")), "foot_length_m": part.get("foot_length_m"),
+               "foot_width_m": part.get("foot_width_m"), "mate_d_m": part.get("mate_d_m"), "device_inner_d": part.get("device_inner_d")}
+    pair_seat = None
+    if seat is not None:
+        if slot == "magazine" and seat in (feats.get("well_refs") or {}):
+            pair_seat = {"well_ref": feats["well_refs"][seat]}
+        elif slot in ("optic", "underbarrel") and seat in (feats.get("seat_refs") or {}):
+            pair_seat = {"ref": feats["seat_refs"][seat]}
+    if slot == "magazine":
+        sections = (part.get("sections") or {}).get(host["id"]) or {}
+        key = seat if pair_seat is not None else ""
+        if key in sections:
+            measure["entry_section"] = None if sections[key] is None else tuple(sections[key])
+        else:
+            measure["anchor_measured"] = False  # the pair pass measured no section (no part file now): unverified, never fit
+    return fit_verdict(slot, feats, measure, pair_seat, fit_rules)
+
+
+def _geometry_candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, params: dict, twin_replaces: list[str] | None,
+                        mount: dict | None, available: bool, disabled: bool) -> dict | None:
+    """``candidate`` for a geometry slot (G1 3.1). Policy first, then the tier by pack relation, then the verdict; the retired rules are not read."""
+    slot = part["slot"]
+    veto = disabled or ("mech_scale" in host["flags"] and "mech_scale" not in part["flags"])
+    if part["kind"] == "suppressor" and host["archetype"] in params["suppressor_never"].get(slot, ()):
+        veto = True  # A8-2 R-c, symmetric: no suppressor on these hosts at any tier; only `add` (below) outranks it
+    if verdict == "add":
+        tier = "override"
+    elif veto:
+        return None
+    elif twin:
+        tier = "twin"
+    elif host["pack"] == part["pack"]:
+        tier = "same_pack_fit"  # the tier is the pack relation and nothing else (3.1 step 4): no name, family or kind decides it
+    else:
+        tier = "cross_pack_fit"
+    seat = twin_replaces[0] if tier == "twin" and twin_replaces and len(twin_replaces) == 1 else None
+    v = None if tier == "override" else pair_verdict(part, host, params["fit_rules"], seat)  # an override does not consult geometry (3.1 step 2)
+    parked = False
+    if tier in ("same_pack_fit", "cross_pack_fit"):
+        if v.value == "no_fit":
+            return None  # the mating feature is measured and the part does not match, or the host has none: neither listed nor pending
+        # A8-1, AFTER the tier: a cross-pack pair of an unverified slot never lists, whatever its verdict. `parked` counts the fits it held back (AC140).
+        parked = tier == "cross_pack_fit" and slot in params["cross_pack_unverified_slots"]
+        listed = v.value == "fit" and available and not parked
+    else:
+        listed = available  # twin and override are listed as before; with no seat they are pending
+    if tier == "override":
+        signals = {"override"}
+    elif tier == "twin":
+        signals = {"twin"} | (set(v.signals) if v.value == "fit" else set())  # the verdict of a twin is calibration; only a fit names its evidence
+    else:
+        signals = set(v.signals)
+    entry = {"host": host["id"], "tier": tier, "listed": listed}
+    if listed:
+        replaces = list(twin_replaces) if tier == "twin" and twin_replaces else list(mount["occupied_by"])
+        entry.update(score=score_of(tier, None, None, params), signals=sorted(signals), replaces=replaces)  # the tier base alone: no span or bore term (3.1 step 5)
+        if slot == "optic":  # a twin entry seats on the child it twins, as the game does (spec 4.3)
+            seat_frame = (mount.get("seats") or {}).get(replaces[0]) if tier == "twin" and len(replaces) == 1 else None
+            hidden = hides_slots(part.get("extent_m"), seat_frame or mount, host["mounts"].get("sight_rear"))
+            if hidden:
+                entry["hides_slots"] = hidden
+    elif tier in ("same_pack_fit", "cross_pack_fit") and signals:
+        entry["signals"] = sorted(signals)  # the pending form carries what was measured (4.4): `rail_flat`, `drum`, a parked fit's evidence
+    if parked and v.value == "fit":
+        entry["fit_parked"] = True  # transient: ``compute`` counts it and removes it
+    return entry
+
+
 def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affinity: dict, params: dict,
               twin_replaces: list[str] | None = None) -> dict | None:
     """The compatibility entry of ``part`` on ``host`` or None; ``entry["listed"]`` says compatible (True) or pending (False).
 
-    ``part`` is ``{id, pack, slot, kind, flags, tokens, foot_length_m, mate_d_m, setting, extent_m?, body_min_m?}``, ``host`` a ``_host_view``.
-    ``body_min_m`` (A6) is the smaller of the footprint's length and width: a magazine at ``drum_min_m`` or more reads the drum affinity row.
+    ``part`` is ``{id, pack, slot, kind, flags, tokens, foot_length_m, mate_d_m, setting, extent_m?}``, ``host`` a ``_host_view``. A geometry slot
+    (``FIT_SLOTS``) takes ``_geometry_candidate`` (G1); the other slots take the label-era sequence below, unchanged.
     ``extents`` (A7) is the part's sorted footprint extents and the host's ``children`` the recorded baked children per slot; a part or host without
     them is simply not size-checked.
     ``verdict`` is the override verdict for this pair (``add`` / ``remove`` / None), ``twin`` whether the host has a twin child.
@@ -293,16 +390,16 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
     mount = host["mounts"].get(slot)
     available = mount is not None and mount["source"] != "none"
     disabled = (mount is not None and mount["source"] == "none" and mount.get("reason") == "slot_disabled") or slot in host.get("refused", ())
+    if slot in FIT_SLOTS:
+        return _geometry_candidate(part, host, verdict=verdict, twin=twin, params=params, twin_replaces=twin_replaces,
+                                   mount=mount, available=available, disabled=disabled)
     deviation = child_deviation(part.get("extents"), mount, (host.get("children") or {}).get(slot)) if available else None  # A7: None without a recorded child
     size_tol = params["cross_pack_size_tol"].get(slot)  # A7: None = this slot is not size-checked
     span = fit_span(part["foot_length_m"], mount) if available else None
     bore = fit_bore(part["mate_d_m"], mount) if available else None
     same_pack = host["pack"] == part["pack"]
     family = bool(part["tokens"] & host["tokens"])
-    kind = part["kind"]
-    if slot == "magazine" and (part.get("body_min_m") or 0.0) >= params["drum_min_m"]:
-        kind = "drum"  # A6 (i): by shape, whatever the name or the classified kind; used for the affinity lookup only
-    affine = host["archetype"] in affinity_archetypes(affinity, slot, kind)
+    affine = host["archetype"] in affinity_archetypes(affinity, slot, part["kind"])
     veto = disabled or span == "veto" or ("mech_scale" in host["flags"] and "mech_scale" not in part["flags"])
     if part["kind"] == "suppressor" and host["archetype"] in params["suppressor_never"].get(slot, ()):
         veto = True  # A8-2 R-c, symmetric: no suppressor on these hosts at any tier (twin and same_pack_fit, listed and pending, included); only `add` (below) outranks it
@@ -329,9 +426,6 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
             return None  # R-b: a handgun part on a long gun or the reverse (a pistol part on an smg stays: machine pistols)
         if available and size_tol is not None and deviation is not None and deviation > size_tol:
             return None  # R-a: the wrong size for the baked child it replaces; a pending pair has no seat and is not checked
-    if (slot == "magazine" and tier in ("same_pack_fit", "cross_pack_fit") and available and mount.get("span_m")
-            and part["foot_length_m"] is not None and part["foot_length_m"] / mount["span_m"] < params["fit_span_min"]):
-        return None  # A6 (ii): a foot far smaller than the well; not listed, not pending (a pending candidate has no seat to measure against)
     if tier == "cross_pack_fit" and slot in params["cross_pack_unverified_slots"]:
         # A8-1: after R-a, R-b, R-c and the A6 foot test (a pair those drop is dropped, not parked). Routed on purpose, not by faking a missing seat:
         # the entry is the pending form {host, tier} (no score, signals or replaces) whatever the seat; the part still carries `compat_cross_pack`.
@@ -355,13 +449,18 @@ def candidate(part: dict, host: dict, *, verdict: str | None, twin: bool, affini
 
 
 def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, child_extents: dict | None = None,
-            prev_twins: dict | None = None) -> dict:
-    """``{"parts": {id: {compatible, pending, reasons}}, "host_slots": {id: {slot}}, "problems": [str]}`` (pure).
+            prev_twins: dict | None = None, host_feats: dict | None = None, part_fit: dict | None = None) -> dict:
+    """``{"parts": {id: {compatible, pending, reasons}}, "host_slots": {id: {slot}}, "problems": [str], "parked_fit": {slot: n}}`` (pure).
 
     ``child_extents`` is ``{host id: {slot: {node: {"extents", "axes", "seat"}}}}`` of the hosts measured in this build; a host
     not in it falls back to ``prev_twins`` (``{(part id, host id): the replaces its stored twin entry had}``, the twin
     relations stored earlier). ``problems`` lists override patterns that name no eligible host (``child_not_found``), never
     silently dropped.
+
+    G1: ``host_feats`` is ``{host id: fit_geometry.host_features(...)}`` and ``part_fit`` ``{part id: {"device_inner_d": float | None, "sections":
+    {host id: {seat key: [L, W] | None}}}}`` (the pair pass of ``directory.py``; the seat key is "" for the mount's own seat, else a child node). A host
+    or part without them is not measured: its geometry pairs are ``not_judged`` / ``unverified``. ``parked_fit`` counts, per slot, the cross-pack
+    pairs the geometry judged ``fit`` and A8-1 routed to ``pending_hosts`` (AC140).
     """
     tables = attachment_rules(rules)
     params = _params(tables)
@@ -371,12 +470,14 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
     genre_by_pack = tables.get("attach_genre_by_pack") or {}
     child_extents = child_extents or {}
     prev_twins = prev_twins or {}
-    hosts = [_host_view(r, generic, genre_by_pack, tables, child_extents.get(r["id"])) for r in sorted(records, key=lambda r: r["id"])
-             if eligible(r["role"], r["kind"], r["hold_class"])]
+    host_feats, part_fit = host_feats or {}, part_fit or {}
+    hosts = [_host_view(r, generic, genre_by_pack, tables, child_extents.get(r["id"]), host_feats.get(r["id"]))
+             for r in sorted(records, key=lambda r: r["id"]) if eligible(r["role"], r["kind"], r["hold_class"])]
     host_ids = [h["id"] for h in hosts]
     parts: dict[str, dict] = {}
     host_slots: dict[str, set[str]] = {}
     problems: list[str] = []
+    parked_fit: dict[str, int] = {}
     for rec in sorted(records, key=lambda r: r["id"]):
         att = rec.get("attachment")
         if not att or att["slot"] not in ATTACH_SLOTS:
@@ -385,8 +486,11 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
                 "tokens": name_tokens(rec["asset_id"], generic), "setting": setting_of(genre_by_pack, rec["pack"]),
                 "foot_length_m": (att["footprint"] or {}).get("foot_length_m"),
                 "mate_d_m": (att["footprint"] or {}).get("mate_d_m"),
-                "body_min_m": min((att["footprint"] or {}).get("length_m", 0.0), (att["footprint"] or {}).get("width_m", 0.0)) if att["footprint"] else None,
-                "extent_m": forward_extent(rec) if att["slot"] == "optic" else None}
+                "extent_m": forward_extent(rec) if att["slot"] == "optic" else None,
+                # G1: the part side of the geometry verdict (the anchor and footprint of the record, the mesh measures of the pair pass)
+                "anchor_measured": att["anchor"] is not None, "foot_width_m": (att["footprint"] or {}).get("foot_width_m"),
+                "device_inner_d": (part_fit.get(rec["id"]) or {}).get("device_inner_d"),
+                "sections": (part_fit.get(rec["id"]) or {}).get("sections") or {}}
         extents = sorted_extents(att["footprint"])
         part["extents"] = extents  # A7-2: the size evidence against a host's baked child
         eff = effective_override(rec["id"], overrides) if overrides else None
@@ -409,6 +513,8 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
                             twin_replaces=twin_replaces)
             if got is None:
                 continue
+            if got.pop("fit_parked", False):
+                parked_fit[part["slot"]] = parked_fit.get(part["slot"], 0) + 1
             if got.pop("listed"):
                 listed.append(got)
             else:
@@ -425,7 +531,7 @@ def compute(records: list[dict], rules: dict, overrides: dict | None = None, *, 
         for e in pending:
             if e["tier"] in DEFAULT_PENDING_TIERS:  # A7-1: the old default set, so the `mount_missing` reasons do not move
                 host_slots.setdefault(e["host"], set()).add(part["slot"])
-    return {"parts": parts, "host_slots": host_slots, "problems": sorted(problems)}
+    return {"parts": parts, "host_slots": host_slots, "problems": sorted(problems), "parked_fit": dict(sorted(parked_fit.items()))}
 
 
 def _axis_of(vec) -> int | None:
@@ -503,8 +609,12 @@ def twin_forward(records: list[dict], child_extents: dict) -> list[str]:
     return done
 
 
-def apply_compat(records: list[dict], rules: dict, overrides: dict | None = None, *, child_extents: dict | None = None) -> list[str]:
+def apply_compat(records: list[dict], rules: dict, overrides: dict | None = None, *, child_extents: dict | None = None,
+                 host_feats: dict | None = None, part_fit: dict | None = None, stats: dict | None = None) -> list[str]:
     """Fill the compatibility fields of ``records`` in place; returns the warnings (override patterns that match no host).
+
+    G1: ``host_feats`` and ``part_fit`` are the carried maps of ``compute`` (the geometry verdict reads them, no file); ``stats``, when given, is filled
+    with ``parked_fit`` (``{slot: cross-pack pairs judged fit and routed to pending_hosts by A8-1}``).
 
     Runs over the WHOLE record set, carried-over records of a partial build included: it first forgets what an earlier run
     stored (the lists and the three reasons) and recomputes, so the result does not depend on how the directory got here.
@@ -518,7 +628,9 @@ def apply_compat(records: list[dict], rules: dict, overrides: dict | None = None
         rec["review"]["reasons"] = [x for x in rec["review"]["reasons"] if x not in COMPAT_REASONS]
         if rec.get("attachment"):
             rec["attachment"]["compatible_hosts"], rec["attachment"]["pending_hosts"] = [], []
-    got = compute(records, rules, overrides, child_extents=child_extents, prev_twins=prev_twins)
+    got = compute(records, rules, overrides, child_extents=child_extents, prev_twins=prev_twins, host_feats=host_feats, part_fit=part_fit)
+    if stats is not None:
+        stats["parked_fit"] = got["parked_fit"]
     for rec in records:
         reasons = set()
         if rec["id"] in got["parts"]:

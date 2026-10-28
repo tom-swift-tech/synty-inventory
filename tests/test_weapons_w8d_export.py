@@ -147,6 +147,7 @@ def strip_added(doc: dict) -> dict:
     gf = doc["generated_from"]
     gf.pop("attach_version")
     gf.pop("attach_rules_digest")
+    gf.pop("fit_digest", None)  # G1 4.4 (AC145): the optional fourth header key of --attachments
     gf["filter"].pop("attachments")
     for w in doc["weapons"]:
         w.pop("attachment", None)
@@ -162,11 +163,11 @@ def test_with_attachments_the_same_snapshot_differs_only_by_the_added_keys(world
     assert strip_added(doc_of(att)) == doc_of(plain)
     got = doc_of(att)
     gf = got["generated_from"]
-    assert gf["attach_version"] == 13 and len(gf["attach_rules_digest"]) == 16
+    assert gf["attach_version"] == 14 and len(gf["attach_rules_digest"]) == 16  # G1 4.6/AC146 (S8): attach version 13 -> 14
     assert gf["attach_rules_digest"] != gf["rules_digest"] == "7b9829af37328fe7" and gf["geometry_version"] == 6
     assert gf["filter"]["attachments"] is True
-    assert sorted(gf) == ["attach_rules_digest", "attach_version", "filter", "geometry_version", "overrides_digest", "packs",
-                          "rules_digest", "tool", "weapon_version"]
+    assert sorted(gf) == ["attach_rules_digest", "attach_version", "filter", "fit_digest", "geometry_version", "overrides_digest", "packs",
+                          "rules_digest", "tool", "weapon_version"]  # G1 4.4 (AC145): fit_digest rides in generated_from with --attachments
     assert sorted(gf["filter"]) == ["attachments", "engines", "frame", "game", "roles"]
     # the new keys are really there: 34 attachment blocks (every part of the fixture packs that the rules recognise) and mounts
     assert sum(1 for w in got["weapons"] if w.get("attachment")) == 34
@@ -284,8 +285,9 @@ def test_min_compat_tier_filters_compatible_and_pending_hosts_and_pending_are_id
     expect = {
         "override": ([], []),
         "twin": ([("SM_Wep_Rifle_Alpha_01", "twin"), ("SM_Wep_Rifle_Mount_01", "twin")], []),
+        # G1 3.1/3.8: R-b and the affinity row no longer judge a magazine, so the same-pack Pistol_Gamma (no magazine seat: not_judged) is pending too
         "same_pack_fit": ([("SM_Wep_Rifle_Alpha_01", "twin"), ("SM_Wep_Rifle_Mount_01", "twin")],
-                          ["FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]),
+                          ["FAKE_CompA/SM_Wep_Pistol_Gamma_01", "FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]),
     }
     for tier, (compat, pending) in expect.items():
         # A7-1: the two cuts are separate flags now; this loop sets both to the tier, the old single-cut behaviour
@@ -300,17 +302,20 @@ def test_min_compat_tier_filters_compatible_and_pending_hosts_and_pending_are_id
     # A8-1 (W8p): the seated cross-pack magazine pair (Double_01) is a pending entry now, so compatible_hosts holds the two twins only
     assert hosts_of(rec) == [("SM_Wep_Rifle_Alpha_01", "twin"), ("SM_Wep_Rifle_Mount_01", "twin")]
     pending = rec["attachment"]["pending_hosts"]
-    assert pending[:2] == ["FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]  # same_pack_fit before cross
-    # A7-2 R-b: 12 -> 10. Rifle_Mag_01 names a rifle, so its cross-pack pairs on the two pistol hosts (Attach/Pistol_01 and Mount/Pistol_Mount_01) are gone
-    assert all(isinstance(p, str) for p in pending) and len(pending) == 11 and "FAKE_Mount/SM_Wep_Rifle_Double_01" in pending  # 10 + Double_01 (A8-1)
-    assert not [p for p in pending if "Pistol" in p]
-    tail = pending[2:]
+    same = ["FAKE_CompA/SM_Wep_Pistol_Gamma_01", "FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]
+    assert pending[:3] == same  # same_pack_fit before cross
+    # G1 3.1/3.8: R-b (A7-2) no longer judges a magazine, so the two pistol hosts (Attach/Pistol_01 and Mount/Pistol_Mount_01) are pending again: 10 -> 13 with
+    # the three same-pack hosts, all with no magazine seat (not_judged). Double_01 left the list: its two wells (4 x 2 cm and 6 x 2.4 cm) do not match
+    # the part's 12 x 4 cm entry section, so the verdict is no_fit (3.7 step 3), neither listed nor pending (it was pending under A8-1)
+    assert all(isinstance(p, str) for p in pending) and len(pending) == 13 and "FAKE_Mount/SM_Wep_Rifle_Double_01" not in pending
+    assert sorted(p for p in pending if "Pistol" in p) == ["FAKE_Attach/SM_Wep_Pistol_01", "FAKE_CompA/SM_Wep_Pistol_Gamma_01", "FAKE_Mount/SM_Wep_Pistol_Mount_01"]
+    tail = pending[3:]
     assert tail == sorted(tail)  # one tier left: ordered by host id
     # A7-1: the default cut of compatible_hosts reaches cross_pack_fit and the pending cut stays at same_pack_fit. A8-1 (W8p): a cross-pack MAGAZINE is
     # unverified, so the default lists no cross-pack magazine in either list (it was Double_01 in compatible_hosts under A7)
     _, _, default = export(world, capsys, "--roles", "all", "--attachments", name="t_default.json")
     assert [h for h in hosts_of(by_id(doc_of(default))[MAG]) if h[1] == "cross_pack_fit"] == []
-    assert by_id(doc_of(default))[MAG]["attachment"]["pending_hosts"] == ["FAKE_CompA/SM_Wep_Rifle_Beta_01", "FAKE_CompA/SM_Wep_Rifle_Epsilon_01"]
+    assert by_id(doc_of(default))[MAG]["attachment"]["pending_hosts"] == same
 
 
 def test_hosts_outside_the_exported_set_are_dropped_unless_keep_foreign_hosts(world, capsys):
@@ -402,6 +407,7 @@ def test_exit_6_when_attachment_keys_appear_without_the_header_that_announces_th
         gf["filter"].pop("attachments")
         gf.pop("attach_version")
         gf.pop("attach_rules_digest")
+        gf.pop("fit_digest")  # G1 4.4: the whole attachment header goes, fit_digest with it (a plain header holding it fails the key check first)
 
     code, res = broken(world, capsys, "header", edit)
     assert code == 6 and any("without --attachments" in e for e in res["errors"]), res["errors"]

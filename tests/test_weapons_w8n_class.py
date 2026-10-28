@@ -166,18 +166,21 @@ def test_the_prop_host_keeps_its_existing_whole_name_refusal(built):
 
 def test_no_part_lists_a_refused_slot_of_a_class_host(built):
     comp, pend = hosts_of(built, N.C_SILENCER)
-    assert comp == {N.PISTOL: "same_pack_fit", N.RIFLE: "same_pack_fit"}  # not the nailgun, rocket launcher, stun gun, minigun or prop
+    # G1 3.6 (S8): the fixture barrels are boxes, so the silencer is no_fit on the pistol and the rifle: nothing listed or pending there; the controls for
+    # the open hosts are the other parts below
+    assert comp == {}  # not the nailgun, rocket launcher, stun gun, minigun or prop
     assert pend == {N.NAILGUN: "override"}  # the id override's `add` still lists the pair; the seat is none, so it is pending
     for part in (N.C_LASER, N.C_SIGHT):
         comp, pend = hosts_of(built, part)
         assert not {N.NAILGUN, N.ROCKET, N.PROP, N.FLAME, N.STUN, N.MINIGUN} & (set(comp) | set(pend)), part
     comp, pend = hosts_of(built, N.C_MAG)  # the one open slot of the nailgun: its id-override magazine seat, a twin of the baked child
-    assert comp == {N.NAILGUN: "twin"} and pend == {N.PISTOL: "same_pack_fit", N.RIFLE: "same_pack_fit"}
+    assert comp == {N.NAILGUN: "twin"} and pend == {N.PISTOL: "same_pack_fit", N.RIFLE: "same_pack_fit", N.ROCKET: "same_pack_fit"}  # G1 3.8 (S8): no affinity cut
     comp, pend = hosts_of(built, N.C_SCOPE)
-    # the rocket's optic is refused too; S7 (spec 3.4 step 3): the rifle's optic is an estimated flat seat, so it is compatible, not pending
-    assert N.NAILGUN not in comp | pend and comp == {N.RIFLE: "same_pack_fit"} and pend == {}
+    # the rocket's optic is refused too; S7 (spec 3.4 step 3): the optic is an estimated flat seat, G1 3.5 (S8): `unverified`, so pending on the open hosts
+    # (the pistol too: affinity is retired for the optic slot)
+    assert N.NAILGUN not in comp | pend and comp == {} and pend == {N.RIFLE: "same_pack_fit", N.PISTOL: "same_pack_fit"}
     comp, pend = hosts_of(built, N.C_FOREGRIP)
-    assert N.NAILGUN not in comp | pend and pend == {N.RIFLE: "same_pack_fit", N.ROCKET: "same_pack_fit"}
+    assert N.NAILGUN not in comp | pend and pend == {N.RIFLE: "same_pack_fit", N.ROCKET: "same_pack_fit", N.PISTOL: "same_pack_fit"}
 
 
 # -- the tables drive the result ---------------------------------------------------------------------------------------------
@@ -197,14 +200,14 @@ def test_a_class_row_edited_back_gives_the_launcher_its_optic_again(tmp_path):
     # S7 (spec 3.4 step 3): the launcher's optic is its estimated flat seat (a probe seat), no longer a none slot
     assert refused(m["muzzle"]) and not refused(m["optic"]) and m["optic"]["source"] == "probe" and m["optic"]["reason"] is None
     comp, pend = hosts_of(by, N.C_SCOPE)
-    assert comp == {N.RIFLE: "same_pack_fit", N.ROCKET: "same_pack_fit"} and not pend
+    assert comp == {} and pend == {N.RIFLE: "same_pack_fit", N.ROCKET: "same_pack_fit", N.PISTOL: "same_pack_fit"}  # G1 3.5 (S8): the flat seats are pending
 
 
 def test_emptying_the_tool_row_gives_the_stun_gun_its_seats_again(tmp_path):
     by = built_with(tmp_path, tool=[])
     assert not [s for s in ALL if refused(mounts_of(by, N.STUN)[s])]
-    comp, pend = hosts_of(by, N.C_SILENCER)
-    assert N.STUN in comp and N.NAILGUN in comp | pend
+    comp, pend = hosts_of(by, N.C_SCOPE)  # G1 3.6 (S8): the silencer is no_fit on the box barrels here, so the scope (flat optic seats) shows the seats
+    assert N.STUN in pend and N.NAILGUN in pend
 
 
 # -- a prefab-only host has no mounts to refuse, so compat reads its name ---------------------------------------------------------
