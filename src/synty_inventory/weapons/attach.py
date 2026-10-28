@@ -25,6 +25,7 @@ _MATE_TOLS_M = (0.001, 0.002, 0.005, 0.010)  # mating-face tolerances, as the A0
 _EPS = 1e-9
 _AXES = "xyz"
 _SIGNED_AXIS_RE = re.compile(r"^[+-][xyz]$")
+_RAIL_SLOTS = ("optic", "underbarrel")  # A4 1b (errata E3-Q7): the foot rung must hold the mid-line on these slots only; the others keep their 1a footprint
 _FOOT_AT_BOTTOM = ("optic", "laser_light", "sight_front", "sight_rear")  # the others hang from a +Y foot; the sights stand on the receiver like an optic (A2)
 
 # A4 (W8l): the numbers of attachment_rules.anchor (spec 3.4 steps 1a and 3b). The build threads the table of the rules in force; these are
@@ -130,12 +131,26 @@ def _is_lip(slab: np.ndarray, deeper: np.ndarray, axes: tuple[int, ...], p: dict
     return False
 
 
-def _foot_slab(v: np.ndarray, low: bool, axis: int, p: dict) -> np.ndarray:
-    """The slab of the first rung of ``foot_depths_m`` that is not a lip along ``forward`` (``axis``) or ``right`` (the other horizontal axis)."""
+def _foot_slab(v: np.ndarray, low: bool, axis: int, p: dict, slot: str | None = None) -> np.ndarray:
+    """The slab of the first rung of ``foot_depths_m`` that is not a lip along ``forward`` (``axis``) or ``right`` (the other horizontal axis).
+
+    Spec 3.4 step 1b (errata E3.7), on the rail slots only: a rung also has to hold the part's mid-line, the line through the centre of the whole
+    extent of ``v`` along ``right``; a rung whose slab misses it is a side feature (a hook, a lug), so the ladder starts at the first rung that
+    holds it. The rungs nest (each slab contains the one before), so the rungs that hold the mid-line are the deeper ones; the lip rule then runs
+    from that rung exactly as in 1a, against the next rung of the ladder. When no rung holds the mid-line, or the slot is not a rail slot, the
+    1a ladder is unchanged.
+    """
     depths = p["foot_depths_m"]
     right = 0 if axis == 2 else 2
     rung = 0
-    slab = _slab(v, low, depths[0])
+    if slot in _RAIL_SLOTS:
+        mid = (float(v[:, right].min()) + float(v[:, right].max())) / 2.0
+        for i, depth in enumerate(depths):
+            s = _slab(v, low, depth)
+            if float(s[:, right].min()) - _EPS <= mid <= float(s[:, right].max()) + _EPS:
+                rung = i
+                break
+    slab = _slab(v, low, depths[rung])
     while rung + 1 < len(depths):
         deeper = _slab(v, low, depths[rung + 1])
         if not _is_lip(slab, deeper, (axis, right), p):
@@ -177,7 +192,7 @@ def _foot_anchor(v: np.ndarray, slot: str, forward_override, kind, p: dict) -> d
     up = _unit(1, 1 if low else -1)
     ext = v.max(axis=0) - v.min(axis=0)
     axis = 2 if ext[2] >= ext[0] else 0
-    slab = _foot_slab(v, low, axis, p)  # A4 item 3: one rung deeper when the 4 mm slab only cut a lip
+    slab = _foot_slab(v, low, axis, p, slot)  # A4 item 3: one rung deeper when the 4 mm slab only cut a lip; 1b: skip a rung off the mid-line (rail slots)
     sign, decided = _end_sign(*_end_sections(v, axis))
     forward_source, symmetric = ("section", False) if decided else ("authored", True)
     if kind in (p["free_end"].get("kinds") or {}).get(slot, ()):  # A4 item 1: the pairs of attachment_rules.anchor.free_end only
