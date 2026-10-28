@@ -965,6 +965,7 @@ def measure_weapon_detail(
         out["mounts"], out["mount_problems"] = built["mounts"], built["problems"]
         out["child_extents"] = built["child_extents"]  # W8c twin evidence: beside the block, never in the record
         out["host_feats"] = {k: built["host_feats"][k] for k in ("s0", "slots", "located")}  # S7: the detectors' features, beside the block
+        out["refused_by_located"] = built["refused_by_located"]  # E3 D3 (trace T-fill): the slots refuse_filled refused through its located-part disjunct, for the report's fill_list
         # G1: the vote's state and the pre-vote pass 2 inputs, beside the block. A bow or shield never votes (vote and pre_vote are None):
         # unchanged, no conflict, and pass2_inputs falls back to the measured values (S7 fold-ins 1 and 2)
         out["frame_vote"] = {"changed": vote.changed if vote else False, "conflict": vote.conflict if vote else False, **(pre_vote or {})}

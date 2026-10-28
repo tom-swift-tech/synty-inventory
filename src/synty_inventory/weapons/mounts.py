@@ -344,7 +344,7 @@ def is_filled_host(host_id: str, tables: dict) -> bool:
     return bool(hosts) and bool(raw_tokens(host_id) & hosts)
 
 
-def refuse_filled(mounts: dict, found: dict[str, list[str]], host_id: str, tables: dict, located: list[dict] | None = None) -> None:
+def refuse_filled(mounts: dict, found: dict[str, list[str]], host_id: str, tables: dict, located: list[dict] | None = None) -> list[str]:
     """A6 (W8n, Tom 2026-10-24: "presets only refuse the slots their built-in parts already fill; other slots stay open"), in place.
 
     A host whose name tokens hit ``attachment_rules.attach_filled_hosts`` (the ``preset`` token: a Preset_* prefab is a gun with its parts
@@ -364,17 +364,26 @@ def refuse_filled(mounts: dict, found: dict[str, list[str]], host_id: str, table
     (``fit_geometry.host_features``, each ``{part, slot, t, hit}``). A slot of such a part is filled like a slot of a baked child: a located fused
     scope or silencer refuses ``optic`` or ``muzzle``, and a located magazine leaves ``magazine`` open (``attach_filled_open``). It can only add
     refusals. A located part with no attachment slot fills nothing.
+
+    E3 slice D3 (the build report's ``fill_list``, AC139; trace T-fill): the return value is the list of slots, in ``ATTACH_SLOTS`` order, where the
+    located-part disjunct (``slot in filled``) is true AND this call wrote the refusal: the located part is the sole cause or a co-cause (the
+    baked-glass / ``occupied_by`` disjuncts may be true too). A slot refused only by those other disjuncts is not in it, and neither is a slot the loop
+    skipped (``attach_filled_open``, an ``override`` mount, a source that is already ``none``). Only the return value is new: the refusals are the same.
     """
     if not is_filled_host(host_id, tables):
-        return
+        return []
     keep = set(tables.get("attach_filled_open") or ())
     filled = {p["slot"] for p in located or () if p.get("slot")}
+    by_located: list[str] = []
     for slot in ATTACH_SLOTS:
         m = mounts[slot]
         if slot in keep or m["source"] == "override" or m["source"] == "none":
             continue
         if m["occupied_by"] or slot in filled or (slot == "optic" and (found["glass"] or found["body"])):
             mounts[slot] = none_mount("slot_disabled")
+            if slot in filled:
+                by_located.append(slot)
+    return by_located
 
 
 def _load(path, selection, glb_node, scale, drop: frozenset[str] = frozenset()) -> np.ndarray | None:
@@ -667,7 +676,7 @@ def build_mounts(
     frame_changed: bool = False, frame_conflict: bool = False, fit_cache: dict | None = None, fit_cache_id: str | None = None,
     fused_parts: tuple | None = None,
 ) -> dict:
-    """``{"mounts": block, "problems": [str], "child_extents": {...}, "host_feats": {...}}`` for one eligible host (spec 4).
+    """``{"mounts": block, "problems": [str], "child_extents": {...}, "host_feats": {...}, "refused_by_located": [slot]}`` for one eligible host (spec 4).
 
     ``verts`` are the host's own decoded vertices (what ``geometry`` measured), ``axes`` its ``{forward, up}`` signed
     axes, ``transformed`` the NB-15 flag of the selected node, ``probe`` the A0 muzzle probe
@@ -776,8 +785,8 @@ def build_mounts(
             fused_parts=fused_parts if is_filled_host(host_id, tables) else None, frame_changed=frame_changed, frame_conflict=frame_conflict,
             cache=fit_cache, cache_id=fit_cache_id, cache_key=cache_key, stripped_probe=stripped_muzzle_face)
     _apply_features(mounts, feats, axes, cap, frame_conflict)
-    refuse_filled(mounts, found, host_id, tables, feats["located"])
-    return {"mounts": mounts, "problems": problems, "host_feats": feats,
+    refused_by_located = refuse_filled(mounts, found, host_id, tables, feats["located"])
+    return {"mounts": mounts, "problems": problems, "host_feats": feats, "refused_by_located": refused_by_located,
             "child_extents": _child_extents(mounts, vertices, measured_by_slot, axes)}
 
 
