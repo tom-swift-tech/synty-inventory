@@ -397,7 +397,8 @@ All four have base S2 merged, and each runs in its own worktree. Each owns exact
    - the preset fill additions;
    - the cross-pack magazine count judged `fit`;
    - the Q-G9 parts;
-   - the untoothed hosts whose flat seat is not on their highest qualifying run, by class (errata E2-Q1, data for Tom).
+   - the untoothed hosts whose flat seat is not on their highest qualifying run, by class (errata E2-Q1, data for Tom);
+   - the live same-pack and cross-pack muzzle listing counts, and the live underbarrel and magazine pending counts. On the w8d world S8 moved muzzle listings 38 → 32 (same-pack 30 → 3, cross-pack 6 → 27), underbarrel pending 136 → 200 and magazine pending 178 → 319, explained by square fixture barrels; the live counts confirm or refute that reading.
 
    The classes and counts go into the spec as a new §10, committed by the lead on `integ/attach`. Per-asset lists stay in scratch.
 5. **Captures** (look-first; the lead views every one):
@@ -421,6 +422,10 @@ All four have base S2 merged, and each runs in its own worktree. Each owns exact
   - no new dependency (AC144);
   - determinism (INV-25);
   - the conventions in CLAUDE.md.
+- **Coverage list** (the reviewer confirms each, or the gap goes to a fix slice):
+  - A§4.6 gate 6(c) is proven only on runs under 0.20 m with a local twin;
+  - the covered branch of `ref.flat_run_m` is untested;
+  - `w8m_placement` no longer exercises the magazine placement matrix: confirm a g1 test covers the well-seat placement matrix on `CARBINE`, else E2 adds one (the E2 builder checks this first; S11 confirms).
 - **The lead looks at the captures:**
   - **The toothed-host sheet.** Every detected run should be a rail. A periodic non-rail top (§7) is removed with an existing `mounts` override, and that is reported.
   - **The frame captures.** The 3 hosts are held barrel-forward, and the muzzle device sits at the barrel end.
@@ -438,7 +443,7 @@ All four have base S2 merged, and each runs in its own worktree. Each owns exact
 
 ## 6. Closing state
 
-- **`integ/attach`** holds G1 and stays local. There is no push; merging it into `main` is Tom's call.
+- **`integ/attach`** holds G1 and is pushed to origin as it lands, under Tom's standing word of 2026-10-27: "Yes: push integ/attach commits (doc commits and merged build slices) to origin as they land. Nothing else: no main, no new remotes, no PRs." Merging it into `main` is Tom's call. [Superseded: "holds G1 and stays local. There is no push; merging it into `main` is Tom's call."]
 - **sit-capabilities** is unchanged. Games pick up attach version 14 and geometry version 6 on their next re-export: a locked game sees ARM_E04, the normal flow (§4.6).
 - **Worktrees.** The lead removes the `inventoryagent-wt-g1-*` worktrees after Tom's merge call.
 
@@ -464,3 +469,7 @@ The merge commits of the landed slices on `integ/attach`:
 - 937ea4d lists 288 unverified optic pairs (w8d world) through the label-era compat path; interim on integ/attach only, closed by S8 under AC148.
 - Errata E2 (proposed, `docs/g1-errata2`): two more live readings were taken in scratch before S10, read-only against a8c and uncommitted, as for E1. E2.3: 0 of the 10 eligible preset hosts has a located magazine and no authored seat. E2-Q2: 19 of the 158 ring ends have one radius (16 would go to (ii), 3 to (iii), none to no end; 27 under the rejected two-bins-of-six reading), 0 of the 67 face rings do, and all 11 bore positives keep their proof. Counts and classes only. Not a rule 7 breach.
 - Errata E2 APPROVED by Tom on 2026-10-27, read as the peer's recommendations. The E2 slice bases on S8's merge and S9 on E2's: it retires S7 fold-in 4 (E2-Q3) and builds the two-radii ring rule (E2-Q2). The order is E1 → S8 → E2 → S9 → S10.
+- E1: `0934b2f` (3300 passed / 5 skipped). E2 docs approved: `b049f80`. S8: `fbb5c52` (`732a3aa` on `0934b2f`, 3469 / 5, attach version 14, `attach_rules_digest` `a981c4c7c27972e8`, `rules_digest` and `overrides_digest` unchanged). The repo is CRLF throughout; every S8 file keeps the convention it had (new files CRLF too), so there is no line-ending churn.
+- S8 closed 937ea4d's interim listing: the 288 pairs are `pending_hosts` rows with signal `rail_flat`, no optic or underbarrel pair reaches the default export through `rail_flat` alone, and the AC148 tests are red on `937ea4d`. On the w8d world `pending_hosts` is 1129 (408 at `0934b2f`) and the w8p optic cross count is 17.
+- S8 design call (peer-confirmed): `compat.pair_verdict` raises `ValueError` when a host has features but `fit_rules` is None. Through a build the state is unreachable (`directory.py` measures no features without the `fit_geometry` block); it is reached only when stored feature records meet a rules file that lost its block, and that must not quietly become `not_judged`. The comment at `compat.py:234` that says otherwise is corrected in the next slice that owns `compat.py` (S9).
+- S8 non-discriminating fixture edits: `test_weapons_w8l_prop.py`, `test_weapons_w8m_placement.py`, `test_weapons_w8n_muzzle.py` and `test_weapons_w8n_shipped_overrides.py` pass in full on the old source. They are fixture edits, not pure re-pins. `w8n_shipped_overrides` regains discrimination through `g1_world.rod_rifle`; `w8n_muzzle` is a fixture rebuild that keeps every hand-worked distance; `w8l_prop` lost its muzzle prop-host refusal and the E2 slice restores it on `rod_rifle`; `w8m_placement` no longer exercises the magazine placement matrix (S11 coverage list, §4; E2 adds a g1 test if none covers it on `CARBINE`).
