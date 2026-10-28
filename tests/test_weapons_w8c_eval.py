@@ -47,7 +47,7 @@ from synty_inventory.weapons.directory import write_directory  # noqa: E402
 from synty_inventory.weapons.eval import evaluate, load_labels, validate_labels  # noqa: E402
 
 A_, B_, G_, E_, D_ = (W.H[n] for n in (W.ALPHA, W.BETA, W.GAMMA, W.EPSILON, W.DELTA))
-SCOPE, TIGHT, MAG, ALT = W.P[W.SCOPE], W.P[W.SCOPE_TIGHT], W.P[W.MAG], W.P[W.ALT_SCOPE]
+SCOPE, TIGHT, MAG, ALT, LASER = W.P[W.SCOPE], W.P[W.SCOPE_TIGHT], W.P[W.MAG], W.P[W.ALT_SCOPE], W.P[W.LASER]
 
 PAIRS = [
     (SCOPE, A_, True), (SCOPE, E_, True), (SCOPE, B_, True), (SCOPE, G_, False), (SCOPE, D_, True),
@@ -57,6 +57,10 @@ PAIRS = [
 # not counted anywhere: a host used as the part, a part used as the host, an id that is nowhere
 SKIPPED = [(A_, B_, True), (SCOPE, W.P[W.GRIP], True), (f"{W.PACK_A}/SM_Wep_Nowhere_01", A_, True)]
 ALT_PAIRS = [(ALT, A_, True), (ALT, B_, True), (ALT, G_, False)]  # TP, FN (cross_pack_fit, pending), TN (G1 3.1, S8: both cross hosts are pending)
+# G1 S9 re-pin (spec 3.10, AC142, Q-G12): the gates read the label-era slots only, so a gate needs laser_light pairs. The laser is listed on Gamma (a twin)
+# and pending on Delta (cross_pack_fit, which the default view does not predict); Alpha has no entry.
+LASER_PAIRS = [(LASER, G_, True), (LASER, D_, True), (LASER, A_, False)]  # TP, FN, TN: label-era precision 1/1, recall 1/2
+LASER_FP = [(LASER, G_, False), (LASER, D_, True)]  # FP, FN: label-era precision 0/1, recall 0/1
 
 
 def labels_doc(pairs) -> dict:
@@ -117,28 +121,41 @@ def test_ac79_a_ratio_with_an_empty_denominator_is_null(world):
 
 
 def test_ac79_the_cli_prints_the_values_and_exits_0_at_the_gates(world, capsys, tmp_path):
-    code, out = cli(world, capsys, tmp_path, PAIRS + SKIPPED, "--min-precision", "0.63", "--min-recall", "0.66")
+    # G1 S9 re-pin (AC142, Q-G12): the printed views still count every pair; the gates read the laser pairs only (label_era: precision 1.0, recall 0.5)
+    code, out = cli(world, capsys, tmp_path, PAIRS + LASER_PAIRS + SKIPPED, "--min-precision", "0.63", "--min-recall", "0.5")
     assert code == 0 and out["ok"] is True and out["failed"] == []
-    assert out["default"] == {"tp": 7, "fp": 4, "fn": 2, "tn": 0, "precision": 0.6364, "recall": 0.7778}  # G1 (S8): see the table above
-    assert out["with_cross_pack"]["precision"] == 0.6923 and out["with_cross_pack"]["recall"] == 1.0
-    assert out["pairs"] == 13 and out["positives"] == 9 and "max_tier" not in out  # A8 (AC127): max_tier is replaced by the views object
+    # PAIRS (7, 4, 2, 0) plus the laser: Gamma listed TP, Delta pending cross FN, Alpha TN -> (8, 4, 3, 1)
+    assert out["default"] == {"tp": 8, "fp": 4, "fn": 3, "tn": 1, "precision": 0.6667, "recall": 0.7273}
+    assert out["with_cross_pack"]["precision"] == 0.7333 and out["with_cross_pack"]["recall"] == 1.0  # (11, 4, 0, 1)
+    assert out["pairs"] == 16 and out["positives"] == 11 and "max_tier" not in out  # A8 (AC127): max_tier is replaced by the views object
     assert out["views"]["default"]["predicted_from"]["pending_hosts"] == ["override", "twin", "same_pack_fit"]
-    assert out["same_pack_only"]["tp"] == 7  # A8: the old default stays as same_pack_only
+    assert out["same_pack_only"]["tp"] == 8  # A8: the old default stays as same_pack_only
     assert out["predicted_from"] == ["compatible_hosts", "pending_hosts"]
-    assert out["gates"] == {"min_precision": 0.63, "min_recall": 0.66}
+    assert out["gates"] == {"min_precision": 0.63, "min_recall": 0.5}
+    assert out["gated"] == "label_era" and out["label_era"]["pairs"] == 3 and out["label_era"]["default"]["recall"] == 0.5
     assert len(out["skipped"]) == 3
 
 
-@pytest.mark.parametrize(("flags", "failing"), [
-    (["--min-recall", "0.78"], ["min_recall"]),  # 0.7778 is below (S7: it was 0.67 against 0.6667 before the flat optic seats)
-    (["--min-precision", "0.78"], ["min_precision"]),
-    (["--min-precision", "0.9", "--min-recall", "0.9"], ["min_precision", "min_recall"]),
+@pytest.mark.parametrize(("flags", "laser", "failing"), [
+    (["--min-recall", "0.51"], LASER_PAIRS, ["min_recall"]),  # G1 S9 re-pin (AC142, Q-G12): the label-era recall is 0.5
+    (["--min-precision", "0.5"], LASER_FP, ["min_precision"]),  # the label-era precision is 0.0 (one FP)
+    (["--min-precision", "0.9", "--min-recall", "0.9"], LASER_FP, ["min_precision", "min_recall"]),
 ])
-def test_ac79_the_cli_exits_4_below_a_gate(world, capsys, tmp_path, flags, failing):
-    code, out = cli(world, capsys, tmp_path, PAIRS, *flags)
+def test_ac79_the_cli_exits_4_below_a_gate(world, capsys, tmp_path, flags, laser, failing):
+    code, out = cli(world, capsys, tmp_path, PAIRS + laser, *flags)
     assert code == 4 and out["ok"] is False
     assert [f["gate"] for f in out["failed"]] == failing
-    assert out["default"]["recall"] == 0.7778  # the numbers are printed on a failure too
+    assert out["label_era"]["default"]["recall"] in (0.5, 0.0)  # the numbers are printed on a failure too
+    assert out["default"]["recall"] is not None
+
+
+def test_ac142_the_geometry_slots_are_never_gated_so_pairs_of_them_alone_prove_nothing(world, capsys, tmp_path):
+    # G1 S9 (spec 3.10, AC142): PAIRS are optic and magazine pairs; the gates read the label-era slots, which hold no pair here, so a gate fails as
+    # "nothing was proved" (null) while the geometry numbers are printed and cannot move the exit code
+    code, out = cli(world, capsys, tmp_path, PAIRS, "--min-precision", "0.1", "--min-recall", "0.1")
+    assert code == 4 and [(f["gate"], f["got"]) for f in out["failed"]] == [("min_precision", None), ("min_recall", None)]
+    assert out["default"]["recall"] == 0.7778 and out["label_era"]["pairs"] == 0
+    assert cli(world, capsys, tmp_path, PAIRS)[0] == 0
 
 
 def test_ac79_without_gates_the_exit_is_0(world, capsys, tmp_path):

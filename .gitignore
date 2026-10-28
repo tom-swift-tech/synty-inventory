@@ -10,6 +10,8 @@ catalogs/
 # the synthetic FAKE_* fixture catalogs are tracked on purpose (no pack data); re-include only that directory
 !tests/fixtures/weapons/catalogs/
 previews/
+# the fit-geometry cache (<catalogs>/weapons/_fit_cache.json, G1 S9) is pack-derived: never committed, in a fixture catalogs dir either
+_fit_cache.json
 # Derived FTS index (rebuilt by scan / scan --index; JSON is source of record)
 search.db
 

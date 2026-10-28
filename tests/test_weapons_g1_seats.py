@@ -440,7 +440,8 @@ def test_the_fit_cache_hits_when_nothing_changed_even_with_a_different_geometry_
 
 
 def test_the_fit_code_digests_are_the_fit_modules_and_the_ring_estimator():
-    assert sorted(FG.FIT_CODE_DIGESTS) == ["fit_bore", "fit_geometry", "fit_locate", "fit_rails", "fit_types", "fit_well", "mount_probe"]
+    # G1 S9 re-pin (AC144): `_fit_code_digests` globs fit_*.py, so fit_calibrate.py (the maths of attach-calibrate) is hashed too
+    assert sorted(FG.FIT_CODE_DIGESTS) == ["fit_bore", "fit_calibrate", "fit_geometry", "fit_locate", "fit_rails", "fit_types", "fit_well", "mount_probe"]
     assert all(len(v) == 12 and set(v) <= set("0123456789abcdef") for v in FG.FIT_CODE_DIGESTS.values())
 
 
