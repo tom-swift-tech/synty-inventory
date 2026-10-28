@@ -287,6 +287,12 @@ def cmd_validate(args, cfg) -> int:
 # twin magazines (4.2). What is left out is counted under ``not_positives``, never dropped silently.
 
 
+def _fused_node(point_fsu) -> str:
+    """The seat node of a preset's fused part: WHERE it stands (its seat point in the host's (f, s, u) frame, to the millimetre), not which part it is.
+    The locator finds the variants of one fitting (two scope models cut from the same mesh) at the same spot, and one spot is one seat (C1)."""
+    return "fused@" + ",".join(f"{c:.3f}" for c in point_fsu)
+
+
 def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] | None) -> dict:
     """``{observations, toothed, frame, positives, hosts, skipped}``: the observations of every positive of the directory's eligible hosts.
 
@@ -487,6 +493,9 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
         sight = (geo.get("mounts") or {}).get("sight_front")
         sight_f = float(np.dot(sight["point"], basis[0])) if sight and sight.get("source") == "probe" and sight.get("point") else None
 
+        # C1: every positive names its ``seat_node`` (plan 9.6 ruling 5; a seat is (host, slot, node)): a baked child is its own node, a twin takes the node of
+        # the baked child it is seated on (so it shares that child's seat), a preset's fused part takes the node of the spot it stands at (``_fused_node``).
+        # ``calibrate`` only counts them
         def add(pos: dict, host=host) -> None:
             pos.update(host=host["id"], tags=[f"{pos['slot']}:{pos['cls']}"])
             positives[pos["tags"][0]] = positives.get(pos["tags"][0], 0) + 1
@@ -499,8 +508,8 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
             if is_host and fc.toothed(mesh, side, s0, fit_rules):
                 toothed_hosts.add(host["id"])
 
-            def rail(cls, label, point, footprint, slot=slot, mesh=mesh, s0=s0, sight_f=sight_f):
-                add({"cls": cls, "slot": slot, "part": label, "mesh": mesh, "s0": s0, "seat": fsu(point),
+            def rail(cls, label, node, point, footprint, slot=slot, mesh=mesh, s0=s0, sight_f=sight_f):
+                add({"cls": cls, "slot": slot, "part": label, "seat_node": node, "mesh": mesh, "s0": s0, "seat": fsu(point),
                      "foot_length_m": footprint.get("foot_length_m"), "foot_width_m": footprint.get("foot_width_m"),
                      "sight_f": sight_f if slot == "optic" else None})
 
@@ -509,22 +518,23 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
                     not_positives["optic:glass"] = not_positives.get("optic:glass", 0) + 1
                     continue
                 anchor, footprint, _vol = measured[slot][name]
-                rail("baked", name, anchor["point"], footprint)
+                rail("baked", name, name, anchor["point"], footprint)
             for rec, entry in twins.get((host["id"], slot), ()):
                 child = (entry.get("replaces") or [None])[0]
                 child = child if child in measured[slot] else (mounts._seat(measured[slot]) if measured[slot] else None)
                 if child is not None and rec["attachment"]["anchor"] is not None:
-                    rail("twin", rec["id"], measured[slot][child][0]["point"], rec["attachment"]["footprint"])
+                    rail("twin", rec["id"], child, measured[slot][child][0]["point"], rec["attachment"]["footprint"])
             for pl in placements:
                 rec = located_rec[pl.part]
                 anchor, footprint = part_anchor(rec)
                 if slot_of[rec["id"]] == slot and anchor is not None:
-                    rail("preset", rec["id"], np.asarray(anchor["point"]) + np.asarray(pl.t), footprint)
+                    at = np.asarray(anchor["point"]) + np.asarray(pl.t)
+                    rail("preset", rec["id"], _fused_node(fsu(at)), at, footprint)
 
         # -- muzzle: the barrel end of the host minus its muzzle devices, against each device's mating face -----------------------------------
-        def device(cls, label, verts, anchor, footprint, point, axis, muzzle_mesh=muzzle_mesh, bore_source=bore_source, stripped_face=stripped_face,
+        def device(cls, label, node, verts, anchor, footprint, point, axis, muzzle_mesh=muzzle_mesh, bore_source=bore_source, stripped_face=stripped_face,
                    basis=basis):
-            add({"cls": cls, "slot": "muzzle", "part": label, "mesh": muzzle_mesh or empty, "bore_source": bore_source, "stripped_face": stripped_face,
+            add({"cls": cls, "slot": "muzzle", "part": label, "seat_node": node, "mesh": muzzle_mesh or empty, "bore_source": bore_source, "stripped_face": stripped_face,
                  "seat": fsu(point),
                  "axis_fsu": tuple(float(c) for c in fit.to_fsu(basis, [axis])[0]), "mate_d_m": (footprint or {}).get("mate_d_m"),
                  "device": {"verts": verts, "anchor": anchor}})
@@ -535,19 +545,20 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
             got = measure_anchor(v, "muzzle") if v is not None else None
             if got is not None and got["anchor"] is not None:
                 baked_anchor[name] = (v, got["anchor"], got["footprint"])
-                device("baked", name, v, got["anchor"], got["footprint"], got["anchor"]["point"], got["anchor"]["up"])
+                device("baked", name, name, v, got["anchor"], got["footprint"], got["anchor"]["point"], got["anchor"]["up"])
         for rec, entry in twins.get((host["id"], "muzzle"), ()):
             child = (entry.get("replaces") or [None])[0]
             child = child if child in baked_anchor else (sorted(baked_anchor)[0] if baked_anchor else None)
             got = part_mesh(rec)
             if child is not None and got is not None and rec["attachment"]["anchor"] is not None:  # seated where the device it twins stands
                 seat = baked_anchor[child][1]
-                device("twin", rec["id"], got[0], rec["attachment"]["anchor"], rec["attachment"]["footprint"], seat["point"], seat["up"])
+                device("twin", rec["id"], child, got[0], rec["attachment"]["anchor"], rec["attachment"]["footprint"], seat["point"], seat["up"])
         for pl in placements:
             rec = located_rec[pl.part]
             anchor, footprint = part_anchor(rec)
             if slot_of[rec["id"]] == "muzzle" and anchor is not None:
-                device("preset", rec["id"], located_mesh[rec["id"]], anchor, footprint, np.asarray(anchor["point"]) + np.asarray(pl.t), anchor["up"])
+                at = np.asarray(anchor["point"]) + np.asarray(pl.t)
+                device("preset", rec["id"], _fused_node(fsu(at)), located_mesh[rec["id"]], anchor, footprint, at, anchor["up"])
 
         # -- magazine: the well of a baked magazine against the entry section of the magazine on its seat ----------------------------------
         def well_pos(cls, label, child, part_verts, part_tris, path=path, scale=scale, basis=basis):
@@ -557,7 +568,7 @@ def _gather_oracle(directory: dict, threejs: Path, rules: dict, packs: set[str] 
             ref_host = reduced(frozenset({child, *by_slot["magazine"]}))
             if child_got is None or ref_host is None or not len(child_got[0]) or not len(child_got[1]):
                 return
-            add({"cls": cls, "slot": "magazine", "part": label, "ref_host": ref_host,
+            add({"cls": cls, "slot": "magazine", "part": label, "seat_node": child, "ref_host": ref_host,
                  "ref_mag": (fit.to_fsu(basis, np.asarray(child_got[0], dtype=np.float64)), np.asarray(child_got[1], dtype=np.int64)),
                  "part_mesh": (fit.to_fsu(basis, part_verts), part_tris)})
 
