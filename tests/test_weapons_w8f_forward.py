@@ -20,7 +20,7 @@ W = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(W)
 
 import synty_inventory.weapons as pkg  # noqa: E402
-from synty_inventory.weapons import compat, preview  # noqa: E402
+from synty_inventory.weapons import compat, directory, preview  # noqa: E402
 from synty_inventory.weapons.attach import measure_anchor  # noqa: E402
 from synty_inventory.weapons.rules import load_rules, weapon_rules_digest  # noqa: E402
 
@@ -211,16 +211,17 @@ def test_apply_compat_twice_gives_identical_records(rev):
     evidence = child_extents_of(rev)
     assert sorted(evidence) == [REV, TILT]
     # G1 3.1 (S8): the four slots are judged from the carried host features, so the second run is handed the same maps the build used; this world has
-    # no muzzle or magazine part, so there is no part-side measure to carry
+    # a drum magazine part, so its part-side measure is carried through part_fit, computed once the way the build does
     feats = host_feats_of(rev)
     assert sorted(feats) == [REV, TILT]
     rules = load_rules()
+    pf = directory._apply_fit_parts(records, rules, rev["root"], {}, feats, {"computed": 0, "cached": 0})
     first = copy.deepcopy(records)
-    compat.apply_compat(first, rules, OVERRIDES, child_extents=evidence, host_feats=feats)
+    compat.apply_compat(first, rules, OVERRIDES, child_extents=evidence, host_feats=feats, part_fit=pf)
     assert first == records  # the build already ran it once: a second run changes nothing
-    compat.apply_compat(first, rules, OVERRIDES, child_extents=evidence, host_feats=feats)
+    compat.apply_compat(first, rules, OVERRIDES, child_extents=evidence, host_feats=feats, part_fit=pf)
     assert first == records
     # a partial build hands the pass no evidence for a carried host: the stored twin relation and the corrected anchor survive
     carried = copy.deepcopy(records)
-    compat.apply_compat(carried, rules, OVERRIDES, child_extents={}, host_feats=feats)  # G1: a carried host keeps its cached features (directory.py reads them back)
+    compat.apply_compat(carried, rules, OVERRIDES, child_extents={}, host_feats=feats, part_fit=pf)  # G1: a carried host keeps its cached features (directory.py reads them back)
     assert carried == records

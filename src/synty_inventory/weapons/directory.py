@@ -30,7 +30,7 @@ from . import fit_geometry as _fit
 from .candidates import evaluate_candidate
 from .classify import attachment_reason, classify, classify_attachment, tokenize_id
 from .attach import hidden_nodes, place, setback_applies, setback_of, settle_applies
-from .compat import apply_compat
+from .compat import apply_compat, twin_forward
 from .geometry import code_digest, measure_cached, muzzle_stub_cached, pass2_inputs, settle_cached
 from .hints import build_group_stats, derive_hints
 from .mounts import eligible, is_filled_host, mount_reasons
@@ -870,6 +870,11 @@ def build_directory_report(
     stored_shifts = _stored_shifts(records)  # compat rebuilds every entry; a pair that cannot be settled now keeps its carried value
     stored_setbacks = _stored_setbacks(records)
     apply_pairs(records, overrides)  # A2: sight sets, before compatibility (a set candidate needs both members' lists)
+    # E3.12: a twin part's forward is corrected BEFORE its well section is cut. The section places the part with its stored anchor, and the prior forward
+    # (the longer horizontal extent) can be the wrong axis; calibrate places the part from the finished directory, so it reads the corrected one. The
+    # carried hosts' child_extents are in by now (a partial build corrects against them too). apply_compat runs the same function first thing, as it
+    # did before (compat.py stays self-correcting for its other callers); it finds the forward right and does nothing.
+    twin_forward(records, child_extents)
     part_fit = _apply_fit_parts(records, rules, threejs_v2_dir if can_measure else None, cache, feats_by_host, fit_stats)  # G1: the mesh side, before compat
     warnings.extend(apply_compat(records, rules, overrides, child_extents=child_extents, host_feats=feats_by_host, part_fit=part_fit, stats=compat_stats))
     fit_digest = _fit.fit_digest(_fit_records(feats_by_host, part_fit))
