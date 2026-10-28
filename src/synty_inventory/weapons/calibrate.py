@@ -16,7 +16,8 @@ Two layers, both pure:
   literal), enforces INV-24 (an upper bound at or above the largest observed value, a lower bound at or below the smallest, a band around both),
   and names every literal that has no positives. ``sheet_pairs`` picks the two pair lists ``attach-preview --pairs`` takes.
 
-A positive (``pos``): ``cls`` (``preset`` | ``twin`` | ``baked``), ``slot``, ``host`` and ``part`` (ids, for the report), optional ``tags``, and per slot
+A positive (``pos``): ``cls`` (``preset`` | ``twin`` | ``baked``), ``slot``, ``host`` and ``part`` (ids, for the report), optional ``tags``, optional
+``seat_node`` (the seat's node, see Seats below), and per slot
 
 * optic, underbarrel: ``mesh`` = ``(verts, tris)`` of the host minus the slot's children and the located slot parts, in the host's (f, s, u) frame;
   ``s0`` the centreline side coordinate; ``seat`` = the part's contact point ``(f, s, u)``; ``foot_length_m`` / ``foot_width_m``; ``sight_f`` (or None)
@@ -41,6 +42,11 @@ Readings of the spec (each is a choice where 4.2 is silent; the slice report lis
   observations: a twin seated on the child it twins is a second observation of that seat. A difference of count is read from the classes and reported,
   never tuned away.
 * **depth** is a review list (spec 3.9): it never fails the check, and its pairs outside ``depth.lo_m`` .. ``depth.hi_m`` are listed.
+* **Seats (C1).** Each row carries ``seats``, the count of distinct seats among the observations it uses, beside ``n`` (spec 4.2 states ``n`` as
+  seats). A seat is the distinct (host, slot, seat node), plan 9.6 ruling 5: ``cli`` names the node as ``seat_node`` on a positive, which ``_obs`` copies
+  to its observations. A baked child is its own node; a twin carries the node of the baked child it is seated on, so it shares that seat; a preset's
+  fused part is its own node. An observation with no node (a hand-built one, or a frame observation) stands in with its part, so ``seats`` never
+  exceeds ``n`` and a missing node never merges two parts into one seat.
 * ``rules['exceptions']`` lists class keys (strings ``<slot>:<class>``, e.g. ``optic:preset``, no asset ids); an observation whose tags (its own ``<slot>:<class>``) hit one is counted apart and bounds nothing.
 """
 
@@ -99,7 +105,7 @@ def _round(x, digits: int = _DECIMALS) -> float:
 
 def _obs(key: str, value, pos: dict) -> dict:
     return {"key": key, "value": None if value is None else _round(value, _NOISE), "cls": pos["cls"], "slot": pos.get("slot"),
-            "host": pos.get("host", ""), "part": pos.get("part", ""), "tags": sorted(pos.get("tags") or ())}
+            "host": pos.get("host", ""), "part": pos.get("part", ""), "tags": sorted(pos.get("tags") or ()), "seat_node": pos.get("seat_node")}
 
 
 def _unmeasured(pos: dict, reason: str) -> dict:
@@ -236,6 +242,12 @@ def frame_observation(host: str, ring_d_m: float) -> dict:
 # -- the rows -----------------------------------------------------------------------------------------------
 
 
+def _seat(o: dict) -> tuple:
+    """The seat an observation reads: (host, slot, seat node), the part standing in for a node the observation lacks (see the module docstring)."""
+    node = o.get("seat_node")
+    return o["host"], o["slot"], o["part"] if node is None else node
+
+
 def _who(o: dict) -> dict:
     return {"cls": o["cls"], "host": o["host"], "part": o["part"]}
 
@@ -247,7 +259,7 @@ def _row(rid: str, measure: str, kind: str, literal, observations: list[dict], e
     for o in used:
         by_class.setdefault(o["cls"], []).append(o)
     row: dict = {
-        "literal": rid, "kind": kind, "value": literal, "n": len(used), "spec_n": SPEC_N.get(rid), "excepted": len(mine) - len(used),
+        "literal": rid, "kind": kind, "value": literal, "n": len(used), "seats": len({_seat(o) for o in used}), "spec_n": SPEC_N.get(rid), "excepted": len(mine) - len(used),
         "positives": {cls: {"n": len(v), "min": _round(min(o["value"] for o in v)), "max": _round(max(o["value"] for o in v))}
                       for cls, v in sorted(by_class.items())},
     }
