@@ -282,24 +282,30 @@ These were read from the S7 worktree without changing it. They are for the lead 
 - No interface outside `fit_geometry` changes, and consumers are unaffected.
 - Not in force until Tom approves. E1.6 (a) is the exception: it applies the approved spec's intent.
 
-## E2. Located magazine seat; the ring bore rule (open)
+## E2. Located magazine seat; the ring bore rule
 
-**Status: PROPOSED** (2026-10-27, architect). This goes to Tom. Until he approves it, the build follows the spec and E1 as approved.
+**Status: APPROVED** by Tom on 2026-10-27 (drafted by the architect the same day). Tom's words, verbatim: "Use your default s". He typed this in the peer session instead of pressing either of its two buttons, "Approve as recommended" and "Approve at defaults". It is read as the peer's recommendations as put to him; the peer told him so in its closing message, and he can still correct it. The recommendations are:
+- E2-Q1: no change, and S10 reports.
+- E2-Q2: adopt; a ring needs two radii (E2.6).
+- E2-Q3: drop the clause. The peer's line to Tom, verbatim: "Here I depart from the architect's default. Every one of the 10 preset hosts has a baked magazine child, so the authored seat wins and zero live hosts need a seat derived from a located magazine. Building it adds code and a schema tweak for nothing measurable. Drop the clause from the spec and retire the matching S7 fold-in. It can return with a fixture when a pack actually needs it." This reading supersedes E2.7's stated Q3 default (the E2.1 fix). If Tom corrects it, Q3 flips to the E2.1 fix, and the E2 slice gains that work.
+- E2-Q4: no policy change.
 
 **Found by:** S7.
 - E2.1: its fold-in 4 (`build/g1-s7` at `5c8dd35`) gives a preset with a fused magazine a located well reference and no magazine seat.
 - E2-Q2: its builder (at `ab6c911`, plan §0 rule 7, not tuned). A solid round rod reads as a ring bore, so `barrel_round` is not reachable through the build.
 
 **Live effect.**
-- E2.1: none (E2.3). All 10 eligible preset hosts carry a baked magazine child, so the authored seat wins on every one. E2.1 settles the contract for a pack that fuses its magazines.
-- E2-Q2, if adopted: 19 muzzle mount records change, and no muzzle verdict does (E2.6).
+- E2.1 and E2-Q3: none (E2.3). All 10 eligible preset hosts carry a baked magazine child, so the authored seat wins on every one, and dropping the clause changes no live record.
+- E2-Q2 (adopted): 19 muzzle mount records change, and no muzzle verdict does (E2.6).
 
 | Point | Gap | Change | Sections | ACs |
 |---|---|---|---|---|
-| E2.1 | §3.7 admits a located magazine as the reference, but no step gives it a seat | the seat is the placement: the part's own anchor carried through `t`, written as a `probe` mount with `feature: "well_ref"` | §3.7, §4.4, §5 (INV-30), §7 | AC136 (fixture) |
-| E2-Q2 (open) | the A0 ring estimator reads any end with a 6-point bin as a ring, a solid rod included | if adopted: a ring needs an inner and an outer radius | A§4.2, §3.6 (i) | AC135 (fixtures), A-AC67 (re-pin) |
+| E2.1 | §3.7 admits a located magazine as the reference, but no step gives it a seat | not built (E2-Q3): §3.7 step 1 drops "or a located magazine on a preset", and S7 fold-in 4 is retired | §3.7, §3.11 | AC138 (guard, E2.4) |
+| E2-Q2 (adopted) | the A0 ring estimator reads any end with a 6-point bin as a ring, a solid rod included | a ring needs an inner and an outer radius | A§4.2, §3.6 (i) | AC135 (fixtures), A-AC67 (re-pin) |
 
 ### E2.1 The gap and the fix (§3.7, §4.4, §7)
+
+**Not built (E2-Q3).** The clause is dropped from §3.7 step 1 instead, and S7 fold-in 4 is retired (E2.4). The gap below stays as the record. The fix, its amended text, INV-30 and the AC136 sentence are the option Q3 declined, and are not in force.
 
 **Today.**
 - §3.7 step 1 admits "a located magazine on a preset" as the reference. Step 2 then places each candidate "at the reference seat", but no step derives a seat from a placement.
@@ -348,7 +354,9 @@ These were read from the S7 worktree without changing it. They are for the lead 
 
   Its break column gains: "no seat derived from the placement: the pair stays `not_judged`".
 
-### E2.2 Fixture
+### E2.2 Fixture (not built, E2-Q3)
+
+Not built: E2-Q3 drops the clause. The guard in E2.4 takes its place. The text below is the record of the declined option.
 
 `PRESET_MAG` in S7's `g1_world.py`: `MAG_RIFLE` fused at `PRESET_MAG_AT` (0, 0, −0.10), with no baked magazine child. The test goes in `test_weapons_g1_seats.py`.
 
@@ -381,51 +389,57 @@ These were read from the S7 worktree without changing it. They are for the lead 
 
 ### E2.4 The slice that builds E2
 
-- **Slice:** `E2`, on branch `build/g1-e2` in worktree `D:/game_assets_library/tools/inventoryagent-wt-g1-e2`. It is created by the lead after Tom approves E2.
+- **Slice:** `E2`, on branch `build/g1-e2` in worktree `D:/game_assets_library/tools/inventoryagent-wt-g1-e2`, created by the lead.
 - **Lane:** Sonnet builder, or Codex Sol through dispatch. Never Opus. **Size:** S.
-- **Base:** the E1 slice's merge on `integ/attach`. **S8's base becomes E2's merge.**
-  - E2.1 edits spine files (`fit_geometry.py`, `mounts.py`, `schema.py`, `directory.py`), so it lands between E1 and S8.
-  - If the E1 slice has not been cut when Tom approves E2, E2.1 can ride in it instead. Both are size S, in the same lane, and both edit `fit_geometry.py`. That is the lead's call.
-- **Fallback:** if S8 has started, E2's base is S8's merge and S9's base becomes E2's merge. E2 then also re-pins S8's preset magazine tests: `PRESET_MAG`'s magazine pairs move from `not_judged` to judged. Either way, E2 lands before S10.
-- **E2-Q2, if Tom adopts it, lands at or after S8's merge**, before S10.
-  - Before S8, the label-era `compat.fit_bore` still reads `bore_source == "ring"` for the muzzle. On the 19 hosts of E2.6 it would go from good or bad to ignored, and label-era listings could move. S8 retires that rule for the muzzle (§3.8), so after S8 nothing reads `bore_source` for a listing.
-  - So E2-Q2 rides in the E2 slice only when that slice is based on S8's merge (the fallback). Otherwise it is its own slice, `E2b`, size S, on S8's merge. The lead orders it against S9.
-- **Owns (E2.1):**
-  - `src/synty_inventory/weapons/fit_geometry.py`: `host_features` gives `seats["magazine"]` for a located reference: `{"feature": "well_ref", "point", "forward", "up"}`, in asset coordinates.
-  - `src/synty_inventory/weapons/mounts.py`: `_apply_features` writes that seat as the `probe` mount of E2.1 when the slot has no authored seat. It is withheld on a frame conflict.
-  - `src/synty_inventory/weapons/schema.py`: `_FEATURE_HOMES["well_ref"]` admits `probe`.
-  - `src/synty_inventory/weapons/directory.py`: the `_fused_parts_factory` rows gain `anchor`.
-    - It comes from `attach.measure_anchor` with the part's slot, kind and forward override, as its record's anchor does.
-    - `key` hashes the kind and forward override (E2.5).
-  - `tests/test_weapons_g1_seats.py`: the E2.2 test, the INV-30 test, and the re-pin of `test_fold_in_4_...`.
-  - `tests/test_weapons_*.py`: re-pins only, each citing E2.1. The schema case for `("magazine", "well_ref")` with `probe` now validates; `("optic", "well_ref")` is still rejected.
-- **Owns (E2-Q2, if adopted):**
+- **Base:** S8's merge on `integ/attach`. The order is E1 → S8 → E2 → S9 → S10, so **S9's base becomes E2's merge**.
+  - E2-Q2 rides in this slice; there is no `E2b`. On S8's merge the label-era `compat.fit_bore` no longer reads `bore_source` for the muzzle (§3.8), so the 19 mount changes of E2.6 move no listing.
+- **Owns (E2-Q3: retire S7 fold-in 4, the located-magazine well reference on presets).**
+  - `src/synty_inventory/weapons/fit_geometry.py`:
+    - `_compute`: the magazine block's `elif placements:` branch is removed. That is the code marked `# S7 fold-in 4`, which writes `slots["magazine"]["well_ref"]` with `source "located"` from the largest located magazine. The authored-child branch above it is unchanged.
+    - `_volume`: removed. The fold-in was its only caller; `mounts.py` has its own.
+    - The contract comment's "Located magazine" reading is removed.
+    - Unchanged: the locator, `out["located"]`, the slot-part strip (E1.3) and Q-G11's `refuse_filled`. A located magazine is still stripped from the host mesh and still leaves `magazine` open under `attach_filled_open`.
+  - `src/synty_inventory/weapons/fit_types.py`: `WellRef.source` narrows to `Literal["child"]` (§3.11). This is type-only: the field stays, and `test_weapons_g1_verdict.py` pins field names, not values.
+  - `src/synty_inventory/weapons/fit_well.py`: the `well_reference` docstring only. The sentence that says the S7 caller sets `"located"` goes.
+  - `tests/fixtures/weapons/g1_world.py`: the `PRESET_MAG` docstring line only. The mesh is unchanged.
+  - `tests/test_weapons_g1_seats.py`: `test_fold_in_4_a_fused_magazine_is_a_located_reference_without_a_seat` is re-pinned as the guard below, citing E2-Q3.
+  - S8's tests: any that judge or list `PRESET_MAG`'s magazine pairs re-pin to `not_judged` (a `pending_hosts` row), each citing E2-Q3. S8 had not been cut when this was written, so the builder lists them.
+  - Not touched: the magazine path of `mounts.py`, `schema.py` (`_FEATURE_HOMES["well_ref"]` stays `child_node` and `override`), and `directory.py` (the `_fused_parts_factory` rows gain no anchor).
+- **What a fused-magazine preset gets.**
+  - With a baked magazine child: the authored child seat (`child_node`, `feature: "well_ref"`, the reference from the child), as on all 10 live presets (E2.3).
+  - Without one: no well reference. `slots["magazine"]` has no `well_ref`, the mount stays `none` / `no_child_no_probe`, and its magazine pairs are `not_judged` (a `pending_hosts` row).
+- **Guard (proposed, the re-pinned test).** On `PRESET_MAG`:
+  - `"well_ref" not in slots["magazine"]`;
+  - the magazine mount is `source "none"`, `reason "no_child_no_probe"`, with no `feature`;
+  - `fit_geometry.verdict("magazine", slots["magazine"], <a magazine part with entry section (0.04, 0.02)>, None, rules)` is `("not_judged", ())`;
+  - `located` still lists `MAG_RIFLE`, and `CARBINE`'s child reference still has `source "child"`.
+  - On the base it fails at its first assertion: the reference is there with `source "located"`, and the verdict is `fit`. Break: fold-in 4 left in place.
+  - It is the synthetic case of AC138's negative control "magazine on a host with no well reference".
+- **If Tom corrects Q3,** the E2.1 work replaces the E2-Q3 block. Its owned files are listed in E2.4 as of `5a3caf1`: `fit_geometry.host_features`, `mounts._apply_features`, `schema._FEATURE_HOMES`, `directory._fused_parts_factory` and its cache key.
+- **Owns (E2-Q2).**
   - `src/synty_inventory/weapons/mounts.py`: `bore_diameter` only. That is the A0 ring estimator; `geometry.muzzle_probe` collects the face, and `mount_probe.py` and `fit_bore.py` are not touched.
-  - `tests/test_weapons_g1_bore.py`: the four E2.6 fixtures. They build their meshes inline from `g1_bore_meshes.tube` and `g1_world.rod_rifle`, so no fixture module is owned.
-  - `tests/test_weapons_w8b_muzzle.py`: one re-pin, citing E2-Q2. `test_ac67_the_ring_estimator_needs_six_points_and_reads_the_innermost_ring` asserts that a lone six-point ring is `"ring"`; under E2-Q2 it is `"face_extent"`. Its two-ring case and the `Mount`, `Double` and `Plain` worlds have two radii or none and stay.
-  - A§4.2 and A-AC67 in `docs/weapon_attachments.md` are outside this errata's manifest. The amended text in E2.6 is the amendment; on approval the lead adds a one-line pointer to it at A§4.2.
-- **Not owned:** `tests/fixtures/weapons/g1_world.py` and `g1_bore_meshes.py`. `PRESET_MAG`, `rod_rifle` and `tube` already exist, and E2 needs no new host.
-- **ACs:** AC136's fixture sentence and INV-30; under E2-Q2, the AC135 fixtures of E2.6. Each is shown failing on the base first (plan §0 rule 2), except the two guards, which E2.6 shows cannot fail there.
+  - `tests/test_weapons_g1_bore.py`: the four E2.6 fixtures. They build their meshes inline from `g1_bore_meshes.tube` and `g1_world.rod_rifle`.
+  - `tests/test_weapons_w8b_muzzle.py`: one re-pin, citing E2-Q2. `test_ac67_the_ring_estimator_needs_six_points_and_reads_the_innermost_ring` asserts that a lone six-point ring is `"ring"`; under E2-Q2 it is `"face_extent"`. Its two-ring case and the `Mount`, `Double` and `Plain` worlds have two radii or none, and stay.
+- **Not owned:** `docs/weapon_attachments.md` (the lead routes the A§4.2 pointer), `tests/fixtures/weapons/g1_bore_meshes.py`, and `g1_world.py` beyond the one docstring line.
+- **ACs:** the E2-Q3 guard, and the AC135 fixtures of E2.6. Each is shown failing on the base first (plan §0 rule 2), except E2.6's two guards, which cannot fail there. E2.1's AC136 sentence and INV-30 are not built.
 - **Gate:** plan §0 rule 2: the whole suite exit 0, then the scope gate.
 
 ### E2.5 Versions, digests and consumers
 
 - **No version bump of its own.** `WEAPON_ATTACH_VERSION` 14 lands in S8 and is not exported to a game before S11 (plan §0 rule 5). `attach_rules_digest`, `rules_digest` and `overrides_digest` are unchanged: no rule key changes.
-- **Caches miss on their own.**
-  - The fit cache and the `mv` fingerprint miss on the `fit_*.py` code digests. The geometry mounts cache misses on `mounts.py`'s code digest (`md`), as A-AC123 requires.
-  - The `fused_parts` key must also hash the anchor's inputs: the part's kind and forward override. Otherwise a forward override could change the seat behind a cache hit.
-- **The default export is unchanged.** It drops `geometry.mounts` (INV-19). No live host gains the E2.1 seat (E2.3).
+- **Caches miss on their own.** The fit cache and the `mv` fingerprint miss on the `fit_*.py` code digests. The geometry mounts cache misses on `mounts.py`'s code digest (`md`), as A-AC123 requires.
+- **The default export is unchanged.** It drops `geometry.mounts` (INV-19). The E2-Q3 retirement changes no live record: no live preset lacks an authored magazine seat (E2.3).
 - **The `--attachments` export** moves only under E2-Q2: the 19 muzzle mounts of E2.6.
-- **Consumers are unaffected.** `probe` is in sit_armory 0.3.0's `MOUNT_SOURCES`, `feature` is ignored, and sit_weapons 0.4.0 checks only that `source` is a string. `bore_d_m` and `bore_source` are carried as data; no consumer code reads them. No change and no bump.
+- **Consumers are unaffected.** No mount `source` or `feature` value changes. `bore_d_m` and `bore_source` are carried as data; no consumer code reads them. No change and no bump.
 
-### E2.6 E2-Q2: a ring needs two radii (open, Tom's call)
+### E2.6 E2-Q2: a ring needs two radii (ADOPTED)
 
 **Today.** `mounts.bore_diameter` (the A0 ring estimator, A§4.2) histograms the muzzle face points by radius from the face centre in 1 mm bins. The innermost bin holding ≥ 6 points is the ring: `bore_source "ring"`, `bore_d_m` twice its mean radius. There is no check that anything lies outside it.
 - A solid end therefore reads as a ring. S7's `rod_rifle` (a 32-sided solid rod, r 8.5 mm, ending in a fan to one centre vertex) gives 33 face points: 32 in the 8 mm bin and the centre alone in bin 0. So `bore_diameter` returns `(0.017, "ring")`.
 - §3.6 (i) takes any `"ring"` as evidence, so the rod's end is `barrel_ring`. Through the build, `barrel_round` is reachable only on an end with fewer than 6 points per bin. S7's rod test reaches it by handing `bore_source="face_extent"` to the mount.
 - `mount_probe.end_ring_d` (evidence (ii), and `device_inner_d` on the part side) already refuses this case: its ring must lie inside 0.75 of the slab's outer radius.
 
-**The rule, if adopted.** It follows the S7 builder's wording, with two changes. "Inner > 0" is read at the estimator's resolution. And a one-radius end falls through §3.6 in order, instead of going straight to (iii): 16 of the 19 below land on (ii).
+**The rule (adopted).** It follows the S7 builder's wording, with two changes. "Inner > 0" is read at the estimator's resolution. And a one-radius end falls through §3.6 in order, instead of going straight to (iii): 16 of the 19 below land on (ii).
 - **A§4.2**, the ring sentence reads:
   > ... points around the face centre (1 mm bins). A ring needs an inner and an outer radius: the innermost bin other than the centre bin (radius < 1 mm) holding at least 6 points is the ring only if a point lies in a bin beyond it. It gives `bore_d_m` and `bore_source = "ring"`. An end with one radius has no ring bore: `bore_d_m = face extent`, `bore_source = "face_extent"` (E2-Q2).
 - **§3.6 (i)** keeps its text. It reads A§4.2 as amended, so a one-radius end is not evidence (i). It falls through to (ii), then (iii) with E1.1's circularity, as any end does.
@@ -476,34 +490,40 @@ These were read from the S7 worktree without changing it. They are for the lead 
   - A rule that calls an end solid when its outermost bin holds ≥ 6 points: the tube fails.
   - The two-bins-of-six reading: the square face fails (`face_extent`).
 
-**Default: open. Tom decides with these numbers.** Recommendation: adopt the two-radii rule as worded above.
+**Adopted** (Tom, 2026-10-27, read as the peer's recommendation; see the status). It was recommended because:
 - It moves no verdict and keeps every positive's proof.
 - It makes `barrel_round` reachable through the build for a solid round end, which §3.6 (iii) was written for.
 - It adds no literal.
-- It lands at or after S8 (E2.4).
+- It lands after S8, in the E2 slice (E2.4).
 
-### E2.7 Open questions (each is Tom's)
+### E2.7 Questions and answers
+
+Each was Tom's. The answers are read from his reply, as the status records.
 
 - **E2-Q1. The flat seat takes the longest flat run** (§3.4 step 3). Default: no change.
   - On box rifles the longest flat run is the handguard, not the receiver top. `RIFLE_PLAIN` gets no optic seat, so its optic pairs are `not_judged` (a `pending_hosts` row).
   - S10 reports, as data for Tom, how many untoothed hosts have their flat seat on a run that is not their highest qualifying run (plan §3 step 4).
   - Preferring the receiver top would be a spec edit after S10's numbers, not tuning now.
-- **E2-Q2. A ring needs two radii.** Open; the numbers and the recommendation are in E2.6.
+  - **Answer: no change, and S10 reports.**
+- **E2-Q2. A ring needs two radii.** The numbers and the reasons are in E2.6.
+  - **Answer: adopted.**
 - **E2-Q3. The fix, or drop the clause.** Default: the E2.1 fix.
   - E2.3 counts 0 live hosts. The alternative is to drop "or a located magazine on a preset" from §3.7 step 1, which agrees with §7 as it stands, and retire S7's fold-in 4.
   - The alternative is docs-only plus a code removal. Either way, §3.7 step 1 and §7 agree afterwards.
+  - **Answer: drop the clause** (the peer's recommendation, which departs from this default). §3.7 step 1 now agrees with §7, and the E2 slice retires fold-in 4 (E2.4). If Tom corrects the reading, Q3 flips to the E2.1 fix.
 - **E2-Q4. A fused magazine cannot be hidden.** Default: no policy change. The slot stays open under `attach_filled_open`, and a `fit` magazine lists.
   - A `child_node` magazine seat lists the child in `occupied_by`, and a consumer hides that node. A fused magazine is part of the preset mesh, and its seat's `occupied_by` is empty, so a listed candidate renders over the fused magazine.
   - Tom's "preset guns can take other magazines" (2026-10-24) was made when every preset magazine was a hideable child.
   - Alternative: a located magazine fills `magazine`. The verdict is then computed for calibration only, as for a policy-refused positive (E-G6). This only adds refusals, which is Q-G11's own principle.
   - With 0 live hosts, neither choice moves a listing today.
+  - **Answer: no policy change.** Under E2-Q3 a fused magazine with no child gives no reference, so no candidate lists over it. The question comes back if the clause does.
 
 ### E2.8 Gate
 
-**PASS for review.**
-- E2.1 has amended text for §3.7, §4.4 and §7, a new invariant, the AC it touches, a synthetic fixture that fails on today's code with a stated failure, and two breaks.
+**PASS.**
+- E2.1 records the gap. Under E2-Q3 the clause is dropped from §3.7 step 1, and the retirement has a guard that fails on today's code with a stated failure.
 - E2-Q2 has its rule text, the live count with what moves, its effect on E1.1's calibration set, a measured alternative, a rejected reading, and fixtures. Two fail on today's code; the other two are guards that cannot fail there, and that is said.
 - The live counts are measured, with the method recorded, and no data is committed.
-- The `source` question is answered against the fit_types literal, the schema enum and the consumer contract. Only the schema's feature-to-source rule is amended.
-- The slice has owned files, a base, an option, a fallback, and E2-Q2's ordering against S8.
-- Not in force until Tom rules on E2-Q2, E2-Q3 and E2-Q4 (or takes the defaults of Q3 and Q4).
+- The `source` question is answered against the fit_types literal, the schema enum and the consumer contract. Under E2-Q3 no mount `source` or `feature` changes, and `WellRef.source` narrows to `"child"`.
+- The slice has owned files, functions and re-pins, and a base after S8.
+- In force: Tom approved E2 on 2026-10-27, read as the status records.

@@ -63,8 +63,10 @@
 | S5 | bore: barrel end, device inner ring | Codex Sol | **P1** | S2 | AC135 (fixture), AC138 (barrel-end part) |
 | S6 | well reference and entry section | Codex Luna | **P1** | S2 | AC136 (fixture), the drum case |
 | S7 | seats: host features into mounts, `feature`, frame conflict, preset fill | Sonnet builder | spine | S3 to S6 merged | AC147 (conflict), INV-27, AC148 (seats, gate 6(c)), AC139 item 1, Q-G11 |
-| S8 | verdict in compat, retired rules, export, attach version 14 | Sonnet builder | spine | S7 | AC133, AC138, AC139, AC140, AC143, AC145 (export), AC146, AC148, AC149, INV-22, INV-23, INV-25 |
-| S9 | tools: `attach-calibrate`, `attach-spotcheck`, eval table, preview pairs and icons | Codex Sol | spine | S8 | AC137, AC141 (fixture), AC142, AC144 (re-run), INV-24, INV-26 |
+| E1 | errata E1: round-end circularity, one landing test, strip rules | Sonnet builder or Codex Sol | spine | S7 | AC131, AC132 and AC135 (fixtures), INV-29 |
+| S8 | verdict in compat, retired rules, export, attach version 14 | Sonnet builder | spine | E1 | AC133, AC138, AC139, AC140, AC143, AC145 (export), AC146, AC148, AC149, INV-22, INV-23, INV-25 |
+| E2 | errata E2: retire S7 fold-in 4 (E2-Q3), a ring needs two radii (E2-Q2) | Sonnet builder or Codex Sol | spine | S8 | AC135 (E2.6 fixtures), AC138 (E2-Q3 guard) |
+| S9 | tools: `attach-calibrate`, `attach-spotcheck`, eval table, preview pairs and icons | Codex Sol | spine | E2 | AC137, AC141 (fixture), AC142, AC144 (re-run), INV-24, INV-26 |
 | S10 | first full build and re-measurement (live) | operator agent runs, lead verifies | none | S9 | live parts of AC131 to AC140, AC143, AC145 (consumer side), AC146 to AC148; the §4.7 impact record |
 | S11 | final review | reviewer agent, plus the lead's look | none | S10 | every AC, the captures |
 | S12 | spot check (once) | lead | none | after S11 **and the peer's word** | AC141 (live), §3.10 |
@@ -276,7 +278,7 @@ All four have base S2 merged, and each runs in its own worktree. Each owns exact
 
 ### S8. Verdict in compat, retired rules, export, attach version 14
 
-- **Lane:** Sonnet builder. **Base:** S7 merged. **Size:** L.
+- **Lane:** Sonnet builder. **Base:** E1 merged (errata E1.5). **Size:** L.
 - **Owns:**
   - `src/synty_inventory/weapons/compat.py`
   - `src/synty_inventory/weapons/directory.py`
@@ -312,7 +314,7 @@ All four have base S2 merged, and each runs in its own worktree. Each owns exact
 
 ### S9. Tools
 
-- **Lane:** Codex Sol (dispatch). **Base:** S8 merged. **Size:** M.
+- **Lane:** Codex Sol (dispatch). **Base:** E2 merged (errata E2.4). **Size:** M.
 - **Owns:**
   - `src/synty_inventory/weapons/cli.py`
   - `src/synty_inventory/weapons/fit_calibrate.py` (new)
@@ -461,3 +463,4 @@ The merge commits of the landed slices on `integ/attach`:
 - Errata E1 (`4dfdfdb`): the E1.1 calibration and the E1.2 counts were measured on live packs in scratch before S10. §0 rule 4 keeps live data to S10 and S12, but the §4.2 calibration rule needs its positives measured. The readings were read-only and uncommitted, and the positives are the preset oracle, not Tom's labels. Not a rule 7 breach.
 - 937ea4d lists 288 unverified optic pairs (w8d world) through the label-era compat path; interim on integ/attach only, closed by S8 under AC148.
 - Errata E2 (proposed, `docs/g1-errata2`): two more live readings were taken in scratch before S10, read-only against a8c and uncommitted, as for E1. E2.3: 0 of the 10 eligible preset hosts has a located magazine and no authored seat. E2-Q2: 19 of the 158 ring ends have one radius (16 would go to (ii), 3 to (iii), none to no end; 27 under the rejected two-bins-of-six reading), 0 of the 67 face rings do, and all 11 bore positives keep their proof. Counts and classes only. Not a rule 7 breach.
+- Errata E2 APPROVED by Tom on 2026-10-27, read as the peer's recommendations. The E2 slice bases on S8's merge and S9 on E2's: it retires S7 fold-in 4 (E2-Q3) and builds the two-radii ring rule (E2-Q2). The order is E1 → S8 → E2 → S9 → S10.
