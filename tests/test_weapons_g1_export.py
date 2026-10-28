@@ -97,7 +97,8 @@ def reference(name: str) -> str:
 
 def test_ac145_the_directory_carries_fit_digest_and_validates_with_signals_on_pending_entries(g1):
     d, _report = g1
-    assert d["fit_digest"] == "87fc33df830cfc68"  # literal: the cross_world digest at S8 (the FAKE_G1 world alone: 5ad9a64f66683826, test_weapons_g1_compat)
+    # literal: the cross_world digest after E2 (the FAKE_G1 world alone: 9e88713e0a47d5d0, test_weapons_g1_compat). E2 re-pin (E2-Q2, E2-Q3), from 87fc33df830cfc68 at S8
+    assert d["fit_digest"] == "e4245a0e01a13252"
     assert validate_directory(d) == []
     signalled = [e for w in d["weapons"] if w.get("attachment") for e in w["attachment"]["pending_hosts"] if "signals" in e]
     assert signalled and all(e["signals"] for e in signalled)  # the evidence of an unverified pair or a parked fit: optional, never empty

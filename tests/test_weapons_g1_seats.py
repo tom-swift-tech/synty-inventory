@@ -7,11 +7,11 @@ code under test is the A0 probe's front sight (a base behaviour that the sight c
 * seats (AC148): a toothed top rail, a toothed bottom rail, a flat top, authored seats confirmed by a detector (``seat_ref``, ``well_ref``), the sight
   clip against gate 6(c) of A 4.6 (the test keeps its own twin of that check), the muzzle ``feature``;
 * the frame conflict (AC147, INV-27) and the verdict on it (fold-in 7);
-* presets (AC139 item 1, Q-G11): the fused scope and silencer refuse their slots, the magazine stays open, a fused magazine is a located reference;
+* presets (AC139 item 1, Q-G11): the fused scope and silencer refuse their slots, the magazine stays open, a fused magazine with no baked child gets no reference (E2-Q3);
 * the number of hosts per ``feature`` value;
 * the caches: ``_fit_cache.json`` (miss on each key component, a hit equals a recompute) and the ``mv`` fingerprint of ``_geometry_cache.json``;
-* the fold-ins: 1 (``frame_vote``), 2 (a bow or shield on a gun hold), 3 (re-exports), 4 (a located magazine), 5 (the run read as is), 6 (the
-  shapes ``verdict`` reads), 7 (a conflict host and the magazine).
+* the fold-ins: 1 (``frame_vote``), 2 (a bow or shield on a gun hold), 3 (re-exports), 4 (retired by E2-Q3: a located magazine is no reference),
+  5 (the run read as is), 6 (the shapes ``verdict`` reads), 7 (a conflict host and the magazine).
 """
 
 from __future__ import annotations
@@ -174,15 +174,15 @@ def test_ac148_authored_optic_seats_keep_their_numbers_and_get_seat_ref(built):
 def test_ac148_the_muzzle_seat_stays_the_probes_and_only_gets_its_feature(built, featured):
     expected = {GW.UZI: ("barrel_ring", [0.0, 0.04, 0.2]), GW.RIFLE_PLAIN: ("barrel_ring", [0.0, 0.05, 0.6]),
                 GW.CARBINE: ("barrel_ring", [0.0, 0.05, 0.2]), GW.FLATTOP: ("barrel_ring", [0.0, 0.05, 0.4]),
-                GW.FLAT: ("barrel_ring", [0.0, 0.046, 0.65]), GW.SCOPED: ("barrel_ring", [0.0, 0.046, 0.65])}
+                GW.FLAT: ("barrel_round", [0.0, 0.046, 0.65]), GW.SCOPED: ("barrel_round", [0.0, 0.046, 0.65])}  # E2-Q2: the rod is one radius
     for name, (feature, point) in expected.items():
         muz = mounts(built, name)["muzzle"]
         assert (muz["source"], muz["feature"]) == ("probe", feature), name
         close(muz["point"], point)
         assert muz["point"] == built.by_id[GW.pid(name)]["geometry"]["muzzle"]  # AC67 parity: the same point as geometry.muzzle
     assert featured.feats[GW.pid(GW.UZI)]["slots"]["muzzle"]["barrel_end"]["evidence"] == "ring"
-    # the rod rifle's round 32-gon end reads as a ring to the A0 probe (six points in one radial bin), so the pipeline's evidence is "ring"
-    assert featured.feats[GW.pid(GW.FLAT)]["slots"]["muzzle"]["barrel_end"]["evidence"] == "ring"
+    # E2-Q2: the rod rifle's solid 32-gon end has one radius, so the A0 probe finds no ring bore (face_extent): the pipeline's evidence is (iii)
+    assert featured.feats[GW.pid(GW.FLAT)]["slots"]["muzzle"]["barrel_end"]["evidence"] == "round_section"
 
 
 def test_ac148_the_uzi_in_the_voted_frame_has_its_muzzle_at_the_ring_not_at_the_magazine(built):
@@ -310,7 +310,7 @@ def test_q_g11_the_fused_scope_and_silencer_of_a_preset_refuse_their_slots_and_t
 def test_q_g11_a_preset_with_no_fused_scope_or_silencer_keeps_those_slots_open(built, featured):
     m = mounts(built, GW.PRESET_MAG)
     assert m["optic"]["source"] == "probe" and m["optic"]["feature"] == "rail_flat"
-    assert m["muzzle"]["source"] == "probe" and m["muzzle"]["feature"] == "barrel_ring"
+    assert m["muzzle"]["source"] == "probe" and m["muzzle"]["feature"] == "barrel_round"  # E2-Q2: the rod rifle's end is one radius
     assert [p["part"] for p in featured.feats[GW.pid(GW.PRESET_MAG)]["located"]] == [GW.MAG_RIFLE]
 
 
@@ -319,26 +319,30 @@ def test_q_g11_only_presets_run_the_locator(featured):
         assert featured.feats[GW.pid(name)]["located"] == [], name
 
 
-def test_fold_in_4_a_fused_magazine_is_a_located_reference_without_a_seat(built, featured):
-    ref = featured.feats[GW.pid(GW.PRESET_MAG)]["slots"]["magazine"]["well_ref"]
-    assert ref["source"] == "located"  # not "preset": the WellRef literal of fit_types is child | located
-    assert ref["length_m"] == pytest.approx(0.04, abs=1e-3) and ref["width_m"] == pytest.approx(0.02, abs=1e-3) and ref["u_rb"] == pytest.approx(0.0, abs=1e-3)
+def test_e2_q3_a_fused_magazine_with_no_baked_child_gets_no_well_reference_and_its_pairs_are_not_judged(built, featured):
+    # G1 errata E2-Q3 (E2.4): S7 fold-in 4 is retired. Before it, this host's fused magazine was the reference (source "located", 0.04 x 0.02) and a
+    # magazine part of that section got `fit`. Now the locator still finds the magazine (and the strip still removes it), but it is no reference.
+    slots = featured.feats[GW.pid(GW.PRESET_MAG)]["slots"]
+    assert "well_ref" not in slots["magazine"]
     mag = mounts(built, GW.PRESET_MAG)["magazine"]
-    assert mag["source"] == "none" and mag["reason"] == "no_child_no_probe" and "feature" not in mag  # 3.4 step 4 writes rail seats only
-    assert featured.feats[GW.pid(GW.CARBINE)]["slots"]["magazine"]["well_ref"]["source"] == "child"
-    v = FG.verdict("magazine", featured.feats[GW.pid(GW.PRESET_MAG)]["slots"]["magazine"], part(entry_section=(0.04, 0.02)), None, RULES)
-    assert (v.value, v.signals) == ("fit", ("well_entry",))
+    assert (mag["source"], mag["reason"]) == ("none", "no_child_no_probe") and "feature" not in mag
+    # a literal rules dict (the verdict reads only "slots" before it returns not_judged)
+    rules = {"slots": ["optic", "muzzle", "underbarrel", "magazine"], "well": {"entry_depth_m": 0.002, "tol": 0.15}}
+    v = FG.verdict("magazine", slots["magazine"], part(entry_section=(0.04, 0.02)), None, rules)
+    assert (v.value, v.signals) == ("not_judged", ())
+    assert [p["part"] for p in featured.feats[GW.pid(GW.PRESET_MAG)]["located"]] == [GW.MAG_RIFLE]  # the locator and `located` are unchanged
+    assert featured.feats[GW.pid(GW.CARBINE)]["slots"]["magazine"]["well_ref"]["source"] == "child"  # an authored child's reference is unchanged
 
 
 # --- the feature counts -------------------------------------------------------------------------------------------------------------
 
 
 def test_the_number_of_hosts_per_feature_value_on_fake_g1(built):
-    # by hand, host by host (g1_world): barrel_ring Uzi, Plain, Carbine, Lowrail, FlatTop, Flat, Scoped, Shotgun, PresetMag (the rod rifles' round
-    # barrels read as rings to the A0 probe, so barrel_round has no host in the pipeline: it is tested on host_features directly);
+    # by hand, host by host (g1_world): barrel_ring Uzi, Plain, Carbine, Lowrail, FlatTop; barrel_round Flat, Scoped, Shotgun, PresetMag (E2-Q2: the rod
+    # rifles' solid round barrels have one radius, so the A0 probe finds no ring bore and (iii) calls them round sections);
     # rail_flat Uzi, Flat, FlatTop, Lowrail, PresetMag, Shotgun; rail_teeth Carbine (optic) and Lowrail (underbarrel); seat_ref Scoped, Stepped;
     # well_ref Uzi, Plain, Carbine, Preset. Both (a frame conflict), Preset's optic and muzzle, and the Rocket, Nailgun and Minigun carry none.
-    want = {"barrel_ring": 9, "rail_flat": 6, "rail_teeth": 2, "seat_ref": 2, "well_ref": 4}
+    want = {"barrel_ring": 5, "barrel_round": 4, "rail_flat": 6, "rail_teeth": 2, "seat_ref": 2, "well_ref": 4}
     assert built.report["feature_counts"] == want
     counted: dict[str, set] = {}
     for w in built.directory["weapons"]:
@@ -558,7 +562,7 @@ def test_fold_in_6_what_host_features_emits_is_what_verdict_reads(featured):
         (GW.CARBINE, "magazine", part(entry_section=None), "unverified", ("drum",)),
         (GW.UZI, "muzzle", part(mate_d_m=0.024, device_inner_d=None), "fit", ("barrel_ring", "frame_body")),
         (GW.UZI, "muzzle", part(mate_d_m=0.012, device_inner_d=None), "no_fit", ("barrel_ring", "frame_body")),
-        (GW.FLAT, "muzzle", part(mate_d_m=0.017), "fit", ("barrel_ring",)),
+        (GW.FLAT, "muzzle", part(mate_d_m=0.017), "fit", ("barrel_round",)),  # E2-Q2: the rod rifle's end is one radius
     ]
     for name, slot, p, value, signals in cases:
         v = FG.verdict(slot, featured.feats[GW.pid(name)]["slots"][slot], p, None, RULES)

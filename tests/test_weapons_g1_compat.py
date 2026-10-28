@@ -646,5 +646,7 @@ def test_ac143_two_builds_under_different_hash_seeds_give_identical_bytes_and_th
     fit0, sha0 = _run_probe(tmp_path, 0)
     fit1, sha1 = _run_probe(tmp_path, 1)
     assert (fit0, sha0) == (fit1, sha1)
-    assert fit0 == "5ad9a64f66683826"  # the FAKE_G1 world's digest, measured at S8; a change of a measure, a rule or a detector moves it (INV-25)
+    # the FAKE_G1 world's digest; a change of a measure, a rule or a detector moves it (INV-25). E2 re-pin (E2-Q2, E2-Q3), from 5ad9a64f66683826 at S8:
+    # four rod-rifle hosts' barrel_end evidence ring -> round_section, and the fused-magazine preset's located well_ref is gone: nothing else moved
+    assert fit0 == "9e88713e0a47d5d0"
     print(f"AC143: fit_digest {fit0}, directory sha256 {sha0[:16]}")

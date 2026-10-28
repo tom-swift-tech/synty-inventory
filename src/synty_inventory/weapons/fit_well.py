@@ -106,8 +106,7 @@ def well_reference(host_verts_fsu, host_tris, mag_verts_fsu, mag_tris, rules: di
     None when the line meets no host triangle, or the magazine has no usable section there (it does not reach the plane, or the section has no
     length or width: such a reference would divide by zero in the verdict).
 
-    ``source`` is always ``"child"`` (the function sees only meshes and cannot tell a child node from a located preset magazine). The S7 caller
-    sets ``"located"`` for a located preset magazine with ``dataclasses.replace(ref, source="located")``.
+    ``source`` is always ``"child"`` (G1 errata E2-Q3: a located preset magazine is no reference, so there is no other source).
     """
     mv, mt = _mesh(mag_verts_fsu, mag_tris)
     if len(mv) == 0 or len(mt) == 0:
