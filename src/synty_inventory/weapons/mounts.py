@@ -762,10 +762,15 @@ def build_mounts(
 
         cache_key = None
         if fit_cache is not None and fit_cache_id is not None:  # spec 3.11: the cache key (the fit code digests join it inside host_features)
+            from . import geometry as _geometry  # call time: geometry imports this module
             cache_key = {"sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(), "glb_node": node_cache_tag(glb_node),
                          "glb_scale": scale_cache_tag(scale), "geometry_version": _pkg.WEAPON_GEOMETRY_VERSION,
                          "attach_version": _pkg.WEAPON_ATTACH_VERSION, "attach_rules_digest": attach_rules_digest(rules),
-                         "mounts_code": _MOUNTS_CODE_DIGEST}  # E3.2: the stripped probe below is mounts code, not a fit module
+                         "mounts_code": _MOUNTS_CODE_DIGEST,  # E3.2: the stripped probe below is mounts code, not a fit module
+                         # S11 finding 1: stripped_muzzle_face runs geometry.muzzle_probe (the one A0 algorithm), so geometry.py is part of the
+                         # result too and is in neither digest above. The whole file, not the one function: the same coarse granularity as
+                         # mounts_code. Read at call time (the import above).
+                         "geometry_code": _geometry._CODE_DIGEST}
         feats = _fit.host_features(
             tables["fit_geometry"], axes=axes, mounts=mounts, mesh=mesh, child_mesh=child_mesh,
             fused_parts=fused_parts if is_filled_host(host_id, tables) else None, frame_changed=frame_changed, frame_conflict=frame_conflict,

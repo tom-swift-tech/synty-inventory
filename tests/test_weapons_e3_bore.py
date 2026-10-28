@@ -333,7 +333,8 @@ def test_host_features_cache_key_covers_the_probe_code(tmp_path, monkeypatch):
     mesh = E.plain(E.slide_face())
     end_of(tmp_path, mesh, fit_cache=fit, fit_cache_id="host_a")
     assert len(computes) == 1
-    assert sorted(keys[0]) == ["attach_rules_digest", "attach_version", "geometry_version", "glb_node", "glb_scale", "mounts_code", "sha256"]  # the pin
+    # the pin; geometry_code joined in slice C / S11 finding 1 (the stripped face is geometry.muzzle_probe's, tests/test_weapons_e3_cache.py)
+    assert sorted(keys[0]) == ["attach_rules_digest", "attach_version", "geometry_code", "geometry_version", "glb_node", "glb_scale", "mounts_code", "sha256"]
     digest = keys[0]["mounts_code"]
     assert len(digest) == 12 and set(digest) <= set("0123456789abcdef")
     end_of(tmp_path, mesh, fit_cache=fit, fit_cache_id="host_a")
