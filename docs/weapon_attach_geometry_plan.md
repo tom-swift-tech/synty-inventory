@@ -621,6 +621,29 @@ The merge commits of the landed slices on `integ/attach`:
      - Live, on both hosts the disabled `rail_teeth` probe was the only such seat, because their sight slots were already `none` / `slot_disabled`.
      - What remains does not set it: the muzzle `barrel_ring` probe, T's `child_node` optic, and `none` slots.
      - On the synthetic carbine, an optic-only disable keeps the flag, because its sight slots stay probe seats.
+- Slice G, the AC149 / errata E3.5a count (`f7de806` on `dd2f183`, merged `d8b1ecf`):
+  - **What it is.** Slice G is one report key plus a build-frame sight probe on frame-changed hosts. It cannot be report-only, because no single build holds the build-frame sight state: once the vote changes the frame, `geometry.py` replaces the pre-vote axes, and `build_mounts` runs once, in the voted frame.
+  - **The probe.** On a frame-changed host, `geometry.measure_weapon_detail` keeps the pre-vote axes (the build frame) and runs `build_mounts` a second time in that frame, with `fit_cache=None`. It sets a flag in `detail` only: a sight slot that reads `none` / `probe_unavailable` in the build frame and `probe` in the voted frame.
+  - **The report key.** `directory.py` carries the flag per host and adds one report key, `frame_sight_gain` = {count, hosts: [{host, class}]}, over `frame_changed_hosts`. `frame_counts` and every other key are untouched. AC149's implementation note now names the key; the D3 guard stays as the independent pin.
+  - **The new test.** It is in `tests/test_weapons_e3_report.py`, with its own literals: count 1 on the synthetic no-post world, 0 on the post world, and the warm build equal to the cold.
+  - **Gates.**
+    - G-1 is 3751 / 8, rc 0, on the slice and on the merge (base 3750 / 8).
+    - Red on detached `dd2f183`: `KeyError: 'frame_sight_gain'`.
+    - Live, from copy-catalog builds (base, after, and a stale cache), all rc 0:
+      - `directory.json` is byte-identical across the runs.
+      - The four digests and versions 14 / 6 are unchanged, and all 256 fit-cache records are identical.
+      - The report differs by the one key, `frame_sight_gain` {0, []}, cold and warm.
+      - The live guard `test_live_no_frame_changed_host_gains_a_sight_seat` passes on the same config with 0.
+  - **Code digests move, as D3's did.**
+    - `geometry._CODE_DIGEST` goes from `beddda5be389` to `843a44b33e03`, and `directory._FIT_PASS_CODE` from `c5bbf3745387` to `00ec10f1403f`. The mounts, attach and probe code digests are unchanged.
+    - So the geometry cache, the fit-pass cache and slice C's `geometry_code` fit key miss once (256 fit computes, 2811 measure calls), then run 0 / 0 warm.
+- Slice G, the builder's deviation, ruled by the peer on 2026-10-28 (accepted):
+  - **The strip.** The build-frame pass runs `build_mounts` with `attachment_rules.fit_geometry` removed from its rules (commented at the pass in `geometry.py`).
+  - **Why.** With the block in, the pass adds one fit compute per frame-changed host, and ten `_compute`-count pins outside the manifest go red (`test_weapons_g1_seats.py` 6, `test_weapons_g1_tools.py` 4: 16 against 15).
+  - **It is exact, not an approximation.** Two code facts make it so:
+    - `refuse_filled` skips any slot whose source is already `none`. A slot the flag can count reads `none` / `probe_unavailable` in the build frame, so the located-part rule never touches it in either pass.
+    - `_apply_features` never writes a sight slot's source.
+  - So the strip changes nothing the flag reads.
 
 ## 9. Errata E3: the build ladder (E3.0 to S10b)
 
