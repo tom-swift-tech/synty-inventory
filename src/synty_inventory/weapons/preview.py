@@ -20,8 +20,16 @@ Rendering. ``PreviewRenderer`` is the icon harness ``Renderer`` (same loopback s
 index are tested without a GPU. The placed attachment is drawn in one flat orange (``PART_TINT``, a field of every job) and the host with its own
 materials made opaque (a translucent host would show the part through its body; glTF MASK cut-outs stay), so a white part on a white host cannot hide a muzzle brake. A preview is flattened onto a plain background: it is a picture to look at, not an icon, and a
 dark model on a transparent PNG disappears in most viewers. Outputs: ``<name>.png`` per pair, ``index.json``
-(``weapon-attach-preview/1``, merged with what an earlier run left), and with ``--sheet`` ``sheet.png``, a contact sheet in
-index order. A failed pair is listed and the rest go on; a renderer that cannot start is exit 5 with nothing written.
+(``weapon-attach-preview/1``, merged with what an earlier run left), and with ``--sheet`` ``sheet.png``, a contact sheet of this run's
+pictures in job order (the order of ``--pairs`` or of the plan) minus the renders that failed. A failed pair is listed and the rest go on; a renderer that cannot start is exit 5 with nothing written.
+
+Sheet cells (E3.10 item 3). The index is sorted by (part, host) and keeps older runs' pairs, so an entry's position in it says nothing about
+where its picture sits on the sheet. Each entry of the run that wrote ``sheet.png`` therefore carries ``cell``: the 0-based, row-major cell
+of its picture (``ceil(sqrt(n))`` columns, the unused cells last). It is additive: the sheet stays in job order (sorting it into index order
+could not place a pair when older entries are in the index, and would break the file-order reading of ``--pairs``). A run that writes a sheet
+sets ``cell`` on its own entries and clears it on the kept ones, whose pictures are not on the new sheet. A run without a sheet (or one whose
+renders all failed, so no sheet is written) leaves the ``cell`` keys of the last sheet as they were; a pair it draws afresh has no ``cell``,
+because its picture on that sheet, if any, is the older render.
 
 G1 S9 (spec 3.10, 3.11). ``--pairs FILE`` renders exactly the pairs of a ``weapon-attach-spotcheck/1`` file (or ``{"pairs": [{"part", "host"}]}``), in the
 file's order, listed or not: a pair the directory does not list is drawn as tier ``unlisted`` when both ends are usable, so the same pairs render from an
@@ -423,6 +431,10 @@ def render_pairs(renderer, jobs: list[dict], out_dir: Path, size: int, *, sheet:
     kept = [p for p in _read_index(out_dir)
             if (p.get("part"), p.get("host")) not in fresh and isinstance(p.get("file"), str)
             and Path(p["file"]).name == p["file"] and (out_dir / p["file"]).is_file()]
+    if sheet and images:  # the sheet is rewritten below: this run's pictures sit in job order, so `cell` is the position among the renders that worked
+        for position, entry in enumerate(entries):
+            entry["cell"] = position
+        kept = [{k: v for k, v in p.items() if k != "cell"} for p in kept]  # the older pictures are not on the new sheet
     pairs = sorted(kept + entries, key=lambda p: (p["part"], p["host"]))
     out_dir.mkdir(parents=True, exist_ok=True)
     write_text_lf(out_dir / INDEX_NAME, json.dumps({"schema": PREVIEW_SCHEMA, "pairs": pairs}, indent=1, sort_keys=True) + "\n")
