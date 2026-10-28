@@ -27,7 +27,7 @@ from ..schema import pivot_from_aabb
 from ..sources.glb_geometry import load_triangles, node_world_matrices
 from ..sources.glb_measure import NodeSel, _cache_key, node_cache_tag, node_selected, read_glb_json
 from ..sources.glb_scale import scale_cache_tag
-from . import digest, write_text_lf
+from . import SIGHT_SLOTS, digest, write_text_lf
 from . import fit_geometry as _fit
 from .attach import measure_anchor, muzzle_silhouette, muzzle_stub, place, settle_pair
 from .mount_probe import end_ring_d, surface_samples
@@ -821,6 +821,7 @@ def measure_weapon_detail(
     o_axis, o_sign = _parse_axis(forward_override) if forward_override is not None else (None, 0)
     # --- the frame vote (G1, 3.3): the forward AXIS of an eligible host, before the override sets the sign on it ---
     vote = pre_vote = None
+    build_axes = None  # AC149 / E3.5a: the build frame's signed axes of a frame-changed host, kept before the vote overwrites them
     if eligible(role, kind, hold_class) and not is_bow and not is_shield:
         overridden = o_axis == fa  # what the bounding-box frame, version 5, makes of the override: classification reads these values
         pre_vote = {
@@ -830,6 +831,9 @@ def measure_weapon_detail(
         }
         vote = frame_vote(verts, _body_vertices(glb, glb_node, scale, rules, verts), (fa, fs), frame_axis)
         if vote.changed:
+            # the build frame is the pre-vote frame (spec 3.8), with the sign a forward override gives it on that axis (as the code below does for
+            # the voted one): the frame a build without the vote read
+            build_axes = {"forward": _sig(fa, o_sign if o_axis == fa else fs), "up": _sig(ua, us)}
             fa, fs, f_src = _AXES.index(vote.forward[0]), vote.forward[1], "body"
             ua, us, u_src = _AXES.index(vote.up[0]), vote.up[1], "fixed"
             # the sign of a ring-confirmed end is measured, not a guess (as an override's is); a frame_axis with no single ring is a guess
@@ -969,6 +973,24 @@ def measure_weapon_detail(
         # G1: the vote's state and the pre-vote pass 2 inputs, beside the block. A bow or shield never votes (vote and pre_vote are None):
         # unchanged, no conflict, and pass2_inputs falls back to the measured values (S7 fold-ins 1 and 2)
         out["frame_vote"] = {"changed": vote.changed if vote else False, "conflict": vote.conflict if vote else False, **(pre_vote or {})}
+        # AC149 / E3.5a: a frame-changed host whose sight slot reads probe_unavailable in the build frame and is seated by the probe in the voted frame
+        # (no fused post refused it: that reads slot_disabled) gains a sight seat from the vote. No single build holds the build-frame sight state, so
+        # the mounts are built once more in that frame, for a frame-changed host only. The pass reads the same inputs as the voted one, with the build
+        # frame's axes, no vote state (the build frame saw none; ``frame_vote`` on a frame_axis equal to the build axis returns exactly that) and no
+        # fit cache (nothing is read from or stored in it). Only this boolean leaves it. It is side-effect free: ``build_mounts`` writes to its own
+        # locals, and ``overrides``, the rules and ``fused_parts`` are only read.
+        # The pass leaves the ``fit_geometry`` block out of its rules: the detector features (``build_mounts`` step 4) never write a sight slot's
+        # state (``_apply_features`` seats rails and writes ``feature`` on the other slots; ``refuse_filled`` skips a ``none`` slot, which is what
+        # a probe_unavailable sight is), so they cannot change this flag, and skipping them keeps the pass cheap and the fit-compute count at one per host.
+        gain = False
+        if build_axes is not None:
+            sight_rules = {**rules, "attachment_rules": {k: v for k, v in attachment_rules(rules).items() if k != "fit_geometry"}}
+            was = build_mounts(glb, glb_node, scale, sight_rules, verts=verts, axes=build_axes, transformed=transformed, probe=muzzle_probe,
+                               overrides=mount_overrides, host_id=host_id, host_pack=host_pack, frame_changed=False, frame_conflict=False,
+                               fit_cache=None, fit_cache_id=None, fused_parts=fused_parts)["mounts"]
+            gain = any((was[s]["source"], was[s]["reason"]) == ("none", "probe_unavailable") and out["mounts"][s]["source"] == "probe"
+                       for s in SIGHT_SLOTS)
+        out["frame_sight_gain"] = gain
     return out
 
 

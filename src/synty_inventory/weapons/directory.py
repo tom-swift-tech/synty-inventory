@@ -722,7 +722,8 @@ def build_directory_report(
     ``write_directory``). ``host_feats`` (default: none) is filled in place with ``{host id: {s0, slots, located}}`` for every eligible host,
     carried hosts of a partial build included, the way ``child_extents`` is carried: the detectors' features for the later verdict pass (S8). The
     report counts the hosts per mount ``feature`` value (``feature_counts``). E3 slice D3: it also carries ``frame_counts``, ``frame_changed_hosts``
-    and ``fill_list`` (AC147, AC139), over the packs built like ``feature_counts``; none of them is part of the directory.
+    and ``fill_list`` (AC147, AC139), and (AC149, errata E3.5a) ``frame_sight_gain``, over the packs built like ``feature_counts``; none of them is
+    part of the directory.
     """
     rules = rules if rules is not None else load_rules()
     overrides = overrides if overrides is not None else load_overrides()
@@ -761,6 +762,7 @@ def build_directory_report(
     feats_by_host: dict[str, dict] = host_feats if host_feats is not None else {}  # host id -> detector features (S7)
     votes_by_host: dict[str, dict] = {}  # host id -> the frame vote's state of the hosts measured now (E3 D3: the report's frame keys)
     located_fills: dict[str, list[str]] = {}  # host id -> the slots a located part filled and refuse_filled refused (E3 D3: the report's fill_list)
+    sight_gains: dict[str, bool] = {}  # host id -> a frame-changed host that gains a sight seat in the voted frame (AC149, E3.5a: the report's frame_sight_gain)
     fused_for = _fused_parts_factory(docs, rules, overrides, settings, threejs_v2_dir) if measure and threejs_v2_dir is not None else None
 
     if partial:
@@ -848,6 +850,8 @@ def build_directory_report(
                     votes_by_host[full_id] = detail["frame_vote"]
                 if "refused_by_located" in detail:
                     located_fills[full_id] = detail["refused_by_located"]
+                if "frame_sight_gain" in detail:
+                    sight_gains[full_id] = detail["frame_sight_gain"]
                 _apply_measurement(rec, detail)
                 if detail.get("warning"):
                     warnings.append(f"{full_id}: {detail['warning']}")
@@ -920,6 +924,7 @@ def build_directory_report(
     with_glb = [r for r in mine if r["files"].get("glb")]
     n = len(mine) or 1
     frame_counts, frame_changed_hosts, fill_list = _frame_and_fill_report(mine, votes_by_host, located_fills)
+    frame_sight_gain = _frame_sight_gain_report(mine, sight_gains)
     report = {
         "packs_built": selected,
         "records": len(mine),
@@ -939,6 +944,7 @@ def build_directory_report(
         "frame_counts": frame_counts,  # E3 D3 (AC147): hosts whose frame vote changed / conflicted, over the packs built
         "frame_changed_hosts": frame_changed_hosts,  # E3 D3 (AC139, AC147): the changed hosts with their class (archetype)
         "fill_list": fill_list,  # E3 D3 (AC139, Q-G11): the preset slots a located fused part filled and refuse_filled refused
+        "frame_sight_gain": frame_sight_gain,  # AC149 (E3.5a): the frame-changed hosts whose sight slot is probe_unavailable in the build frame and probe-seated in the voted one
         "fit_stats": dict(fit_stats),  # G1 (S8): the part pass (computed, cached)
         "cross_pack_magazine_fit": compat_stats.get("parked_fit", {}).get("magazine", 0),  # G1 AC140: cross-pack magazine pairs judged `fit`, parked by A8-1 (Q-G1)
         "stale_overrides": _stale_overrides(overrides, all_ids, set(selected), partial=partial),
@@ -960,6 +966,17 @@ def _frame_and_fill_report(records: list[dict], votes: dict[str, dict], fills: d
     hosts = [{"host": r["id"], "class": r["archetype"]} for r in changed]
     fill_list = [{"host": r["id"], "class": r["archetype"], "slot": slot} for r in records for slot in fills.get(r["id"]) or ()]
     return counts, hosts, sorted(fill_list, key=lambda f: (f["host"], f["slot"]))
+
+
+def _frame_sight_gain_report(records: list[dict], gains: dict[str, bool]) -> dict:
+    """``{"count": n, "hosts": [{"host", "class"}]}`` of the report (AC149, errata E3.5a): the frame-changed hosts that gain a sight seat in the voted frame.
+
+    ``gains`` is the per-host ``frame_sight_gain`` flag of the hosts measured in this build (``geometry.measure_weapon_detail`` probes the sight slots in
+    the build frame for a frame-changed host: no single build holds that state). ``records`` = the packs built, as ``frame_changed_hosts``: a carried
+    host of a partial build is out of scope. ``class`` is the record's archetype; the list is sorted by host id.
+    """
+    hosts = [{"host": r["id"], "class": r["archetype"]} for r in sorted(records, key=lambda r: r["id"]) if gains.get(r["id"])]
+    return {"count": len(hosts), "hosts": hosts}
 
 
 def _feature_counts(records: list[dict]) -> dict[str, int]:

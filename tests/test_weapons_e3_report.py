@@ -266,3 +266,55 @@ def test_live_the_fill_list_is_two_slots():
         Path(cfg["catalogs"]), packs=None, rules=load_rules(), overrides=load_overrides(committed), measure=True, base=None,
         threejs_v2_dir=Path(cfg["threejs_v2"]), geometry_cache={}, extracted_root=Path(cfg["extracted_root"]), fit_cache={})
     assert len(report["fill_list"]) == 2
+
+
+# --- frame_sight_gain (AC149, errata E3.5a) ------------------------------------------------------------------------------------
+
+_SPEC = importlib.util.spec_from_file_location("e3_sight_world", FIX / "e3_sight_world.py")
+S = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(S)
+
+
+def _sight_tree(tmp_path_factory, name, *, with_plain):
+    """The sight-clause world written to disk: ``(catalogs dir, GLB root, pack settings)``."""
+    world = S.sight_world(with_plain=with_plain)
+    cat, root = S.W.write_world(tmp_path_factory.mktemp(name), world)
+    return cat, root, S.W.pack_settings(world)
+
+
+def _sight_build(tree, geometry_cache=None):
+    """``(directory, report)`` of a sight-clause tree in the voted frame (no ``frame_axis`` override), measured, over ``geometry_cache``."""
+    cat, root, settings = tree
+    d, _ex, report = dirmod.build_directory_report(
+        cat, overrides=S.voted_overrides(), pack_settings=settings, rules=S.W.sight_rules(), measure=True,
+        threejs_v2_dir=root, geometry_cache={} if geometry_cache is None else geometry_cache)
+    return d, report
+
+
+def test_frame_sight_gain_counts_the_frame_changed_host_that_gains_sight_seats(tmp_path_factory):
+    """AC149 / E3.5a: no single build holds the build-frame sight state, so a frame-changed host is probed once more in the build frame and the report
+    counts the hosts whose sight slot reads ``probe_unavailable`` there and is seated by the probe in the voted frame. By hand (e3_sight_world): PLAIN is
+    the Uzi with no post, no seat in the build frame (forward -y) and both seats in the voted frame (forward +z): one host. POST has the same two frames
+    but a fused post, so the voted frame reads ``slot_disabled`` (a refusal, not a seat): not counted. RIFLE and BOTH are not frame-changed."""
+    plain = _sight_tree(tmp_path_factory, "e3_gain_plain", with_plain=True)
+    d, report = _sight_build(plain)
+    by_id = S.W.by_id(d)
+    assert by_id[S.pid(S.PLAIN)]["archetype"] == "smg"  # the literal class below is the record's archetype
+    assert report["frame_sight_gain"] == {"count": 1, "hosts": [{"host": "FAKE_G1/SM_Wep_SMG_Uzi_01", "class": "smg"}]}
+    assert S.pid(S.PLAIN) == "FAKE_G1/SM_Wep_SMG_Uzi_01"
+    # the mechanism it counts, in the voted directory: PLAIN seats both sights by the probe, POST has them refused by its post
+    assert [by_id[S.pid(S.PLAIN)]["geometry"]["mounts"][s]["source"] for s in ("sight_front", "sight_rear")] == ["probe", "probe"]
+    assert [by_id[S.pid(S.POST)]["geometry"]["mounts"][s]["reason"] for s in ("sight_front", "sight_rear")] == ["slot_disabled", "slot_disabled"]
+    assert {h["host"] for h in report["frame_changed_hosts"]} == {"FAKE_G1/SM_Wep_SMG_Uzi_01", "FAKE_G1/SM_Wep_SMG_Post_01"}  # both are frame-changed
+    # a warm rebuild over the same geometry cache reports the same key: the flag rides the cached measurement detail
+    cache: dict = {}
+    _d, cold = _sight_build(plain, cache)
+    _d, warm = _sight_build(plain, cache)
+    assert cold["geometry_stats"]["decoded"] > 0 and warm["geometry_stats"]["decoded"] == 0
+    assert warm["frame_sight_gain"] == cold["frame_sight_gain"] == report["frame_sight_gain"]
+    # the world without PLAIN: POST is the one frame-changed host, its sight slots are probe_unavailable in the build frame, and its fused post refuses
+    # them in the voted frame: not a gain
+    d0, report0 = _sight_build(_sight_tree(tmp_path_factory, "e3_gain_post_only", with_plain=False))
+    assert [h["host"] for h in report0["frame_changed_hosts"]] == ["FAKE_G1/SM_Wep_SMG_Post_01"]  # not vacuous: a frame-changed host is there
+    assert report0["frame_sight_gain"] == {"count": 0, "hosts": []}
+    assert "frame_sight_gain" not in d0 and all("frame_sight_gain" not in r for r in d0["weapons"])  # never part of the directory
