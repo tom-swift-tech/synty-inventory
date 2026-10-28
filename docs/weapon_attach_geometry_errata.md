@@ -968,7 +968,7 @@ Each was Tom's. The answers are his ruling quoted in the status.
 ### E3.13 Versions, digests and consumers
 
 - **No version bump.** `WEAPON_ATTACH_VERSION` stays 14 and `WEAPON_GEOMETRY_VERSION` stays 6: a14 is local-only until S11 and S12, and E3.7 stores new footprints and anchors on 2 parts at the same version. A bump to 15 would re-pin 19 test files and the package constant, and is its own sweep slice after the last functional merge, if ordered.
-- **`attach_rules_digest`** moves once, in E3.8: `a981c4c7c27972e8` to `2fa41961e3c387b0` (the w8d-world one `d53ba2ef587b5ee9` to `6f49a2ac6efa8120`). `rules_digest` (`7b9829af37328fe7`) and `overrides_digest` (`0a2948d6cab4c77e`) do not move.
+- **`attach_rules_digest`** moves once, in E3.8: `a981c4c7c27972e8` to `2fa41961e3c387b0` (the w8d-world one `d53ba2ef587b5ee9` to `6f49a2ac6efa8120`). `rules_digest` (`7b9829af37328fe7`) and `overrides_digest` (`0a2948d6cab4c77e`) do not move. E3.18 (slice B) later moves `overrides_digest` to `17d4e771a785a4b2`.
 - **`fit_digest`** moves on the live library in E3.1 and E3.6 (and again in E3.12) and does not in E3.7 and E3.8. AC143 (`9e88713e0a47d5d0`), AC145 (`e4245a0e01a13252`) and the w8d-world value (`d8a5f85413f90698`) are predicted unchanged by E3.1, E3.6, E3.7 and E3.8; E3.12 may move them and re-pins in-slice.
 - **Caches miss on their own.** Editing `fit_bore.py`, `fit_geometry.py` or `fit_well.py` moves `FIT_CODE_DIGESTS`; editing `attach.py` moves the attach code digest; E3.1 adds a mounts code digest to the host-features key.
 - **Consumers are unaffected.** No mount `source` or `feature` value changes, no key is added to the export, and `geometry_version` is unchanged. sit_armory 0.3.0 and sit_weapons 0.4.0 need no change. The listing changes (E3.1, E3.6, E3.8) are data, seen on the games' next re-export.
@@ -1013,3 +1013,59 @@ It changes no literal, band, verdict, stored record, `SPEC_N` entry or test pin.
 - **The §4.2 row.** The positives cell states 15 seats and 16 observations.
 - **`SPEC_N`.** `well.tol` stays 15, now read as seats. The pins that hold it are unchanged.
 - **The docstrings.** The Populations paragraph says §4.2 states its counts as seats, `spec_n` sits beside `seats`, and `n` counts observations. The Seats paragraph keeps "spec 4.2 states `n` as seats" reworded to the same reading. Both cite E3.17.
+
+### E3.18 Two slot disables by id, and AC146's `overrides_digest` (data, docs)
+
+**Status: APPROVED by Tom, 2026-10-28, verbatim: "Defaults".** These are the defaults of the slice B questions, Q1 to Q5:
+- Q1 accepts 26 pairs.
+- Q2 moves the fit digest with the overrides digest.
+- Q3 is this erratum.
+- Q4 is (c): B2 stays as data until G1 closes, and is raised with the clash gate later.
+- Q5 is (a): the gate 6(c) check form and its test twin are fixed in the test helpers only, with an errata line.
+
+Decision 2 (i) of the S11 set chose the mechanism.
+- **Cause (S11 decision 2 (i)).**
+  - Two hosts' rib runs are not the strip the slot is for.
+    - Host S is a ribbed-shroud vintage SMG. Its optic run is the shroud's ribs.
+    - Host T is the cell 06 stock-tube sniper. Its underbarrel run is the single rib run on its stock tube.
+  - Captures of all four T parts show each one hanging from the stock tube, and none on a handguard.
+  - A rule cannot tell these runs from real strips today, so the fix is per host: `mounts.<slot>.source` `none` in `weapon_overrides.json`. This is the mechanism of A6-6 (iii) and of erratum E2 in `weapon_attachments.md`. It needs no code.
+- **Effect (slice B, `47cba81` merged `6da060b`; live, cold copy-catalog builds before and after, rc 0 / 0).**
+  - 26 fit verdicts go: S's 22 optic pairs, and T's 4 underbarrel pairs (3 foregrips, 1 bipod).
+    - Decision 2 (i)'s gate said 23 pairs. Its one T pair was cell 06, a foregrip. The 3 extra are T's other two foregrips and its bipod, all on the same run (Q1).
+  - 11 `no_fit` verdicts are no longer computed (S 4, T 7), and none of them was listed. The pair-verdict count goes from 6722 to 6685, 37 fewer.
+  - The directory stores no `no_fit`: a vetoed pair is absent (`compat.py:345-346`), in neither `compatible_hosts` nor `pending_hosts`.
+  - 25 entries leave `compatible_hosts`: S 21 and T 4.
+    - The 22nd S pair was already unlisted at base, so it has no entry to remove.
+    - The inferred cause is the A6-4 contact cap (`contact.cap_m`, the contact post-pass in `directory.py`): the pair's settled seat shift exceeded the cap. `contact_capped` falling from 28 to 27 is consistent with this. That pair's shift was not replayed.
+  - Every other pair is byte-identical. The counts block is identical, and 27 of 2655 records change (the 2 hosts and 25 parts).
+  - The build report has three changes: `contact_capped` 28 to 27, `feature_counts.rail_teeth` 38 to 36, and `contact_stats.computed` 816 to 790.
+  - The two host records change only in the disabled slot's mount and in `review.reasons`.
+    - The mount goes from `probe` to `source` `none`, reason `slot_disabled`, and its confidence from 0.5 to 0.0.
+    - `mount_estimated` leaves `review.reasons` on both hosts, and `mount_missing` is not added. S goes from [`low_confidence`, `mount_estimated`] to [`low_confidence`], and T from [`mount_estimated`] to [].
+    - Why it leaves:
+      - The flag needs a `probe` seat on a sight slot, or one on a `rail_teeth` / `rail_flat` feature (`mounts.py:840-841`).
+      - On both hosts the disabled slot, a `rail_teeth` probe, was the only such seat. Both hosts' sight slots were already `none` / `slot_disabled` at base.
+      - What remains does not set the flag: the muzzle `probe` on a `barrel_ring` feature, T's `child_node` optic, and `none` slots.
+      - The synthetic carbine in the new test keeps probe seats on its sight slots, so an optic-only disable leaves the flag set there.
+- **Digests and versions.**
+  - `overrides_digest` moves from `0a2948d6cab4c77e` to `17d4e771a785a4b2`. The live `fit_digest` moves from `9eed3cc0bf14e986` to `2d94c7151cce583b` (Q2).
+  - `rules_digest` (`7b9829af37328fe7`) and `attach_rules_digest` (`2fa41961e3c387b0`) do not move.
+  - `WEAPON_ATTACH_VERSION` stays 14 and `WEAPON_GEOMETRY_VERSION` stays 6, as in the precedent of E2.
+- **AC146 (spec §6), amended.** `overrides_digest` is unchanged from a8c until this erratum, and is `17d4e771a785a4b2` after it. Spec §4.6 says the same.
+  - The pin is in `tests/test_weapons_g1_frame.py`, in `test_ac146_the_rules_and_overrides_digests_are_unchanged`. It holds the new literal, with a comment citing decision 2 (i) and E3.18.
+  - The test keeps its name, and its rules and empty-overrides asserts do not move.
+- **Docs that state the old literal.**
+  - Updated as current state: spec AC146 and §4.6; E3.13 (this file); and plan §9.5, as a note under the ledger.
+  - Left as dated records, because each is true at its date:
+    - plan §3, the a8c before side;
+    - E3.3, the withdrawn erratum, under which no exception mechanism was built;
+    - erratum E2 in `weapon_attachments.md`, the move from `ca48c3099f4fb1c4` to `0a2948d6cab4c77e`;
+    - every plan §8 line.
+- **Test.** A new test in `tests/test_weapons_g1_compat.py` uses its own literals. It is red on `41f1d26` and green after.
+  - It pins the shipped overrides file at 38 ids and 40 `source` `none` mount entries: optic 9, underbarrel 3, and the other slots unchanged.
+    - At base, the file already held 38 such entries across 36 ids.
+  - On the synthetic g1 world, an id-only slot disable leaves the pair absent from `compatible_hosts` and `pending_hosts`. The mount reads `none` / `slot_disabled`, and `review.reasons` has no `mount_missing`.
+- **Not changed (Q4 (c)).** B2 (decision 5 (a)) stays as data until G1 closes, and cell 20's records do not change.
+  - Cell 20's host has six children and no handguard child, and its launcher tube is fused into the body. So no id override can name the strip.
+  - Naming it needs code: a named selector, or an owner and height test. That choice is raised with the clash gate.
