@@ -1,0 +1,2175 @@
+{
+ "schema": "weapon-attach-labels/1",
+ "pairs": [
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_07",
+   "host": "POLYGON_SciFi_City/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_10",
+   "part2": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_10",
+   "part2": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_10",
+   "part2": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_10",
+   "part2": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_10",
+   "part2": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_05",
+   "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_10",
+   "part2": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_05",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_10",
+   "part2": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_07",
+   "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_10",
+   "part2": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_07",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_10",
+   "part2": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_09",
+   "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_10",
+   "part2": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_IronSight_09",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_Clean_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_02",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_Clean_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_02",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_03",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_05",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_05",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_Clean_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_05",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_Pneumatic_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_06",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_06",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_06",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_Pneumatic_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_06",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Lite_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_06",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Mil_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_07",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_07",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_Clean_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_07",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_07",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_Pneumatic_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_07",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_08",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_08",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_Clean_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_08",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_09",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_09",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_09",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_10",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_Minigun_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_Minigun_Clean_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_Revolver_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_Revolver_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_RocketLauncher_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_Shotgun_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_Pneumatic_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_Clean_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_02",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_Clean_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_02",
+   "host": "POLYGON_Apocalypse/SM_Wep_Pistol_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_03",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_Clean_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_03",
+   "host": "POLYGON_Apocalypse/SM_Wep_Minigun_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_03",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_MachineGun_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_Minigun_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_Minigun_Clean_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_Nailgun_Clean_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_Pistol_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_04",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Foregrip_03",
+   "host": "POLYGON_Police_Station/SM_Wep_Launcher_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Foregrip_04",
+   "host": "POLYGON_Police_Station/SM_Wep_Launcher_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Foregrip_05",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Foregrip_Duck_01",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Foregrip_Duck_01",
+   "host": "POLYGON_Police_Station/SM_Wep_Launcher_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Foregrip_Screwdriver_01",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Foregrip_Wood_01",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Ironsight_Nail_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Ironsight_Ring_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_Pneumatic_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Muzzle_Silencer_01",
+   "host": "POLYGON_Apocalypse_Wasteland/SM_Wep_Launcher_Loader_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Scope_Bottle_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Scope_CameraLens_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Scope_Pipe_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_HuntingRifle_Clean_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Scope_Roll_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Mag_Banana_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_Rifle_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Mag_Banana_01",
+   "host": "POLYGON_Shops/SM_Wep_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Mag_Banana_02",
+   "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Mag_Drum_02",
+   "host": "POLYGON_Apocalypse/SM_Wep_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Mag_Straight_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_Rifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Mag_Thin_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Mag_Thin_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_BattleRoyale/SM_Wep_Attachment_Redot_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_MachineGun_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_BattleRoyale/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Pistol_Heavy_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_BattleRoyale/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Pistol_Revolver_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_BattleRoyale/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_04",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_BattleRoyale/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Heavy_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_BattleRoyale/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_Gang_Warfare/SM_Wep_Rifle_Gold_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_BattleRoyale/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_BattleRoyale/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_Military/SM_Wep_Pistol_Metal_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_BattleRoyale/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_BattleRoyale/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_BattleRoyale/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_Police_Station/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_Redot_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Grenade_Launcher_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_Redot_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_MachineGun_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_04",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_05",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_Gang_Warfare/SM_Wep_Rifle_Gold_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_Heist/SM_Wep_RifleBandit_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_Heist/SM_Wep_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_Heist/SM_Wep_SniperSwat_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_Police_Station/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_SniperScope_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Heavy_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_SniperScope_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Lite_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_SniperScope_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Mil_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_SniperScope_01",
+   "host": "POLYGON_Palm_City/SM_Wep_Sniper_Mil_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_IronSight_Post_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_IronSight_Post_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_IronSight_Post_01",
+   "part2": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Rear_01",
+   "host": "POLYGON_Military/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_IronSight_Post_02",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_IronSight_Post_02",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_IronSight_Post_02",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_IronSight_Post_03",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_IronSight_Post_03",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_IronSight_Post_03",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_IronSight_Post_03",
+   "part2": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Rear_Canted_02",
+   "host": "POLYGON_Military/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Front_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Front_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Front_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Front_01",
+   "part2": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Rear_01",
+   "host": "POLYGON_Military/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Front_Canted_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Front_Canted_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Front_Canted_01",
+   "part2": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Rear_Canted_01",
+   "host": "POLYGON_Military/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Rear_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Rear_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Rear_Canted_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Rear_Canted_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Rear_Canted_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Rear_Canted_02",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Ironsight_Rear_Canted_02",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Lite_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_01",
+   "host": "POLYGON_Heist/SM_Wep_RifleBandit_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_01",
+   "host": "POLYGON_Military/SM_Wep_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_01",
+   "host": "POLYGON_Police_Station/SM_Wep_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_02",
+   "host": "POLYGON_Heist/SM_Wep_RifleBandit_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_02",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_02",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_02",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_02",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_02",
+   "host": "POLYGON_Military/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_03",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_03",
+   "host": "POLYGON_Military/SM_Wep_Pistol_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_03",
+   "host": "POLYGON_Military/SM_Wep_Pistol_Small_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_03",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_03",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_03",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_03",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_03",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_03",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_03",
+   "host": "POLYGON_Police_Station/SM_Wep_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_03",
+   "host": "POLYGON_Police_Station/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_04",
+   "host": "POLYGON_Military/SM_Wep_Pistol_Metal_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_04",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_04",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_05",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_05",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_05",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_05",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_05",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_06",
+   "host": "POLYGON_Gang_Warfare/SM_Wep_Machine_Pistol_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_06",
+   "host": "POLYGON_Military/SM_Wep_Pistol_Small_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_06",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_06",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_06",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_06",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_06",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_06",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_06",
+   "host": "POLYGON_Military/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_06",
+   "host": "POLYGON_Palm_City/SM_Wep_SMG_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_07",
+   "host": "POLYGON_Military/SM_Wep_Pistol_Metal_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_07",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_07",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_07",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_07",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_07",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_07",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_SMG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_08",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Heavy_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_08",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_08",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_08",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_08",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_09",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_09",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_09",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_09",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_09",
+   "host": "POLYGON_Heist/SM_Wep_RifleSwat_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_09",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_09",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_09",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_09",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_09",
+   "host": "POLYGON_Military/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_09",
+   "host": "POLYGON_Police_Station/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_01",
+   "host": "POLYGON_Heist/SM_Wep_RifleBandit_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_01",
+   "host": "POLYGON_Military/SM_Wep_Pistol_Metal_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_01",
+   "host": "POLYGON_Military/SM_Wep_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_01",
+   "host": "POLYGON_Palm_City/SM_Wep_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_02",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_02",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_02",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_02",
+   "host": "POLYGON_Police_Station/SM_Wep_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_03",
+   "host": "POLYGON_Military/SM_Wep_Pistol_Metal_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_03",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_03",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_03",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_03",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_04",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_04",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_04",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_04",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_04",
+   "host": "POLYGON_Police_Station/SM_Wep_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_04",
+   "host": "POLYGON_Police_Station/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_05",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_05",
+   "host": "POLYGON_Gang_Warfare/SM_Wep_Rifle_Gold_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_05",
+   "host": "POLYGON_Military/SM_Wep_Pistol_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_05",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_05",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_05",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_05",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_05",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_05",
+   "host": "POLYGON_SciFi_City/SM_Wep_MachinePistol_Gen2_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_06",
+   "host": "POLYGON_Heist/SM_Wep_SniperSwat_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_06",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_06",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_06",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_06",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_06",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_06",
+   "host": "POLYGON_Palm_City/SM_Wep_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_07",
+   "host": "POLYGON_Heist/SM_Wep_RifleSwat_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_07",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_07",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_07",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_07",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_08",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_08",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_08",
+   "host": "POLYGON_Palm_City/SM_Wep_SMG_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Bipod_01",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Bipod_02",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Bipod_03",
+   "host": "POLYGON_Police_Station/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_01",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_01",
+   "host": "POLYGON_Police_Station/SM_Wep_Launcher_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_01",
+   "host": "POLYGON_Police_Station/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_02",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_03",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_03",
+   "host": "POLYGON_Police_Station/SM_Wep_Launcher_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_04",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_04",
+   "host": "POLYGON_Police_Station/SM_Wep_Launcher_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_05",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_05",
+   "host": "POLYGON_Police_Station/SM_Wep_Launcher_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_06",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_06",
+   "host": "POLYGON_Police_Station/SM_Wep_Launcher_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Reddot_03",
+   "host": "POLYGON_BattleRoyale/SM_Wep_MachineGun_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Reddot_05",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Reddot_05",
+   "host": "POLYGON_Palm_City/SM_Wep_Sniper_Mil_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_MachineGun_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_03",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_04",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Heavy_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_04",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Mil_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_04",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_04",
+   "host": "POLYGON_Palm_City/SM_Wep_Sniper_Mil_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_05",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Heavy_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_05",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Lite_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_08",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_08",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Lite_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_08",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_09",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Heavy_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_09",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Lite_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_09",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Mil_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_09",
+   "host": "POLYGON_Palm_City/SM_Wep_Sniper_Mil_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_10",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_SMG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_11",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Heavy_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_11",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Lite_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_11",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Mil_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_12",
+   "host": "POLYGON_BattleRoyale/SM_Wep_MachineGun_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_12",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_13",
+   "host": "POLYGON_BattleRoyale/SM_Wep_MachineGun_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_13",
+   "host": "POLYGON_Palm_City/SM_Wep_Sniper_Mil_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_Flip_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_MachineGun_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_Flip_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Scope_Flip_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Lite_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_SniperRifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_04",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Shotgun_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Lite_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
+   "host": "POLYGON_Gang_Warfare/SM_Wep_Rifle_Gold_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_USA_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
+   "host": "POLYGON_Military/SM_Wep_RPG_Rocket_Seperate_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
+   "host": "POLYGON_Military/SM_Wep_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
+   "host": "POLYGON_Military/SM_Wep_Shotgun_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
+   "host": "POLYGON_Police_Station/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_02",
+   "host": "POLYGON_Apocalypse/SM_Wep_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_02",
+   "host": "POLYGON_Apocalypse/SM_Wep_Rifle_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_02",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_02",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_02",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_02",
+   "host": "POLYGON_Military/SM_Wep_RPG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_02",
+   "host": "POLYGON_Military/SM_Wep_RocketLauncher_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_02",
+   "host": "POLYGON_Military/SM_Wep_Shotgun_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_02",
+   "host": "POLYGON_Pirate/SM_Wep_MusketPistol_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_02",
+   "host": "POLYGON_Shops/SM_Wep_Pistol_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_03",
+   "host": "POLYGON_Military/SM_Wep_RPG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_03",
+   "host": "POLYGON_Palm_City/SM_Wep_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_03",
+   "host": "POLYGON_Pirate/SM_Wep_BlunderBuss_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Silencer_03",
+   "host": "POLYGON_SciFi_City/SM_Wep_Rifle_Plasma_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Palm_City/SM_Wep_Silencer_01",
+   "host": "POLYGON_Heist/SM_Wep_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Palm_City/SM_Wep_Silencer_01",
+   "host": "POLYGON_Military/SM_Wep_Pistol_Metal_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Palm_City/SM_Wep_Silencer_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Palm_City/SM_Wep_Silencer_01",
+   "host": "POLYGON_Palm_City/SM_Wep_RPG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Palm_City/SM_Wep_Silencer_01",
+   "host": "POLYGON_Palm_City/SM_Wep_Sniper_Mil_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Palm_City/SM_Wep_Silencer_01",
+   "host": "POLYGON_Police_Station/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Police_Station/SM_Wep_Attach_Foregrip_01",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Police_Station/SM_Wep_Attach_Foregrip_01",
+   "host": "POLYGON_Police_Station/SM_Wep_Launcher_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Police_Station/SM_Wep_Attach_Foregrip_01",
+   "host": "POLYGON_Police_Station/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Police_Station/SM_Wep_Attach_Scope_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Heavy_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Police_Station/SM_Wep_Attach_Scope_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Mil_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Police_Station/SM_Wep_Attach_Scope_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Foregrip_02",
+   "host": "POLYGON_Police_Station/SM_Wep_Launcher_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Handle_Scope_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Pistol_05",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Redot_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Alien_04",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Redot_02",
+   "host": "POLYGON_SciFi_City/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Redot_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_SMG_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Redot_03",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Pistol_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Scope_01",
+   "host": "POLYGON_SciFi_City/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Scope_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Assault_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Scope_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_SMG_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Scope_02",
+   "host": "POLYGON_SciFi_City/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Scope_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Launcher_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Scope_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_CyberCity/SM_Wep_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_CyberCity/SM_Wep_Sniper_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_SciFi_City/SM_Wep_Pistol_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_SciFi_City/SM_Wep_Rifle_Plasma_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_SciFi_City/SM_Wep_Rifle_Small_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_SciFi_City/SM_Wep_Shotgun_Plasma_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_SciFi_City/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Alien_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Assault_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Assault_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Assault_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_02",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_02",
+   "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_02",
+   "host": "POLYGON_CyberCity/SM_Wep_SMG_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_02",
+   "host": "POLYGON_CyberCity/SM_Wep_Sniper_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_02",
+   "host": "POLYGON_Military/SM_Wep_Shotgun_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_02",
+   "host": "POLYGON_SciFi_City/SM_Wep_Shotgun_Plasma_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_02",
+   "host": "POLYGON_SciFi_Space/SM_Wep_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Alien_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Assault_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Assault_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Pistol_06",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Silencer_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_SMG_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_DrumMag_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_DrumMag_01",
+   "host": "POLYGON_Palm_City/SM_Wep_SMG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_DrumMag_01",
+   "host": "POLYGON_SciFi_City/SM_Wep_Rifle_Base_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_DrumMag_01",
+   "host": "POLYGON_SciFi_City/SM_Wep_Sniper_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_01",
+   "host": "POLYGON_Apocalypse/SM_Wep_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_01",
+   "host": "POLYGON_SciFi_City/SM_Wep_MachinePistol_Gen2_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_01",
+   "host": "POLYGON_SciFi_City/SM_Wep_Rifle_Base_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_Plasma_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_Plasma_01",
+   "host": "POLYGON_SciFi_City/SM_Wep_Rifle_Base_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_Plasma_01",
+   "host": "POLYGON_SciFi_City/SM_Wep_SMG_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_Plasma_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Pistol_04",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_Plasma_02",
+   "host": "POLYGON_SciFi_City/SM_Wep_MachinePistol_Gen2_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_Plasma_02",
+   "host": "POLYGON_SciFi_City/SM_Wep_Rifle_Small_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_Plasma_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Pistol_04",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_Plasma_03",
+   "host": "POLYGON_SciFi_City/SM_Wep_MachinePistol_Gen2_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_Round_01",
+   "host": "POLYGON_SciFi_City/SM_Wep_MachinePistol_Gen2_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Mag_Round_02",
+   "host": "POLYGON_SciFi_City/SM_Wep_Rifle_Small_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Sniper_Scope_03",
+   "host": "POLYGON_SciFi_City/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Sniper_Scope_03",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Alien_04",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_City/SM_Wep_Sniper_Scope_03",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Horror/SM_Wep_Rifle_Mag_Separate_01",
+   "host": "POLYGON_SciFi_Horror/SM_Wep_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Horror/SM_Wep_Rifle_Mag_Separate_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Pistol_04",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Horror/SM_Wep_Rifle_Mag_Separate_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Alien_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Alien_04",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Alien_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Pistol_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Alien_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Alien_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Small_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Assault_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Small_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Pistol_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Small_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_SMG_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Small_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_SMG_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Small_03",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Assault_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Small_03",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Small_03",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_01",
+   "host": "POLYGON_CyberCity/SM_Wep_Sniper_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Alien_04",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Assault_02",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Alien_04",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Launcher_03",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_02",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_03",
+   "host": "POLYGON_CyberCity/SM_Wep_Sniper_Rifle_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_03",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Alien_04",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_03",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Assault_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_03",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Pistol_05",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_03",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_03",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_03",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_03",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Unique_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Heavy_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Unique_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Pistol_05",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Unique_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_02",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Shops/SM_Wep_Rifle_Scope_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_MachineGun_01",
+   "fits": false
+  },
+  {
+   "part": "POLYGON_Shops/SM_Wep_Rifle_Scope_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Heavy_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Shops/SM_Wep_Rifle_Scope_01",
+   "host": "POLYGON_BattleRoyale/SM_Wep_Sniper_Mil_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_Shops/SM_Wep_Rifle_Scope_01",
+   "host": "POLYGON_Palm_City/SM_Wep_Sniper_Mil_01",
+   "fits": true
+  },
+  {
+   "part": "POLYGON_War/SM_Wep_German_Scope_Long_01",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_02",
+   "fits": false
+  }
+ ],
+ "excluded": [
+  {
+   "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_08",
+   "host": "POLYGON_SciFi_Worlds/SM_Wep_Sniper_01"
+  },
+  {
+   "part": "POLYGON_Heist/SM_Wep_Attachment_Silencer_01",
+   "host": "POLYGON_Heist/SM_Wep_PistolSwat_01"
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_01",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_SMG_01"
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_04",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Sniper_01"
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_07",
+   "host": "POLYGON_Military/SM_Wep_Preset_B_Sniper_01"
+  },
+  {
+   "part": "POLYGON_Military/SM_Wep_Mod_Bipod_03",
+   "host": "POLYGON_Military/SM_Wep_MachineGun_Bandit_01"
+  }
+ ]
+}
