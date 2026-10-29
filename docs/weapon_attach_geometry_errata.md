@@ -1069,3 +1069,43 @@ Decision 2 (i) of the S11 set chose the mechanism.
 - **Not changed (Q4 (c)).** B2 (decision 5 (a)) stays as data until G1 closes, and cell 20's records do not change.
   - Cell 20's host has six children and no handguard child, and its launcher tube is fused into the body. So no id override can name the strip.
   - Naming it needs code: a named selector, or an owner and height test. That choice is raised with the clash gate.
+
+### E3.19 Gate 6(c)'s check form tests the span from the run start (tests)
+
+**Status: APPROVED by Tom, 2026-10-28, as Q5 (a) of the slice B questions ("Defaults", E3.18).** The long-run seat contract (plan §8, E+F finding 2) is settled in the test helpers. The shipped seat and span contract is unchanged.
+- **Cause (E+F finding 2).**
+  - A rail seat's point is the centre of the rearmost min(run length, `default_seat_len_m`) of the clipped run (`seat_point`, `fit_rails.py:446-451`, called on the clipped run at `fit_geometry.py:447`). Its `span_m` is the same clipped run's whole length (`fit_geometry.py:448`).
+  - So on a run longer than 0.20 m the point is not the centre of the span. The check form point ± span/2 missed a front sight between point + span/2 and the run's front: on the E+F test host, f 0.3845 to 0.449.
+- **The fix (`db3c70a` on `ddce753`, merged `4fb6fbc`).**
+  - All three test twins of A§4.6 gate 6(c) now test the interval [run start, run start + `span_m`] along forward, with run start = point − min(`span_m`, 0.20) / 2.
+  - That is exact to the 1e-4 rounding, because the point and the span come from the same clipped run. Each twin keeps its own literals and cites the two shipped lines.
+  - The twins:
+    - `tests/test_weapons_w8h_probe.py::gate_violations`;
+    - `tests/test_weapons_g1_seats.py::gate_6c`;
+    - `tests/test_weapons_e3_coverage.py::gate_6c`. Its CLIPPED comment block is rewritten for the run-start form. Its assertions are unchanged and green:
+      - 0.12 + 0.22 = 0.34 < 0.35, not covered;
+      - 0.12 + 0.25 = 0.37 < 0.38, not covered;
+      - the unclipped control, 0.12 + 0.329 = 0.449, covers both;
+      - a sight at 0.52 lies beyond the run.
+  - On runs of 0.20 m or less, the new form gives exactly the old result.
+- **The rail-only branch in `gate_violations` (the builder's deviation, accepted by the peer on 2026-10-28).**
+  - The run-start form applies when the optic seat's `feature` is `rail_teeth` or `rail_flat`. Any other optic seat keeps the centred window, which is exact for it.
+  - A `child_node` seat's point is the centre of its foot slab: `_foot_anchor` returns `_slab_centre(slab, low)` (`attach.py:183-205`). Its `span_m` is that slab's `foot_length_m` (`_child_frame`, `mounts.py:420-423`).
+  - Live, the branch covers every optic seat with a span. Of 257 hosts with mounts, the optic seats are:
+    - `child_node` / `seat_ref`: 26;
+    - `probe` / `rail_flat`: 124;
+    - `probe` / `rail_teeth`: 28;
+    - `none`: 79.
+  - Every seat in the first three groups has a `span_m`, 178 in all. No `none` seat has one.
+  - The other two twins see only rail seats, so they use the run-start form with no branch.
+- **Tests.**
+  - There is one new test per twin, each with its own literals: a long toothed run with a front sight past the centred window and inside the run.
+  - Red on detached `ddce753`, with only the new tests added and the old helpers: 3 failed, 83 passed.
+  - The w8h test also pins the branch: with `feature` None at the same offset, the check reports nothing.
+- **Gates.**
+  - G-1 is 3754 / 8, rc 0, on the slice and on the merge (base 3751 / 8).
+  - The diff is the three test files only (+68 / −13).
+  - No shipped code, verdict, digest, stored record or directory changes. `WEAPON_ATTACH_VERSION` stays 14 and `WEAPON_GEOMETRY_VERSION` stays 6.
+- **Docs.**
+  - The spec's gate 6(c) and AC148 rows are not amended: they state the gate, not the check form.
+  - Plan §8's E+F finding 2, and its earlier "proven only on runs under 0.20 m" line, stay as dated records. Plan §8 records the closure.
