@@ -70,7 +70,8 @@ def directory(spec=None, pending=None):
         for j in range((pending or PENDING).get(slot, 0)):
             parts[j % 2]["attachment"]["pending_hosts"].append({"host": f"Q/Pending_{slot}_{j}", "tier": "same_pack_fit"})
         weapons += parts
-    return {"schema": "weapon-directory/1", "attach_rules_digest": DIGEST, "weapons": weapons}
+    # S12: the draw refuses a directory that is not a current attach build, so the fixture carries the header (the literal 14, not the package constant)
+    return {"schema": "weapon-directory/1", "attach_rules_digest": DIGEST, "attach_version": 14, "fit_digest": "fedcba9876543210", "weapons": weapons}
 
 
 def listed(d, slot, tier):
@@ -292,11 +293,13 @@ def test_ac141_draw_writes_the_32_pairs_and_a_second_draw_exits_6_leaving_the_fi
     assert files["out"].read_bytes() == first  # never overwritten (INV-26)
 
 
-def test_ac141_the_labels_file_is_what_the_draw_skips(files, capsys):
-    code, out = spot(files, capsys, "--draw", with_labels=False)  # no labels given, none committed: nothing is skipped
-    assert code == 0 and out["labelled_skipped"] == 0
+def test_ac141_the_labels_file_is_what_the_draw_skips(files, capsys, monkeypatch):
+    # S12: the committed labels file is the default of a bare --draw (its absence is a refusal, tests/test_weapons_s12_labels.py), so it is pointed at the fixture's
+    monkeypatch.setattr(SP, "default_labels_path", lambda: files["labels"])
+    code, out = spot(files, capsys, "--draw", with_labels=False)
+    assert code == 0 and out["labelled_skipped"] == 5
     doc = json.loads(files["out"].read_text(encoding="utf-8"))
-    assert labelled_pairs(directory()) <= {(p["part"], p["host"]) for p in doc["pairs"]}
+    assert not labelled_pairs(directory()) & {(p["part"], p["host"]) for p in doc["pairs"]}
 
 
 def test_draw_exits_2_for_a_missing_directory_and_writes_nothing(files, capsys):

@@ -747,7 +747,9 @@ def register(sub) -> None:
     ae = wsub.add_parser("attach-eval", help="Agreement of the attachment compatibility with a labels file: a table per geometry slot, "
                                              "precision/recall for the label-era slots (W8c, G1 S9)")
     pack_opt(ae)
-    ae.add_argument("--labels", default=None, help="weapon-attach-labels/1 file")
+    ae.add_argument("--labels", default=None,
+                    help="weapon-attach-labels/1 file; a pair may carry part2 (a front+rear sight pair, predicted only when both parts are), "
+                         "and its excluded list is ignored")
     ae.add_argument("--min-precision", dest="min_precision", type=float, default=None,
                     help="exit 4 when the precision of the label-era slots (laser_light, the sight slots) is below this; the four geometry "
                          "slots are never gated (spec 3.10)")
@@ -784,11 +786,15 @@ def register(sub) -> None:
 
     spc = wsub.add_parser("attach-spotcheck", help="The one-off spot check of the geometry fit gate: --draw 32 pairs once, --score the answers (spec 3.10)")
     mode = spc.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--draw", action="store_true", help="draw the 32 pairs and write the spot-check file; exit 6 if it exists")
+    mode.add_argument("--draw", action="store_true",
+                      help="draw the 32 pairs and write the spot-check file; exit 6 if it exists, exit 2 (nothing written) for a directory whose "
+                           "attach_version is not this package's or whose fit_digest is absent or empty, or for a missing or empty labels file")
     mode.add_argument("--score", action="store_true", help="print `fits k of 32 (placed wrong m)` from the answers in the file")
     spc.add_argument("--directory", default=None, help="directory.json to draw from (default: the catalogs one)")
     spc.add_argument("--file", default=None, help="the spot-check file (default: the committed weapon_attach_spotcheck.json in the package data)")
-    spc.add_argument("--labels", default=None, help="weapon-attach-labels/1 file whose pairs the draw skips (default: the committed one, if any)")
+    spc.add_argument("--labels", default=None,
+                     help="weapon-attach-labels/1 file whose pairs and excluded entries the draw skips (default: the committed weapon_attach_labels.json "
+                          "in the package data; its absence, or a file with no pair, is exit 2)")
     spc.add_argument("--baseline", default=None, help="with --score: the file as drawn; any change but fits/placed_wrong from null is exit 6")
     spc.set_defaults(func=lambda a, c: _not_built(a, c, "attach-spotcheck"))
 

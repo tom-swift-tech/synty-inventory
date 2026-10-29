@@ -5,6 +5,12 @@ earns on its own (``same_pack_fit``, ``cross_pack_fit``), never a ``twin`` or ``
 them in ascending ``sha256("spotcheck-1|" + part + "|" + host)`` order to ``weapon_attach_spotcheck.json`` (``weapon-attach-spotcheck/1``: ids, tiers and
 two nullable booleans per pair, nothing measured). It refuses (exit 6) to run when the file exists: the draw is made once and never again (INV-26).
 
+S12 closes two hazards of a bare ``--draw``. The directory must be a current attach build (``attach_version`` equal to the package's
+``WEAPON_ATTACH_VERSION`` and a non-empty ``fit_digest``), else exit 2 naming the key and the value found. The labels file (``--labels``, else the
+committed ``default_labels_path()``) must exist and hold at least one pair, else exit 2: a draw that skipped nothing for want of labels would spend the
+one draw on pairs Tom has already answered. The skip set is every (part, host) and (part2, host) of the file's ``pairs`` and of its ``excluded``
+list (conflicting and skip-only answers: not labels, but never drawn).
+
 Tom answers each pair once, ``fits`` and ``placed_wrong`` (spec 3.9: a fit that is placed wrong counts as a fit). ``--score`` prints
 ``fits k of 32 (placed wrong m)``. The file is a one-off measurement and never a gate: no rule, tolerance, AC or test reads its answers.
 
@@ -188,20 +194,35 @@ def _read(path: Path) -> dict:
         raise InputError(f"spot-check file is not readable JSON: {exc}") from exc
 
 
+def _check_header(directory: dict, dpath: Path) -> None:
+    """Exit 2 for a directory that is not a current attach build (a stale or pre-attach one): the draw is made once, so it must not be made from one."""
+    from .. import weapons as _pkg  # the version at call time
+
+    version = directory.get("attach_version")
+    if version != _pkg.WEAPON_ATTACH_VERSION:
+        raise InputError(f"directory {dpath.name}: attach_version is {version!r}, this package builds {_pkg.WEAPON_ATTACH_VERSION}; run `weapons build` first")
+    digest = directory.get("fit_digest")
+    if not isinstance(digest, str) or not digest:
+        raise InputError(f"directory {dpath.name}: fit_digest is {digest!r} (absent or empty); run `weapons build` first")
+
+
 def _labelled(args) -> set[tuple[str, str]]:
-    from .eval import load_labels
+    """The (part, host) pairs the draw skips: both parts of every pair and of every excluded entry. Exit 2 for no file or no pair at all."""
+    from .eval import load_labels_doc
 
     path = Path(args.labels) if getattr(args, "labels", None) else default_labels_path()
-    if not getattr(args, "labels", None) and not path.is_file():
-        return set()  # no committed labels: nothing to skip
-    return {(p["part"], p["host"]) for p in load_labels(path)}
+    doc = load_labels_doc(path)  # exit 2 naming the path when absent, 6 for a schema error
+    if not doc["pairs"]:
+        raise InputError(f"labels file {path} holds no pair: the draw would skip nothing")
+    return {(item[name], item["host"]) for item in (*doc["pairs"], *doc.get("excluded", [])) for name in ("part", "part2") if name in item}
 
 
 @_guarded
 def cmd(args, cfg) -> int:
     """``attach-spotcheck --draw | --score [--directory PATH] [--file PATH] [--labels FILE] [--baseline FILE]``; JSON on stdout.
 
-    ``--draw``: exit 6 when the file exists (never overwritten), 2 for a missing directory. ``--score``: exit 6 for a file that breaks the schema or,
+    ``--draw``: exit 6 when the file exists (never overwritten), 2 for a missing directory, a stale directory header (``attach_version``,
+    ``fit_digest``) or a missing or empty labels file. ``--score``: exit 6 for a file that breaks the schema or,
     with ``--baseline`` (the file as drawn), changes anything but an answer from null (INV-26); the line to read is ``summary``."""
     from .directory import DIRECTORY_NAME, read_json, weapons_dir
 
@@ -212,8 +233,10 @@ def cmd(args, cfg) -> int:
         dpath = Path(args.directory) if args.directory else weapons_dir(_catalogs(args, cfg)) / DIRECTORY_NAME
         if not dpath.is_file():
             raise WeaponsError(f"directory file not found: {dpath}", EXIT_BAD_INPUT)
+        directory = read_json(dpath)
+        _check_header(directory, dpath)
         labelled = _labelled(args)
-        doc, short = draw(read_json(dpath), labelled)
+        doc, short = draw(directory, labelled)
         write_text_lf(path, json.dumps(doc, indent=1) + "\n")
         per_slot = {slot: sum(1 for p in doc["pairs"] if p["slot"] == slot) for slot in FIT_SLOTS}
         tiers = {slot: {t: sum(1 for p in doc["pairs"] if p["slot"] == slot and p["tier"] == t) for t in DRAW_TIERS} for slot in FIT_SLOTS}

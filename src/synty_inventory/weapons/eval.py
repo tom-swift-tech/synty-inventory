@@ -1,7 +1,10 @@
 """``weapons attach-eval``: precision and recall of the inferred compatibility against hand labels (docs/weapon_attachments.md 7, 8, AC79).
 
 ``--labels`` names a ``weapon-attach-labels/1`` file (``{"schema": ..., "pairs": [{"part", "host", "fits"}]}``, ids and
-booleans only, INV-17). Every labelled pair is judged against the built directory:
+booleans only, INV-17). Two optional, additive parts (S12; an old file stays valid): a pair may carry ``part2`` (a front+rear sight pair answered as
+one: it is predicted to fit in a view only when BOTH (part, host) and (part2, host) are, its slot is the part's, and it is skipped unless both parts are
+attachment records), and a top-level ``excluded`` list of ``{"part", "host"}`` / ``{"part", "part2", "host"}`` (pairs that are not labels: the spot-check
+draw skips them, attach-eval ignores them). Every labelled pair is judged against the built directory:
 
 * a pair is PREDICTED to fit by a VIEW, a rule over the two lists (A8, AC127; ``VIEWS`` names each rule and the JSON repeats it, with the tiers each
   list is read at, as ``views.<name>.predicted_from``). ``pending_hosts`` counts on purpose: they are the compatibility the inference found, only the
@@ -39,6 +42,9 @@ from .overrides import well_formed_id
 LABELS_SCHEMA = "weapon-attach-labels/1"
 STATES = ("listed", "pending", "absent")  # what the directory says of a labelled geometry-slot pair
 PAIR_KEYS = ("fits", "host", "part")
+PAIR2_KEYS = ("fits", "host", "part", "part2")  # a two-part pair (S12)
+EXCLUDED_KEYS = ("host", "part")
+EXCLUDED2_KEYS = ("host", "part", "part2")
 # A8 (AC127): view -> the tiers a pair is predicted at, per list. The default view reads the export's own cuts (compat.DEFAULT_TIERS for the
 # compatible list, compat.DEFAULT_PENDING_TIERS for the pending one), so a change of the export moves the gated view with it.
 VIEWS = {
@@ -49,40 +55,56 @@ VIEWS = {
 
 
 def validate_labels(doc) -> list[str]:
-    """Every violation of ``weapon-attach-labels/1``: ids and booleans only, one entry per (part, host)."""
+    """Every violation of ``weapon-attach-labels/1``: ids and booleans only, one entry per (part, part2 or none, host) across ``pairs`` and ``excluded``."""
     if not isinstance(doc, dict):
         return ["labels: top level must be an object"]
     errors: list[str] = []
     if doc.get("schema") != LABELS_SCHEMA:
         errors.append(f"schema: expected {LABELS_SCHEMA!r}, got {doc.get('schema')!r}")
     for key in doc:
-        if key not in ("schema", "pairs"):
+        if key not in ("schema", "pairs", "excluded"):
             errors.append(f"{key}: unknown top-level key")
     pairs = doc.get("pairs")
     if not isinstance(pairs, list):
         return errors + ["pairs: must be a list"]
-    seen: set[tuple] = set()
-    for i, pair in enumerate(pairs):
-        where = f"pairs[{i}]"
-        if not isinstance(pair, dict):
+    excluded = doc.get("excluded", [])
+    if not isinstance(excluded, list):
+        errors.append("excluded: must be a list")
+        excluded = []
+    seen: dict[tuple, str] = {}  # (part, part2 or None, host) -> the list that holds it
+
+    def entry(where: str, item, keys: tuple, keys2: tuple, listname: str, shape: str) -> None:
+        if not isinstance(item, dict):
             errors.append(f"{where}: must be an object")
-            continue
-        if sorted(pair) != list(PAIR_KEYS):
-            errors.append(f"{where}: keys must be exactly part, host, fits (ids and a boolean, nothing measured)")
-            continue
-        for key in ("part", "host"):
-            if not well_formed_id(pair[key]):
-                errors.append(f"{where}.{key}: must be '<pack>/<asset_id>'")
-        if not isinstance(pair["fits"], bool):
+            return
+        if sorted(item) not in (list(keys), list(keys2)):
+            errors.append(f"{where}: keys must be exactly {shape}")
+            return
+        bad = False
+        for name in ("part", "host", "part2"):
+            if name in item and not well_formed_id(item[name]):
+                errors.append(f"{where}.{name}: must be '<pack>/<asset_id>'")
+                bad = True
+        if "part2" in item and not bad and item["part2"] == item["part"]:
+            errors.append(f"{where}.part2: must differ from part")
+        if "fits" in item and not isinstance(item["fits"], bool):
             errors.append(f"{where}.fits: must be true or false")
-        key = (pair["part"], pair["host"])
+        key = (item["part"], item.get("part2"), item["host"])
         if key in seen:
-            errors.append(f"{where}: ({pair['part']}, {pair['host']}) is labelled twice")
-        seen.add(key)
+            what = "in both pairs and excluded" if seen[key] != listname else "labelled twice" if listname == "pairs" else "listed twice"
+            errors.append(f"{where}: ({', '.join(str(x) for x in key if x is not None)}) is {what}")
+        seen.setdefault(key, listname)
+
+    for i, pair in enumerate(pairs):
+        entry(f"pairs[{i}]", pair, PAIR_KEYS, PAIR2_KEYS, "pairs",
+              "part, host, fits, or part, part2, host, fits (ids and a boolean, nothing measured)")
+    for i, item in enumerate(excluded):
+        entry(f"excluded[{i}]", item, EXCLUDED_KEYS, EXCLUDED2_KEYS, "excluded", "part, host, or part, part2, host (ids only)")
     return errors
 
 
-def load_labels(path: Path) -> list[dict]:
+def load_labels_doc(path: Path) -> dict:
+    """The validated labels document: ``pairs`` and, when the file has one, ``excluded``."""
     if not path.is_file():
         raise InputError(f"labels file not found: {path}")
     try:
@@ -92,7 +114,11 @@ def load_labels(path: Path) -> list[dict]:
     errors = validate_labels(doc)
     if errors:
         raise SchemaError("the labels violate weapon-attach-labels/1:\n  " + "\n  ".join(errors[:25]), details={"errors": errors})
-    return doc["pairs"]
+    return doc
+
+
+def load_labels(path: Path) -> list[dict]:
+    return load_labels_doc(path)["pairs"]
 
 
 def _ratio(num: int, den: int) -> float | None:
@@ -127,11 +153,12 @@ def evaluate(directory: dict, pairs: list[dict], *, packs: set[str] | None = Non
     era_pairs = 0
     skipped: list[dict] = []
     used = 0
-    for pair in sorted(pairs, key=lambda p: (p["part"], p["host"])):
+    for pair in sorted(pairs, key=lambda p: (p["part"], p.get("part2", ""), p["host"])):
         part, host = by_id.get(pair["part"]), by_id.get(pair["host"])
+        part2 = by_id.get(pair["part2"]) if "part2" in pair else None
         if packs is not None and pair["part"].split("/", 1)[0] not in packs:
             continue
-        if part is None or not part.get("attachment"):
+        if part is None or not part.get("attachment") or ("part2" in pair and (part2 is None or not part2.get("attachment"))):
             skipped.append({"part": pair["part"], "host": pair["host"], "reason": "part_not_an_attachment"})
             continue
         if host is None or not eligible(host["role"], host["kind"], host["hold_class"]):
@@ -139,6 +166,8 @@ def evaluate(directory: dict, pairs: list[dict], *, packs: set[str] | None = Non
             continue
         att = part["attachment"]
         found = {lst: [e["tier"] for e in att[lst] if e["host"] == pair["host"]] for lst in ("compatible_hosts", "pending_hosts")}
+        found2 = None if part2 is None else {lst: [e["tier"] for e in part2["attachment"][lst] if e["host"] == pair["host"]]
+                                             for lst in ("compatible_hosts", "pending_hosts")}
         used += 1
         slot = att.get("slot")
         geometry = slot in FIT_SLOTS
@@ -150,7 +179,8 @@ def evaluate(directory: dict, pairs: list[dict], *, packs: set[str] | None = Non
         else:
             era_pairs += 1
         for name, cuts in VIEWS.items():
-            predicted = any(t in cuts[lst] for lst, tiers in found.items() for t in tiers)
+            # a two-part pair is predicted only when both of its parts are
+            predicted = all(any(t in cuts[lst] for lst, tiers in f.items() for t in tiers) for f in (found, found2) if f is not None)
             key = ("tp" if pair["fits"] else "fp") if predicted else ("fn" if pair["fits"] else "tn")
             counts[name][key] += 1
             if not geometry:
