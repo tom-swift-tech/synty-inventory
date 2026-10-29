@@ -557,7 +557,11 @@ Any other key (`point`, `up`, `span_m`, `offset`, a number...) is rejected with 
 - Rounding: metres and unit-vector components at 1e-4; scores at 2 dp.
 - `weapon_attach_labels.json` (hand labels, committed beside the overrides, ids and booleans only):
   `{"schema": "weapon-attach-labels/1", "pairs": [{"part": "<id>", "host": "<id>", "fits": true}]}`; produced by the
-  review page's Attachments checklist ("Label mode") and consumed by `attach-eval`.
+  review page's Attachments checklist ("Label mode") and consumed by `attach-eval`. Geometry errata E3.20 adds two
+  optional parts: a pair may carry `"part2": "<id>"` (a front+rear pair answered as one, `fits` for both), and a
+  top-level `"excluded": [{"part", "host"[, "part2"]}]` lists keys with no usable answer (conflicts, skip-only), which
+  `attach-spotcheck --draw` skips and `attach-eval` ignores. The committed file is written by
+  `python -m synty_inventory.weapons.labels_store` from the label page's export.
 
 ## 9. Invariants and failure modes
 

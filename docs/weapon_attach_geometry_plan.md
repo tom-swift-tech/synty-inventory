@@ -425,7 +425,7 @@ All four have base S2 merged, and each runs in its own worktree. Each owns exact
 - **Reviewer agent** (Sonnet), given base SHA B0 and the head of `integ/attach` after S10. Brief: the spec and this plan. It checks:
   - every AC has a test that fails on its named break, and every test bound is a literal;
   - each re-pinned existing test cites its G1 clause;
-  - no pack-derived data is committed: no pack mesh, measured number or real asset id in `tests/` or `data/`, apart from the existing labels file;
+  - no pack-derived data is committed: no pack mesh, measured number or real asset id in `tests/` or `data/`, apart from the existing labels file [E3.20: no labels file existed in the repo at S11; it was first committed by the S12 wiring slice, `051132a`, on Tom's Q2 word];
   - no new dependency (AC144);
   - determinism (INV-25);
   - the conventions in CLAUDE.md.
@@ -451,11 +451,19 @@ All four have base S2 merged, and each runs in its own worktree. Each owns exact
 ## 5. S12: spot check (once)
 
 - **Starts** only after S11 passes **and the peer's word**.
+- **Before the draw** (E3.20): the labels wiring is merged (`aa43491`), and so is its docs slice.
 - **Draw.** `weapons attach-spotcheck --draw` runs once on the final a14 directory.
+  - The directory is a FRESH copy-catalog build at the draw's commit, with empty caches and the rc captured. It is passed with an explicit `--directory`.
+  - Before the draw, the peer checks its header against the pinned values (rules `7b9829af37328fe7`, overrides `17d4e771a785a4b2`, attach_rules `2fa41961e3c387b0`, fit `2d94c7151cce583b`, versions 14 / 6) and its sha256 against `20fb1360e2bf0e24e0f70de7cbf32091d9ee20f2a21870c3d182774e7f1280a4`.
+  - Slice G's scratch directory is a cross-check only, never the input. The real catalogs directory is stale (E3.20 finding), and the draw refuses it.
+  - The draw reads the committed labels file (426 pairs, 6 excluded keys).
   - The lead commits `src/synty_inventory/data/weapon_attach_spotcheck.json` on `integ/attach`. It holds ids, booleans and fixed strings only, like the labels file.
-- **Sheet.** `attach-preview --pairs <that file> --icons <the HUD icon roots of §1.1> --sheet`, written to scratch.
-- **Answers.** Tom answers each pair once under fit-v1. The answers go into the file (`fits`, and `placed_wrong`, each from null only, INV-26).
-- **Score.** `--score` prints `fits k of 32 (placed wrong m)`. The number goes into the impact record once.
+- **Sheet.** `attach-preview --pairs <that file> --icons <the HUD icon roots of §1.1> --sheet`, written to scratch with `--out`. The peer views it.
+- **Answers.**
+  - Tom answers each pair once under fit-v1, in chat, by sheet index. The peer relays his words verbatim.
+  - The lead writes `fits`, and `placed_wrong`, into the file, each from null only (INV-26), with nothing else changed. That is its own commit, pushed.
+  - The peer verifies the diff before `--score` runs.
+- **Score.** `--score` runs once and prints `fits k of 32 (placed wrong m)`. The number goes into the impact record once. Then `attach-eval` on the labels file gives the agreement table, recorded as a description.
 - **Status.** The spot check is never a gate and is never re-drawn. **Draw #6's labels are not re-scored** (§4.7 step 3).
 
 ## 6. Closing state
@@ -659,6 +667,66 @@ The merge commits of the landed slices on `integ/attach`:
     - G-1 is 3754 / 8, rc 0, on the slice and on the merge (base 3751 / 8).
     - The diff is 3 test files, +68 / −13, with no shipped code. No verdict, digest or directory changes, and versions stay 14 / 6.
   - **Harness note.** The builder's scope-guard hook refused one `cp` into `tests/`. The builder did not treat the refusal as authorization: it made its temporary revert with a script limited to the 3 owned files.
+- S12 pre-state (read-only at `fee8232`, counts only):
+  - **The labels store.** The labels were never committed. They live in the label page's database.
+    - DM-A exported 449 documents on 2026-10-29, 00:34:18.7 to 00:34:20.0 UTC (2026-10-28 19:34 CDT). The newest `at` is 2026-10-27T15:37:43.973Z.
+    - 449 = 409 + 40 (k01 to k40, `fit-v1`). All 25 pre-`fit-v1` (w8q) rows are inside them.
+  - **The pin table (the peer's rulings R1, R3 and R4).**
+    - Identity is (part, part2, host): 432 distinct, 5 conflict keys, and 427 after the conflicts.
+    - By slot, yes / no / skip / total:
+      - optic 81 / 63 / 1 / 145;
+      - muzzle 61 / 39 / 0 / 100;
+      - magazine 63 / 79 / 0 / 142;
+      - underbarrel 17 / 9 / 0 / 26;
+      - two-part 10 / 4 / 0 / 14.
+    - Boolean pairs: 426 = 412 four-slot + 14 two-part.
+    - Excluded: 6 = 5 conflicts (magazine 3, muzzle 1, underbarrel 1) + 1 standalone optic skip.
+    - The k-series stays in the file: the draw skips it, and `--score` never reads it. The normalizer writes the file from the export, and the peer counts it independently.
+  - **Correction (the lead's relay).** The lead first relayed "413 boolean four-slot" and "exclusion 5". The peer caught both:
+    - four-slot boolean is 412, because 413 included the skip;
+    - the exclusion list is 6, the 5 conflicts plus the skip.
+    - DM-A pinned the corrected literals.
+  - **The draw's input (R7).** The peer ruled both parts:
+    - (i) the draw refuses a stale directory header;
+    - (ii) the draw runs on a fresh copy-catalog build with an explicit `--directory`, checked by the peer first.
+    - Slice G's scratch directory passes every header check (sha256 `20fb1360…`) and is a cross-check only.
+    - Finding: the real catalogs directory is stale and pre-attach (E3.20). Nothing rebuilds it; Tom is told.
+- Tom's word on the S12 questions (Q1 the exclusion-only list, Q2 committing the labels file of real ids to the public repo, Q3 the second-part key), relayed verbatim by the peer, 2026-10-28: "Defaults". That is yes to all three: errata E3.20.
+- S12 wiring, errata E3.20 (`aa0e1bc` + `051132a` on `fee8232`, merged `aa43491`):
+  - **What it does.** `weapon-attach-labels/1` gains an optional `part2` per pair and an optional `excluded` list. `--draw` skips both lists and refuses (exit 2) a stale directory header, an absent labels file, and an empty one. The normalizer `labels_store.py` is new. The labels file is 426 pairs (yes 232, no 194, 14 with `part2`) plus 6 excluded keys.
+  - **The normalizer run** on the export matched every pin:
+    - 449 records, 432 keys, 12 identical duplicates collapsed;
+    - conflict arrival indices (124, 153) yes / no, (239, 294) yes / no, (245, 292) no / skip, (254, 293) no / yes, (268, 291) no / yes;
+    - pairs by slot: optic 144, muzzle 100, magazine 142, underbarrel 26, two-part 14.
+    - The peer matched the file key for key.
+  - **Gates.**
+    - Red on detached `fee8232`: 41 failed, 61 passed.
+    - G-1 is 3810 / 8, rc 0, on the slice and on the merge (base 3754 / 8).
+    - A fresh cold copy-catalog build is byte-identical to slice G (`20fb1360…`). The four digests and versions 14 / 6 are unchanged.
+    - The diff is the 7 manifest paths. There are 0 ids in the added lines outside the labels file, and 0 CR.
+  - **The re-point.** `tests/test_weapons_g1_spotcheck.py::test_ac141_the_labels_file_is_what_the_draw_skips` (`:295-300` at `fee8232`) pinned the bare-draw hazard: no labels given, none committed, nothing skipped.
+    - It is re-pointed because S12 makes the committed labels file the draw's default and its absence a refusal.
+    - It now has a bare draw read the default path, pointed at the fixture's labels file, and skip exactly those 5 pairs.
+    - **Deviation (accepted by the peer).** The re-pointed test passes on the base, because the base already read a file at the default path when one existed. It records the new meaning; it is not a red-first proof. The absent-file case is test A, which is red on the base.
+  - **The widening (accepted by the peer).** The draw refuses a `fit_digest` that is absent OR empty; the peer's R7 (i) said "absent". The R7 (i) test covers `attach_version` 13, no `fit_digest` key, and `fit_digest` "".
+  - **The lead's four normalizer rulings (accepted by the peer).**
+    - A record missing `at` or `card` is refused.
+    - A null `part2_id` counts as absent.
+    - Each file holds one record.
+    - The folder is read with a non-recursive glob, and a file that is not a record is refused.
+  - **The builder's five calls (they stand; the peer did not veto).**
+    1. `"excluded": []` is written when nothing is excluded.
+    2. Errors name a record by input position, never by id.
+    3. The identical-duplicate count covers only the groups that resolve to a pair or a skip-only exclusion.
+    4. `slot` comes from a key's first arriving record, and a non-string slot counts as "none". The live export has 0 non-string slots and 0 slot disagreements within a key, so the coercion is never exercised on this file.
+    5. `attach-eval`'s skipped entries carry no `part2`.
+  - **Hook findings (harness).**
+    1. The lead's first manifest listed the three new files under `new_under`. `scope_guard.py` reads `new_under` entries as directory prefixes, so the builder's first write was refused. Exact new files go under `owned`.
+    2. The scope guard refuses any rewrite of a manifest once it exists, and it refused the lead's correction. So the slice moved to a fresh worktree (`inventoryagent-wt-g1-s12x`, `build/g1-s12x`), and the builder's uncommitted three-file diff was carried as a patch, same files and counts.
+    - `inventoryagent-wt-g1-s12w` (`build/g1-s12w`) is spent, with nothing committed. It stays untouched until the worktree cleanup.
+  - **The push.**
+    - The lead's push of `aa43491` was held by this session's permission check, because it is the first push of real pack ids to the public repo and Tom's Q2 word had arrived only as a relay. The lead did not work around it, and asked Tom directly.
+    - Tom confirmed to the peer session, verbatim, 2026-10-29: "Yes, push". This one push was made from the integ worktree by the peer session (the other lead) on Tom's direct word: `fee8232..aa43491`, rc 0, read back `aa43491`. Nothing else was pushed.
 
 ## 9. Errata E3: the build ladder (E3.0 to S10b)
 
@@ -927,7 +995,7 @@ Conventions the ladder assumed, **not rulings** (the architect's recommendations
 ### 9.7 Carried items and what is not determined
 
 Carried, so nothing is lost:
-- **The labels wiring** stays before S12 (§4 and §5). The labels source is wired into `eval.py`, `spotcheck.py` and `cli.py`, and the labels store's count is reconciled against the 449 the spec cites, before any `--draw`. It is not an E3 slice.
+- **The labels wiring** stays before S12 (§4 and §5). The labels source is wired into `eval.py`, `spotcheck.py` and `cli.py`, and the labels store's count is reconciled against the 449 the spec cites, before any `--draw`. It is not an E3 slice. [Done: errata E3.20, merged `aa43491`; the 449 reconcile to 432 keys, 426 pairs and 6 excluded (§8).]
 - **The `preview.py` cell map** is slice C3.
 - **The `fit_well.py:6` docstring** rides E3.6.
 - **The calibrate `seats` field** is slice C1.
