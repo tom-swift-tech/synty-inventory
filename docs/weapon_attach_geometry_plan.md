@@ -644,6 +644,21 @@ The merge commits of the landed slices on `integ/attach`:
     - `refuse_filled` skips any slot whose source is already `none`. A slot the flag can count reads `none` / `probe_unavailable` in the build frame, so the located-part rule never touches it in either pass.
     - `_apply_features` never writes a sight slot's source.
   - So the strip changes nothing the flag reads.
+- E3.19, Q5 (a), closing E+F finding 2 (`db3c70a` on `ddce753`, merged `4fb6fbc`; test helpers only):
+  - **The fix.** The three test twins of gate 6(c) test [run start, run start + `span_m`], with run start = point − min(`span_m`, 0.20) / 2.
+    - The twins are `test_weapons_w8h_probe.gate_violations`, `test_weapons_g1_seats.gate_6c` and `test_weapons_e3_coverage.gate_6c`.
+    - The formula is exact because `seat_point` (`fit_rails.py:446-451`) and `span_m` come from the same clipped run (`fit_geometry.py:447-448`).
+    - The peer ruled (b) on the third twin: fix it with the other two. Leaving it on a form known to miss a sight would keep a test measuring against the wrong point.
+    - Its CLIPPED cases hold unchanged, and their comment block is rewritten for the new form.
+  - **Correction to the brief.** It warned that this formula fails when a run over 0.20 m is clipped below 0.20 m. That is wrong: the point comes from the clipped run.
+  - **The builder's deviation, accepted (a) by the peer on 2026-10-28.** In `gate_violations`, non-rail optic seats keep the centred window.
+    - A `child_node` seat's point is its foot slab's centre (`attach.py:183-205`), and its `span_m` is that slab's length (`mounts.py:420-423`).
+    - DM-A's live tally of optic seats, over 257 hosts with mounts: `child_node` / `seat_ref` 26, `probe` / `rail_flat` 124, `probe` / `rail_teeth` 28 (all with `span_m`), and `none` 79 (none with `span_m`).
+  - **Gates.**
+    - Red on detached `ddce753`, with only the 3 new tests added: 3 failed, 83 passed.
+    - G-1 is 3754 / 8, rc 0, on the slice and on the merge (base 3751 / 8).
+    - The diff is 3 test files, +68 / −13, with no shipped code. No verdict, digest or directory changes, and versions stay 14 / 6.
+  - **Harness note.** The builder's scope-guard hook refused one `cp` into `tests/`. The builder did not treat the refusal as authorization: it made its temporary revert with a script limited to the 3 owned files.
 
 ## 9. Errata E3: the build ladder (E3.0 to S10b)
 
