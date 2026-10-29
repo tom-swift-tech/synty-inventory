@@ -3,8 +3,8 @@
 * (a) A§4.6 gate 6(c) on a LONG run. The only proof so far is tests/test_weapons_g1_seats.py on a 0.188 m run (the seat point is the centre of the whole
   run there). On a run of 0.20 m or more the seat point is the centre of the REARMOST 0.20 m (spec 3.4 step 4), not of the run, so the span, centred on
   that point, no longer lines up with the run; the sight clip (``fit_geometry.rail_slot.clipped``, spec 3.4 step 4) is what has to keep it off a front
-  sight. The gate is the test's own twin of ``test_weapons_w8h_probe.gate_violations`` (as tests/test_weapons_g1_seats.py:89 keeps one), adapted from
-  the mount point to the seat ``f``.
+  sight. The gate is the test's own twin of ``test_weapons_w8h_probe.gate_violations`` (as tests/test_weapons_g1_seats.py:88 keeps one), adapted from
+  the mount point to the seat ``f``. E3.19: it tests the span from the run's start, not a window centred on the seat.
 * (b) The covered branch of ``fit_geometry._ref`` (spec 3.5): ``flat_run_m`` is the flat run's length when the run contains the reference contact's
   ``f`` (within 1e-9), else None; ``child_foot_length_m`` is the reference child's own span, carried as given (rounded to 1e-4).
 * (c) ``clamp.ratio_min`` (errata E3.8, 1.0 to 0.69): a toothed seat whose foot is narrower than 0.69 of the run width fails the clamp under the
@@ -87,9 +87,12 @@ def sight_mounts(sight_f):
 
 
 def gate_6c(seat, sight_f):
-    """The test's own twin of gate 6(c) of A§4.6 (``test_weapons_w8h_probe.gate_violations``; tests/test_weapons_g1_seats.py:89 keeps one for the mount
-    point): the optic span, centred on the seat, covers the front sight. ``seat`` is the ``feats["seats"]["optic"]`` entry (``f`` and ``span_m``)."""
-    return abs(sight_f - seat["f"]) <= seat["span_m"] / 2
+    """The test's own twin of gate 6(c) of A§4.6 (``test_weapons_w8h_probe.gate_violations``; tests/test_weapons_g1_seats.py:88 keeps one for the mount
+    point): the optic span, from the run's rear to span_m ahead of it, covers the front sight. ``seat`` is the ``feats["seats"]["optic"]`` entry (``f`` and
+    ``span_m``). The seat ``f`` is the centre of the rearmost min(run, 0.20) m of the clipped run and ``span_m`` is that run's whole length (src
+    fit_rails.py:446-451, fit_geometry.py:447-448), so the run starts at ``f - min(span_m, 0.20) / 2``."""
+    lo = seat["f"] - min(seat["span_m"], 0.20) / 2
+    return lo <= sight_f <= lo + seat["span_m"]
 
 
 def test_the_long_host_is_what_the_cases_say_it_is():
@@ -101,9 +104,9 @@ def test_the_long_host_is_what_the_cases_say_it_is():
 
 
 # (sight f, the span the clip leaves). The clip ends the span 0.010 m behind the sight: span = sight - 0.010 - 0.12 (0.22 and 0.25, both still over 0.20).
-# The twin covers a sight within span / 2 of the seat's f 0.22. Unclipped (span 0.329) that reaches f 0.3845 and covers both sights; clipped it reaches
-# 0.22 + 0.22 / 2 = 0.33 (sight 0.35) and 0.22 + 0.25 / 2 = 0.345 (sight 0.38), short of each. The sight at 0.38 sits 4.5 mm inside the unclipped reach:
-# near the sight, so the clip alone keeps the span off it.
+# The twin covers a sight within the span from the run's rear (f0 0.12) to f0 + span. Unclipped (span 0.329) that reaches 0.12 + 0.329 = 0.449 and covers
+# both sights; clipped it reaches 0.12 + 0.22 = 0.34 (sight 0.35) and 0.12 + 0.25 = 0.37 (sight 0.38), 10 mm short of each: the clip alone keeps the
+# span off the sight. A sight at 0.52 is beyond the run's front 0.449, so it is not covered either way.
 CLIPPED = [(0.35, 0.22), (0.38, 0.25)]
 
 
@@ -118,6 +121,19 @@ def test_gate_6c_holds_on_a_long_run_only_through_the_sight_clip(sight_f, span):
     # the control that makes the twin mean something: the unclipped span of this run WOULD cover the sight
     unclipped = {"f": SEAT_F, "span_m": LONG_RUN_M}
     assert gate_6c(unclipped, sight_f)
+
+
+def test_gate_6c_covers_a_front_sight_between_the_centred_window_and_the_run_front():
+    # E3.19: the unclipped seat (f 0.22, span 0.329). A window centred on the seat reaches 0.22 + 0.1645 = 0.3845; the span from the run's rear (0.12)
+    # reaches 0.449. A sight at 0.40 or 0.44 lies between them: covered; one at 0.46 is past the run's front.
+    unclipped = {"f": 0.22, "span_m": 0.329}
+    for sight_f in (0.40, 0.44):
+        assert abs(sight_f - 0.22) > 0.329 / 2  # the centred window misses it
+        assert gate_6c(unclipped, sight_f), sight_f
+    assert not gate_6c(unclipped, 0.46)
+    # the shipped seat, with the sight at 0.40, is clipped to 0.12 .. 0.39 and so does not cover it
+    seat = features(LONG_HOST, sight_mounts(0.40))["seats"]["optic"]
+    assert not gate_6c(seat, 0.40)
 
 
 def test_a_sight_beyond_the_long_run_leaves_the_whole_run():

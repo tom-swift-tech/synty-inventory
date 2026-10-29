@@ -153,9 +153,14 @@ def gate_violations(rec, root, optic_entries=()):
         out.append(("b", None))
     opt = m["optic"]
     if opt["source"] != "none" and opt.get("span_m") and opt.get("point"):
-        half = opt["span_m"] / 2
+        # The covered interval is [run start, run start + span_m] along forward (+z here). A rail seat (rail_teeth / rail_flat) is the centre of the
+        # rearmost min(run, 0.20) m of the CLIPPED run and span_m is that run's whole length (src fit_rails.py:446-451, fit_geometry.py:447-448), so
+        # the run's rear is point - min(span_m, 0.20) / 2 and the span reaches span_m ahead of it. Any other optic seat (a child node, a part's foot)
+        # has its point at the centre of its span.
+        rail = opt.get("feature") in ("rail_teeth", "rail_flat")
+        lo = opt["point"][2] - (min(opt["span_m"], 0.20) if rail else opt["span_m"]) / 2
         for name, seat in (("sight_front", front), ("sight_rear", rear)):
-            if abs(seat["point"][2] - opt["point"][2]) <= half:
+            if lo <= seat["point"][2] <= lo + opt["span_m"]:
                 covered = name == "sight_rear" and optic_entries and all(e.get("hides_slots") == ["sight_rear"] for e in optic_entries)
                 if not covered:
                     out.append(("c", name))
@@ -191,3 +196,21 @@ def test_ac92_gate_c_fails_when_a_seat_is_inside_the_optic_span_unless_hides_slo
     assert gate_violations(rec, built[1], [{"hides_slots": ["sight_rear"]}]) == []  # covered by hides_slots
     opt["point"][2] = rec["geometry"]["mounts"]["sight_front"]["point"][2]
     assert gate_violations(rec, built[1], [{"hides_slots": ["sight_rear"]}]) == [("c", "sight_front")]  # the front is never covered
+
+
+def test_ac92_gate_c_covers_a_front_sight_ahead_of_the_centred_window_on_a_long_toothed_run(built):
+    # E3.19: a rail_teeth run of 0.329 m (over the 0.20 m default seat length) has its seat point at the centre of the rearmost 0.20 m, 0.10 m behind the
+    # middle of the run's span. The span, measured from the run's rear (point - 0.10 .. point + 0.229), covers a front sight 0.20 m ahead of the point; a
+    # window centred on the point (reach 0.329 / 2 = 0.1645) would stop short of it.
+    rec = copy.deepcopy(built[0][f"{PACK}/{BOX}"])
+    m = rec["geometry"]["mounts"]
+    front_z = m["sight_front"]["point"][2]
+    m["optic"] = {**copy.deepcopy(mounts(built, KIDDED)["optic"]), "feature": "rail_teeth", "span_m": 0.329}
+    m["optic"]["point"][2] = front_z - 0.20
+    assert 0.20 > 0.329 / 2  # past the centred window
+    assert gate_violations(rec, built[1]) == [("c", "sight_front")]
+    m["optic"]["point"][2] = front_z - 0.25  # the front is 0.25 ahead of the point, past the run's front (0.229 ahead of the point): not covered
+    assert gate_violations(rec, built[1]) == []
+    m["optic"]["feature"] = None  # an authored seat's point is the centre of its span: the 0.20 m offset is outside it
+    m["optic"]["point"][2] = front_z - 0.20
+    assert gate_violations(rec, built[1]) == []
