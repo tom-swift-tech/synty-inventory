@@ -1109,3 +1109,82 @@ Decision 2 (i) of the S11 set chose the mechanism.
 - **Docs.**
   - The spec's gate 6(c) and AC148 rows are not amended: they state the gate, not the check form.
   - Plan §8's E+F finding 2, and its earlier "proven only on runs under 0.20 m" line, stay as dated records. Plan §8 records the closure.
+
+### E3.20 The labels file: a second part, an exclusion-only list, and the draw's refusals (code, data, docs)
+
+**Status: APPROVED by Tom, 2026-10-28, as Q1 to Q3 of the S12 questions ("Defaults", relayed verbatim by the peer session).** It applies decision 3's four defaults (plan §8, Tom's word on the S11 decision set) to the labels as they were actually stored.
+- **Cause.**
+  - The 449 labels live in the label page's database, outside every repo tree. No `weapon_attach_labels.json` was ever committed, although spec §3.10, AC141 and plan §5 cite it.
+  - With no file, a bare `--draw` skipped nothing (`spotcheck.py:194-196` at `fee8232`). A test pinned that as intended.
+  - `weapon-attach-labels/1` holds `{part, host, fits}` with a boolean `fits`, so it cannot carry:
+    - a front+rear sight record answered as one;
+    - a pair whose records disagree;
+    - a pair answered only "skip".
+  - The draw would still need to skip all three kinds.
+- **The export.** It has 449 records, read from the label page's database on 2026-10-29, 00:34:18.7 to 00:34:20.0 UTC. The newest record's `at` is 2026-10-27T15:37:43.973Z.
+  - The 449 are the 409 earlier cards plus 40 `fit-v1` cards (k01 to k40). The 25 pre-`fit-v1` (w8q) rows are inside them.
+  - Pair identity is (part, part2 or none, host). There are 432 distinct keys:
+    - 12 identical duplicates collapse;
+    - 5 keys are conflicts (a "skip" counts as an answer);
+    - 1 key is skip-only.
+  - That leaves 426 boolean pairs: yes 232, no 194.
+    - By slot: optic 144, muzzle 100, magazine 142, underbarrel 26, and front+rear sight pairs 14.
+    - Over the 427 decision-3 pairs (the 426 plus the skip), optic is 145.
+  - The **conflict keys**, by arrival index (records sorted by `at`, then `card`, 0-based; in filename order the indices read differently, and the values per pair are the same):
+    - (124, 153): yes / no, underbarrel;
+    - (239, 294): yes / no, magazine;
+    - (245, 292): no / skip, magazine;
+    - (254, 293): no / yes, muzzle;
+    - (268, 291): no / yes, magazine.
+  - The **skip-only key** is one optic pair.
+- **Q1, the exclusion-only list.**
+  - `weapon-attach-labels/1` gains an optional top-level `excluded`: a list of `{part, host}` or `{part, part2, host}`, ids only, with no `fits`.
+  - It holds the 6 unanswerable keys: the 5 conflicts and the 1 skip.
+  - `--draw` skips every key in `pairs` and in `excluded`. `attach-eval` ignores `excluded`.
+  - A key may appear once across both lists. The schema string is unchanged, and a file without the new parts is still valid.
+- **Q3, the second part.**
+  - A pair may carry `part2`: a well-formed id, not equal to `part`. Its `fits` answers both parts together (decision 3: fit only if both fit).
+  - In `attach-eval` the pair is skipped (`part_not_an_attachment`) unless both parts are attachment records. In a view it is predicted only when both (part, host) and (part2, host) are predicted. Its slot is the part's slot.
+  - `--draw` skips both (part, host) and (part2, host).
+- **Q2, the public commit.** The labels file is committed: ids and booleans only, 426 pairs and 6 excluded keys. The 32-pair spot-check file follows it at the draw. Tom confirmed the push of the labels file separately, on 2026-10-29, verbatim: "Yes, push".
+- **The draw's refusals.** Each one exits 2, and nothing is written. They are checked in this order, after the existing exit 6 (the file exists) and the exit 2 for a missing directory:
+  1. The directory header: `attach_version` is not the package's `WEAPON_ATTACH_VERSION` (14), or `fit_digest` is absent or empty. The error names the key and the value.
+  2. The labels file (`--labels`, else `src/synty_inventory/data/weapon_attach_labels.json`) does not exist. The error names the path.
+  3. The labels file has no pairs.
+  - Schema errors keep exit 6. "Absent or empty" widens the peer's ruling, which said "absent". The peer accepted the widening.
+- **The normalizer** (`weapons/labels_store.py`, `python -m synty_inventory.weapons.labels_store --export DIR --out FILE`, stdlib only).
+  - It reads one record per `*.json` file in DIR, non-recursively, and refuses any file that is not a record.
+  - It also refuses:
+    - a record missing `at`, `card`, `part_id`, `host_id` or `fits`, or with `at` or `card` not a string;
+    - `fits` outside yes / no / skip;
+    - an ill-formed id.
+  - A null `part2_id` counts as absent.
+  - Unknown keys (`slot`, `def`, `card`, `at`) are dropped from the file. `slot` is counted in the report only, taken from the first arriving record of a key. A non-string slot counts as "none"; the live export has 0 non-string slots and 0 slot disagreements within a key.
+  - Output: sorted by (part, part2 or "", host), LF, `indent=1`. `excluded` is written as `[]` when it is empty.
+  - Report: counts and arrival indices only, never an id. Errors name a record by its input position.
+- **Code and data** (`aa0e1bc` and `051132a` on `fee8232`, merged `aa43491`, pushed 2026-10-29).
+  - Files: `eval.py`, `spotcheck.py`, `cli.py` (help text), the new `labels_store.py`, the new `tests/test_weapons_s12_labels.py`, `tests/test_weapons_g1_spotcheck.py`, and the labels file.
+  - The labels file is 59,971 bytes, LF, and `validate_labels` returns `[]`. The peer counted the export independently and matched the file key for key.
+- **Tests.**
+  - The new file covers:
+    - the absent default labels file;
+    - N labelled and excluded keys skipped;
+    - empty pairs;
+    - the stale header: `attach_version` 13, no `fit_digest`, and `fit_digest` "";
+    - the validator, the eval and the normalizer cases.
+  - In `test_weapons_g1_spotcheck.py`, the `directory()` fixture gains `attach_version` 14 and a 16-hex `fit_digest`. `test_ac141_the_labels_file_is_what_the_draw_skips` is re-pointed.
+    - It pinned the hazard: no labels, nothing skipped.
+    - It now has a bare draw read the default path, pointed at the fixture's labels file, and skip exactly those 5 pairs.
+  - Red on detached `fee8232`, with the two test files from `aa0e1bc`: 41 failed, 61 passed, all 41 in the new file.
+    - The re-pointed test passes on the base, because the base already read a file at the default path when one existed. It records the new meaning; it is not a red-first proof.
+    - The absent-file case is test A, which is red on the base.
+- **Gates.**
+  - The suite is 3810 passed, 8 skipped, rc 0, on the slice and on the merge (base 3754 / 8).
+  - A fresh cold copy-catalog build from the slice's `src` is byte-identical to slice G (`directory.json` sha256 `20fb1360e2bf0e24e0f70de7cbf32091d9ee20f2a21870c3d182774e7f1280a4`).
+  - Versions 14 / 6 and the four digests are unchanged: rules `7b9829af37328fe7`, overrides `17d4e771a785a4b2`, attach_rules `2fa41961e3c387b0`, fit `2d94c7151cce583b`.
+  - There are 0 pack ids in the added lines outside the labels file.
+- **Finding: the real catalogs directory is stale (no action).**
+  - `<catalogs>/weapons/directory.json` predates the attachment work. It dates from about 2026-10-22, with geometry version 5, overrides digest `8a87108648708659`, and no `attach_rules`, `fit` or `attach_version` header. Its sha256 begins `40a06d70`.
+  - The draw must not read it. Refusal 1 refuses it, and the draw runs with an explicit `--directory` on a fresh copy-catalog build at the draw's commit.
+  - Nothing rebuilds the real directory. Tom is told.
+- **Docs.** Spec §3.10, §4 (CLI), AC141 and AC142; `weapon_attachments.md` §8 (the labels schema); and plan §5 and §9.7 carry the E3.20 wording. Plan §8 records the slice.
