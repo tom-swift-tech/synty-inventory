@@ -463,7 +463,7 @@ All four have base S2 merged, and each runs in its own worktree. Each owns exact
   - Tom answers each pair once under fit-v1, in chat, by sheet index. The peer relays his words verbatim.
   - The lead writes `fits`, and `placed_wrong`, into the file, each from null only (INV-26), with nothing else changed. That is its own commit, pushed.
   - The peer verifies the diff before `--score` runs.
-- **Score.** `--score` runs once and prints `fits k of 32 (placed wrong m)`. The number goes into the impact record once. Then `attach-eval` on the labels file gives the agreement table, recorded as a description.
+- **Score.** `--score` runs once and prints `fits k of 32 (placed wrong m)`. The number goes into the impact record once. Then `attach-eval` on the labels file gives the agreement table, recorded as a description. [Done 2026-10-30: `fits 32 of 32 (placed wrong 4)`, impact record errata E3.21, run log §8.]
 - **Status.** The spot check is never a gate and is never re-drawn. **Draw #6's labels are not re-scored** (§4.7 step 3).
 
 ## 6. Closing state
@@ -727,6 +727,19 @@ The merge commits of the landed slices on `integ/attach`:
   - **The push.**
     - The lead's push of `aa43491` was held by this session's permission check, because it is the first push of real pack ids to the public repo and Tom's Q2 word had arrived only as a relay. The lead did not work around it, and asked Tom directly.
     - Tom confirmed to the peer session, verbatim, 2026-10-29: "Yes, push". This one push was made from the integ worktree by the peer session (the other lead) on Tom's direct word: `fee8232..aa43491`, rc 0, read back `aa43491`. Nothing else was pushed.
+- S12 docs: `8e17123`, merged `73c2f82` (errata E3.20 fold-through), pushed.
+- S12 spot check (errata E3.21 is the impact record):
+  - **The directory.** A fresh cold copy-catalog build at `73c2f82`, rc 0, sha256 `20fb1360…`, identical to slice G. The peer checked its header and sum itself before the draw.
+  - **The draw** (`25a9a02` on `73c2f82`, one file, pushed). `--draw --directory <that build>` ran once with the default labels path: rc 0, 32 drawn, `short` {}, 437 labelled keys skipped, `drawn_at` = the directory's `attach_rules_digest`.
+    - DM-A's own checker (it recomputes the hash and calls no package code) and the peer each confirmed: 8 per slot, both non-empty tiers per slot with at least 2, 0 overlap with the labels' pairs, part2 keys and excluded keys, 0 twins or overrides, hash order, all answers null, 0 CR.
+    - The commit trailer reads Claude Sonnet 5.5, as DM-A authored it; the lead's message file said Opus. The peer let it stand, with no amend.
+    - The exit-6 proof, after the commit: a second `--draw` gave rc 6 (INV-26), and the file's sha256 was `f12ccf40…` before and after.
+  - **The sheet.** `attach-preview --sheet` rendered 32 of 32 at 384 px with no cell numbers, so it was re-rendered at `--size 768`, 32 of 32. The 32 cell images were copied to scratch as `00.png` to `31.png` by each pair's `cell` in `index.json`. A script, not the eye, checked that cell = file position and that every copy is byte-identical. Icons were found for 7 hosts and 3 parts. The peer sent Tom the index-named files, with no ids.
+  - **The answers** (`7e0898a` on `25a9a02`, one file, 64 / 64 lines, pushed). Tom, by index, relayed verbatim by the peer, 2026-10-30: 28 fit, fit but placed wrong at 1, 26, 30, 31, 0 no-fit. To the peer's question whether the other 28 all fit, his button was "Rest fit". The encoding follows the spec (:394, INV-26): fits true throughout; placed_wrong true on the 4. A scratch script wrote only the two fields, each from null, and asserted every other byte unchanged. The peer verified the diff.
+  - **Deviation (accepted by the peer).** While checking the written file, DM-A called the package's `validate()`, `check_update()` and `score()` functions once, read-only (score: "fits 32 of 32 (placed wrong 4)"). The answers were already fixed in the commit, and the calls wrote nothing and could tune nothing. The CLI `--score` below is the one scoring of record.
+  - **The score** (once, on `7e0898a`, against 25a9a02's file as `--baseline`): rc 0, `{"ok": true, "fits": 32, "placed_wrong": 4, "pairs": 32, "answered": 32, "summary": "fits 32 of 32 (placed wrong 4)"}`.
+  - **attach-eval** on the committed labels file: rc 0. It used 424 of 426 pairs (2 skipped, `part_not_an_attachment`). Four-slot default view: agree 267, disagree 106, undecided 16, over 389 pairs. The full table is in E3.21.
+  - **Findings.** Tom's three placement observations are recorded by class and count in E3.21 and carried in §9.7. Nothing was changed for them.
 
 ## 9. Errata E3: the build ladder (E3.0 to S10b)
 
@@ -1004,6 +1017,7 @@ Carried, so nothing is lost:
 - **Preset `point_s` from the unstripped probe** (E3.1 builder item 1): presets still take `point_s` from the unstripped probe. No change in E3.1.
 - **Oracle and fused-set alignment** (E3.1 builder item 2): the test keeps its literal of 1 unmatched oracle call as a tripwire, with a comment naming the two sets and when it goes red. Aligning the two sets is later work.
 - **`_used_vertices` made public** (E3.1 builder item 3): E3.1 imports a private helper; the next slice that owns its module makes it public.
+- **S12's three placement findings** (errata E3.21): optic yaw sideways on a rail (1 pair), the angled foregrip's forward axis flipped (2 pairs), a suppressor anchored ahead of a built-in muzzle brake (1 pair). They are recorded, not tuned. Any fix is a later erratum with Tom's approval, and the spot check is never re-drawn for it.
 
 Not determined from the tree:
 - the real E3.1 output (the live digests are emulation predictions; the keys the slice stores decide whether AC143 and AC145 move);

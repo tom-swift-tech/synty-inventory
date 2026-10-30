@@ -1188,3 +1188,34 @@ Decision 2 (i) of the S11 set chose the mechanism.
   - The draw must not read it. Refusal 1 refuses it, and the draw runs with an explicit `--directory` on a fresh copy-catalog build at the draw's commit.
   - Nothing rebuilds the real directory. Tom is told.
 - **Docs.** Spec §3.10, §4 (CLI), AC141 and AC142; `weapon_attachments.md` §8 (the labels schema); and plan §5 and §9.7 carry the E3.20 wording. Plan §8 records the slice.
+
+### E3.21 The S12 impact record: the spot-check score, the agreement table, three placement findings (record, no change)
+
+**Status: RECORD.** It changes no clause, literal, rule, anchor, renderer, test, version or digest. It is the impact record that spec §3.10 and §4.7 step 4 ask for, written once. Plan §8 holds the run log.
+- **The draw.** `--draw` ran once (`25a9a02`, on `73c2f82`) on a fresh copy-catalog directory, with an explicit `--directory` (sha256 `20fb1360…`, versions 14 / 6, the four pinned digests), and the committed labels file.
+  - 32 pairs, 8 per slot. Same-pack / cross-pack: optic 3 / 5, muzzle 3 / 5, underbarrel 4 / 4, magazine 8 / 0. The directory lists 0 cross-pack magazine pairs, so that tier was empty.
+  - 0 drawn pairs overlap the labels file's 426 pairs or 6 excluded keys (437 skipped keys in all). 0 twins, 0 overrides.
+  - A second `--draw` exited 6 and left the file's bytes unchanged (INV-26, write-once).
+- **The answers.** Tom answered each pair once under fit-v1, by sheet index, relayed verbatim by the peer session, 2026-10-30. 28 fit; 4 fit but placed wrong; 0 no-fit. Written from null only (`7e0898a`, 64 changed lines, the two answer fields only).
+- **The score.** `attach-spotcheck --score --baseline <25a9a02's file>`, run once on `7e0898a`, rc 0: **`fits 32 of 32 (placed wrong 4)`**.
+- **The agreement table** (`attach-eval` on the committed labels file against the same directory; a description, not scored, per AC142).
+  - It used 424 of the 426 pairs. 2 single-part pairs were skipped as `part_not_an_attachment`. The tool counts pairs, not the 449 records.
+  - The four geometry slots, default view (agree = listed and labelled fit, or absent and labelled no-fit; pending is undecided):
+
+    | Slot | pairs | agree | disagree | undecided |
+    |---|---|---|---|---|
+    | optic | 121 | 78 | 43 | 0 |
+    | muzzle | 100 | 66 | 34 | 0 |
+    | underbarrel | 26 | 15 | 11 | 0 |
+    | magazine | 142 | 108 | 18 | 16 |
+    | total | 389 | 267 | 106 | 16 |
+
+  - The 35 label-era pairs (21 single-part, 14 front+rear sight): tp 10, fp 0, fn 1, tn 24, the same in all three views. The 14 two-part pairs agree 14 of 14.
+  - All 424 pairs, by view (tp / fp / fn / tn): default 151 / 39 / 79 / 155; with cross-pack 159 / 44 / 71 / 150; same-pack only 113 / 29 / 117 / 165.
+  - By directory entry (410 single-part pairs, labelled fit / no-fit): listed twin 33 / 2; listed same-pack 70 / 24; listed cross-pack 38 / 10; pending same-pack 0 / 3; pending cross-pack 8 / 5; absent 71 / 146. The tier split is a scratch computation; the tool prints none.
+  - Neither the spec nor the plan defines a same-code baseline for this table, so none was run. Draw #6's earlier scoring was on other code and is not re-scored (plan §5).
+- **Three placement findings** (Tom's words on three cells, verbatim: "sight is sideways.And this foregrip is backwards in all cases. And this silencer doesn't cover the built-in muzzle break"). The peer matched the words to cells by eye; "in all cases" covers the one angled-foregrip part, which is in 2 cells. By class and count:
+  1. **Optic yaw.** An optic sits sideways on its host's rail: 1 pair.
+  2. **Angled foregrip forward axis.** The grip's forward axis is flipped, so it points backwards: 2 pairs (one part, two hosts). The vertical grips in 3 other cells are a different part and were judged fit.
+  3. **Suppressor over a built-in muzzle brake.** The can is anchored ahead of the host's built-in brake instead of over it: 1 pair.
+  - All three are placement (pose) faults on pairs the geometry gate lists correctly as fits. None is tuned here (plan §0 rule 7). A fix to any of them touches an anchor or a rule, so it is a later erratum, with Tom's approval.
