@@ -1345,3 +1345,219 @@ Decision 2 (i) of the S11 set chose the mechanism.
 E3.22-Q3 moved to E3.23 (the record frame under the optic fix).
 
 Tom approved all of the above at their defaults. Q6 and Q7 cover two of his three open looks, the grips and the muzzle. The third look, optic 00, belongs to E3.23.
+
+### E3.23 The S12 optic-yaw fix: step 3 takes the authored z axis on every foot slot (rule, code, tests)
+
+**Status: APPROVED (Tom, 2026-10-30: "Approve at defaults"); build pending, after the E3.22 slice merges.** It fixes finding 1 of E3.21, optic yaw ("sight is sideways"). Fixes 2 and 3 are E3.22.
+- Unlike E3.22, this fix changes listed pairs: it adds and drops optic pairs, adds magazine pairs, corrects 15 baked-child mount spans on 8 hosts and moves `fit_digest`.
+- Every change is stated below by class and count, with its measured cause. Nothing is tuned to the S12 cells or to Tom's labels (plan §0 rule 7).
+
+- **Evidence.** Everything here was measured read-only, by scratch counterfactuals on integ `7c44f19` (attach 14, geometry 6) against a fresh copy-catalog directory. The figures come from in-memory patches, without E3.22 applied.
+  - The slice re-measures every figure on the built code, on top of built attach 15 (E3.22). Gate below.
+  - The fix sits where the code picks the axis (`_foot_anchor`), so it reaches host baked children as well as parts: a baked child is measured by the same step 3 (`measure_anchor` without a kind). Every figure below includes them. That run was on integ `d75025b` (the E3.22 docs commit), with the same code as `7c44f19`.
+- **Cell numbering.** As in E3.22: 0-based positions in `weapon_attach_spotcheck.json`'s `pairs`, matching the image indices Tom saw.
+
+#### E3.23a Step 3 takes z (finding 1; weapons spec §3.4 step 3)
+
+- **Today.**
+  - Step 3 picks the along-rail axis as the longer horizontal extent of the whole-part AABB: `axis = 2 if ext[2] >= ext[0] else 0`.
+  - On a part whose body is wider than it is long, it picks x, so the part mounts turned 90 degrees. Tom: "sight is sideways" (cell 1).
+  - The pick runs for all six foot slots: optic, sight_front, sight_rear, underbarrel, laser_light, magazine. The muzzle has its own anchor and is untouched.
+  - It differs from the record's long axis (`_pick_long_axis`, the longest of three axes with a 5 % tie band). Spec :71 already holds that `long_axis` and `axes.forward` are not the mount axis.
+- **Rule.** Step 3's along-rail axis is the authored z axis on every foot slot. The whole-part AABB x-versus-z pick is removed.
+  - The sign rules that follow are unchanged and now run along z: the end sections (step 3), the twin correction (3a), free_end (3b), step 3c (E3.22) and the explicit override.
+  - The foot slab, its rungs and the rail mid-line rule (1b) are unchanged.
+  - It adds no literal and no rules key. The attach code digest moves; `attach_rules_digest` does not.
+- **Affected parts: 16 are x-forward today.**
+
+  | Class | Parts |
+  |---|---|
+  | optic | 3 |
+  | magazine | 6 |
+  | sight_rear | 4 |
+  | underbarrel | 2 |
+  | sight_front | 1 |
+  | laser_light | 0 (of 6 laser parts) |
+
+- **Affected host baked children: 20 measurements are x-long today.** By mount slot: optic 10 (on 9 hosts), magazine 8 (on 7 hosts), underbarrel 2 (on 1 host), laser_light 0. Of 139 baked-child measurements, these are the ones the x pick reads sideways.
+
+- **Population** (in-memory, v14 base):
+  - Optic, on the 3 parts: 40 listed pairs today become 41 under the fix (10 dropped, 11 added). 20 `seat_shift_m` values and 1 `hides_slots` entry change.
+  - Optic, one more drop on a fourth part, through a host's baked optic span (E3.23b). Over all optics, listed pairs stay 686 (11 dropped, 11 added).
+  - Magazine:
+    - +6 listed pairs on 2 parts (2 and 4).
+    - +9 pending pairs on 3 parts (2, 2 and 5), all `cross_pack_fit` with signal `well_entry`.
+    - Pending across all magazines goes from 302 same-pack + 970 cross-pack to 302 + 979.
+    - Nothing is dropped from listed or pending on these parts.
+    - All 3 parts are directory kind `standard`. Their shapes are round-drum-like. The drum-kind part adds none.
+  - sight_rear, sight_front and underbarrel: 0 pair changes.
+  - Host mounts: 15 `span_m` values change on 8 host records, 8 `mounts.<slot>.span_m` and 7 `mounts.<slot>.seats.<child>.span_m` (on 4 of the 8). Nothing else in those records changes.
+    - Each new value is the length along the bore, and each old one was the extent across it. Checked on the two largest changes in the host's item frame (identity on all 8 hosts), and viewed:
+      - a baked rear iron sight, 35.7 to 15.5 mm. Its AABB is 35.7 across, 51.0 up and 20.1 along. The 15.5 mm is its bottom foot slab along the bore, where the base narrows; 35.7 mm is the base's width across.
+      - a baked magazine, 227.2 to 126.2 mm. It is a flat plate (one mesh, 32.4 mm tall) seated in a side slot, and it sticks out about 145 mm past the 111.6 mm receiver. Its AABB is 227.2 across, 32.4 up and 126.3 along.
+    - The others are magazines (6.4 to 14.0, 7.9 to 53.5, 34.5 to 83.7, 14.6 to 16.9 and 28.5 to 31.5 mm), one more optic mount (8.7 to 10.5 mm) and one bipod (11.5 to 10.7 mm).
+    - Of the pairs on those hosts, only one changes: the extra optic drop.
+  - One more part anchor changes its label, not its geometry. A drum magazine is near-symmetric on both axes (end-section ratio 1.00 on x, 1.01 on z).
+    - Its anchor is now +z before the twin step, so the twin correction no longer has to turn it.
+    - Its `forward_source` reads `authored` (symmetric true) instead of `twin`, with the same forward, foot and pairs.
+    - Twin-sourced parts go from 5 to 4, with none gained.
+  - `fit_digest` moves from `2d94c7151cce583b` to `03030047c518d931`. The causes are the magazine well-entry sections, now measured along z, and the host baked-child spans.
+    - With the fix limited to parts, the figure was `0a190cdee9468f37`. That is recorded as a separate line; it is not the target.
+  - `rules_digest`, `overrides_digest` and `attach_rules_digest` are unchanged.
+- **Why the magazine change is a correction.** The well is about 78 mm along the bore. Under z the round magazines' feet measure 72 to 78 mm along it. Under x they measured 14 to 32 mm, the sideways reading. The lead viewed all 6 added pairs (captures 00 to 05 of the magazine sheet), and the peer viewed 2 of them (01 and 03). All 6 sit flush under the well with the disc face to the side.
+- **Rejected: the optic-only variant.** It gives the same optic figures (+11/-10, 20 `seat_shift_m`, 1 `hides_slots`, no digest move) and leaves magazines and sights on the x pick.
+  - It was rejected because step 3 is one rule over six slots. A slot-limited exception would make the same wrong pick on the other five, so the rule holds over the whole step.
+  - "Rail-mounted only" is no principled boundary either. The rail set (step 1b) is two slots, and the sideways pick is not a rail property.
+- **Rejected: the parts-only variant** (z only when a kind is passed, so host baked children keep the x pick). It equals the figures without the extra drop, the 15 span changes and the drum relabel, and gives `fit_digest` `0a190cdee9468f37`.
+  - It was rejected for the same reason: a baked child goes through the same step 3, and on the 20 x-long children the x pick reads the across-bore extent as the foot length. The seat-ref length clause then compares a part against the wrong length.
+
+#### E3.23b The 11 dropped optic pairs (record, not fixed)
+
+The drop is stated as 7 width, 1 length, 2 settle-cap and 1 seat-ref drops, never as a bare "-11". Each verdict was recomputed from the gate's own inputs and matches the gate on all 11. The first 10 are on the 3 x-forward parts; the 11th is on another part, through its host.
+
+| Cause | Pairs | Part class | Detail |
+|---|---|---|---|
+| Toothed-run width clause, `foot_w >= ratio_min * run_width` (`ratio_min` 0.69) | 7 | camera-on-post 4, phone-on-clamp 3 | Missed by 0.23 to 2.90 mm, four of them under 1 mm. Every one of these passes the length clause (rails 213 to 270 mm). |
+| Length clause | 1 | phone-on-clamp | foot_l 116.8 mm against run + 10 = 98.0 mm; the width clause also misses, by 0.006 mm. |
+| Settle cap (`contact.cap_m` 30 mm), after the gate gives `fit` | 2 | phone-on-clamp | Settles at 60.0 mm (the clamp) and 49.4 mm. |
+| Seat-ref length clause, `foot_l <= ref_len + 10 mm`, `ref_len` the host's baked optic span | 1 | reflex (red dot), cross-pack, unlabelled | foot_l 45.3 mm. Today 45.3 <= 35.7 + 10 = 45.7 passes by 0.4 mm on the across-bore extent. Under the fix 45.3 <= 15.5 + 10 = 25.5 fails. |
+
+- **The 7 width drops.** Rendered seated under z regardless of verdict, all 7 sit along the rail and look seated. The lead and the peer both viewed them.
+  - The drop loses a pose that looks right. It comes from a fit verdict on the foot, not from a placement fault.
+  - The camera-like parts point lens-rearward. That is the optic sign finding (E3.23c), not part of this fix.
+  - The verdicts are **threshold-fragile**: each is decided by the 0.69 literal alone, and the narrowest margin is 0.23 mm.
+- **Two findings on the width clause, recorded, not fixed:**
+  - (1) It has only a lower bound. Under x today, a 116.8 mm clamp across a 16 to 21 mm rail passes.
+  - (2) It misreads post-footed clamps. A near-square post foot (10.4 x 12.0 mm) fails or passes by which side faces the rail, not by whether the clamp seats.
+- **The other 3 drops lose nothing that looks right:**
+  - The length drop's posts are 117 mm apart on an 88 mm rail. One lands on the rear sight, and the part reads sunk (settle +17.9 mm).
+  - Of the settle-cap drops, one reads seated or just above the top strap at the 60 mm clamp, and floats at shift 0.
+  - The other floats above the receiver when settled, and intersects it at shift 0. It agrees with Tom's label.
+- **The seat-ref drop loses a pose that looks right.** Today's listed pose has the red dot about 12 mm up on its legs at the rear-sight position (`seat_shift_m` 12 mm). Rendered at shift 0, it sits on the rail. The lead and DM-A viewed both.
+  - The fix corrects the reference length: the foot of the host's baked rear sight is 15.5 mm along the bore, and the whole sight is 20.1 mm. The verdict then follows from the clause as it stands; against 20.1 + 10 = 30.1 mm it would fail too.
+  - It passed today only on an across-bore length, by 0.4 mm. It is recorded with the two width-clause findings (E3.23-Q2), not fixed.
+- **Tom's labels on the parts of these 11 pairs.**
+  - 1 pair is labelled: no, matching the drop. The seat-ref pair is unlabelled.
+  - The 4 other labels on these parts are for other hosts, all no.
+  - This is label-era evidence. It is recorded and not tuned to.
+
+#### E3.23c Optic forward sign (record; the convention stays)
+
+- **The rule stays.** Optics keep step 3's larger-end-forward sign.
+- **Rejected: rule (i), narrow end forward.**
+  - Over 63 optic parts and 686 pairs it flips 30 parts and changes 41 records and 0 pairs.
+  - It contradicts Tom on 3 of the 3 S12 pairs it touches (cells 2, 5 and 10). Tom marked all three as fitting and not placed wrong.
+  - By shape it is wrong on at least 11 of the 30: those 11 have the objective or lens at the larger end.
+
+  | Shape class of the 30 flipped parts | Parts |
+  |---|---|
+  | bell-tube scope | 10 |
+  | reflex | 9 |
+  | boxy | 5 |
+  | plain tube | 3 |
+  | camera-like | 2 |
+  | other | 1 |
+
+- **Optic 00, record only.**
+  - It is a camera-on-post part, x-forward today, with an end-section ratio of 1.38. Its lens points rearward under the larger-end rule.
+  - It is not an S12 pair. Under fix 1 it is +z, with no override route.
+  - If Tom calls it backwards, it is recorded as a fault class: camera-like body, 1 part, 9 listed pairs. It gets no fix.
+  - Its hand labels say fits false on 3 hosts, which is label-era evidence.
+  - This is Tom's third open look (E3.23-Q1).
+
+#### E3.23d Record frame (E3.22-Q3, moved here; record, no rewrite)
+
+- **Geometry stays 6.** The record's axes come from `_pick_long_axis`, not from step 3, so no record frame changes.
+  - 8 of 2655 geometry blocks change, all inside `geometry.mounts` (the 15 `span_m` values in E3.23a).
+  - Mounts are versioned by the attachment version and the attach code digest, never by `WEAPON_GEOMETRY_VERSION` (D-12). The attach bump covers them.
+- **Where the anchor axis differs from the record axis under fix 1:**
+  - optic: 3 parts / 41 pairs (1 / 16 today);
+  - other slots: 7 parts / 6 pairs (2 / 3 today).
+  - Host baked children add no group to this split. Their mount frames take the host's axes; only `span_m` changes.
+- **Consumers.** The export bakes each anchor through the record frame, so on those parts the exported item-frame anchor's forward reads sideways or vertical in the record frame. Icons, preview, fit and the schema do not read it.
+  - AC77 and `test_weapons_w8d_export.py` already cover a split.
+  - INV-19 is not engaged.
+  - `gate.py` `_forward_problem` refuses a forward override on a split part, which is why there is no override route.
+- A record line only. No record is rewritten.
+
+#### E3.23e Magazines against Tom's labels (record)
+
+- Of the 6 added listed pairs, 3 carry Tom's label-era no, 0 carry a yes, and 3 are unlabelled.
+- The lead read all 3 label-no poses as seated, flush under the well, so the disagreement is on fit, not placement.
+- This is label-era evidence. It is recorded and not tuned to (plan §0 rule 7).
+
+#### E3.23f Agreement table under fix 1 (record, AC142)
+
+- **Scoring.** The same scorer and form as E3.21, against the committed labels file; 424 of 426 pairs are used.
+- **v14 reproduces its recorded figures exactly**, on both the stored directory and the in-memory base.
+- **Agree / disagree / undecided over 389 pairs:**
+
+  | Slot | v14 | Fix 1 |
+  |---|---|---|
+  | optic | 78 / 43 / 0 | 79 / 42 / 0 |
+  | magazine | 108 / 18 / 16 | 105 / 21 / 16 |
+  | muzzle | 66 / 34 / 0 | unchanged |
+  | underbarrel | 15 / 11 / 0 | unchanged |
+  | total | 267 / 106 / 16 | 265 / 108 / 16 |
+
+- The baked-child reach does not move this table: its one pair change (the seat-ref drop) is unlabelled. With and without it, optic reads 79 / 42.
+- **tp / fp / fn / tn over 424 pairs, default view:** 151 / 39 / 79 / 155 becomes 151 / 41 / 79 / 153. The label-era slots (laser and sights) are unchanged at 10 / 0 / 1 / 24.
+- **4 pairs move:**
+  - 1 optic labelled no leaves the list (disagree to agree);
+  - 3 magazines labelled no become listed same-pack (agree to disagree).
+- Descriptive only.
+
+#### E3.23g Guard and gates
+
+- **Order.** E3.23 builds as its own slice, after the E3.22 slice. Every gate below is measured against built attach 15, not against the in-memory run.
+- **Red-first tests.** Synthetic fixtures with literal bounds. DM-A shows each one red on the built attach-15 base before the build. The literals are chosen to clear the tie by at least 5 mm and are not measured from any part.
+  - **AC153 (step 3 takes z).**
+    - An optic fixture with its foot at the bottom and whole-mesh extents x 60 mm, z 40 mm gets an anchor forward along ±z. Today it gets ±x.
+    - A control optic fixture with x 40 mm and z 60 mm keeps ±z.
+    - A magazine fixture (foot at the top) with x 60 mm and z 40 mm gets ±z.
+    - A host fixture with bore +z and a baked magazine child of x 60 mm, z 40 mm gets that mount's `span_m` within 1 mm of 0.040 m. Today it reads the x extent, 0.060 m.
+    - *Breaks:* the x pick restored; z forced only on optics; z forced only on parts.
+  - **AC154 (fix 2 on top of fix 1).**
+    - The E3.22 step-3c check runs again on the built fix-1 directory: exactly 7 flips over 24 underbarrel parts, 0 pair changes against attach 15.
+    - *Breaks:* any interaction between the z pick and step 3c.
+- **Population-diff gate,** against built attach 15, over all attachment records and listed pairs. The only allowed differences are:
+  - optic: 10 pairs dropped and 11 added on the 3 parts (40 to 41 listed), 20 `seat_shift_m` changes and 1 `hides_slots` change;
+  - optic: 1 seat-ref pair dropped on the one part named in E3.23b (686 listed over all optics, unchanged);
+  - magazine: 6 pairs added on 2 parts, 9 pending pairs added on 3 parts (all `cross_pack_fit`), 0 dropped;
+  - `fit_digest` `2d94c7151cce583b` to `03030047c518d931`. This is its own gate line, caused by the magazine well-entry sections and the baked-child spans (E3.23-Q3);
+  - the anchor on 17 parts: `forward` on the 16, and on the drum magazine `forward_source` `twin` to `authored` and `symmetric` false to true, with forward, foot and pairs unchanged;
+  - 15 `span_m` values in `geometry.mounts` on 8 host records, and no other geometry field.
+
+  Any other difference fails, including any change in sight_rear, sight_front, underbarrel, laser_light or muzzle pairs.
+- **Captures before anything rests on them.** These are re-rendered on the built code, and the lead views them first:
+  - S12 cells 1 and 6;
+  - the 11 added and 11 dropped optic pairs;
+  - the 6 added magazine pairs;
+  - the two largest baked-child span changes, host alone.
+
+  Hosts are resolved by record id, never by short name, and each capture index states the pack.
+
+  INV-26 is unchanged: the S12 record stands for version 14, re-renders are previews only, and there is no new draw.
+- **Versions.** `WEAPON_ATTACH_VERSION` goes 15 to 16. `WEAPON_GEOMETRY_VERSION` stays 6. `fit_digest` is re-pinned from its measured value (expected `03030047c518d931`). `rules_digest`, `overrides_digest` and `attach_rules_digest` are unchanged.
+- **Landing.** On integ/attach, under the standing push word. The docs commit is separate from the build slice and never concurrent with it.
+- **Docs.**
+  - Weapons spec §3.4 step 3: "The along-rail axis is the longer horizontal AABB extent (perpendicular to `up`)" becomes the authored z axis.
+  - Spec :71 is kept.
+  - Plan §8 records the slice.
+  - Plan §9 carries the raw notes: the two width-clause findings, the seat-ref drop, the optic sign finding, the optic 00 record, the foot-slab axis pick (DM-A), and a capture-tooling note. The note: during the E3.23 evidence, the capture tooling picked a host by a short name that 13 hosts in different packs share, and once rendered the wrong one (withdrawn and re-rendered). The slice's re-render list resolves hosts by record id, never by short name, and each capture index states the pack.
+
+#### E3.23h Questions for Tom (each with a default)
+
+| Q | Question | Default |
+|---|---|---|
+| E3.23-Q1 | Optic 00 (camera on post, lens rearward): if you call it backwards, it is recorded as a fault class (1 part, 9 pairs) with no fix and no override. | Yes, record only. |
+| E3.23-Q2 | The two width-clause findings (lower bound only; misreads post-footed clamps), the 7 threshold-fragile drops and the seat-ref drop: record only, no change to `ratio_min` or either clause. | Yes, record only. |
+| E3.23-Q3 | The `fit_digest` move (magazine well-entry sections and baked-child spans now read along z) is accepted as part of this fix and carried as its own gate line. | Yes, own gate line. |
+| E3.23-Q4 | The 9 new pending cross-pack magazine pairs stay pending. | Yes. |
+| E3.23-Q5 | Build order: E3.22, then E3.23, as two slices. | Yes. |
+| E3.23-Q6 | Step 3 takes z on all six foot slots (generic), not on optics only. | Yes. |
+| E3.23-Q7 | Optics keep larger-end-forward; rule (i) is out. | Yes. |
+| E3.23-Q8 | The record frame stays (geometry 6); the anchor/record split is recorded, not rewritten. | Yes. |
+| E3.23-Q9 | Step 3 takes z on host baked children too (one rule in `_foot_anchor`), not on parts only. It costs one more optic drop and corrects 15 mount spans. | Yes. |
+
+E3.23-Q1 is the third of Tom's three open looks. Q6 and Q7 in E3.22 were the other two.
