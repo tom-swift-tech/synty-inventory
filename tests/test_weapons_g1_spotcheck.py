@@ -71,7 +71,7 @@ def directory(spec=None, pending=None):
             parts[j % 2]["attachment"]["pending_hosts"].append({"host": f"Q/Pending_{slot}_{j}", "tier": "same_pack_fit"})
         weapons += parts
     # S12: the draw refuses a directory that is not a current attach build, so the fixture carries the header (the literal 14, not the package constant)
-    return {"schema": "weapon-directory/1", "attach_rules_digest": DIGEST, "attach_version": 14, "fit_digest": "fedcba9876543210", "weapons": weapons}
+    return {"schema": "weapon-directory/1", "attach_rules_digest": DIGEST, "attach_version": 15, "fit_digest": "fedcba9876543210", "weapons": weapons}
 
 
 def listed(d, slot, tier):

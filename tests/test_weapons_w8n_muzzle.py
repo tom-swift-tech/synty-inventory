@@ -77,6 +77,7 @@ def muzzle_world():
 SPEC_TABLE = {
     "cover": 0.4, "device_cover_m": 0.005, "device_reach_m": 0.080, "max_frac": 0.75, "dead_m": 0.003, "window_m": 0.15, "bin_m": 0.002,
     "ref_ratio": 1.4, "run_min_bins": 3, "device_max_m": 0.045, "sample_pitch_m": 0.0015, "range_m": 0.30, "radius_cap_m": 0.035,
+    "tip_front_m": 0.010, "tip_rear_margin_m": 0.010, "step_clear_bins": 5,  # E3.22b: the closed tip step's three required keys
 }
 
 
@@ -348,7 +349,7 @@ def test_the_table_the_attach_version_and_the_code_digests_are_in_the_fingerprin
         assert r["setback_stats"]["computed"] == 4 and r["setback_stats"]["cached"] == 0, name
         monkeypatch.undo()
     import synty_inventory.weapons as pkg
-    monkeypatch.setattr(pkg, "WEAPON_ATTACH_VERSION", 15)  # the shipped value is 14 (G1 4.6/AC146): any other value is a new fingerprint
+    monkeypatch.setattr(pkg, "WEAPON_ATTACH_VERSION", 16)  # the shipped value is 15 (G1 4.6/AC146): any other value is a new fingerprint
     _, _, r = run(tree, cache, rules)
     assert r["setback_stats"]["computed"] == 4, "WEAPON_ATTACH_VERSION is in the fingerprint"
 

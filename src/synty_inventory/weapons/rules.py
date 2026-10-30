@@ -94,6 +94,7 @@ MUZZLE_SEAT_PARAMS = {
     "dead_m": (float, 0.0, 0.05), "window_m": (float, 0.01, 0.18), "bin_m": (float, 0.0005, 0.02), "ref_ratio": (float, 1.0, 10.0),
     "run_min_bins": (int, 1, 50), "device_max_m": (float, 0.0, 0.2), "sample_pitch_m": (float, 0.0005, 0.02), "range_m": (float, 0.05, 1.0),
     "radius_cap_m": (float, 0.005, 0.2),
+    "tip_front_m": (float, 0.0, 0.05), "tip_rear_margin_m": (float, 0.0, 0.05), "step_clear_bins": (int, 1, 50),  # E3.22b: the closed tip step
 }
 # W8c compatibility tables (docs/weapon_attachments.md 5.1). The score bands per tier are the spec's; the tunable base and
 # bonus values must keep every reachable score inside the band of their tier (checked at load).
@@ -687,6 +688,8 @@ def _check_muzzle_seat(val) -> list[str]:
             errors.append(f"{where}.window_m: the longest set-back (window_m + 10 mm) must stay within {SEAT_SETBACK_MAX_M}")
         if val["device_reach_m"] > val["window_m"]:
             errors.append(f"{where}: device_reach_m must not exceed window_m")
+        if val["tip_rear_margin_m"] >= val["window_m"]:
+            errors.append(f"{where}: tip_rear_margin_m must stay below window_m")
     return errors
 
 

@@ -177,7 +177,7 @@ def test_a_correction_never_touches_confidence_or_reasons(rev):
 
 
 def test_the_attach_version_is_8_and_nothing_else_about_the_identity_moved(rev):
-    assert pkg.WEAPON_ATTACH_VERSION == 14 and rev["directory"]["attach_version"] == 14  # G1 4.6/AC146 (S8): attach version 13 -> 14
+    assert pkg.WEAPON_ATTACH_VERSION == 15 and rev["directory"]["attach_version"] == 15  # G1 4.6/AC146 (S8): attach version 13 -> 14
     assert pkg.WEAPON_GEOMETRY_VERSION == 6 and rev["directory"]["geometry_version"] == 6
     assert weapon_rules_digest(load_rules()) == "7b9829af37328fe7"
     assert pkg.ANCHOR_FORWARD_SOURCES == ("section", "authored", "twin", "override", "free_end")  # A4 (W8l) appends free_end

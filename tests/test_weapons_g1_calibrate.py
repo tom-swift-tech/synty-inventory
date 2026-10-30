@@ -278,7 +278,7 @@ def test_the_json_report_carries_the_two_sheets_and_is_written_outside_the_repo(
     ]
     # sheets.frame: one muzzle pair per frame-changed host (the Uzi-type SMG, whose magazine is its longest extent)
     assert doc["sheets"]["frame"] == [{"part": f"{pack}/{T.GW.SILENCER}", "host": f"{pack}/{T.GW.UZI}"}]
-    assert doc["attach_rules_digest"] == world["directory"]["attach_rules_digest"] and doc["weapon_attach_version"] == 14
+    assert doc["attach_rules_digest"] == world["directory"]["attach_rules_digest"] and doc["weapon_attach_version"] == 15
 
 
 def test_the_json_report_is_refused_inside_the_repository_with_exit_3(world, capsys, monkeypatch, tmp_path):

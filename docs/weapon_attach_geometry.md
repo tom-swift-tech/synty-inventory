@@ -376,7 +376,7 @@ fit-v1 separates *fits* from *placed wrong*. This gate decides only the first. W
    - Settle to contact (A§5.4) is unchanged.
    - Authored clamps sit 0 to 23.9 mm *below* the tooth tops because their jaws wrap the rail, and settle puts the contact face on the outer surface. So a jawed mount can read a few millimetres high.
    - The build reports seat depth against the tooth tops for every `rail_teeth` pair. Pairs outside [`depth_lo_m`, `depth_hi_m`] = [−0.026, +0.003] are listed in the calibration report. This is a review list, not a gate.
-3. **Muzzle.** The part sits on the detected axis. Setback (A6-2) is unchanged. Barrels enter authored devices by 0 to 90 mm.
+3. **Muzzle.** The part sits on the detected axis. Setback (A6-2) is unchanged except for the closed tip step (E3.22b): a muzzle run of any length that closes at the tip in a diameter step is a device, so a suppressor over a built-in brake sits back over it. Barrels enter authored devices by 0 to 90 mm.
 4. **Magazine.** This is a mesh swap at the reference child's seat (W8g). The entry plane is a check, not a placement.
 5. **Frame faults.** With Q-G4 adopted, the 3 feature-frame hosts get correct mounts and a corrected record frame (hold frame, `item_basis`, muzzle), so the gun is held barrel-forward in the game too (the k15 finding, A§13.10).
 6. **Stepped seats.** The 3 untoothed twin hosts with stepped seats remain the A§5.4 known defects.
