@@ -8,256 +8,256 @@
    "host": "POLYGON_Military/SM_Wep_Preset_B_Sniper_01",
    "slot": "magazine",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Redot_03",
    "host": "POLYGON_SciFi_City/SM_Wep_Rifle_Plasma_01",
    "slot": "optic",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": true
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_Reddot_01",
    "host": "POLYGON_BattleRoyale/SM_Wep_SubMGun_Lite_01",
    "slot": "optic",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Heist/SM_Wep_Attachment_Silencer_01",
    "host": "POLYGON_Gang_Warfare/SM_Wep_Pistol_Revolver_01",
    "slot": "muzzle",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_04",
    "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_03",
    "slot": "magazine",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Scope_CameraLens_01",
    "host": "POLYGON_Apocalypse/SM_Wep_SubMGun_02",
    "slot": "optic",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Scope_07",
    "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_01",
    "slot": "optic",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Redot_03",
    "host": "POLYGON_SciFi_Worlds/SM_Wep_SMG_03",
    "slot": "optic",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_SciFi_Worlds/SM_Wep_Scope_Sniper_02",
    "host": "POLYGON_SciFi_Worlds/SM_Wep_Assault_02",
    "slot": "optic",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_Silencer_03",
    "host": "POLYGON_Palm_City/SM_Wep_Pistol_Heavy_01",
    "slot": "muzzle",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Scope_01",
    "host": "POLYGON_SciFi_Worlds/SM_Wep_Assault_02",
    "slot": "optic",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
    "host": "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_02",
    "slot": "muzzle",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_SciFi_City/SM_Wep_Attachment_Handle_Scope_02",
    "host": "POLYGON_SciFi_Worlds/SM_Wep_SMG_03",
    "slot": "optic",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_01",
    "host": "POLYGON_Military/SM_Wep_Preset_B_Sniper_01",
    "slot": "magazine",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_BattleRoyale/SM_Wep_Attachment_Silencer_01",
    "host": "POLYGON_Police_Station/SM_Wep_Rifle_01",
    "slot": "muzzle",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Heist/SM_Wep_Attachment_Silencer_01",
    "host": "POLYGON_Shops/SM_Wep_Pistol_01",
    "slot": "muzzle",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_01",
    "host": "POLYGON_Military/SM_Wep_Preset_B_Sniper_01",
    "slot": "magazine",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Heavy_Bipod_01",
    "host": "POLYGON_Apocalypse/SM_Wep_MachineGun_02",
    "slot": "underbarrel",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_02",
    "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_02",
    "slot": "magazine",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_Silencer_01",
    "host": "POLYGON_Military/SM_Wep_Pistol_Small_01",
    "slot": "muzzle",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Apocalypse_Wasteland/SM_Wep_Attach_Foregrip_02",
    "host": "POLYGON_Apocalypse/SM_Wep_MachineGun_02",
    "slot": "underbarrel",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_B_Mag_06",
    "host": "POLYGON_Military/SM_Wep_Preset_A_Sniper_01",
    "slot": "magazine",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_03",
    "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_01",
    "slot": "magazine",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_A_Mag_09",
    "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_02",
    "slot": "magazine",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_04",
    "host": "POLYGON_BattleRoyale/SM_Wep_Rifle_Assault_01",
    "slot": "underbarrel",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Police_Station/SM_Wep_Attach_Foregrip_01",
    "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_01",
    "slot": "underbarrel",
    "tier": "cross_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_01",
    "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_03",
    "slot": "muzzle",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": true
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_05",
    "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
    "slot": "underbarrel",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_Bipod_02",
    "host": "POLYGON_Military/SM_Wep_Preset_B_Rifle_03",
    "slot": "underbarrel",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Apocalypse/SM_Wep_Mod_Attach_Silencer_01",
    "host": "POLYGON_Apocalypse/SM_Wep_AssaultRifle_02",
    "slot": "muzzle",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": false
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_03",
    "host": "POLYGON_Military/SM_Wep_Preset_A_SMG_01",
    "slot": "underbarrel",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": true
   },
   {
    "part": "POLYGON_Military/SM_Wep_Mod_ForeGrip_03",
    "host": "POLYGON_Military/SM_Wep_Preset_A_Rifle_02",
    "slot": "underbarrel",
    "tier": "same_pack_fit",
-   "fits": null,
-   "placed_wrong": null
+   "fits": true,
+   "placed_wrong": true
   }
  ]
 }
