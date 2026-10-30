@@ -30,7 +30,7 @@ HOST = "SM_Wep_Rifle_Alpha_01"
 
 
 def test_ac110_the_versions_and_the_rules_digest():
-    assert pkg.WEAPON_ATTACH_VERSION == 14 and pkg.WEAPON_GEOMETRY_VERSION == 6
+    assert pkg.WEAPON_ATTACH_VERSION == 15 and pkg.WEAPON_GEOMETRY_VERSION == 6
     assert weapon_rules_digest(load_rules()) == "7b9829af37328fe7"  # the three new tables sit inside attachment_rules: rules_digest never moves
     assert len(attach_rules_digest(load_rules())) == 16
 
@@ -46,7 +46,7 @@ def test_ac110_the_new_tables_move_the_attach_digest_and_never_the_rules_digest(
 
 def test_ac110_the_directory_header_records_attach_version_9(tmp_path):
     directory = W.build(tmp_path, {PACK: {"hosts": {HOST: W.host_node(HOST, W.box_rifle())}}})[0]
-    assert directory["attach_version"] == 14 and directory["geometry_version"] == 6  # G1 4.6/AC146 (S8): attach version 13 -> 14
+    assert directory["attach_version"] == 15 and directory["geometry_version"] == 6  # G1 4.6/AC146 (S8): attach version 13 -> 14
 
 
 # --- AC110: the geometry cache keys follow the new inputs and the new code --------------------------------------------------

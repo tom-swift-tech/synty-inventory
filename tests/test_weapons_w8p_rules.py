@@ -387,8 +387,8 @@ def test_every_new_row_moves_the_attach_digest_and_never_the_rules_digest(edit):
 
 
 def test_ac129_the_versions_and_the_digests():
-    assert pkg.WEAPON_ATTACH_VERSION == 14 and pkg.WEAPON_GEOMETRY_VERSION == 6  # G1 4.6/AC146 (S8): attach version 13 -> 14
+    assert pkg.WEAPON_ATTACH_VERSION == 15 and pkg.WEAPON_GEOMETRY_VERSION == 6  # G1 4.6/AC146 (S8): attach version 13 -> 14
     rules = load_rules()
     assert weapon_rules_digest(rules) == "7b9829af37328fe7"
     assert len(attach_rules_digest(rules)) == 16 and attach_rules_digest(rules) != A7_ATTACH_DIGEST
-    assert attach_rules_digest(rules) == "2fa41961e3c387b0"  # G1 4.6/AC146 (S8): the retired rules leave the four slots (was 1dacc105674aff85). G1 errata E1.4: the new bore.circ_min key moved it (was 59268363ae44fd9e). G1 S2: fit_geometry block (was bcd5dbd0b3d7a651); this build's value, pinned so a later edit of the shipped rows is a deliberate re-pin (A8 erratum 2026-10-26: the tool token `flare` moved it from 30827a8915c9584d); E3.8 (clamp.ratio_min 1.0 to 0.69, Tom 2026-10-28) re-pinned it; S11 finding 12
+    assert attach_rules_digest(rules) == "d221b5faa57f12c9"  # G1 4.6/AC146 (S8): the retired rules leave the four slots (was 1dacc105674aff85). G1 errata E1.4: the new bore.circ_min key moved it (was 59268363ae44fd9e). G1 S2: fit_geometry block (was bcd5dbd0b3d7a651); this build's value, pinned so a later edit of the shipped rows is a deliberate re-pin (A8 erratum 2026-10-26: the tool token `flare` moved it from 30827a8915c9584d); E3.8 (clamp.ratio_min 1.0 to 0.69, Tom 2026-10-28) re-pinned it; S11 finding 12

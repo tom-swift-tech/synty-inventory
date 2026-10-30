@@ -143,7 +143,7 @@ def test_ac145_fit_digest_is_in_generated_from_with_attachments_only(g1):
     d, _report = g1
     with_att = private_snapshot(d, attachments=True)["generated_from"]
     plain = private_snapshot(d, attachments=False)["generated_from"]
-    assert with_att["fit_digest"] == d["fit_digest"] and with_att["attach_version"] == 14
+    assert with_att["fit_digest"] == d["fit_digest"] and with_att["attach_version"] == 15
     assert "fit_digest" not in plain and "attach_version" not in plain and "attach_rules_digest" not in plain
 
 
@@ -177,10 +177,10 @@ def test_ac145_the_pending_hosts_of_the_export_are_ids_and_the_default_cut_drops
 
 
 def test_ac146_the_versions_and_the_digests():
-    assert pkg.WEAPON_ATTACH_VERSION == 14 and pkg.WEAPON_GEOMETRY_VERSION == 6
+    assert pkg.WEAPON_ATTACH_VERSION == 15 and pkg.WEAPON_GEOMETRY_VERSION == 6
     rules = load_rules()
     got = attach_rules_digest(rules)
-    assert got == "2fa41961e3c387b0" and got != OLD_ATTACH_DIGEST  # E3.8 (clamp.ratio_min 1.0 to 0.69, Tom 2026-10-28) re-pinned this digest; S11 finding 12
+    assert got == "d221b5faa57f12c9" and got != OLD_ATTACH_DIGEST  # E3.8 (clamp.ratio_min 1.0 to 0.69, Tom 2026-10-28) re-pinned this digest; S11 finding 12
     from synty_inventory.weapons.rules import weapon_rules_digest
 
     assert weapon_rules_digest(rules) == "7b9829af37328fe7"  # unchanged since a8c: the geometry block lives under attachment_rules
@@ -188,10 +188,10 @@ def test_ac146_the_versions_and_the_digests():
 
 def test_ac146_the_directory_header_of_the_w8d_world(w8d):
     d = w8d["directory"]
-    assert (d["attach_version"], d["geometry_version"], d["rules_digest"]) == (14, 6, "7b9829af37328fe7")
+    assert (d["attach_version"], d["geometry_version"], d["rules_digest"]) == (15, 6, "7b9829af37328fe7")
     assert d["overrides_digest"] == "7d8dd8ce21b0f42b"  # the overrides code is untouched
     # the world's rules carry its own attach_genre_by_pack (FAKE_CompB in a setting of its own), so its attach_rules_digest is not the shipped table's
-    assert d["attach_rules_digest"] == "6f49a2ac6efa8120" and d["fit_digest"] == "d8a5f85413f90698"  # E3.8 (clamp.ratio_min 1.0 to 0.69, Tom 2026-10-28) re-pinned both digests of this world; S11 finding 12
+    assert d["attach_rules_digest"] == "e2c15e21764814cf" and d["fit_digest"] == "d8a5f85413f90698"  # E3.8 (clamp.ratio_min 1.0 to 0.69, Tom 2026-10-28) re-pinned both digests of this world; S11 finding 12
     print(f"AC146: rules_digest {d['rules_digest']}, overrides_digest {d['overrides_digest']}, attach_rules_digest {d['attach_rules_digest']} "
           f"(was {OLD_ATTACH_DIGEST}), fit_digest {d['fit_digest']}")
 
@@ -213,7 +213,7 @@ def test_ac145_the_cli_export_with_attachments_carries_fit_digest_and_validates(
     assert code == 0
     gf = json.loads(out.read_text(encoding="utf-8"))["generated_from"]
     assert gf["fit_digest"] == w8d["directory"]["fit_digest"] == "d8a5f85413f90698"
-    assert (gf["attach_version"], gf["attach_rules_digest"]) == (14, w8d["directory"]["attach_rules_digest"])
+    assert (gf["attach_version"], gf["attach_rules_digest"]) == (15, w8d["directory"]["attach_rules_digest"])
     code, _res = H.run(w8d["cfg"], capsys, ["weapons", "validate", "--snapshot", str(out)])
     assert code == 0
 

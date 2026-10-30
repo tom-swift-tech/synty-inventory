@@ -199,6 +199,10 @@ def _foot_anchor(v: np.ndarray, slot: str, forward_override, kind, p: dict) -> d
         leaning = _free_end_sign(v, slab, low, axis, p)
         if leaning is not None:
             sign, forward_source, symmetric = leaning, "free_end", False
+    if slot == "underbarrel" and kind is not None and kind not in (p["free_end"].get("kinds") or {}).get(slot, ()):  # E3.22a, step 3c: a PART only (a kind is passed)
+        leaning = _free_end_sign(v, slab, low, axis, p)  # a raked foregrip's grip rakes back toward the shooter: its forward is AGAINST its free-end lean
+        if leaning is not None and sign == leaning:  # one already against the lean keeps step 3's result (and its source)
+            sign, forward_source, symmetric = -leaning, "free_end", False
     forced = _override_sign(forward_override, axis)
     if forced is not None:
         sign, forward_source, symmetric = forced, "override", False
@@ -431,7 +435,9 @@ def muzzle_stub(sil, params: dict) -> tuple[float, float] | None:
     median over its populated bins. A bin is wide when its silhouette exceeds ``ref_ratio * r_ref``. Walking from the tip backwards, a run is a
     maximal group of wide bins in which a single empty or narrow bin does not split it (a run of fewer than ``run_min_bins`` bins is noise and
     ignored); its front and rear distances are measured from the tip at the bins' lower edges. A run shorter than ``device_max_m`` is a DEVICE
-    (brake, hider, gas block, stud); the first run of ``device_max_m`` or more is the shroud and ends the walk: ``stub`` is its front distance.
+    (brake, hider, gas block, stud), and so is a run of any length that CLOSES at the tip (E3.22b): its front within ``tip_front_m`` of the tip, its
+    rear at least ``tip_rear_margin_m`` inside ``window_m``, and no wide bin within ``step_clear_bins`` bins behind its rear face (a diameter step
+    down to the barrel). The first other run of ``device_max_m`` or more is the shroud and ends the walk: ``stub`` is its front distance.
     With no such run ``stub`` is the rearmost device's rear distance plus 10 mm, or 0 with no device. ``dev_rear_near`` is the largest rear
     distance among the devices whose rear face lies within ``device_reach_m`` of the tip (0 when none): a device further back is a gas block or a
     sling stud and must not pull the sleeve over it.
@@ -459,14 +465,18 @@ def muzzle_stub(sil, params: dict) -> tuple[float, float] | None:
             while k - 1 >= win[0] and (wide[k - 1] or (k - 2 >= win[0] and wide[k - 2])):
                 k -= 1
             if i - k + 1 >= params["run_min_bins"]:
-                runs.append((-float(s[i]), -float(s[k]), (i - k + 1) * bin_m))
+                front, rear = -float(s[i]), -float(s[k])
+                # E3.22b, the closed tip step: a run ending in a diameter step down to the barrel, at the tip, is a device at any length
+                closed_tip = (front <= params["tip_front_m"] + _EPS and rear <= params["window_m"] - params["tip_rear_margin_m"] + _EPS
+                              and not wide[max(k - params["step_clear_bins"], 0):k].any())
+                runs.append((front, rear, (i - k + 1) * bin_m, closed_tip))
             i = k - 1
         else:
             i -= 1
     dev_rear = dev_near = 0.0
     stub = None
-    for front, rear, length in sorted(runs, key=lambda run: run[0]):
-        if length < params["device_max_m"]:
+    for front, rear, length, closed_tip in sorted(runs, key=lambda run: run[0]):
+        if length < params["device_max_m"] or closed_tip:
             dev_rear = max(dev_rear, rear)
             if rear <= params["device_reach_m"]:
                 dev_near = max(dev_near, rear)

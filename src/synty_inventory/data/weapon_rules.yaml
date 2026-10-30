@@ -600,7 +600,9 @@ attachment_rules:
   #                  is used, so at most len(foot_depths_m) - 1 steps. A thin foot that stays thin (an iron-sight post) is a foot.
   #   free_end       slot -> kinds whose forward sign comes from where the free end (the outer 25 % along up, away from the foot) sits against the
   #                  foot along the long horizontal axis, when that displacement is at least min_displacement_m (step 3b; a banana magazine leans
-  #                  toward the muzzle). Not generic: an optic's free end is its top, a drum and a foregrip have no ground truth.
+  #                  toward the muzzle). Not generic: an optic's free end is its top, a drum has no ground truth. A foregrip is not in this table: step 3c
+  #                  (E3.22a) gives a PART of the underbarrel slot whose kind is not listed here (not a bipod) the forward AGAINST its free-end lean, at
+  #                  the same min_displacement_m (a grip rakes back toward the shooter); a host's baked child, measured without a kind, keeps step 3.
   anchor:
     foot_depths_m: [0.004, 0.008, 0.016]
     lip_min_m: 0.001
@@ -645,7 +647,9 @@ attachment_rules:
   # 10-bin windows of the window median, windows of fewer than 5 populated bins skipped) in the last window_m. A bin is wide when it exceeds ref_ratio * r_ref.
   # Walking back from the tip, runs of wide bins (one empty or narrow bin does not split a run; a run of fewer than run_min_bins bins is noise and
   # ignored) shorter than device_max_m are DEVICES (brake, hider, gas
-  # block, stud); the first run of device_max_m or more is the shroud and ends the walk: stub = its front distance from the tip. Without one, stub = the
+  # block, stud), and so is a run of ANY length that closes at the tip (E3.22b, the closed tip step): its front within tip_front_m of the tip, its rear at
+  # least tip_rear_margin_m inside window_m, and no wide bin within step_clear_bins bins behind its rear face (a diameter step down to the barrel); a
+  # built-in brake 54 to 88 mm long is a device, not a shroud. The first other run of device_max_m or more is the shroud and ends the walk: stub = its front distance from the tip. Without one, stub = the
   # rearmost device's rear distance + 10 mm, or 0 with no device. dev_rear_near = the largest rear distance among devices within device_reach_m of the tip
   # (a brake; a device further back is a gas block or sling stud and must not pull the sleeve over it).
   # d = min(stub, max(cover * L, dev_rear_near + device_cover_m), max_frac * L), L = the part's length along the bore (footprint.height_m); a d of dead_m or
@@ -664,6 +668,9 @@ attachment_rules:
     sample_pitch_m: 0.0015
     range_m: 0.30
     radius_cap_m: 0.035
+    tip_front_m: 0.010
+    tip_rear_margin_m: 0.010
+    step_clear_bins: 5
   # G1 geometry fit gate (docs/weapon_attach_geometry.md 3 and 4.1): the detector parameters and the pair tolerances of the four slots whose fit is a
   # physical mating (optic: top rail, underbarrel: bottom rail, muzzle: barrel end, magazine: well). EVERY key is required (the validator rejects a
   # missing one, a negative length and an inverted interval) and there is no `frame:` key: the frame vote is record geometry (geometry.py constants, Q-G4).
