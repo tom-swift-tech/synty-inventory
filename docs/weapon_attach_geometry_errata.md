@@ -1219,3 +1219,129 @@ Decision 2 (i) of the S11 set chose the mechanism.
   2. **Angled foregrip forward axis.** The grip's forward axis is flipped, so it points backwards: 2 pairs (one part, two hosts). The vertical grips in 3 other cells are a different part and were judged fit.
   3. **Suppressor over a built-in muzzle brake.** The can is anchored ahead of the host's built-in brake instead of over it: 1 pair.
   - All three are placement (pose) faults on pairs the geometry gate lists correctly as fits. None is tuned here (plan §0 rule 7). A fix to any of them touches an anchor or a rule, so it is a later erratum, with Tom's approval.
+
+### E3.22 Two S12 placement fixes: the raked foregrip's forward, and the suppressor over a built-in brake (rule, code, tests)
+
+**Status: APPROVED (Tom, 2026-10-30: "Approve at defaults"); build pending.** It fixes findings 2 and 3 of E3.21. Finding 1 (optic yaw) is E3.23. Both fixes are pose-only. Neither changes a fit verdict, a listed pair, a tier or `fit_digest` (the guard below). Nothing here is tuned to the S12 cells. Each rule is stated over its whole slot and measured over the whole directory (plan §0 rule 7).
+
+- **Evidence.** All of it is read-only, from scratch counterfactuals on integ `7c44f19` against a fresh copy-catalog directory: versions 14 / 6; digests rules `7b9829af37328fe7`, overrides `17d4e771a785a4b2`, attach_rules `2fa41961e3c387b0`, fit `2d94c7151cce583b`. The figures are in-memory patches of the rules stated here. The slice re-measures every one of them on the built code (Gate).
+- **Cell numbering.** Spot-check cells are 0-based positions in `weapon_attach_spotcheck.json`'s `pairs` and match the image indices Tom saw (00 to 31). Nothing is renumbered.
+
+#### E3.22a Raked foregrip forward (finding 2; weapons spec §3.4 step 3b)
+
+- **Today.** Step 3 takes the forward sign from the larger end section. Step 3b overrides it from the free end only for the kinds in `attachment_rules.anchor.free_end`: a standard magazine and a bipod. On those kinds the forward is the direction the free end leans, because a banana magazine and a splayed bipod lean toward the muzzle.
+  - A raked foregrip is in neither list, so its sign is the section guess.
+  - On 7 parts the guess points the grip's forward along its lean, so the grip renders backwards. Tom: "this foregrip is backwards in all cases".
+- **Rule (step 3c, new).** An `underbarrel` part whose kind is not in `free_end.kinds.underbarrel` (so not a bipod) takes its forward sign *opposite* to its free-end lean, when the lean's magnitude is at least `min_displacement_m` (0.010).
+  - "Lean" is the step 3b displacement unchanged: the midpoint of the outer 25 % window along `up`, away from the foot, minus the foot slab's midpoint, along the step 3 axis.
+  - The result is `forward_source = "free_end"`, `symmetric = false`. Below the threshold, step 3 decides as before.
+  - A raked foregrip's grip rakes back toward the shooter, so its free end leans away from the muzzle. This is the grip convention of Q6.
+  - The rule adds no literal. It reuses step 3b's function (`_free_end_sign`) and its threshold. The twin correction (3a) and an explicit `forward` override still win, in that order, as for 3b.
+  - The `weapon_rules.yaml` comment "a drum and a foregrip have no ground truth" is amended to name step 3c.
+- **Population** (all 24 underbarrel parts, 96 listed pairs):
+
+  | Class | Parts flipped |
+  |---|---|
+  | raked foregrip, rendered today with the free end leaning toward the muzzle | 7 (including the part in S12 cells 30/31) |
+  | bipod | 0 |
+  | raked, already against the lean | 0 |
+  | not raked | 0 |
+
+  - Leans of the 7 flipped parts, in mm: 12.93, 17.16, 18.35, 24.19, 29.53, 38.05, 47.14.
+    - One flip is near the threshold: the 12.93 mm part sits 2.93 mm above `min_displacement_m` (0.010). It is not the S12 part; the part in cells 30/31 leans 38.05 mm.
+    - Among non-bipod parts, the largest lean under the threshold is 5.9 mm.
+    - The non-bipod parts above the threshold that are not flipped already point against their lean (largest 51.04, 35.87 and 13.03 mm). Step 3c leaves them unchanged at any magnitude.
+    - Bipods are excluded by kind (largest leans 160.95, 113.77 and 78.00 mm).
+  - 7 anchors change their forward sign. 0 listed pairs, tiers, pending entries, `seat_shift_m` or `hides_slots` change.
+- **Not part of this fix.** This fix records two things but does not act on them:
+  - **The underbarrel gap.** The foot-face median sits 5 to 15 mm above a curved or toothed host on 64 of 96 listed pairs after settle. Unraked controls show the same, so rake is not the cause.
+  - **One authored grip part.** Its foot lies across its post tips, so it reads as lying on its side.
+
+  Both stay in the impact record and plan §9.
+
+#### E3.22b Suppressor over a built-in brake (finding 3; weapons spec A6-2)
+
+- **Today.** `muzzle_stub` walks the muzzle silhouette's wide runs from the tip.
+  - A run shorter than `device_max_m` (45 mm) is a device, such as a brake or a flash hider. The setback sleeves the can over it.
+  - The first longer run is the shroud, and the stub stops there.
+  - A built-in brake 54 to 88 mm long therefore reads as a shroud at the tip: the stub is about 0, no `seat_setback_m` is written, and the can starts ahead of the brake. Tom: "this silencer doesn't cover the built-in muzzle break".
+  - This holds on 9 listed hosts and 43 applicable suppressor pairs: 7 hosts with a 54 to 56 mm tip run, and 2 with 78 and 88 mm.
+- **Rule (closed tip step).** A wide run is a device *at any length* when all three hold:
+  - (i) its front is within `tip_front_m` (0.010) of the tip;
+  - (ii) its rear is at least `tip_rear_margin_m` (0.010) inside `window_m`;
+  - (iii) no wide bin lies within `step_clear_bins` (5) bins (10 mm) behind its rear face, so the run ends in a closed diameter step down to the barrel.
+
+  Every other run keeps the length cut. After such a device the walk continues as it does after any device. `setback_of` and its literals are unchanged.
+  - New keys in `attachment_rules.muzzle_seat`, required and validated: `tip_front_m` 0.010, `tip_rear_margin_m` 0.010 and `step_clear_bins` 5.
+  - `tip_rear_margin_m` is a new key. It is not a reuse of `_STUB_DEVICE_MARGIN_M` (attach.py, 0.010), which measures a different quantity: how far the stub extends behind the rearmost device's rear face when no shroud is found ("with no shroud, the stub is the rearmost device's rear face plus this"). The new key bounds where a tip run's rear may lie relative to the window. The two are equal in value only.
+- **What the rule rests on.** The sections carry no slot or port signal. All 9 tip runs have full shell coverage, and their inner-surface fraction is the same as a plain brake's. So the rule reads the diameter step at the rear face, which is the same predicate that defines the 9. **It matches the 9 listed hosts by construction, and is not independent evidence that they are brakes.**
+- **Population** (199 hosts with a muzzle mount; 277 applicable suppressor pairs, 151 of them with a stored `seat_setback_m`):
+  - 43 new `seat_setback_m` keys, all on the 9 listed hosts. 0 stored values change. 0 listed hosts outside the 9 move. These three counts are the gate literals.
+  - The mm values below come from the in-memory run. They are descriptive only, and no gate rests on them. On the two long-run hosts the values are 84.6 / 88.0 mm on the 78 mm host and 96.0 mm on the 88 mm host.
+  - On 2 of the 9 hosts (both viewed and right), the walk continues past the tip device (descriptive):
+    - on one, a far 20 mm run becomes the rearmost device, and the setback is the cover cap, 93.9 mm;
+    - on the other, a 70 mm run becomes the shroud, and the setback is 82.0 mm, which butts the can against the handguard face.
+  - **7 unlisted hosts move, with no stored effect,** because none has a listed suppressor pair. The lead viewed them: 2 right, 3 plausible, 2 wrong-looking. The 2 wrong-looking hosts are a flared bore ring and an integral shroud. Each is a separate compatibility question (Q8), not a fault of this rule.
+  - **A can narrower than the brake stays a fit.** The setback moves the pose only, and the brake mesh stays drawn around the can.
+- **Rejected alternative.** Raising `device_max_m`, to 0.058 for the 7 hosts or 0.090 for all 9, also turns shrouds on other hosts into devices:
+  - false positives: 10 hosts (5 listed) at 0.058 and 29 at 0.090;
+  - stored values changed: 18 and 36 respectively, all outside the 9.
+
+#### E3.22c Guard and gates
+
+- **Guard, both fixes built together** (measured in-memory; the slice re-measures):
+  - `fit_digest` stays `2d94c7151cce583b`;
+  - 0 `compatible_hosts` changes, in members or tiers;
+  - 158 attachment records (of 624 parts, 2655 records);
+  - `rules_digest` and `overrides_digest` are unchanged;
+  - `attach_rules_digest` moves, as does the attach code digest the pair cache keys on. The in-memory run measured `21851c9b26156421` with two keys; the third key changes that value, so the slice measures and pins it;
+  - geometry blocks change on 0 of 2655 records.
+  - The combined diff is exactly the union of the two fixes run alone: 7 underbarrel anchor signs plus 43 new muzzle keys.
+- **Population-diff gate.** Over all 158 attachment records and 1218 listed pairs: 0 listed pairs added or dropped, and 0 tier, pending, `seat_shift_m` or `hides_slots` changes. The only differences allowed are the 7 underbarrel anchor signs (with their `forward_source`) and the 43 new `seat_setback_m` keys. Any other difference fails the gate.
+- **Red-first tests** (synthetic fixtures, literal bounds; each one is shown red by DM-A on detached `7c44f19` before the build). The fixture literals (15 mm lean, 5 mm non-raked, 50 mm run, 30 mm device) are chosen to clear each threshold by at least 5 mm, not measured from any part.
+  - The shroud bin is the exception. Its band is 6 to 10 mm behind the rear face, measured at the bin's lower edge. That band is narrower than 10 mm for two reasons:
+    - a wide bin under 6 mm behind the rear face is bridged into the run by the single-bin gap rule (measured: at 4 mm it merges and writes 0.059);
+    - a bin at 12 mm or more lies outside `step_clear_bins` (measured: at 12 mm the run reads closed and writes 0.055).
+
+    The bin is placed at 8 mm, 2 mm from each edge.
+  - The literals were checked against the code by in-memory patch before the build (s13 fx2/fx3).
+  - **AC150 (step 3c).** Every fixture has its foot plate at +y, its larger end section at +z, and its free end leaning toward +z. A 6 mm neck separates the foot plate from the body: a body that touches the foot slab drags the slab midpoint and reads the lean under 10 mm.
+    - A raked foregrip with a 15 mm lean gets forward -z, `forward_source` `free_end`.
+    - A bipod with the same lean keeps forward +z, `forward_source` `free_end` (step 3b).
+    - A non-raked foregrip with a 5 mm lean keeps forward +z, `forward_source` `section`.
+    - *Breaks:* step 3c removed; bipods included; the threshold dropped.
+  - **AC151 (closed tip step).** Suppressor fixture length L = 0.120 m. Bin convention: a run's front and rear are measured from the tip at the bins' lower edges. The 50 mm run's bins have lower edges -0.050 to -0.002 m, so its front is 0.002 and its rear 0.050.
+    - A 50 mm wide run at the tip, closed by a step down to the barrel radius, with no other wide bin in the window, gets `seat_setback_m` = 0.055 ± 0.002. That is `dev_rear_near` 0.050 + `device_cover_m` 0.005; it is above cover·L 0.048 and below both the stub 0.060 and max_frac·L 0.090.
+      - On v14 the same fixture writes no key: the run reads as the shroud, so the stub is 0.002, which is under `dead_m`.
+    - The same run with one wide bin whose lower edge lies 8 mm behind the run's rear face (a shroud) writes no `seat_setback_m` key. On v14 it also writes no key; it fails only against a build without clause (iii), which writes a key.
+    - A 30 mm tip device gets `seat_setback_m` = 0.040 ± 0.002, its v14 value: the device rear 0.030 + 0.010 gives the stub 0.040, which binds.
+    - *Breaks:* the length cut alone (no key on the first fixture); the step test dropped (a key on the shroud).
+  - **AC152 (pose only).**
+    - On the AC151 brake fixture, a suppressor narrower than the brake keeps its `compatible_hosts` entry and tier.
+    - The guard and population-diff gate above pass on the built directory, stated as literals: fit `2d94c7151cce583b`, 158, 1218, 7, 43.
+    - *Breaks:* a setback that feeds the fit verdict; any pair change.
+- **Captures before anything rests on them.** Re-render S12 cells 14, 26, 30 and 31, plus a sample of the other changed pairs, on the built code. The lead views them first.
+  - INV-26: the S12 record stands for attach version 14. Re-renders are previews only. There is no new draw, and `weapon_attach_spotcheck.json` is not touched.
+- **Versions.** `WEAPON_ATTACH_VERSION` 14 -> 15. `WEAPON_GEOMETRY_VERSION` stays 6, since no record geometry moves. `rules_digest`, `overrides_digest` and `fit_digest` are unchanged. `attach_rules_digest` moves (the three new keys) and is re-pinned in the slice from its measured value.
+- **Landing.** On integ/attach, under the standing push word. The docs commit is separate from the build slice and never concurrent with it.
+- **Docs.**
+  - The weapons spec gains step 3c in §3.4 and amends A6-2 with the closed-tip-step device.
+  - The `weapon_rules.yaml` comments for `anchor.free_end` and `muzzle_seat` are amended.
+  - Geometry spec §3.9 item 3 changes "Setback (A6-2) is unchanged" to name E3.22b.
+  - Plan §8 records the slice, and plan §9 carries the two raw notes.
+
+#### E3.22d Questions for Tom (each with a default)
+
+| Q | Question | Default |
+|---|---|---|
+| E3.22-Q1 | Fix 3 is pose-only: it never changes whether a can fits, only where it sits. | Yes (the guard shows 0 fit changes). |
+| E3.22-Q2 | INV-26: the S12 record stands for version 14; re-renders of cells 14, 26, 30 and 31 are previews only, with no new draw. | Yes. |
+| E3.22-Q4 | Lands on integ/attach. | Yes. |
+| E3.22-Q5 | Split: E3.22 = fixes 2 and 3; E3.23 = fix 1 (optic yaw). | Yes. |
+| E3.22-Q6 | Grip convention: a raked, non-bipod underbarrel part points forward against its lean (grip rakes back toward the shooter). | Yes, from "backwards in all cases". |
+| E3.22-Q7 | The closed-tip-step rule covers all 9 listed hosts, including the two with 78 and 88 mm tip runs. | Yes. |
+| E3.22-Q8 | The flared-bore-ring host and the integral-shroud host: record only, no listing change. | Yes. |
+
+E3.22-Q3 moved to E3.23 (the record frame under the optic fix).
+
+Tom approved all of the above at their defaults. Q6 and Q7 cover two of his three open looks, the grips and the muzzle. The third look, optic 00, belongs to E3.23.
