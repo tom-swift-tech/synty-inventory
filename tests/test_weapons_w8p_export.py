@@ -139,7 +139,7 @@ def test_ac125_min_compat_tier_is_unchanged(world, capsys):
 def test_ac125_the_header_carries_attach_version_13_and_the_w7_export_is_unchanged(world, capsys):
     _, _, out = export(world, capsys, "--roles", "all", "--attachments", name="header.json")
     gf = json.loads(out.read_text(encoding="utf-8"))["generated_from"]
-    assert gf["attach_version"] == 15 and gf["filter"]["attachments"] is True  # G1 4.6/AC146 (S8): attach version 13 -> 14
+    assert gf["attach_version"] == 16 and gf["filter"]["attachments"] is True  # G1 4.6/AC146 (S8): attach version 13 -> 14
     code, _, plain = export(world, capsys, name="plain.json")
     assert code == 0
     assert json.loads(plain.read_bytes().decode("utf-8"))["generated_from"]["geometry_version"] == 6  # G1, on its own

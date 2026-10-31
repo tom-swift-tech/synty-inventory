@@ -22,6 +22,14 @@ POINT_TOL_M = 0.001  # AC63: the point within 1 mm
 ANGLE_TOL_DEG = 0.5  # AC63: the up within 0.5 degrees
 BOTTOM_SLOTS = ("optic", "laser_light")  # foot at -Y
 TOP_SLOTS = ("underbarrel", "magazine")  # foot at +Y
+# E3.23: step 3 takes the authored z as the along-rail axis of every foot slot (it no longer picks the longer horizontal extent). The AC63 yaw sweep
+# used to turn the optic by every quarter turn and expect the anchor to follow the part's own long axis (forward and point yawed with it). A quarter
+# turn (1 or 3) leaves the part long in x, outside the prior the rule documents (attach._foot_anchor): the rule reads z in the part's own frame, so
+# forward stays +-z and the foot is read across the short side, which is the very reading E3.23 ends (AC153, test_weapons_e323_axis). That
+# scenario does not exist under z, so there is no yawed expectation to re-express; the half turns, which keep the part long in z and only flip its
+# sign, are the yaw cases that still exist and keep their literals unchanged. (Measured on the build: turn 1 and 3 give forward [0, 0, 1], point
+# [-0.01, 0, 0] / [0.01, 0, 0], source `authored`, symmetric: not the yawed frame, by design.)
+HALF_TURNS = (0, 2)
 SPEC_ID = "FAKE_Attach/SM_Wep_Rifle_Scope_01"
 
 
@@ -41,7 +49,7 @@ def assert_frame(frame, point, up, forward=None):
 # --- AC63: the point is the contact patch, the up is the side the foot is on ---------------------------------------
 
 
-@pytest.mark.parametrize("quarter_turns", range(4))
+@pytest.mark.parametrize("quarter_turns", HALF_TURNS)
 @pytest.mark.parametrize("slot", BOTTOM_SLOTS)
 def test_ac63_a_bottom_foot_part_anchors_at_the_offset_foot_not_the_aabb_centre(slot, quarter_turns):
     v, _ = A.yaw(A.optic(), quarter_turns)
@@ -52,7 +60,7 @@ def test_ac63_a_bottom_foot_part_anchors_at_the_offset_foot_not_the_aabb_centre(
     assert got["reasons"] == []
 
 
-@pytest.mark.parametrize("quarter_turns", range(4))
+@pytest.mark.parametrize("quarter_turns", HALF_TURNS)
 @pytest.mark.parametrize("slot", TOP_SLOTS)
 def test_ac63_a_top_foot_part_points_its_up_down_into_the_host(slot, quarter_turns):
     v, _ = A.yaw(A.flip_y(A.optic()), quarter_turns)
@@ -63,7 +71,7 @@ def test_ac63_a_top_foot_part_points_its_up_down_into_the_host(slot, quarter_tur
 
 
 def test_ac63_the_footprint_is_the_part_box_and_the_foot_patch_in_the_anchor_axes():
-    for quarter_turns in range(4):
+    for quarter_turns in HALF_TURNS:  # E3.23: the quarter turns put the part long in x, outside the forced-z prior (see HALF_TURNS)
         v, _ = A.yaw(A.optic(), quarter_turns)
         fp = measure_anchor(v, "optic")["footprint"]
         assert fp["length_m"] == pytest.approx(0.2, abs=0.001) and fp["width_m"] == pytest.approx(0.06, abs=0.001)

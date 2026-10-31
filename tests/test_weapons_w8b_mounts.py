@@ -127,9 +127,18 @@ def test_ac66_a_child_in_a_collision_hull_node_is_dropped(world):
     assert r["geometry"]["bounds"]["max"][1] < 0.11  # the hull (scope at y 0.10..0.18) is not part of the measured mesh either
 
 
-def test_ac66_a_rotated_child_node_keeps_its_seat_but_is_capped_at_confidence_04(world):
-    optic = mounts(world, TILT)["optic"]
-    close(optic["point"], A.YAWED_SCOPE_SEAT)
+def test_ac66_a_rotated_child_node_keeps_its_seat_but_is_capped_at_confidence_04(tmp_path):
+    # E3.23 re-expression, in its own world: the shared rotated-child host (also held by the export goldens) keeps its child long in x, which step 3
+    # now reads across its short side. Here the child's node is rotated 90 degrees over a mesh turned the other way, so the child stands long in z in
+    # the host, as an unrotated optic does. Same checks: the seat is the rotated foot centre (0.005, 0.10, 0.05) with the span 0.06, and the rotation
+    # caps the confidence at 0.4. Without the node rotation the point reads (0.01, 0.10, 0), span 0.03 and confidence 0.9, so all three assertions
+    # still bite. The old seat (0.05, 0.10, -0.005), a child long in x in the host, is outside the forced-z prior and is not re-expressed.
+    name = TILT.split("/")[1]
+    roots = A.mount_roots(name)
+    roots[0]["children"] = [A._child(name, "Scope", A.yaw(A.optic(), 3), A.YAWED_SCOPE_AT, A._ROT_Y_90)]
+    directory, _, _, _ = A.build_mount_world(tmp_path, roots={name: roots})
+    optic = next(w for w in directory["weapons"] if w["id"] == TILT)["geometry"]["mounts"]["optic"]
+    close(optic["point"], (0.005, 0.10, 0.05))
     assert abs(optic["span_m"] - 0.06) <= 1e-3
     assert optic["confidence"] == 0.4
 

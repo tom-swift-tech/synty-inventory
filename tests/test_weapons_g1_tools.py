@@ -601,4 +601,4 @@ def test_the_fit_cache_sits_beside_the_directory_in_the_catalogs_dir_never_in_th
 
 
 def test_the_digests_and_versions_this_slice_must_not_move_are_where_they_were():
-    assert pkg.WEAPON_ATTACH_VERSION == 15 and pkg.WEAPON_GEOMETRY_VERSION == 6
+    assert pkg.WEAPON_ATTACH_VERSION == 16 and pkg.WEAPON_GEOMETRY_VERSION == 6

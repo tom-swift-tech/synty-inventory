@@ -147,7 +147,7 @@ def test_ac117_without_attachments_the_export_is_the_w7_one_and_the_pending_flag
 def test_ac117_the_header_records_no_tier_and_carries_the_new_version(world, capsys):
     _, _, out = export(world, capsys, "--roles", "all", "--attachments", "--pending-min-tier", "cross_pack_fit", name="header.json")
     gf = json.loads(out.read_text(encoding="utf-8"))["generated_from"]
-    assert gf["attach_version"] == 15 and gf["filter"]["attachments"] is True  # G1 4.6/AC146 (S8): attach version 13 -> 14
+    assert gf["attach_version"] == 16 and gf["filter"]["attachments"] is True  # G1 4.6/AC146 (S8): attach version 13 -> 14
     assert "min_compat_tier" not in gf["filter"] and "pending_min_tier" not in gf["filter"]  # no place records a tier cut (judgment call: none added)
 
 

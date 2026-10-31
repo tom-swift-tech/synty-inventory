@@ -69,7 +69,7 @@ def directory(**header):
     weapons = [{"id": p, "role": "part", "attachment": {"slot": "optic", "pending_hosts": [],
                                                        "compatible_hosts": [{"host": h, "tier": "same_pack_fit", "score": 0.5} for h in HOSTS]}}
                for p in PARTS]
-    doc = {"schema": "weapon-directory/1", "attach_rules_digest": "0123456789abcdef", "attach_version": 15, "fit_digest": "fedcba9876543210", "weapons": weapons}
+    doc = {"schema": "weapon-directory/1", "attach_rules_digest": "0123456789abcdef", "attach_version": 16, "fit_digest": "fedcba9876543210", "weapons": weapons}
     for name, value in header.items():
         if value is None:
             doc.pop(name, None)
@@ -184,7 +184,7 @@ def test_r7_the_header_check_comes_before_the_labels_check(tmp_path, capsys):
 
 
 def test_r7_a_current_directory_draws(tmp_path, capsys):
-    files = setup(tmp_path, a_valid_labels(tmp_path), attach_version=15, fit_digest="0123456789abcdef")
+    files = setup(tmp_path, a_valid_labels(tmp_path), attach_version=16, fit_digest="0123456789abcdef")
     code, out = draw(files, capsys)
     assert code == 0 and out["drawn"] == 8 and files["out"].exists()
 

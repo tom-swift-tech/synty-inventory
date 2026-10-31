@@ -7,8 +7,8 @@ GLB scene space after ``glb_scale``, rounded to 1e-4 with ``-0.0`` normalised so
 
 The authored axes of Synty parts are Y-up: the contact side is taken from the slot along Y and checked by the number of
 distinct points in the foot slab (fewer than three is a point or an edge, not a foot; then the other end is tried). The
-along-rail axis is the longer horizontal AABB axis, so a part yawed by a multiple of 90 degrees measures like the
-original; an arbitrary yaw or tilt is outside this prior.
+along-rail axis is the authored z axis on every foot slot (E3.23: the whole-mesh x-versus-z pick is gone, so a body wider than it is long
+mounts the way it was authored); a part yawed by a multiple of 90 degrees is outside this prior, as is an arbitrary yaw or tilt.
 """
 
 from __future__ import annotations
@@ -190,8 +190,7 @@ def _foot_anchor(v: np.ndarray, slot: str, forward_override, kind, p: dict) -> d
         return _unmeasured()
     foot_source = "authored_up" if attempt == 0 else "measured"
     up = _unit(1, 1 if low else -1)
-    ext = v.max(axis=0) - v.min(axis=0)
-    axis = 2 if ext[2] >= ext[0] else 0
+    axis = 2  # E3.23, step 3: the authored z axis on every foot slot, for a part and for a host's baked child alike (no whole-mesh extent pick)
     slab = _foot_slab(v, low, axis, p, slot)  # A4 item 3: one rung deeper when the 4 mm slab only cut a lip; 1b: skip a rung off the mid-line (rail slots)
     sign, decided = _end_sign(*_end_sections(v, axis))
     forward_source, symmetric = ("section", False) if decided else ("authored", True)

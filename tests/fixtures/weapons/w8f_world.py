@@ -29,6 +29,12 @@ mesh node moved by a translation only, so its foot centre in the host is its own
   DIS_U  upright host (forward +z) with a Scope child (flip_z(optic())); DIS_Y the same on a body yawed 90 degrees (forward +x).
   SCOPE_DIS   flip_z(optic()): a twin of both children, with two different needed forwards.
 
+``yawdrum`` world (E3.23: the authored z axis is the along-rail axis of every foot slot, so a drum is measured along z whatever its width)
+  DIS_Y  (the yawed body, forward +x, up +y) with ONE baked magazine child, an unrotated drum box 0.11 across x by 0.14 along z (0.09 tall) at
+         the quarter-turn image of DRUM_AT, (-0.12, 0, 0): its top-face centre, and so the magazine mount's point, is (-0.12, 0, 0).
+  DRUM   the same box as the standalone part, a PER-AXIS twin of the child. Measured alone its forward is +z (the authored axis, symmetric),
+         the host's is +x: the twin correction turns it, forward +x, and swaps the footprint (length 0.11, width 0.14).
+
 ``muz`` world
   MUZ    the turned host (forward +y, up +z) with a baked Brake child (the 0.08 m round tube on the barrel end).
   BRAKE  the brake tube as a standalone part: a twin of the child. Its muzzle anchor has forward +y (the authored up) while the
@@ -103,6 +109,11 @@ def big_reversed_scope():
     return v * 1.3, t
 
 
+def drum_long():
+    """The DRUM box turned a quarter about Y: mag_box 0.055 / 0.09 / 0.07 is 0.11 across (x) by 0.14 along (z), the long side on the authored axis."""
+    return A.mag_box(0.055, 0.09, 0.07)
+
+
 def turn_x(mesh):
     """A quarter turn about X: (x, y, z) -> (x, z, -y). A proper rotation."""
     v, t = mesh
@@ -145,16 +156,26 @@ def host_roots(host: str) -> list[dict]:
     raise KeyError(host)
 
 
+def yawed_drum_roots() -> list[dict]:
+    """The ``yawdrum`` host: the yawed body (forward +x) with one UNROTATED drum child, so the child is a per-axis twin of ``drum_long``."""
+    body = A.yaw(A.host_body("round"), 1)
+    return [{"name": DIS_Y, "mesh": body, "children": [_kid(DIS_Y, "Mag_Drum", drum_long(), A.yaw_vec(DRUM_AT, 1))]}]
+
+
 PART_MESHES = {
     MAG_SMALL: small_mag, MAG_LARGE: large_mag, SCOPE_REV: reversed_scope, SCOPE_OVR: reversed_scope, SCOPE_DIS: reversed_scope,
     SCOPE_TILT: big_reversed_scope, DRUM: drum_mag, BRAKE: lambda: A.tube(A.BARREL_END_Z, A.BRAKE_FACE_Z),
 }
+
+WORLD_HOSTS = {"yawdrum": {DIS_Y: yawed_drum_roots}}  # world -> {host id: its root nodes}, where the world differs from host_roots
+WORLD_PARTS = {"yawdrum": {DRUM: drum_long}}  # world -> {part id: its mesh}, where the world differs from PART_MESHES
 
 WORLDS = {  # world name -> (hosts, parts)
     "seat": ((TWIN, SPIN), (MAG_SMALL, MAG_LARGE)),
     "rev": ((REV, TILT), (SCOPE_REV, SCOPE_OVR, DRUM, SCOPE_TILT)),
     "dis": ((DIS_U, DIS_Y), (SCOPE_DIS,)),
     "muz": ((MUZ,), (BRAKE,)),
+    "yawdrum": ((DIS_Y,), (DRUM,)),
 }
 
 
@@ -174,7 +195,9 @@ def write_world(tmp_path: Path, world: str, *, roots: dict | None = None) -> tup
     cat.mkdir(parents=True, exist_ok=True)
     (cat / f"{PACK}.json").write_bytes((json.dumps(_catalog_doc((*hosts, *parts)), indent=2, sort_keys=True) + "\n").encode("utf-8"))
     for aid in (*hosts, *parts):
-        nodes = ((roots or {}).get(aid) or host_roots(aid)) if aid in hosts else [{"name": aid, "mesh": PART_MESHES[aid]()}]
+        own_host = WORLD_HOSTS.get(world, {}).get(aid, lambda: host_roots(aid))
+        own_part = WORLD_PARTS.get(world, {}).get(aid, PART_MESHES.get(aid))
+        nodes = ((roots or {}).get(aid) or own_host()) if aid in hosts else [{"name": aid, "mesh": own_part()}]
         G.write_glb(root / "glb" / PACK / f"{aid}.glb", nodes)
     return cat, root
 
