@@ -349,7 +349,7 @@ def test_the_table_the_attach_version_and_the_code_digests_are_in_the_fingerprin
         assert r["setback_stats"]["computed"] == 4 and r["setback_stats"]["cached"] == 0, name
         monkeypatch.undo()
     import synty_inventory.weapons as pkg
-    monkeypatch.setattr(pkg, "WEAPON_ATTACH_VERSION", 16)  # the shipped value is 15 (G1 4.6/AC146): any other value is a new fingerprint
+    monkeypatch.setattr(pkg, "WEAPON_ATTACH_VERSION", 17)  # the shipped value is 16 (G1 4.6/AC146): any other value is a new fingerprint
     _, _, r = run(tree, cache, rules)
     assert r["setback_stats"]["computed"] == 4, "WEAPON_ATTACH_VERSION is in the fingerprint"
 

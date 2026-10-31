@@ -6,10 +6,19 @@ swap. Until E3.12 the cut ran BEFORE the correction, so a part whose prior forwa
 cache key carried the old anchor), while ``attach-calibrate`` places the part from the finished directory and read it right. The fix is the order: the
 directory runs ``twin_forward`` first (``apply_compat`` repeats it and finds nothing to do).
 
-The worlds are inline and synthetic (box meshes, FAKE packs, neutral names). Y-up, metres, +z forward, +x side; a host is the receiver block of
-``fixtures/weapons/e3_well_meshes.py`` with ONE baked magazine child, a box 0.10 across (x) by 0.08 along (z) hanging from a flat top, so the host's well
-reference reads (f, s) = (0.08, 0.10). The part is the same box. Its prior forward is the longer horizontal extent, +x, which is the wrong axis: the
-corrected forward is +z. Every expected number is a LITERAL worked out by hand from those boxes, never read from the code under test.
+The worlds are inline and synthetic (box meshes, FAKE packs, neutral names). Y-up, metres; a host is the receiver block of
+``fixtures/weapons/e3_well_meshes.py`` turned a quarter about Y (forward +x, side z) with ONE baked magazine child, an UNROTATED box 0.08 across (x) by
+0.10 along (z) hanging from a flat top, so the host's well reference reads (f, s) = (0.08, 0.10). The part is the same box. Its prior forward is the
+authored axis, +z, which is the wrong axis for this host: the corrected forward is +x. Every expected number is a LITERAL worked out by hand from those
+boxes, never read from the code under test.
+
+E3.23 re-expression. These worlds were written when step 3 picked the longer horizontal extent: an upright (z-forward) host, a child 0.10 across x by
+0.08 along z, and a part whose prior forward was therefore x, the wrong axis. Step 3 now takes the authored z on every foot slot, so on an upright host
+the prior forward is already the host's and there is nothing to correct. The scenario (a twin part whose prior forward is the wrong AXIS, a footprint
+swap, a well section that depends on the order) lives where the host points along another axis, so the host is turned a quarter and the boxes are the
+same numbers turned with it: every length, width and section below is the old literal, only the forward reads +x where it read +z, and the prior +z
+where it read +x. The scenario that is gone: the old wrong-axis prior on an UPRIGHT host (it needed the extent pick); the sign-only correction of a
+z-long part is covered in test_weapons_w8f_forward.
 
 Red on the old order (run on the unmodified base source before the fix): ``test_twin_section_is_cut_with_the_corrected_forward`` (the section reads
 [0.10, 0.08], the verdict ``no_fit``), ``test_cache_keys_are_the_corrected_anchors`` (the carried part's key is a miss: it holds the stored, corrected anchor, a
@@ -44,17 +53,18 @@ from synty_inventory.weapons.overrides import empty_overrides  # noqa: E402
 ABS = 1e-4  # stored measures are rounded to 1e-4 m
 
 PACK_1, PACK_2 = "FAKE_E312A", "FAKE_E312B"
-SEAT_AT = (0.0, 0.02, -0.03)  # the child's origin: its flat top lands 2 cm inside the receiver
+SEAT_AT = (0.0, 0.02, -0.03)  # the child's origin in the upright receiver: its flat top lands 2 cm inside the receiver
+TURNED_SEAT_AT = tuple(A.yaw_vec(SEAT_AT, 1))  # the same seat on the receiver turned a quarter, (x, z) -> (z, -x): (-0.03, 0.02, 0)
 
 
-def box_wide():
-    """0.10 across (x) by 0.08 along (z), 0.12 tall: the child and its twin part."""
-    return A.mag_box(0.05, 0.12, 0.04)
+def box_z_long():
+    """0.08 across (x) by 0.10 along (z), 0.12 tall: the child and its twin part."""
+    return A.mag_box(0.04, 0.12, 0.05)
 
 
 def box_taller():
     """The same footprint, 0.15 tall: a twin of nothing, so no forward evidence."""
-    return A.mag_box(0.05, 0.15, 0.04)
+    return A.mag_box(0.04, 0.15, 0.05)
 
 
 def box_long():
@@ -71,8 +81,8 @@ def world(packs=(PACK_1, PACK_2)) -> dict:
     for i, pack in enumerate(packs, start=1):
         n = names(i)
         out[pack] = {
-            "hosts": {n["host"]: W.host_node(n["host"], E.receiver(), [W.kid(n["host"], "Mag_Wide", box_wide(), SEAT_AT)])},
-            "parts": {n["twin"]: box_wide, n["odd"]: box_taller},
+            "hosts": {n["host"]: W.host_node(n["host"], A.yaw(E.receiver(), 1), [W.kid(n["host"], "Mag_Z_Long", box_z_long(), TURNED_SEAT_AT)])},
+            "parts": {n["twin"]: box_z_long, n["odd"]: box_taller},
         }
     return out
 
@@ -129,25 +139,26 @@ def record(directory, rid):
 
 
 def test_twin_section_is_cut_with_the_corrected_forward(made):
-    # the part is 0.10 across by 0.08 along: its prior forward is +x (the longer extent), the host's is +z. The section at the seat is the host's well
-    # reference, 0.08 along f by 0.10 across s (deviation 0). Cut before the correction it read [0.10, 0.08], 25 % off on both axes against well.tol 0.15
+    # the part is 0.08 across (x) by 0.10 along z: its prior forward is +z (the authored axis), the host's is +x. The section at the seat is the host's
+    # well reference, 0.08 along f by 0.10 across s (deviation 0). Cut before the correction it read [0.10, 0.08], 25 % off on both axes against well.tol 0.15
     host, twin = pid(PACK_1, names(1)["host"]), pid(PACK_1, names(1)["twin"])
     assert made["sections"][twin]["sections"][host][""] == pytest.approx([0.08, 0.10], abs=ABS)
     assert made["verdicts"][(twin, host)] == "fit"
 
 
 def test_the_stored_anchor_is_the_corrected_one(made):
-    # the record carries what the cut used: forward +z, length 0.08, width 0.10 (the swap of twin_forward), source `twin`
+    # the record carries what the cut used: forward +x (the host's), length 0.08, width 0.10 (the swap of twin_forward), source `twin`
     twin = pid(PACK_1, names(1)["twin"])
     att = record(made["directory"], twin)["attachment"]
-    assert att["anchor"]["forward"] == [0.0, 0.0, 1.0] and att["anchor"]["forward_source"] == "twin"
+    assert att["anchor"]["forward"] == [1.0, 0.0, 0.0] and att["anchor"]["forward_source"] == "twin"
     assert (att["footprint"]["length_m"], att["footprint"]["width_m"]) == pytest.approx((0.08, 0.10), abs=ABS)
 
 
 def test_a_part_with_no_twin_evidence_keeps_its_prior_forward(made):
-    # guard: the correction needs a twinned child. The taller box twins nothing, keeps forward +x, and its section is 0.10 along f(=x) by 0.08 across
+    # guard: the correction needs a twinned child. The taller box twins nothing, keeps its prior forward +z, and its section is 0.10 along f(=its z, laid
+    # on the host's x) by 0.08 across
     host, odd = pid(PACK_1, names(1)["host"]), pid(PACK_1, names(1)["odd"])
-    assert record(made["directory"], odd)["attachment"]["anchor"]["forward"] == [1.0, 0.0, 0.0]
+    assert record(made["directory"], odd)["attachment"]["anchor"]["forward"] == [0.0, 0.0, 1.0]
     assert made["sections"][odd]["sections"][host][""] == pytest.approx([0.10, 0.08], abs=ABS)
 
 

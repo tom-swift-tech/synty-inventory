@@ -387,7 +387,7 @@ def test_every_new_row_moves_the_attach_digest_and_never_the_rules_digest(edit):
 
 
 def test_ac129_the_versions_and_the_digests():
-    assert pkg.WEAPON_ATTACH_VERSION == 15 and pkg.WEAPON_GEOMETRY_VERSION == 6  # G1 4.6/AC146 (S8): attach version 13 -> 14
+    assert pkg.WEAPON_ATTACH_VERSION == 16 and pkg.WEAPON_GEOMETRY_VERSION == 6  # G1 4.6/AC146 (S8): attach version 13 -> 14
     rules = load_rules()
     assert weapon_rules_digest(rules) == "7b9829af37328fe7"
     assert len(attach_rules_digest(rules)) == 16 and attach_rules_digest(rules) != A7_ATTACH_DIGEST

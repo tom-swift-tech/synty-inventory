@@ -1,7 +1,7 @@
 """W8f part B: a twin corrects its part's forward (docs/weapon_attachments.md 3.4 step 3a, amendment A1, AC86).
 
-Worlds ``rev``, ``dis`` and ``muz`` of ``fixtures/weapons/w8f_world.py`` (hand-derived numbers in its docstring), built through the
-whole directory pipeline. Literals are worked out from the meshes: optic() is x -0.03..0.03, y 0..0.08, z -0.1..0.1 with its
+Worlds ``rev``, ``dis``, ``muz`` and ``yawdrum`` of ``fixtures/weapons/w8f_world.py`` (hand-derived numbers in its docstring), built through
+the whole directory pipeline. Literals are worked out from the meshes: optic() is x -0.03..0.03, y 0..0.08, z -0.1..0.1 with its
 foot centre at (0.005, 0, 0.05) and the flare at +z, so its z-mirror has the flare at -z and the foot centre at (0.005, 0, -0.05).
 """
 
@@ -51,6 +51,11 @@ def muz(tmp_path_factory):
     return make(tmp_path_factory, "muz")
 
 
+@pytest.fixture(scope="module")
+def yawdrum(tmp_path_factory):
+    return make(tmp_path_factory, "yawdrum")
+
+
 def anchor_of(world, part):
     return world["by_id"][part]["attachment"]["anchor"]
 
@@ -95,16 +100,22 @@ def test_the_corrected_part_lands_on_its_twin_child(rev):
     assert job["hide"] == [f"{W.REV}_Scope"]
 
 
-# --- case 3: a near-round drum measured along the wrong axis ------------------------------------------------------------
+# --- case 3: a drum measured along the wrong axis -----------------------------------------------------------------------
+# E3.23 re-expression. The drum used to be measured along the LONGER horizontal axis, x (0.14 against 0.11), while the host points along z. Step 3
+# now takes the authored z on every foot slot, so on an upright (z-forward) host a drum is never on the wrong axis: that world, ``rev``, no longer
+# has an axis correction. The scenario lives where the host points along another axis: ``yawdrum`` is the same drum turned a quarter (0.11 across x,
+# 0.14 along z, so it is measured along z) in the yawed body of the ``dis`` world (forward +x), with the child at the quarter-turn image of the old
+# seat. The old literals map by that turn: the footprint reads the same (length 0.11 along the corrected forward, width 0.14), the forward is the
+# host's +x where it was +z. The drum is still the part the correction has to turn (measured forward +z, the host's +x).
 
 
-def test_a_part_measured_along_another_axis_is_corrected_and_its_footprint_is_swapped(rev):
-    # measured: forward +x (the longer horizontal axis, 0.14 against 0.11), so length 0.14 / width 0.11; the host points along z
-    assert anchor_of(rev, DRUM) == {
-        "point": [0.0, 0.0, 0.0], "forward": [0.0, 0.0, 1.0], "up": [0.0, -1.0, 0.0],
+def test_a_part_measured_along_another_axis_is_corrected_and_its_footprint_is_swapped(yawdrum):
+    # measured: forward +z (the authored axis, symmetric ends), so length 0.14 / width 0.11; the host points along x
+    assert anchor_of(yawdrum, DRUM) == {
+        "point": [0.0, 0.0, 0.0], "forward": [1.0, 0.0, 0.0], "up": [0.0, -1.0, 0.0],
         "foot_source": "authored_up", "forward_source": "twin", "symmetric": False}
-    assert foot_of(rev, DRUM) == {"length_m": 0.11, "width_m": 0.14, "height_m": 0.09, "foot_length_m": 0.11,
-                                  "foot_width_m": 0.14, "mate_d_m": None}
+    assert foot_of(yawdrum, DRUM) == {"length_m": 0.11, "width_m": 0.14, "height_m": 0.09, "foot_length_m": 0.11,
+                                      "foot_width_m": 0.14, "mate_d_m": None}
 
 
 def test_the_corrected_drum_lands_on_its_twin_child(rev):
@@ -113,15 +124,22 @@ def test_the_corrected_drum_lands_on_its_twin_child(rev):
     assert_lands_on(box, (-0.07, -0.09, -0.175), (0.07, 0.0, -0.065))
 
 
+def test_the_corrected_yawed_host_drum_lands_on_its_twin_child(yawdrum):
+    # E3.23: the landing check of the re-expressed case 3 (the ``rev`` drum needs no correction under the forced z, see above)
+    assert tier_of(yawdrum, DRUM, DIS_Y) == "twin"
+    box, _ = placed_box(yawdrum, DRUM, DIS_Y, W.drum_long())
+    assert_lands_on(box, (-0.175, -0.09, -0.07), (-0.065, 0.0, 0.07))  # the child: the drum box moved by the quarter-turn image of the old seat
+
+
 def test_the_uncorrected_measurement_would_not_land_which_gives_the_placement_tests_teeth():
-    # the drum measured alone: forward +x. Placed on the host's z seat it turns 90 degrees about the foot point and misses
+    # the drum measured alone: forward +z. Placed on the yawed host's x seat it turns 90 degrees about the foot point and misses
     from synty_inventory.weapons.attach import place
-    verts = W.drum_mag()[0]
+    verts = W.drum_long()[0]
     measured = measure_anchor(verts, "magazine")["anchor"]
-    assert measured["forward"] == [1.0, 0.0, 0.0]
-    mount = {"point": [0.0, 0.0, -0.12], "forward": [0.0, 0.0, 1.0], "up": [0.0, -1.0, 0.0]}
+    assert measured["forward"] == [0.0, 0.0, 1.0]
+    mount = {"point": [-0.12, 0.0, 0.0], "forward": [1.0, 0.0, 0.0], "up": [0.0, -1.0, 0.0]}
     box = W.aabb((np.c_[verts, np.ones(len(verts))] @ place(measured, mount).T)[:, :3])
-    assert W.iou(box, (np.array([-0.07, -0.09, -0.175]), np.array([0.07, 0.0, -0.065]))) < 0.9
+    assert W.iou(box, (np.array([-0.175, -0.09, -0.07]), np.array([-0.065, 0.0, 0.07]))) < 0.9
 
 
 # --- case 4: left alone ---------------------------------------------------------------------------------------------
@@ -168,16 +186,16 @@ def test_a_yawed_twin_child_gives_no_evidence_and_the_part_keeps_its_measurement
 # --- case 5: confidence and reasons --------------------------------------------------------------------------------
 
 
-def test_a_correction_never_touches_confidence_or_reasons(rev):
-    scope, drum = rev["by_id"][SCOPE]["review"], rev["by_id"][DRUM]["review"]
+def test_a_correction_never_touches_confidence_or_reasons(rev, yawdrum):
+    scope, drum = rev["by_id"][SCOPE]["review"], yawdrum["by_id"][DRUM]["review"]
     assert (scope["confidence"], scope["reasons"]) == (0.9, ["colourway_unknown"])  # decided by the section prior: not unsure
     # the drum was symmetric when measured: it keeps the cap and the reason although `symmetric` is now false
     assert (drum["confidence"], drum["reasons"]) == (0.59, ["anchor_forward_unsure", "colourway_unknown", "low_confidence"])
-    assert anchor_of(rev, DRUM)["symmetric"] is False
+    assert anchor_of(yawdrum, DRUM)["symmetric"] is False
 
 
 def test_the_attach_version_is_8_and_nothing_else_about_the_identity_moved(rev):
-    assert pkg.WEAPON_ATTACH_VERSION == 15 and rev["directory"]["attach_version"] == 15  # G1 4.6/AC146 (S8): attach version 13 -> 14
+    assert pkg.WEAPON_ATTACH_VERSION == 16 and rev["directory"]["attach_version"] == 16  # G1 4.6/AC146 (S8): attach version 13 -> 14
     assert pkg.WEAPON_GEOMETRY_VERSION == 6 and rev["directory"]["geometry_version"] == 6
     assert weapon_rules_digest(load_rules()) == "7b9829af37328fe7"
     assert pkg.ANCHOR_FORWARD_SOURCES == ("section", "authored", "twin", "override", "free_end")  # A4 (W8l) appends free_end

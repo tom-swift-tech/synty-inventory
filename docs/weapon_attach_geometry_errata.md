@@ -1561,3 +1561,86 @@ The drop is stated as 7 width, 1 length, 2 settle-cap and 1 seat-ref drops, neve
 | E3.23-Q9 | Step 3 takes z on host baked children too (one rule in `_foot_anchor`), not on parts only. It costs one more optic drop and corrects 15 mount spans. | Yes. |
 
 E3.23-Q1 is the third of Tom's three open looks. Q6 and Q7 in E3.22 were the other two.
+
+#### E3.23i Addendum: the built slice, measured (record)
+
+**Status: APPROVED (Tom, 2026-10-31: "Approve at defaults").** It was put to Tom as the E3.23f addendum (E3.23f-Q1 to Q3); it lands as E3.23i because E3.23f is the agreement table above. It was measured read-only on the E3.23 build before its commit: branch build/g1-e323, base a07c4df, attach 16, geometry 6. It corrects one sentence of E3.23 and records five things the E3.23 text did not list. It changes no rule, literal or threshold, and nothing in it is tuned (plan §0 rule 7).
+
+- **Gate result.** Every E3.23 literal matched on a cold copy-catalog guard run (rc 0):
+  - `fit_digest` `03030047c518d931`;
+  - optic +11/−11;
+  - magazine +6 listed and +9 pending;
+  - 17 anchors and 15 span_m values changed;
+  - the rules, overrides and attach_rules digests are unchanged.
+  The differences below are the only fields that moved outside that list.
+
+##### 1. Correction: the magazine pose
+
+- **Corrected text.** The E3.23a sentence "All 6 sit flush under the well with the disc face to the side" is wrong. The text becomes: "All 6 sit flush under the well with the cylinder along the bore, the pose the pack's own presets bake these meshes in."
+- **Preset evidence.**
+  - Two Military presets bake the two round magazine meshes as magazine children. The meshes are identical: every vertex matches (1434 of 1434 and 985 of 985), with a maximum deviation of 0.0 mm and an identity rotation.
+  - The built pose is 0.0° from that seating on all 6 added pairs. The attach-15 pose was 90.0° off it.
+- **Round baked children across the population.**
+  - 128 magazine nodes on 124 hosts were scanned. 11 are round, on 10 hosts. The round test is stated in the measurement file.
+  - Their cylinder axis against the bore: 8 along, 2 vertical (hopper drums) and 1 across.
+  - The one across is a power cell set flush into a receiver flank, with no feed neck and no well.
+  - No baked reference anywhere seats a round magazine that has a feed neck with its axis across the bore.
+- **The geometry agrees.** These meshes have the feed neck's long axis parallel to the cylinder axis.
+  - Under the z pick, the neck lies along the well: 76.4 × 32.1 mm in a 78.4 × 29.7 mm well, and 71.8 × 13.6 mm in a 78.6 × 13.6 mm well.
+  - Under the attach-15 pick, the neck lies across the well (32 mm along, 76 mm across), wider than the receiver.
+- **Cause of the misread.** It was a capture artefact, not a build difference.
+  - The anchors (forward, foot, seat) behind the magazine captures and behind the side-view composites are identical on 6 of 6 pairs, with 0 field differences.
+  - A 3/4 view cannot tell a disc facing forward from one facing sideways. The side-view composite shows it.
+- **No drum defect is recorded.** The one twin saddle drum stays unlisted under all three poses: attach 15, the built z pick, and the rejected candidate below.
+
+##### 2. Rejected candidate: the foot-slab axis pick
+
+- **The rule.** The along-rail axis is the longer horizontal extent of the foot slab; a tie goes to z. It applies to parts and baked children. It was measured once, over everything, untuned.
+- **Result.** 41 of 293 measured anchors differ from the built z pick.
+  - It reverts S12 cell 1 to the attach-15 pose (90° off the fix).
+  - It drops 10 of the 11 added optic pairs, and the remaining one sits 90° off.
+  - It leaves the two round magazines identical to the z pick.
+- **Figures.** Listed total 1215 (built: 1224), pending 4707 (built: 4707), `fit_digest` `29ce441651b0e45a`.
+- **Verdict.** Rejected. The built z pick stands.
+
+##### 3. Unlisted differences, now gated
+
+The z pick also moves `symmetric`, `forward_source` and review confidence. E3.23 listed only the drum relabel. The measured cause runs through three steps:
+
+1. The end-section ratio and the free-end test are recomputed along the new axis (attach.py:193-195; 197-200 for the free end).
+2. That sets `symmetric` and `forward_source` (attach.py:103).
+3. Classify reads `forward_source` to set `anchor_forward_unsure` and the confidence cap (classify.py:403).
+
+- **`symmetric` and `forward_source`: 9 parts.**
+  - By slot: magazine 5 (3 standard, 2 drum), sight_rear 2 (1 aperture, 1 canted), optic 1 (scope), underbarrel 1 (bipod).
+  - One of the 9 is the drum relabel E3.23 already listed (twin to authored, symmetric true). The other 8 are new to the list.
+- **Review confidence: 8 part records.**
+  - 6 lose `anchor_forward_unsure` and `low_confidence`, rising from 0.59 to 0.8, 0.9 or 1.0: sight_rear 1, optic 1, underbarrel 1, magazine 3.
+  - 2 gain them, falling from 0.9 to 0.59: 1 standard magazine and 1 canted rear sight. Neither is one of the two round magazines above.
+- **Gate.** These 9 `symmetric`/`forward_source` changes and 8 review changes are added to the E3.23g population-diff list as allowed differences, at these exact counts. Any other difference still fails.
+
+##### 4. Finding: a listed pair that floated (record)
+
+- At attach 15, one flat-panel optic on a revolver host was listed with no seat shift. Its foot ran across the rail (12.0 × 116.8 mm), and no foot sample lay over a host triangle. So the seat returned no distance, and the pair was listed floating about 68.3 mm above the rail top (67.6 mm minimum under the foot).
+- Under the built z pick the pair is unlisted. The computed shift is −60 mm, clamped.
+- Recorded only. No change to the seat or its clamp.
+
+##### 5. Tom's label-era answers on the round magazines (record)
+
+- Tom labelled the two round magazine parts 10 times, all no (7 and 3), with 0 yes.
+- Every labelled card showed the attach-15-family pose: the disc face side-on and the feed neck across the bore, through the receiver.
+- The cards were rendered at attach 2, 9 and 10, all before attach 14. A label record carries no attach version; the version comes from the card set and directory each card was drawn from.
+- So these answers reject that pose, not the built one.
+- This is label-era evidence. It is recorded and not tuned to. The E3.23e statement that the lead read 3 label-no poses as seated refers to the built pose, which no label judged.
+
+##### 6. Capture rule (plan §9.7)
+
+Orientation reads, the lead's and the peer's, come from side-view a/b composites, never from a single 3/4 capture.
+
+##### Questions for Tom (answered 2026-10-31: "Approve at defaults")
+
+| # | Question | Default |
+|---|---|---|
+| E3.23f-Q1 | Accept this addendum as recorded: the magazine sentence corrected to the preset pose, the rejected candidate, the floating-pair finding, and the label-era record. | Yes. |
+| E3.23f-Q2 | Add the two difference classes (9 `symmetric`/`forward_source`, 8 review confidence) to the slice's population-diff gate as allowed, at exact counts. | Yes. |
+| E3.23f-Q3 | Merge E3.23 as built (z pick for parts and baked children) with no drum defect recorded, once the 15 re-authored tests pass. | Yes. |
