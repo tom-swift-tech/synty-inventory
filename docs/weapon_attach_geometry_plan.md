@@ -765,6 +765,7 @@ The merge commits of the landed slices on `integ/attach`:
   - **Captures**, re-rendered on the built code and viewed by the lead before anything rested on them: S12 cells 1 and 6, the 11 added and 11 dropped optic pairs, the 6 added magazine pairs (side-view a/b composites; see E3.23i for the 3/4 misread), and the two largest baked-child span changes. Hosts resolved by record id. Scratch only, index without pack ids.
   - **Findings recorded, not acted on** (E3.23i): the rejected foot-slab axis candidate (listed 1215, `fit_digest` 29ce441651b0e45a), the floating flat-panel optic pair at attach 15 (now unlisted), and the label-era record on the round magazines.
 - The E3.22 grooves finding goes to a spec, E3.24 (Tom, 2026-11-09: "Spec E3.24 instead"). Correction: commit 67c512a recorded a 2026-11-02 "Record only" ruling as Tom's verbatim words; Tom gave no such ruling, and it is withdrawn. The step 3c rule stays as built until E3.24 is approved and built.
+- E3.24 (errata E3.24): Tom picked from the a/b composites, 2026-11-11: "All are A except part 23 it is b". The measured grooves rule is not adopted; step 3c stays as built, and part 23 gets one forward override in one slice (attach 16 to 17, `overrides_digest` moves, expected pair changes 0, re-measured). Q1, Q2, Q5 and Q6 were not answered and stay proposals.
 
 ## 9. Errata E3: the build ladder (E3.0 to S10b)
 

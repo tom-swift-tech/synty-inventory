@@ -1644,3 +1644,90 @@ Orientation reads, the lead's and the peer's, come from side-view a/b composites
 | E3.23f-Q1 | Accept this addendum as recorded: the magazine sentence corrected to the preset pose, the rejected candidate, the floating-pair finding, and the label-era record. | Yes. |
 | E3.23f-Q2 | Add the two difference classes (9 `symmetric`/`forward_source`, 8 review confidence) to the slice's population-diff gate as allowed, at exact counts. | Yes. |
 | E3.23f-Q3 | Merge E3.23 as built (z pick for parts and baked children) with no drum defect recorded, once the 15 re-authored tests pass. | Yes. |
+
+### E3.24 Foregrip finger grooves and the forward sign: Tom's picks, one forward override (spec, data)
+
+**Status: Tom picked from the a/b composites, 2026-11-11: "All are A except part 23 it is b". That answers E3.24-Q3. He did not answer Q1, Q2, Q5 or Q6; their defaults below are the lead's proposals, not rulings. Q4 is moot, because he called all five parts.**
+- History of the question:
+  - The question was carried from E3.22: the lead's grooves measurement, 2026-10-30.
+  - A 2026-11-02 "Record only" ruling was recorded as Tom's, but it was not his. It was withdrawn in integ/attach fc5a49a.
+  - Tom, 2026-11-09: "Spec E3.24 instead".
+- Everything here was measured read-only on attach 16 (code 9db24a2, integ fc5a49a). Nothing is tuned (plan §0 rule 7).
+
+#### E3.24a The question
+
+Step 3c (E3.22) points a non-bipod underbarrel part's forward against its free-end lean. That makes a raked grip lean back toward the stock. Some grips also carry one-sided finger grooves. On 3 of the 7 grips that 3c flipped, the flip turned those grooves from the muzzle to the stock. The question is whether the grooves should set the forward sign.
+
+#### E3.24b Measured (all 24 underbarrel parts)
+
+- **The measure is E3.22's, unchanged.**
+  - It reads the silhouette excess variation per side, over 1 mm horizontal slices of the shank (15 to 85 % of the height).
+  - A part is one-sided when the sides differ by at least 3 mm and by a ratio of at least 1.5.
+  - Fragile means within 20 % of either threshold.
+- **It reproduces E3.22.** On the 7 grips that 3c flipped, it finds grooves on the lean side on 3, away from the lean on 2, and none on 2. That is exactly E3.22's recorded figure.
+- **The population.**
+  - 19 grips and 5 bipods.
+  - `forward_source`: free_end 11, authored 8, section 5.
+  - Grooves against the current forward, across all 24: none 15, back 7, front 2.
+- **Grips (19).**
+  - Grooves back on 5 (02, 03, 04, 22, 23). All 5 are against the current sign.
+  - Grooves front on 2 (15, 16). These agree with 3c.
+  - No grooves on 12. Of those, 3 have a lean and 9 do not.
+  - 2 of the 12 are fragile (09, 19).
+- **Baked references.**
+  - The 257 hosts with mounts hold 7 baked underbarrel children: 1 grip and 3 bipod pairs.
+  - The one baked grip is symmetric, with no grooves. So the pack has no reference for which way a grooved grip faces.
+  - No part matches a baked child's mesh. The near-twin, part 20, is symmetric too.
+
+#### E3.24c Rejected candidate: the measured grooves rule
+
+- **The rule.** A grip whose grooves are one-sided turns its grooved side to the muzzle; otherwise step 3c applies as built. It was measured once, as a stand-in in a scratch copy of the code, not a shipped change.
+- **Result against attach 16.**
+  - 7 anchors change: 5 sign flips (02, 03, 04, 22, 23). Parts 15 and 16 keep their sign.
+  - 0 listed or pending pair changes in every slot.
+  - The only other record change is part 22's review confidence, 0.59 to 0.88.
+  - No digest moves under the stand-in. A real build would bump the attach version, so this part is reasoned, not measured.
+- **Captures.** Side-view a/b composites (a: attach 16, b: the candidate), viewed by DM-A, by the lead and by Tom:
+
+  | part | shape | measure says | lead's read | Tom's pick |
+  |---|---|---|---|---|
+  | 22 | loop handle with finger rungs | grooves on the stock side in a | Wrong. The visible rungs face the muzzle in a; b turns them to the stock. | a |
+  | 03 | horizontal bar handle on a frame | grooves on the muzzle side in b | Not a grooves case. The one-sided reading is the frame outline; the bar's finger bumps sit on top in both poses. | a |
+  | 23 | straight vertical grip, stepped ridges on one side | ridges on the muzzle side in b | Agrees. Clear finger ridges: a has them to the stock, b to the muzzle. | b |
+  | 02 | short raked grip, stacked ridges | ridges on the muzzle side in b | Cues conflict. a rakes back with its ridges to the stock; b rakes forward with them to the muzzle. Not decidable by eye. | a |
+  | 04 | raked grip | grooves on the stock side in a | Not decidable. No clear grooves in the side view. | a |
+
+- **Verdict.** Rejected. The detector agrees with Tom on 1 of the 5 parts it acts on (23). The pack has no baked grip to settle the rest.
+- **Not done.** The literals were not adjusted, and loop handles were not excluded after seeing these five pictures. Either would be tuning to the captures.
+
+#### E3.24d The route: Tom's picks, as forward overrides
+
+- **Tom's picks** (2026-11-11): a for 02, 03, 04 and 22; b for 23. Step 3c stays as built for every part, and part 23 gets one forward override.
+- **Why an override, not a rule.** Overrides are authored data. They already win over step 3 and over 3c. An override changes no rule parameter, so this is not tuning to labels.
+- **The slice.**
+  - The overrides file gains one entry: part 23's forward is the sign shown in b. `overrides_digest` moves, and the attach version goes 16 to 17.
+  - Expected changes: part 23's anchor sign, and nothing else. The stand-in measured 0 listed or pending pair changes for all five flips, so the expected pair change count for part 23 alone is 0. The slice re-measures it rather than assuming it.
+  - A population-diff gate against attach 16 allows exactly part 23's anchor and the records that carry it, and fails on anything else.
+  - Tests are red first: on the attach 16 code they fail, because part 23 faces as in a.
+  - A side-view capture of part 23's built pose, on a host with a seat, viewed by the lead before merge.
+  - The full suite gates the merge.
+- **Parts 15 and 16** need nothing.
+- **Bipods** are left out (E3.24-Q5 default; Tom did not rule on it). Their two one-sided baked pairs read front, but that says little about grips.
+
+#### E3.24e Limits
+
+- The stand-in lived outside the rules yaml, so a real build's digest movement is reasoned, not measured.
+- Nodes outside the underbarrel vocabulary were not measured: 1 non-foregrip "grip" node and 55 launcher nodes.
+- Part 22's capture uses a same-pack host with a seat, because no host in its lists has one. The capture says so.
+- With the peer session gone, no second session verifies the docs commit. The lead verifies it unless Tom names a verifier.
+
+#### E3.24f Questions for Tom
+
+| # | Question | Default | Answer |
+|---|---|---|---|
+| E3.24-Q1 | Real-world convention: a foregrip's finger grooves face the muzzle. This is an assumption; the pack has no reference. | Yes. | Not answered. |
+| E3.24-Q2 | The measured grooves rule (E3.24c) is rejected. | Yes. | Not answered. His picks overrule it on 4 of 5 parts. |
+| E3.24-Q3 | For each of 02, 03, 04, 22 and 23, a or b. Picks that differ from a become forward overrides, in one slice. | Tom answers by index. | Tom, 2026-11-11: "All are A except part 23 it is b". |
+| E3.24-Q4 | Any part Tom can't call from the side view stays as built. | Stays. | Moot: he called all five. |
+| E3.24-Q5 | Bipods are out of scope. | Yes. | Not answered. |
+| E3.24-Q6 | A better grooves detector is not specified now. If wanted later, its literals are fixed before it runs on all 24. | Not now. | Not answered. |
