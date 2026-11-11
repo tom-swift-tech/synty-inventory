@@ -766,6 +766,13 @@ The merge commits of the landed slices on `integ/attach`:
   - **Findings recorded, not acted on** (E3.23i): the rejected foot-slab axis candidate (listed 1215, `fit_digest` 29ce441651b0e45a), the floating flat-panel optic pair at attach 15 (now unlisted), and the label-era record on the round magazines.
 - The E3.22 grooves finding goes to a spec, E3.24 (Tom, 2026-11-09: "Spec E3.24 instead"). Correction: commit 67c512a recorded a 2026-11-02 "Record only" ruling as Tom's verbatim words; Tom gave no such ruling, and it is withdrawn. The step 3c rule stays as built until E3.24 is approved and built.
 - E3.24 (errata E3.24): Tom picked from the a/b composites, 2026-11-11: "All are A except part 23 it is b". The measured grooves rule is not adopted; step 3c stays as built, and part 23 gets one forward override in one slice (attach 16 to 17, `overrides_digest` moves, expected pair changes 0, re-measured). Q1, Q2, Q5 and Q6 were not answered and stay proposals.
+- E3.24 build slice (`build/g1-e324`, base `9289b50`; the contract is `### E3.24` of the errata, section E3.24d, and its record E3.24g):
+  - **What changed.** One id-only `forward` `+z` override for underbarrel part 23 in `weapon_overrides.json`. No rule, threshold or code-path change. `WEAPON_ATTACH_VERSION` 16 to 17; `WEAPON_GEOMETRY_VERSION` stays 6.
+  - **Tests.** `tests/test_weapons_e324_forward.py`, 4 tests, red on the attach-16 base before the override (3 failed, 1 control passed). The live-directory test reads `SIT_E324_DIRECTORY`.
+  - **Guard** (cold copy-catalog build, rc 0, 87 s, against the attach-16 cold build of the same catalog copy): `overrides_digest` `17d4e771a785a4b2` to `76a750b75d01d719`; `fit_digest` `03030047c518d931`, `rules_digest` `7b9829af37328fe7` and `attach_rules_digest` `d221b5faa57f12c9` unchanged; 2655 records, 1 changed (part 23, `anchor.forward` and `anchor.forward_source` only); 0 listed and 0 pending pair changes; no other field moved.
+  - **Pins moved**: version literals 16 to 17; the AC146 overrides digest literal; the shipped override id count 38 to 39; two fingerprint tests 17 to 18; the e3_report world sha256 (moves through `attach_version` alone, checked); E3.23's AC154 count now counts `free_end` and `override` together. Details in E3.24g.
+  - **Gating run** (committed tree e415818, live-directory env set): rc 0, 3819 passed, 8 skipped, 0 failed (E3.23's 3815 plus the 4 new tests).
+  - **Capture.** Part 23's built pose (same-pack host with a seat) is pixel-identical to composite b; scratch only.
 
 ## 9. Errata E3: the build ladder (E3.0 to S10b)
 

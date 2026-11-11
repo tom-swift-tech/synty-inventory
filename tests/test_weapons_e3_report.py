@@ -161,7 +161,7 @@ def test_the_report_keys_never_enter_the_directory(built):
     assert all(not own & set(rec) and not own & set(rec["geometry"] or {}) for rec in built.directory["weapons"])
     # ... and the bytes are the ones the base (bc3657f) wrote for this world: the sha256 of the sorted compact JSON, taken from the unmodified code
     blob = json.dumps(built.directory, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    assert hashlib.sha256(blob.encode()).hexdigest() == "bc065e73db28bb6f70347492d79ffcc2744b4c69e80adba024bc1968b27661ed"
+    assert hashlib.sha256(blob.encode()).hexdigest() == "136437385aceea60d7825fa427f34e3e707cf731278d16daa34920eedf5ccfb8"
     assert built.directory["fit_digest"] == "9e88713e0a47d5d0"
 
 

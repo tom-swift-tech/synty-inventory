@@ -1731,3 +1731,42 @@ Step 3c (E3.22) points a non-bipod underbarrel part's forward against its free-e
 | E3.24-Q4 | Any part Tom can't call from the side view stays as built. | Stays. | Moot: he called all five. |
 | E3.24-Q5 | Bipods are out of scope. | Yes. | Not answered. |
 | E3.24-Q6 | A better grooves detector is not specified now. If wanted later, its literals are fixed before it runs on all 24. | Not now. | Not answered. |
+
+#### E3.24g Addendum: the built slice, measured (record)
+
+**Status: built, not merged.** Branch build/g1-e324, base 9289b50 (integ/attach), attach 17, geometry 6. The slice is the one E3.24d describes. Nothing here was tuned (plan §0 rule 7). It records the numbers; the lead reviews and merges. E3.24-Q1, Q2, Q5 and Q6 are still unanswered and unchanged.
+
+- **What changed.**
+  - `weapon_overrides.json` gains one id-only entry: part 23 gets `forward` `+z`, with a note that starts "E3.24". Overrides already win over step 3 and step 3c, so no rule, threshold or code path moved.
+  - `WEAPON_ATTACH_VERSION` 16 to 17. `WEAPON_GEOMETRY_VERSION` stays 6.
+- **Tests, red first.** `tests/test_weapons_e324_forward.py`, 4 tests. On the attach-16 base 3 failed and 1 passed:
+  - red: one shipped override entry, `forward` `+z`, a note starting "E3.24" and no other key;
+  - red: `WEAPON_ATTACH_VERSION` is 17;
+  - red: on the live directory (`SIT_E324_DIRECTORY`; the attach-16 directory fails on its version), exactly one underbarrel part has `forward_source` "override", it is a foregrip facing `[0, 0, 1]`, and 6 non-bipod parts keep `free_end` (E3.22's seven, less part 23);
+  - green control, also green on the base: a synthetic foregrip that step 3c turns to `-z` takes `+z`, source override, when the override is passed.
+  - Every expected value is a literal. The tests name no pack id; they find the entry by its note.
+- **Guard.** A cold copy-catalog build of the built tree (rc 0, 87 s) against the attach-16 cold build of the same catalog copy:
+
+  | pin | attach 16 | attach 17 |
+  |---|---|---|
+  | `attach_version` | 16 | 17 |
+  | `overrides_digest` | `17d4e771a785a4b2` | `76a750b75d01d719` |
+  | `fit_digest` | `03030047c518d931` | unchanged |
+  | `rules_digest` | `7b9829af37328fe7` | unchanged |
+  | `attach_rules_digest` | `d221b5faa57f12c9` | unchanged |
+
+- **Population diff, every record (raw).**
+  - 2655 records on each side, the same ids. The header differs in `attach_version` and `overrides_digest` only; `packs` and `counts` are equal.
+  - 1 record changed (part 23), in 2 fields: `anchor.forward` `[0, 0, -1]` to `[0, 0, 1]`, and `anchor.forward_source` "free_end" to "override".
+  - 0 listed pair-set changes and 0 pending pair-set changes, over all records. 0 changes inside any pair entry (tier, score, seat shift, hides_slots). 0 geometry-block changes. 0 review-confidence changes.
+  - The prediction in E3.24d (0 pair changes) held. Nothing outside part 23's anchor moved.
+- **Capture.** Part 23's built pose on a same-pack host with an underbarrel seat, side view, camera on the -x side, bore to the right, same method as the E3.24c composites. The new pose is pixel-identical to composite b (difference 0 over the full frame; the build matrix equals the stand-in's). The stepped ridges face the muzzle, and the grip is the mirror of a about the rail. Scratch only.
+- **Pins moved by the bump** (no bound loosened):
+  - attach-version literals 16 to 17 in 21 test files, header fixtures of a current directory (spotcheck, labels) included;
+  - the AC146 overrides digest literal in `test_weapons_g1_frame.py`, `17d4e771a785a4b2` to `76a750b75d01d719`;
+  - the id count of the shipped overrides, 38 to 39 (`g1_compat`), with the mounts counts unchanged;
+  - the two fingerprint tests that set a value other than the shipped one, 17 to 18 (`w8m_cache`, `w8n_muzzle`);
+  - the e3_report world's directory sha256, which moves through `attach_version` alone: with `attach_version` set back to 16 the new code reproduces the old sha (`bc065e73db28bb6f`);
+  - E3.23's AC154 count of seven step-3c flips now counts the sources `free_end` and `override` together (6 and 1), because part 23's flip is an override. The count, the 24 parts and the 0 pair changes are the same.
+- **Gating run** (full suite on the committed tree e415818, E3.23's env plus `SIT_E324_DIRECTORY`, `SIT_E323_DIRECTORY` and `SIT_E323_REF_ATTACH15` set): rc 0, 3819 passed, 8 skipped, 0 failed. The count is E3.23's 3815 plus the 4 new tests; skips 8 before and after. The run used `-q` on top of the config's `-q`, which prints no summary line, so the counts are those of the progress lines (0 F, 0 E).
+- **Limits.** The override follows part 23's id. If a pack update renames the part, the entry no longer matches and the part returns to step 3c; the overrides file's `renamed_from` key is the route for that.
