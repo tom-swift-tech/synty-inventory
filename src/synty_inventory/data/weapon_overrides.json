@@ -199,6 +199,10 @@
       },
       "note": "A8 erratum E2, lead ruling 2026-10-26 (Tom's rule: a built-in part fills its slot): the barrel ends in an integral can (hollow, radius 0.027-0.029 m over the last 21 cm vs 0.0139 m barrel; Tom labelled four silencers on it no, e33 e49 f20 f26); muzzle refused"
     },
+    "POLYGON_SciFi_City/SM_Wep_Attachment_Foregrip_02": {
+      "forward": "+z",
+      "note": "E3.24: forward +z, pose b of the underbarrel part 23 a/b composites (errata E3.24d); step 3c's free-end sign is -z; Tom picked b, 2026-11-11"
+    },
     "POLYGON_SciFi_Space/SM_Wep_Rifle_01": {
       "mounts": {
         "optic": {

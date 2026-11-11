@@ -129,8 +129,9 @@ def _underbarrel(d):
 def test_ac154_step_3c_flips_exactly_7_of_24_underbarrel_parts_and_changes_no_pair_against_attach_15():
     cur, ref = (_underbarrel(d) for d in _live())
     assert len(cur) == 24 and set(cur) == set(ref)
-    # a flip is a non-bipod underbarrel part whose forward comes from the free end: step 3b applies to bipods only, so step 3c is the only other source
-    flips = sorted(i for i, a in cur.items() if a["kind"] != "bipod" and a["anchor"]["forward_source"] == "free_end")
+    # a flip is a non-bipod underbarrel part whose forward comes from the free end: step 3b applies to bipods only, so step 3c is the only other source.
+    # E3.24 (attach 17) turns one of the seven by a forward override, whose source reads "override": the count of seven is of both sources together
+    flips = sorted(i for i, a in cur.items() if a["kind"] != "bipod" and a["anchor"]["forward_source"] in ("free_end", "override"))
     assert len(flips) == 7, flips
     pairs = lambda a: ({h["host"] for h in a.get("compatible_hosts") or []}, {h["host"] for h in a.get("pending_hosts") or []})  # noqa: E731
     assert [i for i in cur if pairs(cur[i]) != pairs(ref[i])] == []  # 0 pair changes (listed and pending)

@@ -568,7 +568,7 @@ def test_decision_2i_the_shipped_overrides_disable_one_more_optic_and_one_more_u
     # (a) the committed file by path. Base (41f1d26) had 36 ids and 38 source-none mount entries; decision 2(i) (E3.18) adds 2 ids, one `optic` none and one `underbarrel` none
     shipped = Path(overrides_mod.__file__).resolve().parent.parent / "data" / "weapon_overrides.json"
     ids = load_overrides(shipped)["ids"]
-    assert len(ids) == 38
+    assert len(ids) == 39  # E3.24 adds the forward override of underbarrel part 23 (38 before; no mounts entry, so the nones below are unchanged)
     nones: dict[str, int] = {}
     for entry in ids.values():
         for slot, m in (entry.get("mounts") or {}).items():

@@ -425,7 +425,7 @@ def test_ac146_the_rules_and_overrides_digests_are_unchanged(rules):
     # the committed file, by path (conftest points the default at an empty one): no frame_axis entry is written to it
     shipped = Path(pkg.__file__).resolve().parent.parent / "data" / "weapon_overrides.json"
     # Tom's decision 2(i) (2026-10-28) disables the S optic and the T underbarrel by id; E3.18 amends AC146's "unchanged"
-    assert digest(load_overrides(shipped)) == "17d4e771a785a4b2"
+    assert digest(load_overrides(shipped)) == "76a750b75d01d719"
 
 
 def test_the_build_digests_are_the_w7_literals_and_the_geometry_version_is_6(world):
